@@ -283,6 +283,31 @@ export function moveRoom(doc: MapDocument, roomId: string, position: Position): 
   });
 }
 
+/** Return a new document with multiple room positions updated at once. */
+export function setRoomPositions(
+  doc: MapDocument,
+  positions: Readonly<Record<string, Position>>,
+): MapDocument {
+  let changed = false;
+  const rooms = { ...doc.rooms };
+
+  for (const [roomId, position] of Object.entries(positions)) {
+    const room = rooms[roomId];
+    if (!room) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+
+    if (room.position.x === position.x && room.position.y === position.y) {
+      continue;
+    }
+
+    rooms[roomId] = { ...room, position };
+    changed = true;
+  }
+
+  return changed ? touch({ ...doc, rooms }) : doc;
+}
+
 /* ------------------------------------------------------------------ */
 /*  describeRoom                                                       */
 /* ------------------------------------------------------------------ */
