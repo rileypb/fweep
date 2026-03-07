@@ -543,8 +543,9 @@ body {
   font-family: inherit;
   width: 6rem;
   padding: 0.1rem 0.25rem;
-  border: 1px solid #818cf8;
-  border-radius: 0.25rem;
+  border: none;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.7);
+  border-radius: 0;
   background: transparent;
   color: inherit;
   outline: none;
@@ -552,17 +553,17 @@ body {
 }
 
 .room-name-input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  border-bottom-color: #6366f1;
+  box-shadow: none;
 }
 
 :root[data-theme='dark'] .room-name-input {
-  border-color: #a5b4fc;
+  border-bottom-color: rgba(165, 180, 252, 0.72);
 }
 
 :root[data-theme='dark'] .room-name-input:focus {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.25);
+  border-bottom-color: #818cf8;
+  box-shadow: none;
 }
 
 /* ---- Room editor overlay ---- */
@@ -599,10 +600,14 @@ body {
 }
 
 .room-editor-room-name-input {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: 50%;
   z-index: 1;
-  width: calc(100% - 1rem);
-  min-width: 5rem;
+  transform: translate(-50%, -50%);
+  width: 9rem;
+  min-width: 9rem;
+  max-width: none;
 }
 
 :root[data-theme='dark'] .room-editor-room-node {
