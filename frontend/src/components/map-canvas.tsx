@@ -23,6 +23,13 @@ interface PanOffset {
   y: number;
 }
 
+interface SelectionBox {
+  readonly startX: number;
+  readonly startY: number;
+  readonly currentX: number;
+  readonly currentY: number;
+}
+
 interface RoomScreenGeometry {
   readonly left: number;
   readonly top: number;
@@ -208,6 +215,41 @@ function getRoomScreenGeometry(room: Room, panOffset: PanOffset, canvasRect: DOM
     height: ROOM_HEIGHT,
     centerX: left + (width / 2),
   };
+}
+
+function getSelectionBounds(selectionBox: SelectionBox): { left: number; top: number; width: number; height: number } {
+  const left = Math.min(selectionBox.startX, selectionBox.currentX);
+  const top = Math.min(selectionBox.startY, selectionBox.currentY);
+  const width = Math.abs(selectionBox.currentX - selectionBox.startX);
+  const height = Math.abs(selectionBox.currentY - selectionBox.startY);
+
+  return { left, top, width, height };
+}
+
+function getRoomsWithinSelectionBox(
+  rooms: readonly Room[],
+  panOffset: PanOffset,
+  canvasRect: DOMRect | null,
+  selectionBox: SelectionBox,
+): string[] {
+  const bounds = getSelectionBounds(selectionBox);
+  const boxRight = bounds.left + bounds.width;
+  const boxBottom = bounds.top + bounds.height;
+
+  return rooms
+    .filter((room) => {
+      const geometry = getRoomScreenGeometry(room, panOffset, canvasRect);
+      const roomLeft = geometry.left - (canvasRect?.left ?? 0);
+      const roomTop = geometry.top - (canvasRect?.top ?? 0);
+      const roomRight = roomLeft + geometry.width;
+      const roomBottom = roomTop + geometry.height;
+
+      return roomLeft <= boxRight
+        && roomRight >= bounds.left
+        && roomTop <= boxBottom
+        && roomBottom >= bounds.top;
+    })
+    .map((room) => room.id);
 }
 
 function getOctagonPoints(width: number, height: number): string {
@@ -619,14 +661,17 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
+  const setSelectedRoomIds = useEditorStore((s) => s.setSelectedRoomIds);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const canvasRef = useRef<HTMLDivElement>(null);
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
   const autoPanTimeoutRef = useRef<number | null>(null);
+  const suppressCanvasClickRef = useRef(false);
   const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
 
   const rooms = doc ? Object.values(doc.rooms) : [];
@@ -716,6 +761,64 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
 
+  const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
+      return;
+    }
+
+    const target = e.target as Element | null;
+    if (target?.closest('[data-room-id], .map-canvas-header')) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const initialSelectionBox: SelectionBox = {
+      startX: e.clientX - (canvasRect?.left ?? 0),
+      startY: e.clientY - (canvasRect?.top ?? 0),
+      currentX: e.clientX - (canvasRect?.left ?? 0),
+      currentY: e.clientY - (canvasRect?.top ?? 0),
+    };
+
+    setSelectionBox(initialSelectionBox);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextSelectionBox: SelectionBox = {
+        startX: initialSelectionBox.startX,
+        startY: initialSelectionBox.startY,
+        currentX: moveEvent.clientX - (canvasRect?.left ?? 0),
+        currentY: moveEvent.clientY - (canvasRect?.top ?? 0),
+      };
+
+      setSelectionBox(nextSelectionBox);
+      setSelectedRoomIds(getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox));
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      const finalSelectionBox: SelectionBox = {
+        startX: initialSelectionBox.startX,
+        startY: initialSelectionBox.startY,
+        currentX: upEvent.clientX - (canvasRect?.left ?? 0),
+        currentY: upEvent.clientY - (canvasRect?.top ?? 0),
+      };
+      const bounds = getSelectionBounds(finalSelectionBox);
+      const didDrag = bounds.width > 0 || bounds.height > 0;
+
+      if (didDrag) {
+        suppressCanvasClickRef.current = true;
+        setSelectedRoomIds(getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, finalSelectionBox));
+      }
+
+      setSelectionBox(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [canvasRect, connectionDrag, roomEditorId, rooms, setSelectedRoomIds]);
+
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 1 || roomEditorId !== null || connectionDrag !== null) {
       return;
@@ -760,6 +863,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (roomEditorId) return;
 
+      if (suppressCanvasClickRef.current) {
+        suppressCanvasClickRef.current = false;
+        return;
+      }
+
       const target = e.target as Element | null;
       if (target?.closest('[data-room-id], .map-canvas-header')) {
         return;
@@ -792,7 +900,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       ref={canvasRef}
       className={classes}
       data-testid="map-canvas"
-      onMouseDown={handleCanvasMouseDown}
+      onMouseDown={(e) => {
+        handleCanvasSelectionMouseDown(e);
+        handleCanvasMouseDown(e);
+      }}
       onClick={handleCanvasClick}
       tabIndex={-1}
       style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
@@ -841,6 +952,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             />
           ))}
         </div>
+
+        {selectionBox && (
+          <div
+            className="map-canvas-selection-box"
+            data-testid="map-canvas-selection-box"
+            style={getSelectionBounds(selectionBox)}
+          />
+        )}
       </div>
 
       {roomEditorId && (

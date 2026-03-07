@@ -83,6 +83,9 @@ export interface EditorState {
   /** Add a room to the current selection. */
   addRoomToSelection: (roomId: string) => void;
 
+  /** Replace the current selection with the provided room IDs. */
+  setSelectedRoomIds: (roomIds: readonly string[]) => void;
+
   /** Clear the current room selection. */
   clearRoomSelection: () => void;
 
@@ -179,6 +182,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? state.selectedRoomIds
         : [...state.selectedRoomIds, roomId],
     }));
+  },
+
+  setSelectedRoomIds: (roomIds) => {
+    set({ selectedRoomIds: [...roomIds] });
   },
 
   clearRoomSelection: () => {

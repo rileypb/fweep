@@ -195,6 +195,14 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['r1', 'r2']);
     });
 
+    it('setSelectedRoomIds replaces the current selection', () => {
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().setSelectedRoomIds(['r2', 'r3']);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r2', 'r3']);
+    });
+
     it('clearRoomSelection empties the selection', () => {
       useEditorStore.getState().selectRoom('r1');
 

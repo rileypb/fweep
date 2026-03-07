@@ -388,6 +388,14 @@ body {
   pointer-events: none;
 }
 
+.map-canvas-selection-box {
+  position: absolute;
+  border: 1px solid #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+  pointer-events: none;
+  z-index: 15;
+}
+
 .map-canvas-header {
   position: absolute;
   top: 0.75rem;

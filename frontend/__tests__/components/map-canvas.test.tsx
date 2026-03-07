@@ -133,6 +133,57 @@ describe('MapCanvas', () => {
       expect(content.style.transform).toBe('translate(0px, 0px)');
       expect(canvas).not.toHaveClass('map-canvas--panning');
     });
+
+    it('draws a red selection box while dragging on the background', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 40, clientY: 50, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 140, clientY: 130 });
+
+      const selectionBox = screen.getByTestId('map-canvas-selection-box');
+      expect(selectionBox).toHaveStyle({
+        left: '40px',
+        top: '50px',
+        width: '100px',
+        height: '80px',
+      });
+
+      fireEvent.mouseUp(document, { clientX: 140, clientY: 130, button: 0 });
+      expect(screen.queryByTestId('map-canvas-selection-box')).not.toBeInTheDocument();
+    });
+
+    it('selects rooms live as they enter the marquee selection region', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const hallwayNode = screen.getByText('Hallway').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 150, clientY: 150 });
+
+      expect(within(kitchenNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(within(hallwayNode).queryByTestId('room-selection-outline')).not.toBeInTheDocument();
+
+      fireEvent.mouseMove(document, { clientX: 320, clientY: 170 });
+
+      expect(within(kitchenNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(within(hallwayNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id, hallway.id]);
+
+      fireEvent.mouseUp(document, { clientX: 320, clientY: 170, button: 0 });
+    });
   });
 
   /* ---- Room rendering ---- */
