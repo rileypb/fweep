@@ -24,6 +24,14 @@ interface PanOffset {
   y: number;
 }
 
+interface RoomScreenGeometry {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+  readonly centerX: number;
+}
+
 export interface MapCanvasProps {
   mapName: string;
   /** Whether the background grid is visible. Defaults to true. */
@@ -110,7 +118,6 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
   const describeRoom = useEditorStore((s) => s.describeRoom);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
-  const originalRoomNode = document.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
 
   useEffect(() => {
     if (nameInputRef.current) {
@@ -143,14 +150,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
     return null;
   }
 
-  const originalRoomRect = originalRoomNode?.getBoundingClientRect();
-  const originalRoomWidth = originalRoomRect?.width ?? 80;
-  const anchorCenterX = originalRoomRect
-    ? originalRoomRect.left + (originalRoomWidth / 2)
-    : (canvasRect?.left ?? 0) + room.position.x + panOffset.x + (originalRoomWidth / 2);
-  const anchorTop = originalRoomRect
-    ? originalRoomRect.top
-    : (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
+  const roomGeometry = getRoomScreenGeometry(room, panOffset, canvasRect);
 
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
@@ -162,8 +162,28 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
       <div
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"
-        style={{ transform: `translate(${anchorCenterX}px, ${anchorTop}px) translateX(-50%)` }}
+        style={{
+          transform: `translate(${roomGeometry.centerX}px, ${roomGeometry.top}px) translateX(-50%)`,
+          width: `${roomGeometry.width}px`,
+          height: `${roomGeometry.height}px`,
+        }}
       >
+        <svg
+          className="room-editor-room-svg"
+          aria-hidden="true"
+          width={roomGeometry.width}
+          height={roomGeometry.height}
+        >
+          <rect
+            className="room-node-shape"
+            x={0}
+            y={0}
+            width={roomGeometry.width}
+            height={roomGeometry.height}
+            rx={ROOM_CORNER_RADIUS}
+            ry={ROOM_CORNER_RADIUS}
+          />
+        </svg>
         <input
           ref={nameInputRef}
           className="room-name-input room-editor-room-name-input"
@@ -223,6 +243,20 @@ interface DirectionHandlesProps {
 
 function getRoomNodeWidth(name: string): number {
   return Math.max(ROOM_WIDTH, Math.round((name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
+}
+
+function getRoomScreenGeometry(room: Room, panOffset: PanOffset, canvasRect: DOMRect | null): RoomScreenGeometry {
+  const width = getRoomNodeWidth(room.name);
+  const left = (canvasRect?.left ?? 0) + room.position.x + panOffset.x;
+  const top = (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
+
+  return {
+    left,
+    top,
+    width,
+    height: ROOM_HEIGHT,
+    centerX: left + (width / 2),
+  };
 }
 
 function DirectionHandles({ roomWidth, roomHeight, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
@@ -660,18 +694,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     const canvasRect = canvasEl.getBoundingClientRect();
     const canvasWidth = canvasRect.width || canvasEl.clientWidth;
     const canvasHeight = canvasRect.height || canvasEl.clientHeight;
-
-    const roomEl = canvasEl.querySelector(`[data-room-id="${roomId}"]`) as SVGGraphicsElement | null;
-    const roomWidth = getRoomNodeWidth(room.name);
-
-    let roomCenterX = room.position.x + panOffsetRef.current.x + (roomWidth / 2);
-    let roomTopY = room.position.y + panOffsetRef.current.y;
-
-    if (roomEl) {
-      const roomRect = roomEl.getBoundingClientRect();
-      roomCenterX = (roomRect.left - canvasRect.left) + (roomRect.width / 2);
-      roomTopY = roomRect.top - canvasRect.top;
-    }
+    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, canvasRect);
+    const roomCenterX = roomGeometry.centerX - canvasRect.left;
+    const roomTopY = roomGeometry.top - canvasRect.top;
 
     const targetCenterX = canvasWidth / 2;
     const targetTopY = canvasHeight / 3;
@@ -770,6 +795,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   ]
     .filter(Boolean)
     .join(' ');
+  const effectiveCanvasRect = canvasRect ?? canvasRef.current?.getBoundingClientRect() ?? null;
 
   return (
     <div
@@ -831,7 +857,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         <RoomEditorOverlay
           roomId={roomEditorId}
           panOffset={panOffset}
-          canvasRect={canvasRect}
+          canvasRect={effectiveCanvasRect}
           onClose={closeRoomEditor}
         />
       )}

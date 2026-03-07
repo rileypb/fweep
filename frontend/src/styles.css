@@ -581,23 +581,27 @@ body {
   top: 0;
   left: 0;
   z-index: 2;
-  min-width: 5rem;
-  padding: 0.5rem 0.75rem;
-  border: 2px solid #6366f1;
-  border-radius: 0.5rem;
-  background: #ffffff;
   cursor: text;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  display: grid;
+  place-items: center;
 }
 
-:root[data-theme='dark'] .room-editor-room-node {
-  background: #1e293b;
-  border-color: #818cf8;
+.room-editor-room-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
 }
 
 .room-editor-room-name-input {
-  width: 100%;
+  position: relative;
+  z-index: 1;
+  width: calc(100% - 1rem);
   min-width: 5rem;
+}
+
+:root[data-theme='dark'] .room-editor-room-node {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
 }
 
 .room-editor-panel {
