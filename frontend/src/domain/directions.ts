@@ -1,0 +1,36 @@
+/** The twelve standard interactive-fiction directions. */
+export const STANDARD_DIRECTIONS = [
+  'north', 'south', 'east', 'west',
+  'northeast', 'northwest', 'southeast', 'southwest',
+  'up', 'down', 'in', 'out',
+] as const;
+
+export type StandardDirection = (typeof STANDARD_DIRECTIONS)[number];
+
+/** Map of common abbreviations to their full direction name. */
+const ABBREVIATIONS: Record<string, string> = {
+  n: 'north',
+  s: 'south',
+  e: 'east',
+  w: 'west',
+  ne: 'northeast',
+  nw: 'northwest',
+  se: 'southeast',
+  sw: 'southwest',
+  u: 'up',
+  d: 'down',
+};
+
+/**
+ * Normalize a direction label: trim, lowercase, and expand abbreviations.
+ * Custom (non-standard) directions are preserved as lowercased strings.
+ */
+export function normalizeDirection(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  return ABBREVIATIONS[trimmed] ?? trimmed;
+}
+
+/** Check whether a normalized direction is one of the twelve standard directions. */
+export function isStandardDirection(dir: string): dir is StandardDirection {
+  return (STANDARD_DIRECTIONS as readonly string[]).includes(dir);
+}

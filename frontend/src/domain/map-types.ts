@@ -6,17 +6,62 @@ export interface MapMetadata {
   readonly updatedAt: string;   // ISO-8601
 }
 
-/** Top-level persisted map document (stub – will grow as domain is fleshed out). */
+/* ---- Position ---- */
+
+export interface Position {
+  readonly x: number;
+  readonly y: number;
+}
+
+/* ---- Room ---- */
+
+export interface Room {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly position: Position;
+  /** Map from direction label (normalised) → connection ID. */
+  readonly directions: Readonly<Record<string, string>>;
+  readonly isDark: boolean;
+}
+
+/* ---- Connection ---- */
+
+export interface Connection {
+  readonly id: string;
+  readonly sourceRoomId: string;
+  readonly targetRoomId: string;
+  readonly isBidirectional: boolean;
+}
+
+/* ---- Item ---- */
+
+export interface Item {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly roomId: string;
+  readonly isScenery: boolean;
+  readonly isContainer: boolean;
+  readonly isSupporter: boolean;
+  readonly isLightSource: boolean;
+}
+
+/* ---- MapDocument ---- */
+
+/** Top-level persisted map document. */
 export interface MapDocument {
   readonly schemaVersion: number;
   readonly metadata: MapMetadata;
-  readonly rooms: Record<string, unknown>;
-  readonly connections: Record<string, unknown>;
-  readonly items: Record<string, unknown>;
+  readonly rooms: Readonly<Record<string, Room>>;
+  readonly connections: Readonly<Record<string, Connection>>;
+  readonly items: Readonly<Record<string, Item>>;
 }
 
 /** Current schema version for new maps. */
 export const CURRENT_SCHEMA_VERSION = 1;
+
+/* ---- Factory functions ---- */
 
 /** Create a fresh, empty MapDocument with the given name. */
 export function createEmptyMap(name: string): MapDocument {
@@ -32,5 +77,45 @@ export function createEmptyMap(name: string): MapDocument {
     rooms: {},
     connections: {},
     items: {},
+  };
+}
+
+/** Create a new Room with sensible defaults. */
+export function createRoom(name: string): Room {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    description: '',
+    position: { x: 0, y: 0 },
+    directions: {},
+    isDark: false,
+  };
+}
+
+/** Create a new Connection between two rooms. */
+export function createConnection(
+  sourceRoomId: string,
+  targetRoomId: string,
+  isBidirectional = false,
+): Connection {
+  return {
+    id: crypto.randomUUID(),
+    sourceRoomId,
+    targetRoomId,
+    isBidirectional,
+  };
+}
+
+/** Create a new Item placed in a room. */
+export function createItem(name: string, roomId: string): Item {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    description: '',
+    roomId,
+    isScenery: false,
+    isContainer: false,
+    isSupporter: false,
+    isLightSource: false,
   };
 }
