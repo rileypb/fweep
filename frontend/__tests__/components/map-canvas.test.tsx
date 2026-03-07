@@ -546,7 +546,7 @@ describe('MapCanvas', () => {
   /* ---- Shift+click to create room ---- */
 
   describe('Shift+click to create room', () => {
-    it('creates a room with an empty name on Shift+click', () => {
+    it('creates a room named Room on Shift+click', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -558,8 +558,8 @@ describe('MapCanvas', () => {
       // A room should have been created
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
-      expect(rooms[0].name).toBe('');
-      expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
+      expect(rooms[0].name).toBe('Room');
+      expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Room');
     });
 
     it('does not create a room on normal click (no Shift)', () => {

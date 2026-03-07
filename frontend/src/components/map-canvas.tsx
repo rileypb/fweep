@@ -898,7 +898,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
       const { x, y } = toMapPoint(e.clientX, e.clientY);
 
-      const roomId = addRoomAtPosition('', { x, y });
+      const roomId = addRoomAtPosition('Room', { x, y });
       openRoomEditor(roomId);
     },
     [addRoomAtPosition, clearRoomSelection, openRoomEditor, roomEditorId, toMapPoint],
