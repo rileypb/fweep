@@ -589,14 +589,14 @@ body {
   border-radius: 0.875rem;
   background: rgba(255, 255, 255, 0.55);
   color: #111827;
-  box-shadow: 10px 12px 24px rgba(15, 23, 42, 0.22);
+  box-shadow: 6px 6px 6px rgba(15, 23, 42, 0.22);
 }
 
 :root[data-theme='dark'] .room-editor-panel {
   background: rgba(15, 23, 42, 0.55);
   color: #f3f4f6;
   border-color: rgba(129, 140, 248, 0.28);
-  box-shadow: 10px 12px 24px rgba(0, 0, 0, 0.42);
+  box-shadow: 6px 6px 6px rgba(0, 0, 0, 0.42);
 }
 
 .room-editor-close {
