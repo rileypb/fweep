@@ -34,3 +34,27 @@ export function normalizeDirection(raw: string): string {
 export function isStandardDirection(dir: string): dir is StandardDirection {
   return (STANDARD_DIRECTIONS as readonly string[]).includes(dir);
 }
+
+/** Map from a standard direction to its opposite. */
+const OPPOSITES: Readonly<Record<string, string>> = {
+  north: 'south',
+  south: 'north',
+  east: 'west',
+  west: 'east',
+  northeast: 'southwest',
+  southwest: 'northeast',
+  northwest: 'southeast',
+  southeast: 'northwest',
+  up: 'down',
+  down: 'up',
+  in: 'out',
+  out: 'in',
+};
+
+/**
+ * Return the opposite of a normalized standard direction.
+ * Returns `undefined` for custom (non-standard) directions.
+ */
+export function oppositeDirection(dir: string): string | undefined {
+  return OPPOSITES[dir];
+}

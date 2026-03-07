@@ -3,6 +3,7 @@ import {
   normalizeDirection,
   STANDARD_DIRECTIONS,
   isStandardDirection,
+  oppositeDirection,
 } from '../../src/domain/directions';
 
 describe('STANDARD_DIRECTIONS', () => {
@@ -56,5 +57,29 @@ describe('isStandardDirection', () => {
   it('returns false for custom directions', () => {
     expect(isStandardDirection('aft')).toBe(false);
     expect(isStandardDirection('fore')).toBe(false);
+  });
+});
+
+describe('oppositeDirection', () => {
+  it.each([
+    ['north', 'south'],
+    ['south', 'north'],
+    ['east', 'west'],
+    ['west', 'east'],
+    ['northeast', 'southwest'],
+    ['southwest', 'northeast'],
+    ['northwest', 'southeast'],
+    ['southeast', 'northwest'],
+    ['up', 'down'],
+    ['down', 'up'],
+    ['in', 'out'],
+    ['out', 'in'],
+  ])('returns %s → %s', (input, expected) => {
+    expect(oppositeDirection(input)).toBe(expected);
+  });
+
+  it('returns undefined for custom directions', () => {
+    expect(oppositeDirection('aft')).toBeUndefined();
+    expect(oppositeDirection('fore')).toBeUndefined();
   });
 });

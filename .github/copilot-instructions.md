@@ -269,3 +269,12 @@
 
 - Shift + click on an empty part of the canvas to create a new room at the clicked location.
 - Click and drag from a room's directional handle to create a new connection in that direction. Releasing the drag on an empty part of the canvas creates a new target room and completes the connection. Releasing the drag on an existing room creates a connection to that room.
+
+## Connection drawing
+
+ - Connections are drawn starting from the directional handle of the source room, and ending at the directional handle of the target room if it exists, or at the center of the target room if it does not have a directional handle for that connection. The connection line should have an arrowhead pointing towards the target room to indicate directionality. For bidirectional connections, do not draw an arrowhead.
+ - Connections should be drawn as a sequence of straight line segments. For example, when connecting Room A to Room B, where the connection leaves Room A heading north and leaves Room B heading east, the connection line should first go straight up from Room A a short distance, and the other end of the line should go straight left from Room B a short distance, and then the line should connect between those two points with a straight segment. The length of the initial straight segments should be consistent for all connections (e.g., 20 pixels) and should be a setting that can be adjusted by the user. 
+ - When dragging a room, all connected edges should update in real time to maintain their connections to the room's directional handles or center as appropriate.
+
+
+ 

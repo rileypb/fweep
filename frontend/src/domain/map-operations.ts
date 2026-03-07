@@ -1,4 +1,4 @@
-import type { MapDocument, Room, Connection, Item } from './map-types';
+import type { MapDocument, Room, Connection, Item, Position } from './map-types';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -109,11 +109,14 @@ export function addConnection(
     directions: { ...sourceRoom.directions, [sourceDirection]: connection.id },
   };
 
-  let updatedTarget = targetRoom;
+  // For self-connections (source === target), build target from updatedSource
+  // so the source binding is not overwritten.
+  const targetBase = connection.sourceRoomId === connection.targetRoomId ? updatedSource : targetRoom;
+  let updatedTarget = targetBase;
   if (targetDirection !== undefined) {
     updatedTarget = {
-      ...targetRoom,
-      directions: { ...targetRoom.directions, [targetDirection]: connection.id },
+      ...targetBase,
+      directions: { ...targetBase.directions, [targetDirection]: connection.id },
     };
   }
 
@@ -246,6 +249,38 @@ export function deleteItem(doc: MapDocument, itemId: string): MapDocument {
 
   const { [itemId]: _removed, ...remainingItems } = doc.items;
   return touch({ ...doc, items: remainingItems });
+}
+
+/* ------------------------------------------------------------------ */
+/*  renameRoom                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Return a new document with the room's name updated. */
+export function renameRoom(doc: MapDocument, roomId: string, name: string): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [roomId]: { ...room, name } },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  moveRoom                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Return a new document with the room's position updated. */
+export function moveRoom(doc: MapDocument, roomId: string, position: Position): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [roomId]: { ...room, position } },
+  });
 }
 
 /* ------------------------------------------------------------------ */

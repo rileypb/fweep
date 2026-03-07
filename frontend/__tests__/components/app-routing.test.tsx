@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
+import { useEditorStore } from '../../src/state/editor-store';
 
 /** Push a path into jsdom's location and fire popstate. */
 function navigateTo(path: string) {
@@ -13,6 +14,8 @@ function navigateTo(path: string) {
 beforeEach(() => {
   // Reset URL to root before each test
   window.history.replaceState({}, '', '/');
+  // Reset editor store
+  useEditorStore.setState(useEditorStore.getInitialState());
 });
 
 describe('URL routing', () => {
