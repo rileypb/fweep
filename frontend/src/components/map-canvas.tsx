@@ -8,18 +8,18 @@ import {
   pointsToSvgString,
   ROOM_HEIGHT,
   ROOM_WIDTH,
-  type RoomDimensions,
 } from '../graph/connection-geometry';
 
 const CLICK_EDIT_DELAY_MS = 225;
 const AUTO_PAN_ANIMATION_MS = 320;
+const ROOM_TEXT_CHAR_WIDTH = 6.78;
+const ROOM_HORIZONTAL_PADDING = 24;
+const HANDLE_RADIUS = 5;
 
 interface PanOffset {
   x: number;
   y: number;
 }
-
-type RoomDimensionMap = Readonly<Record<string, RoomDimensions>>;
 
 export interface MapCanvasProps {
   mapName: string;
@@ -49,7 +49,7 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
     if (committedRef.current) return;
     committedRef.current = true;
 
-    const trimmed = value.trim();
+    const trimmed = (inputRef.current?.value ?? value).trim();
     if (trimmed.length === 0) {
       removeRoom(roomId);
     } else {
@@ -213,18 +213,48 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 
 interface DirectionHandlesProps {
+  roomWidth: number;
+  roomHeight: number;
   onHandleMouseDown?: (direction: string, e: React.MouseEvent) => void;
 }
 
-function DirectionHandles({ onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
+function getRoomNodeWidth(name: string): number {
+  return Math.max(ROOM_WIDTH, Math.round((name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
+}
+
+function getHandleCenter(direction: typeof DIRECTION_HANDLES[number], roomWidth: number, roomHeight: number): { cx: number; cy: number } {
+  switch (direction) {
+    case 'n':
+      return { cx: roomWidth / 2, cy: 0 };
+    case 'ne':
+      return { cx: roomWidth, cy: 0 };
+    case 'e':
+      return { cx: roomWidth, cy: roomHeight / 2 };
+    case 'se':
+      return { cx: roomWidth, cy: roomHeight };
+    case 's':
+      return { cx: roomWidth / 2, cy: roomHeight };
+    case 'sw':
+      return { cx: 0, cy: roomHeight };
+    case 'w':
+      return { cx: 0, cy: roomHeight / 2 };
+    case 'nw':
+      return { cx: 0, cy: 0 };
+  }
+}
+
+function DirectionHandles({ roomWidth, roomHeight, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
   return (
     <>
       {DIRECTION_HANDLES.map((dir) => (
-        <div
+        <circle
           key={dir}
-          className={`direction-handle direction-handle--${dir}`}
+          className="direction-handle"
           data-testid={`direction-handle-${dir}`}
           data-direction={dir}
+          cx={getHandleCenter(dir, roomWidth, roomHeight).cx}
+          cy={getHandleCenter(dir, roomWidth, roomHeight).cy}
+          r={HANDLE_RADIUS}
           onMouseDown={(e) => {
             if (onHandleMouseDown) {
               e.stopPropagation();
@@ -267,6 +297,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
   // Compute visual position: during drag, add offset; otherwise use room.position
   const visualX = dragOffset ? room.position.x + dragOffset.dx : room.position.x;
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
+  const roomWidth = getRoomNodeWidth(room.name);
 
   useEffect(() => () => {
     if (clickEditTimeoutRef.current !== null) {
@@ -295,7 +326,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
   }, [onOpenRoomEditor, room.id]);
 
   const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (e: React.MouseEvent<SVGSVGElement>) => {
       if (e.button !== 0 || isEditing || isRoomEditorOpen) return;
 
       e.preventDefault();
@@ -375,29 +406,61 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
   );
 
   return (
-    <div
-      className={`room-node${isDragging ? ' room-node--dragging' : ''}`}
-      data-testid="room-node"
-      data-room-id={room.id}
-      style={{ transform: `translate(${visualX}px, ${visualY}px)` }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onMouseDown={handleMouseDown}
-      onDoubleClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openRoomEditor();
-      }}
-    >
-      {isEditing ? (
-        <RoomNameInput roomId={room.id} />
-      ) : (
-        <span className="room-node-name">{room.name}</span>
+    <>
+      <svg
+        className={`room-node${isDragging ? ' room-node--dragging' : ''}`}
+        data-testid="room-node"
+        data-room-id={room.id}
+        width={roomWidth}
+        height={ROOM_HEIGHT}
+        style={{ transform: `translate(${visualX}px, ${visualY}px)` }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onMouseDown={handleMouseDown}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openRoomEditor();
+        }}
+      >
+        <rect
+          className="room-node-shape"
+          x={0}
+          y={0}
+          width={roomWidth}
+          height={ROOM_HEIGHT}
+          rx={8}
+          ry={8}
+        />
+        {!isEditing && (
+          <text
+            className="room-node-name"
+            x={roomWidth / 2}
+            y={ROOM_HEIGHT / 2}
+            dominantBaseline="middle"
+            textAnchor="middle"
+          >
+            {room.name}
+          </text>
+        )}
+        {hovered && !isEditing && !isDragging && !isRoomEditorOpen && (
+          <DirectionHandles
+            roomWidth={roomWidth}
+            roomHeight={ROOM_HEIGHT}
+            onHandleMouseDown={handleDirectionMouseDown}
+          />
+        )}
+      </svg>
+
+      {isEditing && (
+        <div
+          className="room-node-editor"
+          style={{ transform: `translate(${visualX}px, ${visualY}px)`, width: `${roomWidth}px`, height: `${ROOM_HEIGHT}px` }}
+        >
+          <RoomNameInput roomId={room.id} />
+        </div>
       )}
-      {hovered && !isEditing && !isDragging && !isRoomEditorOpen && (
-        <DirectionHandles onHandleMouseDown={handleDirectionMouseDown} />
-      )}
-    </div>
+    </>
   );
 }
 
@@ -417,10 +480,9 @@ function applyDragOffset(room: Room, roomDrag: { roomId: string; dx: number; dy:
   };
 }
 
-function ConnectionLines({ rooms, connections, roomDimensions }: {
+function ConnectionLines({ rooms, connections }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
-  roomDimensions: RoomDimensionMap;
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
@@ -448,8 +510,8 @@ function ConnectionLines({ rooms, connections, roomDimensions }: {
         // Apply drag offset for real-time edge update
         const src = applyDragOffset(rawSrc, roomDrag);
         const tgt = applyDragOffset(rawTgt, roomDrag);
-        const srcDimensions = roomDimensions[src.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
-        const tgtDimensions = roomDimensions[tgt.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
+        const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
+        const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
 
         if (conn.sourceRoomId === conn.targetRoomId) {
           // Self-connection: render a loop via the connection path
@@ -505,7 +567,7 @@ function ConnectionLines({ rooms, connections, roomDimensions }: {
         const srcRoom = rooms[connectionDrag.sourceRoomId];
         if (!srcRoom) return null;
         const adjustedSrc = applyDragOffset(srcRoom, roomDrag);
-        const srcDimensions = roomDimensions[adjustedSrc.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
+        const srcDimensions = { width: getRoomNodeWidth(adjustedSrc.name), height: ROOM_HEIGHT };
         const points = computePreviewPath(
           adjustedSrc,
           connectionDrag.sourceDirection,
@@ -549,7 +611,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
   const autoPanTimeoutRef = useRef<number | null>(null);
   const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
-  const [roomDimensions, setRoomDimensions] = useState<RoomDimensionMap>({});
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -582,65 +643,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
   }, []);
 
-  useEffect(() => {
-    const canvasEl = canvasRef.current;
-    if (!canvasEl) {
-      return;
-    }
-
-    const roomElements = canvasEl.querySelectorAll('[data-room-id]');
-
-    if (typeof ResizeObserver === 'undefined') {
-      const nextDimensions: Record<string, RoomDimensions> = {};
-      roomElements.forEach((element) => {
-        const roomId = (element as HTMLElement).dataset.roomId;
-        if (!roomId) return;
-        const rect = element.getBoundingClientRect();
-        nextDimensions[roomId] = {
-          width: rect.width || ROOM_WIDTH,
-          height: rect.height || ROOM_HEIGHT,
-        };
-      });
-      setRoomDimensions(nextDimensions);
-      return;
-    }
-
-    const observed = new Map<Element, string>();
-    const updateDimensions = (roomId: string, rect: DOMRectReadOnly) => {
-      setRoomDimensions((prev) => {
-        const next = {
-          width: rect.width || ROOM_WIDTH,
-          height: rect.height || ROOM_HEIGHT,
-        };
-        const current = prev[roomId];
-        if (current && current.width === next.width && current.height === next.height) {
-          return prev;
-        }
-        return { ...prev, [roomId]: next };
-      });
-    };
-
-    const observer = new ResizeObserver((entries) => {
-      entries.forEach((entry) => {
-        const roomId = observed.get(entry.target);
-        if (!roomId) return;
-        updateDimensions(roomId, entry.contentRect);
-      });
-    });
-
-    roomElements.forEach((element) => {
-      const roomId = (element as HTMLElement).dataset.roomId;
-      if (!roomId) return;
-      observed.set(element, roomId);
-      observer.observe(element);
-      updateDimensions(roomId, element.getBoundingClientRect());
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [rooms.map((room) => `${room.id}:${room.name}`).join('|')]);
-
   const toMapPoint = useCallback((clientX: number, clientY: number): PanOffset => {
     const rect = canvasRef.current?.getBoundingClientRect();
     const left = rect?.left ?? 0;
@@ -670,9 +672,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     const canvasWidth = canvasRect.width || canvasEl.clientWidth;
     const canvasHeight = canvasRect.height || canvasEl.clientHeight;
 
-    const roomEl = canvasEl.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
+    const roomEl = canvasEl.querySelector(`[data-room-id="${roomId}"]`) as SVGGraphicsElement | null;
+    const roomWidth = getRoomNodeWidth(room.name);
 
-    let roomCenterX = room.position.x + panOffsetRef.current.x + 40;
+    let roomCenterX = room.position.x + panOffsetRef.current.x + (roomWidth / 2);
     let roomTopY = room.position.y + panOffsetRef.current.y;
 
     if (roomEl) {
@@ -712,7 +715,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], .map-canvas-header')) {
+    if (target?.closest('[data-room-id], .room-node-editor, .map-canvas-header')) {
       return;
     }
 
@@ -758,7 +761,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       if (!e.shiftKey) return;
 
       const target = e.target as Element | null;
-      if (target?.closest('[data-room-id], .map-canvas-header')) {
+      if (target?.closest('[data-room-id], .room-node-editor, .map-canvas-header')) {
         return;
       }
 
@@ -819,7 +822,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
           {doc && (
-            <ConnectionLines rooms={doc.rooms} connections={doc.connections} roomDimensions={roomDimensions} />
+            <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
           )}
 
           {rooms.map((room) => (
