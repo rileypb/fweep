@@ -28,6 +28,10 @@ export function snapPosition(pos: Position): Position {
   };
 }
 
+function maybeSnapPosition(pos: Position, snapToGridEnabled: boolean): Position {
+  return snapToGridEnabled ? snapPosition(pos) : pos;
+}
+
 /** State for an in-progress connection drag from a direction handle. */
 export interface ConnectionDrag {
   readonly sourceRoomId: string;
@@ -49,6 +53,9 @@ export interface EditorState {
 
   /** The currently selected room IDs. */
   selectedRoomIds: readonly string[];
+
+  /** Whether room movement and placement snap to the grid. */
+  snapToGridEnabled: boolean;
 
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
@@ -89,6 +96,9 @@ export interface EditorState {
   /** Clear the current room selection. */
   clearRoomSelection: () => void;
 
+  /** Toggle grid snapping for room movement and placement. */
+  toggleSnapToGrid: () => void;
+
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
 
@@ -117,6 +127,7 @@ export interface EditorState {
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
   selectedRoomIds: [],
+  snapToGridEnabled: true,
   connectionDrag: null,
   roomDrag: null,
 
@@ -130,7 +141,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot add a room: no document is loaded.');
     }
 
-    const snapped = snapPosition(position);
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
     set({ doc: updatedDoc });
@@ -192,12 +203,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ selectedRoomIds: [] });
   },
 
+  toggleSnapToGrid: () => {
+    set((state) => ({ snapToGridEnabled: !state.snapToGridEnabled }));
+  },
+
   moveRoom: (roomId, position) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot move a room: no document is loaded.');
     }
-    const snapped = snapPosition(position);
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     set({ doc: domainMoveRoom(doc, roomId, snapped) });
   },
 

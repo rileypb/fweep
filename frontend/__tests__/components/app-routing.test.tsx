@@ -19,6 +19,13 @@ beforeEach(() => {
 });
 
 describe('URL routing', () => {
+  it('renders snap and theme controls', () => {
+    render(<App />);
+
+    expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
+  });
+
   it('shows the map selection dialog at the root URL', async () => {
     navigateTo('/');
     render(<App />);

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
+import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
@@ -32,7 +33,10 @@ export function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <h1 className="app-title">fweep</h1>
-      <ThemeToggle />
+      <div className="app-controls">
+        <SnapToggle />
+        <ThemeToggle />
+      </div>
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog onMapSelected={openMap} />
       ) : (

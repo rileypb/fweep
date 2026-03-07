@@ -98,6 +98,17 @@ describe('useEditorStore', () => {
       const room = Object.values(doc.rooms)[0];
       expect(room.position).toEqual({ x: 40, y: 80 });
     });
+
+    it('does not snap position when grid snapping is disabled', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      useEditorStore.getState().toggleSnapToGrid();
+
+      useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 55, y: 85 });
+
+      const doc = useEditorStore.getState().doc!;
+      const room = Object.values(doc.rooms)[0];
+      expect(room.position).toEqual({ x: 55, y: 85 });
+    });
   });
 
   /* ---- renameRoom ---- */
@@ -241,6 +252,30 @@ describe('useEditorStore', () => {
 
     it('throws when no document is loaded', () => {
       expect(() => useEditorStore.getState().moveRoom('r1', { x: 0, y: 0 })).toThrow();
+    });
+
+    it('does not snap position when grid snapping is disabled', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().toggleSnapToGrid();
+
+      useEditorStore.getState().moveRoom(roomId, { x: 55, y: 85 });
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].position).toEqual({ x: 55, y: 85 });
+    });
+  });
+
+  describe('grid snapping', () => {
+    it('starts enabled', () => {
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
+    });
+
+    it('toggleSnapToGrid flips the setting', () => {
+      useEditorStore.getState().toggleSnapToGrid();
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(false);
+
+      useEditorStore.getState().toggleSnapToGrid();
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
     });
   });
 

@@ -24,7 +24,7 @@ export function ThemeToggle(): React.JSX.Element {
 
   return (
     <button
-      className="theme-toggle"
+      className="app-control-button"
       onClick={toggle}
       aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
       title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}

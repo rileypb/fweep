@@ -50,12 +50,18 @@ body {
   z-index: 2;
 }
 
-/* ---- Theme toggle button ---- */
+/* ---- App controls ---- */
 
-.theme-toggle {
+.app-controls {
   position: fixed;
   bottom: 1rem;
   right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 2;
+}
+
+.app-control-button {
   display: grid;
   place-items: center;
   width: 2.5rem;
@@ -68,11 +74,10 @@ body {
   cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.15s ease;
-  z-index: 2;
 }
 
-.theme-toggle:hover,
-.theme-toggle:focus-visible {
+.app-control-button:hover,
+.app-control-button:focus-visible {
   opacity: 1;
 }
 
