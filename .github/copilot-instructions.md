@@ -164,6 +164,8 @@
 -  The CLI mode is always available as a wide, one- or two-line input at the bottom of the screen. Users enter CLI mode by focusing this input and typing a command. The CLI should provide autocomplete suggestions for commands, room names, item names, and other relevant entities to help users discover available actions and reduce typing.
 -  There should be a small ? icon in the corner of the CLI input that users can click to see a quick reference guide of available commands and their syntax.
 -  The UI supports light and dark themes, which users can toggle between. The map visualization should adapt to the selected theme for optimal readability.
+-  The map UI displays a background grid to help users align rooms. The grid can be toggled on and off for a cleaner view when desired.
+-  When dragging to create a new connection, show a live preview of the connection line following the cursor, and highlight potential target rooms when hovering over them to indicate where the connection will be created.
 
 ## User Flow
 
@@ -263,3 +265,7 @@
 - Do not make Google Drive or any cloud provider the only supported persistence path.
 - Do not optimize prematurely for very large datasets at the cost of clarity in the initial implementation.
 
+## UI mouse operations
+
+- Shift + click on an empty part of the canvas to create a new room at the clicked location.
+- Click and drag from a room's directional handle to create a new connection in that direction. Releasing the drag on an empty part of the canvas creates a new target room and completes the connection. Releasing the drag on an existing room creates a connection to that room.

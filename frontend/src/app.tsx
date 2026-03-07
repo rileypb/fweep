@@ -1,3 +1,4 @@
+import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { ThemeToggle } from './components/theme-toggle';
 import { useMapRouter } from './hooks/use-map-router';
@@ -12,9 +13,7 @@ export function App(): React.JSX.Element {
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog onMapSelected={openMap} />
       ) : (
-        <p style={{ padding: '2rem' }}>
-          Editing: <strong>{activeMap.metadata.name}</strong>
-        </p>
+        <MapCanvas mapName={activeMap.metadata.name} />
       )}
     </main>
   );

@@ -47,6 +47,7 @@ body {
   opacity: 0.12;
   pointer-events: none;
   user-select: none;
+  z-index: 2;
 }
 
 /* ---- Theme toggle button ---- */
@@ -67,6 +68,7 @@ body {
   cursor: pointer;
   opacity: 0.6;
   transition: opacity 0.15s ease;
+  z-index: 2;
 }
 
 .theme-toggle:hover,
@@ -328,4 +330,73 @@ body {
 
 .map-selection-file-input {
   display: none;
+}
+
+/* ---- Map canvas ---- */
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: #ffffff;
+  z-index: 0;
+}
+
+:root[data-theme='dark'] .map-canvas {
+  background-color: #111827;
+}
+
+.map-canvas--grid {
+  --grid-color: rgba(0, 0, 0, 0.07);
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+:root[data-theme='dark'] .map-canvas--grid {
+  --grid-color: rgba(255, 255, 255, 0.06);
+}
+
+.map-canvas-header {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.map-canvas-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.6;
+  user-select: none;
+}
+
+.map-canvas-grid-toggle {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.map-canvas-grid-toggle:hover,
+.map-canvas-grid-toggle:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'] .map-canvas-grid-toggle:hover,
+:root[data-theme='dark'] .map-canvas-grid-toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
 }
