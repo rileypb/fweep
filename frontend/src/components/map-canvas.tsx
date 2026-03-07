@@ -252,6 +252,17 @@ function getRoomsWithinSelectionBox(
     .map((room) => room.id);
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return target.isContentEditable
+    || target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement;
+}
+
 function getOctagonPoints(width: number, height: number): string {
   const insetX = Math.min(12, width * 0.18);
   const insetY = Math.min(10, height * 0.28);
@@ -384,6 +395,10 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
 
       e.preventDefault();
       e.stopPropagation();
+      const canvasElement = e.currentTarget.closest('[data-testid="map-canvas"]');
+      if (canvasElement instanceof HTMLDivElement) {
+        canvasElement.focus();
+      }
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -667,6 +682,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
   const setSelectedRoomIds = useEditorStore((s) => s.setSelectedRoomIds);
+  const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const canvasRef = useRef<HTMLDivElement>(null);
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
@@ -725,7 +741,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
   const panToRoomEditorPosition = useCallback((roomId: string) => {
     const canvasEl = canvasRef.current;
-    const room = doc?.rooms[roomId];
+    const room = useEditorStore.getState().doc?.rooms[roomId];
     if (!canvasEl || !room) {
       return;
     }
@@ -754,7 +770,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       setIsAutoPanning(false);
       autoPanTimeoutRef.current = null;
     }, AUTO_PAN_ANIMATION_MS);
-  }, [doc]);
+  }, []);
 
   const openRoomEditor = useCallback((roomId: string) => {
     panToRoomEditorPosition(roomId);
@@ -873,6 +889,8 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         return;
       }
 
+      canvasRef.current?.focus();
+
       if (!e.shiftKey) {
         clearRoomSelection();
         return;
@@ -880,10 +898,28 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
       const { x, y } = toMapPoint(e.clientX, e.clientY);
 
-      addRoomAtPosition('', { x, y });
+      const roomId = addRoomAtPosition('', { x, y });
+      openRoomEditor(roomId);
     },
-    [addRoomAtPosition, clearRoomSelection, roomEditorId, toMapPoint],
+    [addRoomAtPosition, clearRoomSelection, openRoomEditor, roomEditorId, toMapPoint],
   );
+
+  const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (roomEditorId !== null || connectionDrag !== null || selectedRoomIds.length === 0) {
+      return;
+    }
+
+    if (e.key !== 'Delete' && e.key !== 'Backspace') {
+      return;
+    }
+
+    if (isEditableTarget(e.target)) {
+      return;
+    }
+
+    e.preventDefault();
+    removeSelectedRooms();
+  }, [connectionDrag, removeSelectedRooms, roomEditorId, selectedRoomIds.length]);
 
   const classes = [
     'map-canvas',
@@ -905,6 +941,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         handleCanvasMouseDown(e);
       }}
       onClick={handleCanvasClick}
+      onKeyDown={handleCanvasKeyDown}
       tabIndex={-1}
       style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
     >

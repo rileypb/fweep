@@ -86,6 +86,9 @@ export interface EditorState {
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
 
+  /** Delete all currently selected rooms. */
+  removeSelectedRooms: () => void;
+
   /** Replace the current room selection with a single room. */
   selectRoom: (roomId: string) => void;
 
@@ -186,6 +189,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: domainDeleteRoom(doc, roomId),
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
     }));
+  },
+
+  removeSelectedRooms: () => {
+    const { doc, selectedRoomIds } = get();
+    if (!doc) {
+      throw new Error('Cannot remove selected rooms: no document is loaded.');
+    }
+
+    const updatedDoc = selectedRoomIds.reduce(
+      (nextDoc, roomId) => domainDeleteRoom(nextDoc, roomId),
+      doc,
+    );
+
+    set({
+      doc: updatedDoc,
+      selectedRoomIds: [],
+    });
   },
 
   selectRoom: (roomId) => {

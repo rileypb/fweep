@@ -184,6 +184,25 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('removeSelectedRooms', () => {
+    it('removes every selected room from the document', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      const hallwayId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 120, y: 0 });
+      const cellarId = useEditorStore.getState().addRoomAtPosition('Cellar', { x: 240, y: 0 });
+      useEditorStore.getState().setSelectedRoomIds([kitchenId, cellarId]);
+
+      useEditorStore.getState().removeSelectedRooms();
+
+      expect(Object.keys(useEditorStore.getState().doc!.rooms)).toEqual([hallwayId]);
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('throws when no document is loaded', () => {
+      expect(() => useEditorStore.getState().removeSelectedRooms()).toThrow();
+    });
+  });
+
   /* ---- room selection ---- */
 
   describe('room selection', () => {
