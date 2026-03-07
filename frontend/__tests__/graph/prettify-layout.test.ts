@@ -8,6 +8,18 @@ function expectSnappedToGrid(value: number): void {
   expect(Number.isInteger(value / PRETTIFY_GRID_SIZE)).toBe(true);
 }
 
+function estimateRoomWidth(name: string): number {
+  return Math.max(80, Math.round((name.length * 6.78) + 24));
+}
+
+function getRoomCenterX(room: Room, x: number): number {
+  return x + (estimateRoomWidth(room.name) / 2);
+}
+
+function getRoomCenterY(y: number): number {
+  return y + 18;
+}
+
 function createTwoWayConnectionDoc(): { doc: MapDocument; roomA: Room; roomB: Room } {
   const { doc, roomA, roomB } = buildBaseDoc(['Room A', 'Room B']);
   const connection = createConnection(roomA.id, roomB.id, true);
@@ -48,10 +60,10 @@ describe('computePrettifiedRoomPositions', () => {
 
     expect(positions[roomB.id].x).toBe(positions[roomA.id].x);
     expect(positions[roomB.id].y).toBeLessThan(positions[roomA.id].y);
-    expectSnappedToGrid(positions[roomA.id].x);
-    expectSnappedToGrid(positions[roomA.id].y);
-    expectSnappedToGrid(positions[roomB.id].x);
-    expectSnappedToGrid(positions[roomB.id].y);
+    expectSnappedToGrid(getRoomCenterX(roomA, positions[roomA.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
+    expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
   });
 
   it('keeps an orthogonal chain aligned after relaxation', () => {
@@ -73,6 +85,21 @@ describe('computePrettifiedRoomPositions', () => {
     expect(positions[roomB.id].y).toBeLessThan(positions[roomA.id].y);
     expect(positions[roomC.id].y).toBe(positions[roomB.id].y);
     expect(positions[roomC.id].x).toBeGreaterThan(positions[roomB.id].x);
+  });
+
+  it('aligns room centers even when names have different widths', () => {
+    let doc = createEmptyMap('Mixed Widths');
+    const shortRoom = { ...createRoom('A'), position: { x: 0, y: 320 } };
+    const longRoom = { ...createRoom('A Very Long Room Name'), position: { x: 320, y: 40 } };
+    doc = addRoom(addRoom(doc, shortRoom), longRoom);
+    doc = addConnection(doc, createConnection(shortRoom.id, longRoom.id, true), 'north', 'south');
+
+    const positions = computePrettifiedRoomPositions(doc);
+
+    expect(getRoomCenterX(shortRoom, positions[shortRoom.id].x)).toBe(
+      getRoomCenterX(longRoom, positions[longRoom.id].x),
+    );
+    expect(positions[longRoom.id].y).toBeLessThan(positions[shortRoom.id].y);
   });
 
   it('keeps rooms on unique snapped positions for a cyclic layout', () => {

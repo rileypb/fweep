@@ -47,6 +47,20 @@ function estimateRoomWidth(room: Room): number {
   return Math.max(80, Math.round((room.name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
 }
 
+function toRoomCenter(room: Room, position: Position): Vector {
+  return {
+    x: position.x + (estimateRoomWidth(room) / 2),
+    y: position.y + (ROOM_HEIGHT / 2),
+  };
+}
+
+function toRoomTopLeft(room: Room, center: Vector): Position {
+  return {
+    x: center.x - (estimateRoomWidth(room) / 2),
+    y: center.y - (ROOM_HEIGHT / 2),
+  };
+}
+
 function getConstraintDelta(direction: string): Vector | undefined {
   const vector = COMPASS_DIRECTION_VECTORS[direction];
   if (!vector) {
@@ -273,8 +287,8 @@ function computeCentroid(roomIds: readonly string[], positions: ReadonlyMap<stri
 function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): Vector {
   const total = roomIds.reduce(
     (acc, roomId) => {
-      const position = doc.rooms[roomId].position;
-      return { x: acc.x + position.x, y: acc.y + position.y };
+      const center = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position);
+      return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
   );
@@ -391,10 +405,15 @@ export function computePrettifiedRoomPositions(doc: MapDocument): Readonly<Recor
   });
 
   for (const roomId of orderedRoomIds) {
-    const position = normalizedPositions.get(roomId)!;
+    const center = normalizedPositions.get(roomId)!;
+    const snappedCenter = {
+      x: snapCoordinate(center.x),
+      y: snapCoordinate(center.y),
+    };
+    const topLeft = toRoomTopLeft(doc.rooms[roomId], snappedCenter);
     const snappedPosition = {
-      x: snapCoordinate(position.x),
-      y: snapCoordinate(position.y),
+      x: topLeft.x,
+      y: topLeft.y,
     };
 
     placedPositions.set(
