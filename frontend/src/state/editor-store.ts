@@ -78,8 +78,8 @@ export interface EditorState {
   /** Update the cursor position during a connection drag. */
   updateConnectionDrag: (cursorX: number, cursorY: number) => void;
 
-  /** Complete a connection drag by dropping onto a target room. */
-  completeConnectionDrag: (targetRoomId: string) => void;
+  /** Complete a connection drag by dropping onto a target room, optionally on a specific direction handle. */
+  completeConnectionDrag: (targetRoomId: string, targetDirection?: string) => void;
 
   /** Cancel an in-progress connection drag. */
   cancelConnectionDrag: () => void;
@@ -163,7 +163,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ connectionDrag: { ...connectionDrag, cursorX, cursorY } });
   },
 
-  completeConnectionDrag: (targetRoomId) => {
+  completeConnectionDrag: (targetRoomId, targetDirection?) => {
     const { doc, connectionDrag } = get();
     if (!doc || !connectionDrag) {
       set({ connectionDrag: null });
@@ -172,14 +172,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const { sourceRoomId, sourceDirection } = connectionDrag;
     const isSelfConnection = sourceRoomId === targetRoomId;
-    const isBidirectional = !isSelfConnection;
+
+    // Resolve target direction: use the explicit handle the user dropped on,
+    // fall back to the opposite of the source direction, or undefined for self-connections.
+    const resolvedTargetDir = targetDirection
+      ? normalizeDirection(targetDirection)
+      : isSelfConnection
+        ? undefined
+        : oppositeDirection(sourceDirection);
+
+    // Bidirectional when connecting two different rooms AND a target direction exists
+    const isBidirectional = !isSelfConnection && resolvedTargetDir !== undefined;
 
     const connection = createConnection(sourceRoomId, targetRoomId, isBidirectional);
 
-    const targetDir = isBidirectional ? oppositeDirection(sourceDirection) : undefined;
-
     try {
-      const updatedDoc = addConnection(doc, connection, sourceDirection, targetDir);
+      const updatedDoc = addConnection(doc, connection, sourceDirection, resolvedTargetDir);
       set({ doc: updatedDoc, connectionDrag: null });
     } catch {
       // Direction already bound or other validation error — just cancel

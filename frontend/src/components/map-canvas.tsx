@@ -178,12 +178,15 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
 
-        // Check if we released on a room node
+        // Check if we released on a room node (or a direction handle within one)
         const target = upEvent.target as Element | null;
         const roomEl = target?.closest?.('[data-room-id]') as HTMLElement | null;
         if (roomEl) {
           const targetRoomId = roomEl.getAttribute('data-room-id')!;
-          completeConnectionDrag(targetRoomId);
+          // If dropped directly on a direction handle, use that direction
+          const handleEl = target?.closest?.('[data-direction]') as HTMLElement | null;
+          const targetDir = handleEl?.getAttribute('data-direction') ?? undefined;
+          completeConnectionDrag(targetRoomId, targetDir);
         } else {
           cancelConnectionDrag();
         }

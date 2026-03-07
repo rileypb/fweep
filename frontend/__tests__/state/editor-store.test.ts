@@ -225,11 +225,32 @@ describe('useEditorStore', () => {
 
       // Source room should have 'north' bound
       expect(doc.rooms[kitchenId].directions['north']).toBe(conn.id);
-      // Target room should have opposite direction 'south' bound
+      // Target room should have opposite direction 'south' bound (fallback)
       expect(doc.rooms[hallwayId].directions['south']).toBe(conn.id);
 
       // Drag state should be cleared
       expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
+    it('completeConnectionDrag uses an explicit target direction instead of the opposite', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const hallwayId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 200, y: 0 });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'ne', 100, 120);
+      useEditorStore.getState().completeConnectionDrag(hallwayId, 'w');
+
+      const doc = useEditorStore.getState().doc!;
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+
+      const conn = connections[0];
+      expect(conn.isBidirectional).toBe(true);
+
+      // Source room should have 'northeast' bound
+      expect(doc.rooms[kitchenId].directions['northeast']).toBe(conn.id);
+      // Target room should have 'west' (not 'southwest' which is the opposite of 'northeast')
+      expect(doc.rooms[hallwayId].directions['west']).toBe(conn.id);
     });
 
     it('completeConnectionDrag creates a self-connection (one-way)', () => {

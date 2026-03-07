@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -459,7 +459,7 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
       fireEvent.mouseMove(document, { clientX: 100, clientY: 10 });
 
-      // Release on the Hallway room node
+      // Release on the Hallway room node (not on a handle — falls back to opposite)
       const hallwayNode = roomNodes.find((n) => n.textContent === 'Hallway')!;
       fireEvent.mouseUp(hallwayNode, { clientX: 100, clientY: 10 });
 
@@ -471,12 +471,40 @@ describe('MapCanvas', () => {
       expect(connections[0].targetRoomId).toBe(hallwayId);
       expect(connections[0].isBidirectional).toBe(true);
 
-      // Direction bindings
+      // Direction bindings — fallback to opposite
       expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
       expect(doc.rooms[hallwayId].directions['south']).toBe(connections[0].id);
 
       // Drag state cleared
       expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
+    it('uses the target handle direction when dropping on a direction handle', () => {
+      const { kitchenId, hallwayId } = setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      // Start connection drag from Kitchen's northeast handle
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const srcHandle = screen.getByTestId('direction-handle-ne');
+      fireEvent.mouseDown(srcHandle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 100, clientY: 10 });
+
+      // Hover over Hallway to show its handles, then release on its west handle
+      const hallwayNode = roomNodes.find((n) => n.textContent === 'Hallway')!;
+      fireEvent.mouseEnter(hallwayNode);
+      const tgtHandle = within(hallwayNode).getByTestId('direction-handle-w');
+      fireEvent.mouseUp(tgtHandle, { clientX: 80, clientY: 10 });
+
+      const doc = useEditorStore.getState().doc!;
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+
+      // Source room bound on northeast, target on west (not southwest)
+      expect(doc.rooms[kitchenId].directions['northeast']).toBe(connections[0].id);
+      expect(doc.rooms[hallwayId].directions['west']).toBe(connections[0].id);
     });
 
     it('creates a self-connection when releasing on the same room', () => {
