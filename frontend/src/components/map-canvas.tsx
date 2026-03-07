@@ -252,6 +252,96 @@ function getRoomsWithinSelectionBox(
     .map((room) => room.id);
 }
 
+type ArrowDirection = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
+
+interface RoomCenter {
+  readonly x: number;
+  readonly y: number;
+}
+
+function getRoomCenter(room: Room): RoomCenter {
+  return {
+    x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+    y: room.position.y + (ROOM_HEIGHT / 2),
+  };
+}
+
+function getDirectionalScore(
+  direction: ArrowDirection,
+  source: RoomCenter,
+  candidate: RoomCenter,
+): number | null {
+  const dx = candidate.x - source.x;
+  const dy = candidate.y - source.y;
+  const offAxisPenalty = 2;
+
+  switch (direction) {
+    case 'ArrowRight':
+      if (dx <= 0) {
+        return null;
+      }
+      if (Math.abs(dy) > dx) {
+        return null;
+      }
+      return dx + (Math.abs(dy) * offAxisPenalty);
+    case 'ArrowLeft':
+      if (dx >= 0) {
+        return null;
+      }
+      if (Math.abs(dy) > Math.abs(dx)) {
+        return null;
+      }
+      return Math.abs(dx) + (Math.abs(dy) * offAxisPenalty);
+    case 'ArrowDown':
+      if (dy <= 0) {
+        return null;
+      }
+      if (Math.abs(dx) > dy) {
+        return null;
+      }
+      return dy + (Math.abs(dx) * offAxisPenalty);
+    case 'ArrowUp':
+      if (dy >= 0) {
+        return null;
+      }
+      if (Math.abs(dx) > Math.abs(dy)) {
+        return null;
+      }
+      return Math.abs(dy) + (Math.abs(dx) * offAxisPenalty);
+  }
+}
+
+function findNearestRoomInDirection(
+  rooms: readonly Room[],
+  selectedRoomId: string,
+  direction: ArrowDirection,
+): Room | null {
+  const sourceRoom = rooms.find((room) => room.id === selectedRoomId);
+  if (!sourceRoom) {
+    return null;
+  }
+
+  const sourceCenter = getRoomCenter(sourceRoom);
+  let bestMatch: { room: Room; score: number } | null = null;
+
+  for (const room of rooms) {
+    if (room.id === selectedRoomId) {
+      continue;
+    }
+
+    const score = getDirectionalScore(direction, sourceCenter, getRoomCenter(room));
+    if (score === null) {
+      continue;
+    }
+
+    if (!bestMatch || score < bestMatch.score) {
+      bestMatch = { room, score };
+    }
+  }
+
+  return bestMatch?.room ?? null;
+}
+
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -905,11 +995,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (roomEditorId !== null || connectionDrag !== null || selectedRoomIds.length === 0) {
-      return;
-    }
-
-    if (e.key !== 'Delete' && e.key !== 'Backspace') {
+    if (roomEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -917,9 +1003,37 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedRoomIds.length === 0) {
+        return;
+      }
+
+      e.preventDefault();
+      removeSelectedRooms();
+      return;
+    }
+
+    if (
+      e.key !== 'ArrowUp'
+      && e.key !== 'ArrowDown'
+      && e.key !== 'ArrowLeft'
+      && e.key !== 'ArrowRight'
+    ) {
+      return;
+    }
+
+    if (selectedRoomIds.length === 0) {
+      return;
+    }
+
+    const nearestRoom = findNearestRoomInDirection(rooms, selectedRoomIds[0], e.key);
+    if (!nearestRoom) {
+      return;
+    }
+
     e.preventDefault();
-    removeSelectedRooms();
-  }, [connectionDrag, removeSelectedRooms, roomEditorId, selectedRoomIds.length]);
+    useEditorStore.getState().selectRoom(nearestRoom.id);
+  }, [connectionDrag, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
 
   const classes = [
     'map-canvas',

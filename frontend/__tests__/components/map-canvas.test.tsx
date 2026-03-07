@@ -350,6 +350,73 @@ describe('MapCanvas', () => {
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
     });
 
+    it('moves selection to the nearest room on the right when ArrowRight is pressed', () => {
+      const doc = createEmptyMap('Test');
+      const origin = { ...createRoom('Origin'), position: { x: 80, y: 120 } };
+      const right = { ...createRoom('Right'), position: { x: 220, y: 120 } };
+      const downRight = { ...createRoom('Down Right'), position: { x: 200, y: 240 } };
+      let updated = addRoom(doc, origin);
+      updated = addRoom(updated, right);
+      updated = addRoom(updated, downRight);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(originNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      fireEvent.keyDown(canvas, { key: 'ArrowRight' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
+    });
+
+    it('moves selection to the nearest room above when ArrowUp is pressed', () => {
+      const doc = createEmptyMap('Test');
+      const origin = { ...createRoom('Origin'), position: { x: 200, y: 220 } };
+      const up = { ...createRoom('Up'), position: { x: 200, y: 40 } };
+      const upLeft = { ...createRoom('Up Left'), position: { x: 80, y: 80 } };
+      let updated = addRoom(doc, origin);
+      updated = addRoom(updated, up);
+      updated = addRoom(updated, upLeft);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(originNode, { clientX: 220, clientY: 240, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 220, clientY: 240, button: 0 });
+
+      fireEvent.keyDown(canvas, { key: 'ArrowUp' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([up.id]);
+    });
+
+    it('keeps the current selection when no room exists in that direction', () => {
+      const doc = createEmptyMap('Test');
+      const origin = { ...createRoom('Origin'), position: { x: 80, y: 120 } };
+      const right = { ...createRoom('Right'), position: { x: 220, y: 120 } };
+      let updated = addRoom(doc, origin);
+      updated = addRoom(updated, right);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(originNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      fireEvent.keyDown(canvas, { key: 'ArrowLeft' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([origin.id]);
+    });
+
     it('draws the selected room outline as a bright red rounded rectangle', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
