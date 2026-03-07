@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { MapCanvas } from './components/map-canvas';
 import { PrettifyButton } from './components/prettify-button';
+import { RedoButton } from './components/redo-button';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
+import { UndoButton } from './components/undo-button';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
@@ -35,6 +37,8 @@ export function App(): React.JSX.Element {
     <main className="app-shell">
       <h1 className="app-title">fweep</h1>
       <div className="app-controls">
+        <UndoButton />
+        <RedoButton />
         <PrettifyButton />
         <SnapToggle />
         <ThemeToggle />

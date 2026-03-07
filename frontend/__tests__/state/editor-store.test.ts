@@ -298,6 +298,82 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('undo and redo', () => {
+    it('tracks document history for undoable edits', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      expect(useEditorStore.getState().canUndo).toBe(false);
+      expect(useEditorStore.getState().canRedo).toBe(false);
+
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      expect(useEditorStore.getState().canUndo).toBe(true);
+      expect(useEditorStore.getState().canRedo).toBe(false);
+      expect(useEditorStore.getState().doc!.rooms[roomId].name).toBe('Kitchen');
+    });
+
+    it('undo restores the previous document state', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().renameRoom(roomId, 'Pantry');
+
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].name).toBe('Kitchen');
+      expect(useEditorStore.getState().canUndo).toBe(true);
+      expect(useEditorStore.getState().canRedo).toBe(true);
+    });
+
+    it('redo reapplies an undone document state', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().renameRoom(roomId, 'Pantry');
+      useEditorStore.getState().undo();
+
+      useEditorStore.getState().redo();
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].name).toBe('Pantry');
+      expect(useEditorStore.getState().canRedo).toBe(false);
+    });
+
+    it('clears redo history after a new edit', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().renameRoom(roomId, 'Pantry');
+      useEditorStore.getState().undo();
+
+      useEditorStore.getState().describeRoom(roomId, 'Shelves line the walls.');
+
+      expect(useEditorStore.getState().canRedo).toBe(false);
+      expect(useEditorStore.getState().doc!.rooms[roomId].description).toBe('Shelves line the walls.');
+    });
+
+    it('does not add selection-only changes to history', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      useEditorStore.getState().selectRoom(roomId);
+      useEditorStore.getState().clearRoomSelection();
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().doc!.rooms[roomId]).toBeUndefined();
+      expect(useEditorStore.getState().canRedo).toBe(true);
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('resets history when a new document is loaded', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      const secondDoc = createEmptyMap('Second Map');
+      useEditorStore.getState().loadDocument(secondDoc);
+
+      expect(useEditorStore.getState().canUndo).toBe(false);
+      expect(useEditorStore.getState().canRedo).toBe(false);
+      expect(useEditorStore.getState().doc).toEqual(secondDoc);
+    });
+  });
+
   /* ---- room drag ---- */
 
   describe('room drag', () => {

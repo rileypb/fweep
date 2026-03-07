@@ -53,6 +53,18 @@ export interface EditorState {
   /** The currently loaded map document, or null when no map is open. */
   doc: MapDocument | null;
 
+  /** Prior document snapshots available for undo. */
+  pastDocs: readonly MapDocument[];
+
+  /** Future document snapshots available for redo. */
+  futureDocs: readonly MapDocument[];
+
+  /** Whether an undo operation is currently available. */
+  canUndo: boolean;
+
+  /** Whether a redo operation is currently available. */
+  canRedo: boolean;
+
   /** The currently selected room IDs. */
   selectedRoomIds: readonly string[];
 
@@ -70,6 +82,12 @@ export interface EditorState {
 
   /** Clear the active document. */
   unloadDocument: () => void;
+
+  /** Restore the previous document snapshot. */
+  undo: () => void;
+
+  /** Reapply a document snapshot previously restored by undo. */
+  redo: () => void;
 
   /** Create a new room at the given canvas position (snapped to grid). Returns the room ID. */
   addRoomAtPosition: (name: string, position: Position) => string;
@@ -132,16 +150,90 @@ export interface EditorState {
   endRoomDrag: () => void;
 }
 
+function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonly string[]): readonly string[] {
+  if (!doc) {
+    return [];
+  }
+
+  return selectedRoomIds.filter((roomId) => roomId in doc.rooms);
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
+  pastDocs: [],
+  futureDocs: [],
+  canUndo: false,
+  canRedo: false,
   selectedRoomIds: [],
   snapToGridEnabled: true,
   connectionDrag: null,
   roomDrag: null,
 
-  loadDocument: (doc) => set({ doc, selectedRoomIds: [] }),
+  loadDocument: (doc) => set({
+    doc,
+    pastDocs: [],
+    futureDocs: [],
+    canUndo: false,
+    canRedo: false,
+    selectedRoomIds: [],
+    connectionDrag: null,
+    roomDrag: null,
+  }),
 
-  unloadDocument: () => set({ doc: null, selectedRoomIds: [], connectionDrag: null, roomDrag: null }),
+  unloadDocument: () => set({
+    doc: null,
+    pastDocs: [],
+    futureDocs: [],
+    canUndo: false,
+    canRedo: false,
+    selectedRoomIds: [],
+    connectionDrag: null,
+    roomDrag: null,
+  }),
+
+  undo: () => {
+    const { doc, pastDocs, futureDocs, selectedRoomIds } = get();
+    if (!doc || pastDocs.length === 0) {
+      return;
+    }
+
+    const previousDoc = pastDocs[pastDocs.length - 1];
+    const nextPastDocs = pastDocs.slice(0, -1);
+    const nextFutureDocs = [doc, ...futureDocs];
+
+    set({
+      doc: previousDoc,
+      pastDocs: nextPastDocs,
+      futureDocs: nextFutureDocs,
+      canUndo: nextPastDocs.length > 0,
+      canRedo: true,
+      selectedRoomIds: filterSelectionForDoc(previousDoc, selectedRoomIds),
+      connectionDrag: null,
+      roomDrag: null,
+    });
+  },
+
+  redo: () => {
+    const { doc, pastDocs, futureDocs, selectedRoomIds } = get();
+    if (!doc || futureDocs.length === 0) {
+      return;
+    }
+
+    const nextDoc = futureDocs[0];
+    const nextFutureDocs = futureDocs.slice(1);
+    const nextPastDocs = [...pastDocs, doc];
+
+    set({
+      doc: nextDoc,
+      pastDocs: nextPastDocs,
+      futureDocs: nextFutureDocs,
+      canUndo: true,
+      canRedo: nextFutureDocs.length > 0,
+      selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
+      connectionDrag: null,
+      roomDrag: null,
+    });
+  },
 
   addRoomAtPosition: (name, position) => {
     const { doc } = get();
@@ -152,7 +244,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
-    set({ doc: updatedDoc });
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
     return room.id;
   },
 
@@ -161,7 +259,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot rename a room: no document is loaded.');
     }
-    set({ doc: domainRenameRoom(doc, roomId, name) });
+    const updatedDoc = domainRenameRoom(doc, roomId, name);
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
   },
 
   describeRoom: (roomId, description) => {
@@ -169,7 +274,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot describe a room: no document is loaded.');
     }
-    set({ doc: domainDescribeRoom(doc, roomId, description) });
+    const updatedDoc = domainDescribeRoom(doc, roomId, description);
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
   },
 
   setRoomShape: (roomId, shape) => {
@@ -177,7 +289,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot set room shape: no document is loaded.');
     }
-    set({ doc: domainSetRoomShape(doc, roomId, shape) });
+    const updatedDoc = domainSetRoomShape(doc, roomId, shape);
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
   },
 
   removeRoom: (roomId) => {
@@ -185,8 +304,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot remove a room: no document is loaded.');
     }
+    const updatedDoc = domainDeleteRoom(doc, roomId);
     set((state) => ({
-      doc: domainDeleteRoom(doc, roomId),
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
     }));
   },
@@ -202,10 +326,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc,
     );
 
-    set({
+    set((state) => ({
       doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
       selectedRoomIds: [],
-    });
+    }));
   },
 
   selectRoom: (roomId) => {
@@ -238,7 +366,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot move a room: no document is loaded.');
     }
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
-    set({ doc: domainMoveRoom(doc, roomId, snapped) });
+    const updatedDoc = domainMoveRoom(doc, roomId, snapped);
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
   },
 
   prettifyLayout: () => {
@@ -248,7 +383,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const nextPositions = computePrettifiedRoomPositions(doc);
-    set({ doc: domainSetRoomPositions(doc, nextPositions) });
+    const updatedDoc = domainSetRoomPositions(doc, nextPositions);
+    set((state) => ({
+      doc: updatedDoc,
+      pastDocs: [...state.pastDocs, doc],
+      futureDocs: [],
+      canUndo: true,
+      canRedo: false,
+    }));
   },
 
   startConnectionDrag: (roomId, direction, cursorX, cursorY) => {
@@ -294,7 +436,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     try {
       const updatedDoc = addConnection(doc, connection, sourceDirection, resolvedTargetDir);
-      set({ doc: updatedDoc, connectionDrag: null });
+      set((state) => ({
+        doc: updatedDoc,
+        pastDocs: [...state.pastDocs, doc],
+        futureDocs: [],
+        canUndo: true,
+        canRedo: false,
+        connectionDrag: null,
+      }));
     } catch {
       // Direction already bound or other validation error — just cancel
       set({ connectionDrag: null });

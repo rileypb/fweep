@@ -805,6 +805,8 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
   const setSelectedRoomIds = useEditorStore((s) => s.setSelectedRoomIds);
   const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const canvasRef = useRef<HTMLDivElement>(null);
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
@@ -1054,6 +1056,28 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    const isUndoShortcut = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z';
+    const isRedoShortcut = (
+      (e.ctrlKey || e.metaKey)
+      && !e.altKey
+      && (
+        (e.key.toLowerCase() === 'z' && e.shiftKey)
+        || (e.key.toLowerCase() === 'y' && !e.shiftKey)
+      )
+    );
+
+    if (isRedoShortcut) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    if (isUndoShortcut) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (selectedRoomIds.length === 0) {
         return;
@@ -1095,7 +1119,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [connectionDrag, openRoomEditor, panRoomIntoView, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
+  }, [connectionDrag, openRoomEditor, panRoomIntoView, redo, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
 
   const classes = [
     'map-canvas',

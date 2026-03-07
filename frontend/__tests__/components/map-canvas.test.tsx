@@ -186,6 +186,72 @@ describe('MapCanvas', () => {
     });
   });
 
+  describe('keyboard shortcuts', () => {
+    it('undoes with Ctrl+Z', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().renameRoom(room.id, 'Pantry');
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Kitchen');
+    });
+
+    it('redoes with Ctrl+Y', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().renameRoom(room.id, 'Pantry');
+      useEditorStore.getState().undo();
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'y', ctrlKey: true });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Pantry');
+    });
+
+    it('redoes with Shift+Meta+Z', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().renameRoom(room.id, 'Pantry');
+      useEditorStore.getState().undo();
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'Z', metaKey: true, shiftKey: true });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Pantry');
+    });
+
+    it('does not trigger undo while editing a room field', async () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().renameRoom(room.id, 'Pantry');
+      const user = userEvent.setup();
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByText('Pantry'));
+
+      const nameInput = screen.getByLabelText(/room name/i);
+      fireEvent.keyDown(nameInput, { key: 'z', ctrlKey: true });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Pantry');
+    });
+  });
+
   /* ---- Room rendering ---- */
 
   describe('room rendering', () => {
