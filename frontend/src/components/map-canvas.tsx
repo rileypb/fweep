@@ -1013,6 +1013,16 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    if (e.key === 'Enter') {
+      if (selectedRoomIds.length !== 1) {
+        return;
+      }
+
+      e.preventDefault();
+      openRoomEditor(selectedRoomIds[0]);
+      return;
+    }
+
     if (
       e.key !== 'ArrowUp'
       && e.key !== 'ArrowDown'
@@ -1033,7 +1043,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
-  }, [connectionDrag, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
+  }, [connectionDrag, openRoomEditor, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
 
   const classes = [
     'map-canvas',

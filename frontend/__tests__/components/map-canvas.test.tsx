@@ -417,6 +417,39 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([origin.id]);
     });
 
+    it('opens the room editor for a single selected room when Enter is pressed', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 900,
+        bottom: 600,
+        width: 900,
+        height: 600,
+        toJSON: () => ({}),
+      });
+
+      fireEvent.mouseDown(roomNode, { clientX: 60, clientY: 340, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 60, clientY: 340, button: 0 });
+
+      fireEvent.keyDown(canvas, { key: 'Enter' });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(content.style.transform).toBe('translate(370px, -120px)');
+      expect(content).toHaveClass('map-canvas-content--animated');
+    });
+
     it('draws the selected room outline as a bright red rounded rectangle', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
