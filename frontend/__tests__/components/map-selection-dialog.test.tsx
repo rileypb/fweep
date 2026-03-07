@@ -3,12 +3,24 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MapDocument } from '../../src/domain/map-types';
 import { createEmptyMap } from '../../src/domain/map-types';
-import { saveMap, deleteMap } from '../../src/storage/map-store';
-import * as mapStore from '../../src/storage/map-store';
-import { MapSelectionDialog } from '../../src/components/map-selection-dialog';
+import { saveMap } from '../../src/storage/map-store';
+import { MapSelectionDialog, type MapSelectionStorage } from '../../src/components/map-selection-dialog';
 
 describe('MapSelectionDialog', () => {
   const noop = () => {};
+
+  function createStorageOverrides(overrides: Partial<MapSelectionStorage>): MapSelectionStorage {
+    return {
+      listMaps: async () => [],
+      loadMap: async () => undefined,
+      saveMap: async () => undefined,
+      deleteMap: async () => undefined,
+      importMapFromFile: async () => {
+        throw new Error('not implemented');
+      },
+      ...overrides,
+    };
+  }
 
   afterEach(() => {
     jest.restoreAllMocks();
@@ -93,11 +105,12 @@ describe('MapSelectionDialog', () => {
 
   it('shows an error when a selected map can no longer be loaded', async () => {
     const doc = createEmptyMap('Missing Map');
-    await saveMap(doc);
-
     const user = userEvent.setup();
-    jest.spyOn(mapStore, 'loadMap').mockResolvedValueOnce(undefined);
-    render(<MapSelectionDialog onMapSelected={noop} />);
+    const storage = createStorageOverrides({
+      listMaps: async () => [doc.metadata],
+      loadMap: async () => undefined,
+    });
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
 
     const mapBtn = await screen.findByText('Missing Map');
     await user.click(mapBtn);
@@ -106,8 +119,12 @@ describe('MapSelectionDialog', () => {
   });
 
   it('shows an error when loading the recent maps list fails', async () => {
-    jest.spyOn(mapStore, 'listMaps').mockRejectedValueOnce(new Error('DB unavailable'));
-    render(<MapSelectionDialog onMapSelected={noop} />);
+    const storage = createStorageOverrides({
+      listMaps: async () => {
+        throw new Error('DB unavailable');
+      },
+    });
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Error: DB unavailable');
     expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
@@ -168,11 +185,14 @@ describe('MapSelectionDialog', () => {
 
   it('shows an error if deleting a map fails', async () => {
     const doc = createEmptyMap('Stubborn Map');
-    await saveMap(doc);
-
     const user = userEvent.setup();
-    jest.spyOn(mapStore, 'deleteMap').mockRejectedValueOnce(new Error('Delete failed'));
-    render(<MapSelectionDialog onMapSelected={noop} />);
+    const storage = createStorageOverrides({
+      listMaps: async () => [doc.metadata],
+      deleteMap: async () => {
+        throw new Error('Delete failed');
+      },
+    });
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
     await screen.findByText('Stubborn Map');
 
     await user.click(screen.getByRole('button', { name: /delete stubborn map/i }));
@@ -195,5 +215,37 @@ describe('MapSelectionDialog', () => {
     await user.upload(fileInput, badFile);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('File is not valid JSON.');
+  });
+
+  it('calls onMapSelected when importing a valid file succeeds', async () => {
+    const user = userEvent.setup();
+    const importedDoc = createEmptyMap('Imported Map');
+    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    const storage = createStorageOverrides({
+      importMapFromFile: async () => importedDoc,
+    });
+
+    render(<MapSelectionDialog onMapSelected={onSelect} storage={storage} />);
+
+    const fileInput = document.querySelector('.map-selection-file-input') as HTMLInputElement;
+    const goodFile = new File(['{}'], 'good.json', { type: 'application/json' });
+    await user.upload(fileInput, goodFile);
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+    expect(onSelect).toHaveBeenCalledWith(importedDoc);
+  });
+
+  it('opens the hidden file input when the import button is clicked', async () => {
+    const user = userEvent.setup();
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    const fileInput = document.querySelector('.map-selection-file-input') as HTMLInputElement;
+    const clickSpy = jest.spyOn(fileInput, 'click');
+
+    await user.click(screen.getByRole('button', { name: /import from file/i }));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 });

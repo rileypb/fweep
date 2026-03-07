@@ -19,6 +19,10 @@ export interface UseMapRouterResult {
   closeMap: () => void;
 }
 
+export interface UseMapRouterOptions {
+  loadMap?: typeof loadMap;
+}
+
 /**
  * Lightweight hook that syncs the active map with the browser URL.
  *
@@ -27,7 +31,8 @@ export interface UseMapRouterResult {
  *
  * Uses the History API directly (no router library needed).
  */
-export function useMapRouter(): UseMapRouterResult {
+export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterResult {
+  const loadMapImpl = options.loadMap ?? loadMap;
   const [activeMap, setActiveMap] = useState<MapDocument | null>(null);
   const [loading, setLoading] = useState(() => mapIdFromPath(window.location.pathname) !== null);
 
@@ -40,7 +45,7 @@ export function useMapRouter(): UseMapRouterResult {
     }
 
     let cancelled = false;
-    loadMap(id)
+    loadMapImpl(id)
       .then((doc) => {
         if (cancelled) return;
         if (doc) {
@@ -62,7 +67,7 @@ export function useMapRouter(): UseMapRouterResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadMapImpl]);
 
   // Listen for browser back/forward navigation.
   useEffect(() => {
@@ -72,7 +77,7 @@ export function useMapRouter(): UseMapRouterResult {
         setActiveMap(null);
         return;
       }
-      void loadMap(id).then((doc) => {
+      void loadMapImpl(id).then((doc) => {
         setActiveMap(doc ?? null);
         if (!doc) {
           window.history.replaceState({}, '', '/');
@@ -82,7 +87,7 @@ export function useMapRouter(): UseMapRouterResult {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [loadMapImpl]);
 
   const openMap = useCallback((doc: MapDocument) => {
     setActiveMap(doc);

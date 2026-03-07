@@ -3,11 +3,31 @@ import type { MapMetadata } from '../domain/map-types';
 import { createEmptyMap, type MapDocument } from '../domain/map-types';
 import { importMapFromFile, listMaps, loadMap, saveMap, deleteMap } from '../storage/map-store';
 
-export interface MapSelectionDialogProps {
-  onMapSelected: (doc: MapDocument) => void;
+export interface MapSelectionStorage {
+  listMaps: typeof listMaps;
+  loadMap: typeof loadMap;
+  saveMap: typeof saveMap;
+  deleteMap: typeof deleteMap;
+  importMapFromFile: typeof importMapFromFile;
 }
 
-export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): React.JSX.Element {
+const defaultStorage: MapSelectionStorage = {
+  listMaps,
+  loadMap,
+  saveMap,
+  deleteMap,
+  importMapFromFile,
+};
+
+export interface MapSelectionDialogProps {
+  onMapSelected: (doc: MapDocument) => void;
+  storage?: MapSelectionStorage;
+}
+
+export function MapSelectionDialog({
+  onMapSelected,
+  storage = defaultStorage,
+}: MapSelectionDialogProps): React.JSX.Element {
   const [maps, setMaps] = useState<MapMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,11 +36,11 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    listMaps()
+    storage.listMaps()
       .then(setMaps)
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [storage]);
 
   const canCreate = newMapName.trim().length > 0;
 
@@ -28,12 +48,12 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
     const name = newMapName.trim();
     if (!name) return;
     const doc = createEmptyMap(name);
-    await saveMap(doc);
+    await storage.saveMap(doc);
     onMapSelected(doc);
   };
 
   const handleSelect = async (id: string) => {
-    const doc = await loadMap(id);
+    const doc = await storage.loadMap(id);
     if (doc) {
       onMapSelected(doc);
     } else {
@@ -45,7 +65,7 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const doc = await importMapFromFile(file);
+      const doc = await storage.importMapFromFile(file);
       onMapSelected(doc);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -54,7 +74,7 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteMap(id);
+      await storage.deleteMap(id);
       setMaps((prev) => prev.filter((m) => m.id !== id));
       setConfirmingDeleteId(null);
     } catch (err: unknown) {
