@@ -14,6 +14,7 @@ import {
   deleteItem,
   describeRoom,
   describeItem,
+  setRoomShape,
 } from '../../src/domain/map-operations';
 
 /* ------------------------------------------------------------------ */
@@ -218,6 +219,19 @@ describe('addItem', () => {
 
     expect(step2.items[i1.id]).toEqual(i1);
     expect(step2.items[i2.id]).toEqual(i2);
+  });
+});
+
+describe('setRoomShape', () => {
+  it('updates the room shape', () => {
+    const doc = createEmptyMap('Test');
+    const room = createRoom('Gallery');
+    const withRoom = addRoom(doc, room);
+
+    const next = setRoomShape(withRoom, room.id, 'diamond');
+
+    expect(next.rooms[room.id].shape).toBe('diamond');
+    expect(withRoom.rooms[room.id].shape).toBe('rectangle');
   });
 });
 

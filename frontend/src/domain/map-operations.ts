@@ -1,4 +1,4 @@
-import type { MapDocument, Room, Connection, Item, Position } from './map-types';
+import type { MapDocument, Room, Connection, Item, Position, RoomShape } from './map-types';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -296,6 +296,18 @@ export function describeRoom(doc: MapDocument, roomId: string, description: stri
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [roomId]: { ...room, description } },
+  });
+}
+
+/** Return a new document with the room's shape updated. */
+export function setRoomShape(doc: MapDocument, roomId: string, shape: RoomShape): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [roomId]: { ...room, shape } },
   });
 }
 

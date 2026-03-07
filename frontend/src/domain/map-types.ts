@@ -15,6 +15,9 @@ export interface Position {
 
 /* ---- Room ---- */
 
+export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
+export type RoomShape = (typeof ROOM_SHAPES)[number];
+
 export interface Room {
   readonly id: string;
   readonly name: string;
@@ -23,6 +26,7 @@ export interface Room {
   /** Map from direction label (normalised) → connection ID. */
   readonly directions: Readonly<Record<string, string>>;
   readonly isDark: boolean;
+  readonly shape: RoomShape;
 }
 
 /* ---- Connection ---- */
@@ -89,6 +93,7 @@ export function createRoom(name: string): Room {
     position: { x: 0, y: 0 },
     directions: {},
     isDark: false,
+    shape: 'rectangle',
   };
 }
 

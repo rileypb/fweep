@@ -36,6 +36,11 @@ describe('createRoom', () => {
     expect(room.isDark).toBe(false);
   });
 
+  it('starts with rectangle as the default shape', () => {
+    const room = createRoom('Gallery');
+    expect(room.shape).toBe('rectangle');
+  });
+
   it('starts with a default position at 0,0', () => {
     const room = createRoom('Origin');
     expect(room.position).toEqual({ x: 0, y: 0 });

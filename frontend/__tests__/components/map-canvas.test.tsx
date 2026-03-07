@@ -324,6 +324,19 @@ describe('MapCanvas', () => {
       expect(room.description).toBe('A pantry with labelled jars.');
     });
 
+    it('updates the room shape from the room editor', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      await user.click(screen.getByTestId('room-shape-option-diamond'));
+
+      const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      expect(room.shape).toBe('diamond');
+      expect(screen.getByTestId('room-node')).toHaveAttribute('data-room-shape', 'diamond');
+      expect(screen.getByTestId('room-editor-room-node')).toHaveAttribute('data-room-shape', 'diamond');
+    });
+
     it('pressing Enter in the room name field moves focus to the description field', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();

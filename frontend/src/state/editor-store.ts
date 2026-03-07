@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MapDocument, Position } from '../domain/map-types';
+import type { MapDocument, Position, RoomShape } from '../domain/map-types';
 import { createRoom, createConnection } from '../domain/map-types';
 import {
   addRoom,
@@ -8,6 +8,7 @@ import {
   deleteRoom as domainDeleteRoom,
   moveRoom as domainMoveRoom,
   describeRoom as domainDescribeRoom,
+  setRoomShape as domainSetRoomShape,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
 
@@ -69,6 +70,9 @@ export interface EditorState {
 
   /** Update an existing room's description. */
   describeRoom: (roomId: string, description: string) => void;
+
+  /** Update an existing room's shape. */
+  setRoomShape: (roomId: string, shape: RoomShape) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
@@ -141,6 +145,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot describe a room: no document is loaded.');
     }
     set({ doc: domainDescribeRoom(doc, roomId, description) });
+  },
+
+  setRoomShape: (roomId, shape) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set room shape: no document is loaded.');
+    }
+    set({ doc: domainSetRoomShape(doc, roomId, shape) });
   },
 
   removeRoom: (roomId) => {

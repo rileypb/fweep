@@ -652,6 +652,44 @@ body {
   gap: 0.45rem;
 }
 
+.room-shape-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.room-shape-option {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  padding: 0.6rem 0.4rem;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.room-shape-option:hover,
+.room-shape-option:focus-visible {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.room-shape-option--selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.room-shape-option-preview {
+  overflow: visible;
+}
+
+.room-shape-option-preview .room-node-shape {
+  vector-effect: non-scaling-stroke;
+}
+
 .room-editor-label {
   font-size: 0.85rem;
   font-weight: 600;
@@ -684,6 +722,21 @@ body {
 :root[data-theme='dark'] .room-editor-input,
 :root[data-theme='dark'] .room-editor-textarea {
   border-color: rgba(129, 140, 248, 0.35);
+}
+
+:root[data-theme='dark'] .room-shape-option {
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+:root[data-theme='dark'] .room-shape-option:hover,
+:root[data-theme='dark'] .room-shape-option:focus-visible {
+  border-color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+}
+
+:root[data-theme='dark'] .room-shape-option--selected {
+  border-color: #818cf8;
+  background: rgba(129, 140, 248, 0.18);
 }
 
 :root[data-theme='dark'] .room-editor-input:focus,

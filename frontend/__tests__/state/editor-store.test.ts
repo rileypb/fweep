@@ -123,6 +123,21 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('setRoomShape', () => {
+    it('updates the room shape in the document', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      useEditorStore.getState().setRoomShape(roomId, 'octagon');
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].shape).toBe('octagon');
+    });
+
+    it('throws when no document is loaded', () => {
+      expect(() => useEditorStore.getState().setRoomShape('r1', 'diamond')).toThrow();
+    });
+  });
+
   /* ---- removeRoom ---- */
 
   describe('removeRoom', () => {

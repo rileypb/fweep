@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useEditorStore } from '../state/editor-store';
-import type { Room, Connection } from '../domain/map-types';
+import { ROOM_SHAPES, type Room, type Connection, type RoomShape } from '../domain/map-types';
 import {
   computeConnectionPath,
   computeSegmentArrowheadPoints,
@@ -116,6 +116,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const describeRoom = useEditorStore((s) => s.describeRoom);
+  const setRoomShape = useEditorStore((s) => s.setRoomShape);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -162,6 +163,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
       <div
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"
+        data-room-shape={room.shape}
         style={{
           transform: `translate(${roomGeometry.centerX}px, ${roomGeometry.top}px) translateX(-50%)`,
           width: `${roomGeometry.width}px`,
@@ -174,15 +176,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
           width={roomGeometry.width}
           height={roomGeometry.height}
         >
-          <rect
-            className="room-node-shape"
-            x={0}
-            y={0}
-            width={roomGeometry.width}
-            height={roomGeometry.height}
-            rx={ROOM_CORNER_RADIUS}
-            ry={ROOM_CORNER_RADIUS}
-          />
+          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height)}
         </svg>
         <input
           ref={nameInputRef}
@@ -226,6 +220,28 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
             rows={8}
           />
         </div>
+
+        <div className="room-editor-field">
+          <span className="room-editor-label">Shape</span>
+          <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
+            {ROOM_SHAPES.map((shape) => (
+              <button
+                key={shape}
+                type="button"
+                role="radio"
+                aria-checked={room.shape === shape}
+                className={`room-shape-option${room.shape === shape ? ' room-shape-option--selected' : ''}`}
+                data-testid={`room-shape-option-${shape}`}
+                onClick={() => setRoomShape(room.id, shape)}
+              >
+                <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
+                  {renderRoomShape(shape, 44, 28)}
+                </svg>
+                <span>{shape}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -257,6 +273,65 @@ function getRoomScreenGeometry(room: Room, panOffset: PanOffset, canvasRect: DOM
     height: ROOM_HEIGHT,
     centerX: left + (width / 2),
   };
+}
+
+function getOctagonPoints(width: number, height: number): string {
+  const insetX = Math.min(12, width * 0.18);
+  const insetY = Math.min(10, height * 0.28);
+  return [
+    `${insetX},0`,
+    `${width - insetX},0`,
+    `${width},${insetY}`,
+    `${width},${height - insetY}`,
+    `${width - insetX},${height}`,
+    `${insetX},${height}`,
+    `0,${height - insetY}`,
+    `0,${insetY}`,
+  ].join(' ');
+}
+
+function renderRoomShape(shape: RoomShape, width: number, height: number): React.JSX.Element {
+  if (shape === 'diamond') {
+    return (
+      <polygon
+        className="room-node-shape"
+        points={`${width / 2},0 ${width},${height / 2} ${width / 2},${height} 0,${height / 2}`}
+      />
+    );
+  }
+
+  if (shape === 'oval') {
+    return (
+      <ellipse
+        className="room-node-shape"
+        cx={width / 2}
+        cy={height / 2}
+        rx={width / 2}
+        ry={height / 2}
+      />
+    );
+  }
+
+  if (shape === 'octagon') {
+    return (
+      <polygon
+        className="room-node-shape"
+        points={getOctagonPoints(width, height)}
+      />
+    );
+  }
+
+  return (
+    <rect
+      className="room-node-shape"
+      x={0}
+      y={0}
+      width={width}
+      height={height}
+      rx={ROOM_CORNER_RADIUS}
+      ry={ROOM_CORNER_RADIUS}
+    />
+  );
 }
 
 function DirectionHandles({ roomWidth, roomHeight, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
@@ -434,6 +509,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
         className={`room-node${isDragging ? ' room-node--dragging' : ''}`}
         data-testid="room-node"
         data-room-id={room.id}
+        data-room-shape={room.shape}
         width={roomWidth}
         height={ROOM_HEIGHT}
         style={{ transform: `translate(${visualX}px, ${visualY}px)` }}
@@ -446,15 +522,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           openRoomEditor();
         }}
       >
-        <rect
-          className="room-node-shape"
-          x={0}
-          y={0}
-          width={roomWidth}
-          height={ROOM_HEIGHT}
-          rx={ROOM_CORNER_RADIUS}
-          ry={ROOM_CORNER_RADIUS}
-        />
+        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
         {!isEditing && (
           <text
             className="room-node-name"
