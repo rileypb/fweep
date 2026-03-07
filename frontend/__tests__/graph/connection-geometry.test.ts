@@ -20,6 +20,26 @@ function roomAt(name: string, x: number, y: number, directions: Record<string, s
   return { ...createRoom(name), position: { x, y }, directions };
 }
 
+function expectPointOnCenterRay(point: { x: number; y: number }, center: { x: number; y: number }, quadrant: 'northeast' | 'southeast' | 'southwest' | 'northwest'): void {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  expect(Math.abs(Math.abs(dx) - Math.abs(dy))).toBeCloseTo(0, 5);
+
+  if (quadrant === 'northeast') {
+    expect(dx).toBeGreaterThan(0);
+    expect(dy).toBeLessThan(0);
+  } else if (quadrant === 'southeast') {
+    expect(dx).toBeGreaterThan(0);
+    expect(dy).toBeGreaterThan(0);
+  } else if (quadrant === 'southwest') {
+    expect(dx).toBeLessThan(0);
+    expect(dy).toBeGreaterThan(0);
+  } else {
+    expect(dx).toBeLessThan(0);
+    expect(dy).toBeLessThan(0);
+  }
+}
+
 describe('getHandleOffset', () => {
   it('returns local SVG coordinates for edge handles', () => {
     expect(getHandleOffset('north')).toEqual({ x: ROOM_WIDTH / 2, y: 0 });
@@ -37,11 +57,11 @@ describe('getHandleOffset', () => {
     expect(offset).toEqual({ x: 60, y: 9 });
   });
 
-  it('uses equal-perimeter spacing for oval handles', () => {
+  it('uses center-ray border intersections for oval diagonal handles', () => {
     const offset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
 
-    expect(offset?.x).toBeCloseTo(63.27, 2);
-    expect(offset?.y).toBeCloseTo(3.36, 2);
+    expect(offset).toBeDefined();
+    expectPointOnCenterRay(offset!, { x: ROOM_WIDTH / 2, y: ROOM_HEIGHT / 2 }, 'northeast');
   });
 
   it('places octagon handles at side centers', () => {
@@ -276,7 +296,7 @@ describe('computeConnectionPath', () => {
     expect(points[3]).toEqual({ x: 140, y: 36 });
   });
 
-  it('uses the oval surface normal for diagonal stubs', () => {
+  it('uses a radial center-to-handle vector for oval diagonal stubs', () => {
     const connId = 'conn-1';
     const srcRoom = { ...roomAt('Oval', 0, 200, { northeast: connId }), shape: 'oval' as const };
     const tgtRoom = roomAt('Target', 200, 0);
@@ -286,9 +306,13 @@ describe('computeConnectionPath', () => {
 
     const dx = points[1].x - points[0].x;
     const dy = points[1].y - points[0].y;
+    const center = getRoomCenter(srcRoom.position);
+    const handleDx = points[0].x - center.x;
+    const handleDy = points[0].y - center.y;
 
     expect(Math.hypot(dx, dy)).toBeCloseTo(20, 5);
-    expect(Math.abs(dx)).toBeLessThan(Math.abs(dy));
+    expect((dx * handleDy) - (dy * handleDx)).toBeCloseTo(0, 5);
+    expect(dx).toBeGreaterThan(0);
     expect(points[1].y).toBeLessThan(points[0].y);
   });
 

@@ -149,6 +149,39 @@ function getPointOnEllipse(theta: number, roomDimensions: RoomDimensions): Point
   };
 }
 
+function intersectRayWithEllipse(center: Point, vector: Point, roomDimensions: RoomDimensions): Point | undefined {
+  const normalizedVector = normalizeVector(vector);
+  if (!normalizedVector) {
+    return undefined;
+  }
+
+  const rx = roomDimensions.width / 2;
+  const ry = roomDimensions.height / 2;
+  const scale = 1 / Math.sqrt(
+    ((normalizedVector.x * normalizedVector.x) / (rx * rx))
+      + ((normalizedVector.y * normalizedVector.y) / (ry * ry)),
+  );
+
+  return {
+    x: center.x + (normalizedVector.x * scale),
+    y: center.y + (normalizedVector.y * scale),
+  };
+}
+
+function isDiagonalDirection(direction: string): boolean {
+  const vector = DIRECTION_VECTORS[direction];
+  return vector !== undefined && vector.vx !== 0 && vector.vy !== 0;
+}
+
+function getDirectionPoint(direction: string): Point | undefined {
+  const vector = DIRECTION_VECTORS[direction];
+  if (!vector) {
+    return undefined;
+  }
+
+  return { x: vector.vx, y: vector.vy };
+}
+
 function getEllipsePerimeterHandlePoints(roomDimensions: RoomDimensions): Point[] {
   const steps = 720;
   const points: Point[] = [];
@@ -259,6 +292,11 @@ function getShapeHandleOffset(
   }
 
   if (roomShape === 'oval') {
+    if (isDiagonalDirection(direction)) {
+      const directionPoint = getDirectionPoint(direction);
+      return directionPoint ? intersectRayWithEllipse(center, directionPoint, roomDimensions) : undefined;
+    }
+
     return getEllipsePerimeterHandlePoints(roomDimensions)[directionIndex];
   }
 
@@ -287,13 +325,9 @@ function getShapeStubVector(
   }
 
   if (roomShape === 'oval') {
-    const rx = roomDimensions.width / 2;
-    const ry = roomDimensions.height / 2;
-    const cx = rx;
-    const cy = ry;
     return normalizeVector({
-      x: (handleOffset.x - cx) / (rx * rx),
-      y: (handleOffset.y - cy) / (ry * ry),
+      x: handleOffset.x - (roomDimensions.width / 2),
+      y: handleOffset.y - (roomDimensions.height / 2),
     });
   }
 
