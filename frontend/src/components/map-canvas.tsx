@@ -550,6 +550,14 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           className="room-node-editor"
           style={{ transform: `translate(${visualX}px, ${visualY}px)`, width: `${roomWidth}px`, height: `${ROOM_HEIGHT}px` }}
         >
+          <svg
+            className="room-node-editor-svg"
+            aria-hidden="true"
+            width={roomWidth}
+            height={ROOM_HEIGHT}
+          >
+            {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
+          </svg>
           <RoomNameInput roomId={room.id} />
         </div>
       )}

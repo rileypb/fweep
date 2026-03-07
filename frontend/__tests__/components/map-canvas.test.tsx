@@ -177,6 +177,27 @@ describe('MapCanvas', () => {
       expect(input.selectionEnd).toBe('Kitchen'.length);
     });
 
+    it('preserves a non-rectangular room shape while inline editing', () => {
+      jest.useFakeTimers();
+
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), shape: 'diamond' as const, position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
+
+      act(() => {
+        jest.advanceTimersByTime(250);
+      });
+
+      expect(document.querySelector('.room-node-editor-svg polygon.room-node-shape')).not.toBeNull();
+      expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
+    });
+
     it('clicking outside the inline room name input confirms the new name', () => {
       jest.useFakeTimers();
 

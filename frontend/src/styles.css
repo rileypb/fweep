@@ -480,19 +480,19 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  box-sizing: border-box;
   overflow: visible;
   z-index: 6;
-  border: 2px solid #6366f1;
-  border-radius: 0.5rem;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-:root[data-theme='dark'] .room-node-editor {
-  background: #1e293b;
-  border-color: #818cf8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+.room-node-editor-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.1));
+}
+
+:root[data-theme='dark'] .room-node-editor-svg {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
 }
 
 .room-node-name {
