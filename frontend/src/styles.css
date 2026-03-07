@@ -480,10 +480,9 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  display: grid;
-  place-items: center;
+  box-sizing: border-box;
+  overflow: visible;
   z-index: 6;
-  padding: 0.5rem 0.75rem;
   border: 2px solid #6366f1;
   border-radius: 0.5rem;
   background: #ffffff;
@@ -529,7 +528,13 @@ body {
 }
 
 .room-node-editor .room-name-input {
-  width: calc(100% - 1rem);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 9rem;
+  min-width: 9rem;
+  max-width: none;
 }
 
 .room-name-input {
