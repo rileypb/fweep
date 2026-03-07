@@ -265,6 +265,29 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('map-canvas-scene')).toHaveClass('map-canvas-scene--editor-open');
     });
 
+    it('centers the room name editor on the original room position', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      jest.spyOn(roomNode, 'getBoundingClientRect').mockReturnValue({
+        x: 80,
+        y: 120,
+        left: 80,
+        top: 120,
+        right: 176,
+        bottom: 160,
+        width: 96,
+        height: 40,
+        toJSON: () => ({}),
+      });
+
+      await user.dblClick(roomNode);
+
+      expect(screen.getByTestId('room-editor-room-node')).toHaveStyle({
+        transform: 'translate(128px, 120px) translateX(-50%)',
+      });
+    });
+
     it('focuses and selects the room name when the room editor opens', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();

@@ -102,6 +102,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
   const describeRoom = useEditorStore((s) => s.describeRoom);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const originalRoomNode = document.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
 
   useEffect(() => {
     if (nameInputRef.current) {
@@ -134,8 +135,14 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
     return null;
   }
 
-  const anchorLeft = (canvasRect?.left ?? 0) + room.position.x + panOffset.x;
-  const anchorTop = (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
+  const originalRoomRect = originalRoomNode?.getBoundingClientRect();
+  const originalRoomWidth = originalRoomRect?.width ?? 80;
+  const anchorCenterX = originalRoomRect
+    ? originalRoomRect.left + (originalRoomWidth / 2)
+    : (canvasRect?.left ?? 0) + room.position.x + panOffset.x + (originalRoomWidth / 2);
+  const anchorTop = originalRoomRect
+    ? originalRoomRect.top
+    : (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
 
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
@@ -143,7 +150,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
       <div
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"
-        style={{ transform: `translate(${anchorLeft}px, ${anchorTop}px)` }}
+        style={{ transform: `translate(${anchorCenterX}px, ${anchorTop}px) translateX(-50%)` }}
       >
         <input
           ref={nameInputRef}
