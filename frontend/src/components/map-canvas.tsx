@@ -6,6 +6,9 @@ import {
   computeSegmentArrowheadPoints,
   computePreviewPath,
   pointsToSvgString,
+  ROOM_HEIGHT,
+  ROOM_WIDTH,
+  type RoomDimensions,
 } from '../graph/connection-geometry';
 
 const CLICK_EDIT_DELAY_MS = 225;
@@ -408,6 +411,16 @@ function applyDragOffset(room: Room, roomDrag: { roomId: string; dx: number; dy:
   };
 }
 
+function getRenderedRoomDimensions(roomId: string): RoomDimensions {
+  const roomEl = document.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
+  const rect = roomEl?.getBoundingClientRect();
+
+  return {
+    width: rect?.width || ROOM_WIDTH,
+    height: rect?.height || ROOM_HEIGHT,
+  };
+}
+
 function ConnectionLines({ rooms, connections }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
@@ -438,10 +451,12 @@ function ConnectionLines({ rooms, connections }: {
         // Apply drag offset for real-time edge update
         const src = applyDragOffset(rawSrc, roomDrag);
         const tgt = applyDragOffset(rawTgt, roomDrag);
+        const srcDimensions = getRenderedRoomDimensions(src.id);
+        const tgtDimensions = getRenderedRoomDimensions(tgt.id);
 
         if (conn.sourceRoomId === conn.targetRoomId) {
           // Self-connection: render a loop via the connection path
-          const points = computeConnectionPath(src, tgt, conn);
+          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
           const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
           return (
             <g key={conn.id}>
@@ -465,7 +480,7 @@ function ConnectionLines({ rooms, connections }: {
           );
         }
 
-        const points = computeConnectionPath(src, tgt, conn);
+        const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
         const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
         return (
           <g key={conn.id}>
@@ -493,11 +508,14 @@ function ConnectionLines({ rooms, connections }: {
         const srcRoom = rooms[connectionDrag.sourceRoomId];
         if (!srcRoom) return null;
         const adjustedSrc = applyDragOffset(srcRoom, roomDrag);
+        const srcDimensions = getRenderedRoomDimensions(adjustedSrc.id);
         const points = computePreviewPath(
           adjustedSrc,
           connectionDrag.sourceDirection,
           connectionDrag.cursorX,
           connectionDrag.cursorY,
+          undefined,
+          srcDimensions,
         );
         return (
           <polyline

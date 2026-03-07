@@ -53,6 +53,11 @@ describe('getHandlePosition', () => {
   it('returns undefined for unknown directions', () => {
     expect(getHandlePosition(pos, 'aft')).toBeUndefined();
   });
+
+  it('uses the provided room dimensions when computing handle positions', () => {
+    expect(getHandlePosition(pos, 'north', { width: 140, height: 40 })).toEqual({ x: 170, y: 200 });
+    expect(getHandlePosition(pos, 'east', { width: 140, height: 40 })).toEqual({ x: 240, y: 220 });
+  });
 });
 
 describe('getRoomCenter', () => {
@@ -206,6 +211,25 @@ describe('computeConnectionPath', () => {
       { x: 180, y: 218 },
       { x: 160, y: 218 },
     ]);
+  });
+
+  it('uses measured room widths when aiming at the top-center handle', () => {
+    const connId = 'conn-1';
+    const srcRoom = roomAt('Long Source', 100, 200, { north: connId });
+    const tgtRoom = roomAt('Target', 100, 0, { south: connId });
+    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: true };
+
+    const points = computeConnectionPath(
+      srcRoom,
+      tgtRoom,
+      conn,
+      20,
+      { width: 180, height: ROOM_HEIGHT },
+      { width: ROOM_WIDTH, height: ROOM_HEIGHT },
+    );
+
+    expect(points[0]).toEqual({ x: 190, y: 200 });
+    expect(points[3]).toEqual({ x: 140, y: 36 });
   });
 });
 

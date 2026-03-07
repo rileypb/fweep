@@ -6,6 +6,15 @@ import { normalizeDirection } from '../domain/directions';
 /** Estimated room node dimensions (matches CSS .room-node min-width + padding). */
 export const ROOM_WIDTH = 80;
 export const ROOM_HEIGHT = 36;
+export interface RoomDimensions {
+  readonly width: number;
+  readonly height: number;
+}
+
+const DEFAULT_ROOM_DIMENSIONS: RoomDimensions = {
+  width: ROOM_WIDTH,
+  height: ROOM_HEIGHT,
+};
 
 /** Default length (px) of the stub segment that extends straight out from a handle. */
 export const DEFAULT_STUB_LENGTH = 20;
@@ -26,15 +35,15 @@ const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
  * Offset from a room's top-left corner to the center of each compass handle.
  * Only compass directions that correspond to visible handles are included.
  */
-const HANDLE_OFFSETS: Readonly<Record<string, { dx: number; dy: number }>> = {
-  north:     { dx: ROOM_WIDTH / 2, dy: 0 },
-  northeast: { dx: ROOM_WIDTH,     dy: 0 },
-  east:      { dx: ROOM_WIDTH,     dy: ROOM_HEIGHT / 2 },
-  southeast: { dx: ROOM_WIDTH,     dy: ROOM_HEIGHT },
-  south:     { dx: ROOM_WIDTH / 2, dy: ROOM_HEIGHT },
-  southwest: { dx: 0,              dy: ROOM_HEIGHT },
-  west:      { dx: 0,              dy: ROOM_HEIGHT / 2 },
-  northwest: { dx: 0,              dy: 0 },
+const HANDLE_OFFSET_FACTORS: Readonly<Record<string, { dx: number; dy: number }>> = {
+  north:     { dx: 0.5, dy: 0 },
+  northeast: { dx: 1,   dy: 0 },
+  east:      { dx: 1,   dy: 0.5 },
+  southeast: { dx: 1,   dy: 1 },
+  south:     { dx: 0.5, dy: 1 },
+  southwest: { dx: 0,   dy: 1 },
+  west:      { dx: 0,   dy: 0.5 },
+  northwest: { dx: 0,   dy: 0 },
 };
 
 /* ---- Direction vectors (normalized for consistent stub length) ---- */
@@ -58,17 +67,27 @@ const DIRECTION_VECTORS: Readonly<Record<string, { vx: number; vy: number }>> = 
  * Return the absolute position of a compass direction handle for a room.
  * Returns `undefined` if the direction has no visual handle (e.g. "up", "down").
  */
-export function getHandlePosition(roomPosition: Point, direction: string): Point | undefined {
-  const offset = HANDLE_OFFSETS[direction];
+export function getHandlePosition(
+  roomPosition: Point,
+  direction: string,
+  roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+): Point | undefined {
+  const offset = HANDLE_OFFSET_FACTORS[direction];
   if (!offset) return undefined;
-  return { x: roomPosition.x + offset.dx, y: roomPosition.y + offset.dy };
+  return {
+    x: roomPosition.x + roomDimensions.width * offset.dx,
+    y: roomPosition.y + roomDimensions.height * offset.dy,
+  };
 }
 
 /** Return the center point of a room. */
-export function getRoomCenter(roomPosition: Point): Point {
+export function getRoomCenter(
+  roomPosition: Point,
+  roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+): Point {
   return {
-    x: roomPosition.x + ROOM_WIDTH / 2,
-    y: roomPosition.y + ROOM_HEIGHT / 2,
+    x: roomPosition.x + roomDimensions.width / 2,
+    y: roomPosition.y + roomDimensions.height / 2,
   };
 }
 
@@ -102,7 +121,7 @@ function findRoomDirectionsForConnection(room: Room, connectionId: string): stri
   const directions: string[] = [];
 
   for (const [dir, cid] of Object.entries(room.directions)) {
-    if (cid === connectionId && HANDLE_OFFSETS[dir] !== undefined) {
+    if (cid === connectionId && HANDLE_OFFSET_FACTORS[dir] !== undefined) {
       directions.push(dir);
     }
   }
@@ -111,7 +130,7 @@ function findRoomDirectionsForConnection(room: Room, connectionId: string): stri
   for (const [dir, cid] of Object.entries(room.directions)) {
     if (cid === connectionId) {
       const normalized = normalizeDirection(dir);
-      if (HANDLE_OFFSETS[normalized] !== undefined && !directions.includes(normalized)) {
+      if (HANDLE_OFFSET_FACTORS[normalized] !== undefined && !directions.includes(normalized)) {
         directions.push(normalized);
       }
     }
@@ -139,6 +158,8 @@ export function computeConnectionPath(
   tgtRoom: Room,
   conn: Connection,
   stubLength: number = DEFAULT_STUB_LENGTH,
+  srcRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+  tgtRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
 ): Point[] {
   const isSelfConnection = conn.sourceRoomId === conn.targetRoomId;
   const srcDirections = findRoomDirectionsForConnection(srcRoom, conn.id);
@@ -152,13 +173,13 @@ export function computeConnectionPath(
 
   // Source endpoint
   const srcStart = srcDir
-    ? getHandlePosition(srcRoom.position, srcDir)!
-    : getRoomCenter(srcRoom.position);
+    ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions)!
+    : getRoomCenter(srcRoom.position, srcRoomDimensions);
 
   // Target endpoint
   const tgtEnd = tgtDir
-    ? getHandlePosition(tgtRoom.position, tgtDir)!
-    : getRoomCenter(tgtRoom.position);
+    ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions)!
+    : getRoomCenter(tgtRoom.position, tgtRoomDimensions);
 
   // Build points array
   const points: Point[] = [srcStart];
@@ -190,11 +211,12 @@ export function computePreviewPath(
   cursorX: number,
   cursorY: number,
   stubLength: number = DEFAULT_STUB_LENGTH,
+  srcRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
 ): Point[] {
-  const handlePos = getHandlePosition(srcRoom.position, sourceDirection);
+  const handlePos = getHandlePosition(srcRoom.position, sourceDirection, srcRoomDimensions);
   if (!handlePos) {
     // Fallback to center
-    const center = getRoomCenter(srcRoom.position);
+    const center = getRoomCenter(srcRoom.position, srcRoomDimensions);
     return [center, { x: cursorX, y: cursorY }];
   }
 

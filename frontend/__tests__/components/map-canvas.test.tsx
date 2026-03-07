@@ -20,6 +20,10 @@ describe('MapCanvas', () => {
     resetStore();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('renders a canvas container', () => {
     render(<MapCanvas mapName="Test Map" />);
     expect(screen.getByTestId('map-canvas')).toBeInTheDocument();
@@ -885,6 +889,55 @@ describe('MapCanvas', () => {
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine).toBeInTheDocument();
       expect(connectionLine.tagName.toLowerCase()).toBe('polyline');
+    });
+
+    it('anchors a north connection to the rendered center of a wide room', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('the room of requirement'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+      jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function mockRect(this: HTMLElement) {
+        if (this.dataset.roomId === kitchen.id) {
+          return {
+            x: 80,
+            y: 200,
+            left: 80,
+            top: 200,
+            right: 260,
+            bottom: 236,
+            width: 180,
+            height: 36,
+            toJSON: () => ({}),
+          };
+        }
+
+        if (this.dataset.roomId === hallway.id) {
+          return {
+            x: 80,
+            y: 0,
+            left: 80,
+            top: 0,
+            right: 160,
+            bottom: 36,
+            width: 80,
+            height: 36,
+            toJSON: () => ({}),
+          };
+        }
+
+        return originalGetBoundingClientRect.call(this);
+      });
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
+      expect(connectionLine.getAttribute('points')).toBe('170,200 170,180 120,56 120,36');
     });
 
     it('does not render an arrowhead for a bidirectional connection', () => {
