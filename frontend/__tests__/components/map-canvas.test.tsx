@@ -396,6 +396,42 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([up.id]);
     });
 
+    it('pans the newly selected room into view when arrow navigation reaches an off-screen room', () => {
+      const doc = createEmptyMap('Test');
+      const origin = { ...createRoom('Origin'), position: { x: 80, y: 120 } };
+      const right = { ...createRoom('Right'), position: { x: 500, y: 120 } };
+      let updated = addRoom(doc, origin);
+      updated = addRoom(updated, right);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
+
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      fireEvent.mouseDown(originNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      fireEvent.keyDown(canvas, { key: 'ArrowRight' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
+      expect(content.style.transform).toBe('translate(-304px, 0px)');
+      expect(content).toHaveClass('map-canvas-content--animated');
+    });
+
     it('keeps the current selection when no room exists in that direction', () => {
       const doc = createEmptyMap('Test');
       const origin = { ...createRoom('Origin'), position: { x: 80, y: 120 } };

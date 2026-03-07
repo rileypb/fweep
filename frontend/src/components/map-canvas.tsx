@@ -14,6 +14,7 @@ import {
 import { normalizeDirection } from '../domain/directions';
 
 const AUTO_PAN_ANIMATION_MS = 320;
+const ROOM_VISIBILITY_PADDING = 24;
 const ROOM_TEXT_CHAR_WIDTH = 6.78;
 const ROOM_HORIZONTAL_PADDING = 24;
 const HANDLE_RADIUS = 5;
@@ -340,6 +341,37 @@ function findNearestRoomInDirection(
   }
 
   return bestMatch?.room ?? null;
+}
+
+function getPanDeltaToRevealRoom(
+  room: Room,
+  panOffset: PanOffset,
+  canvasRect: DOMRect | null,
+): PanOffset {
+  const roomGeometry = getRoomScreenGeometry(room, panOffset, canvasRect);
+  const canvasWidth = canvasRect?.width ?? 0;
+  const canvasHeight = canvasRect?.height ?? 0;
+  const roomLeft = roomGeometry.left - (canvasRect?.left ?? 0);
+  const roomTop = roomGeometry.top - (canvasRect?.top ?? 0);
+  const roomRight = roomLeft + roomGeometry.width;
+  const roomBottom = roomTop + roomGeometry.height;
+
+  let dx = 0;
+  let dy = 0;
+
+  if (roomLeft < ROOM_VISIBILITY_PADDING) {
+    dx = ROOM_VISIBILITY_PADDING - roomLeft;
+  } else if (roomRight > (canvasWidth - ROOM_VISIBILITY_PADDING)) {
+    dx = (canvasWidth - ROOM_VISIBILITY_PADDING) - roomRight;
+  }
+
+  if (roomTop < ROOM_VISIBILITY_PADDING) {
+    dy = ROOM_VISIBILITY_PADDING - roomTop;
+  } else if (roomBottom > (canvasHeight - ROOM_VISIBILITY_PADDING)) {
+    dy = (canvasHeight - ROOM_VISIBILITY_PADDING) - roomBottom;
+  }
+
+  return { x: dx, y: dy };
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -829,6 +861,19 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     });
   }, []);
 
+  const startAutoPanAnimation = useCallback(() => {
+    setIsAutoPanning(true);
+
+    if (autoPanTimeoutRef.current !== null) {
+      window.clearTimeout(autoPanTimeoutRef.current);
+    }
+
+    autoPanTimeoutRef.current = window.setTimeout(() => {
+      setIsAutoPanning(false);
+      autoPanTimeoutRef.current = null;
+    }, AUTO_PAN_ANIMATION_MS);
+  }, []);
+
   const panToRoomEditorPosition = useCallback((roomId: string) => {
     const canvasEl = canvasRef.current;
     const room = useEditorStore.getState().doc?.rooms[roomId];
@@ -846,26 +891,32 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     const targetCenterX = canvasWidth / 2;
     const targetTopY = canvasHeight / 3;
 
-    setIsAutoPanning(true);
+    startAutoPanAnimation();
     setPanOffset((prev) => ({
       x: prev.x + (targetCenterX - roomCenterX),
       y: prev.y + (targetTopY - roomTopY),
     }));
-
-    if (autoPanTimeoutRef.current !== null) {
-      window.clearTimeout(autoPanTimeoutRef.current);
-    }
-
-    autoPanTimeoutRef.current = window.setTimeout(() => {
-      setIsAutoPanning(false);
-      autoPanTimeoutRef.current = null;
-    }, AUTO_PAN_ANIMATION_MS);
-  }, []);
+  }, [startAutoPanAnimation]);
 
   const openRoomEditor = useCallback((roomId: string) => {
     panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
+
+  const panRoomIntoView = useCallback((room: Room) => {
+    const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    const delta = getPanDeltaToRevealRoom(room, panOffsetRef.current, currentCanvasRect);
+
+    if (delta.x === 0 && delta.y === 0) {
+      return;
+    }
+
+    startAutoPanAnimation();
+    setPanOffset((prev) => ({
+      x: prev.x + delta.x,
+      y: prev.y + delta.y,
+    }));
+  }, [canvasRect, startAutoPanAnimation]);
 
   const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
@@ -1043,7 +1094,8 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
-  }, [connectionDrag, openRoomEditor, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
+    panRoomIntoView(nearestRoom);
+  }, [connectionDrag, openRoomEditor, panRoomIntoView, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds]);
 
   const classes = [
     'map-canvas',
