@@ -354,6 +354,14 @@ body {
   background-size: 40px 40px;
 }
 
+.map-canvas--grid-animated {
+  transition: background-position 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.map-canvas--panning {
+  cursor: grabbing;
+}
+
 :root[data-theme='dark'] .map-canvas--grid {
   --grid-color: rgba(255, 255, 255, 0.06);
 }
@@ -362,6 +370,16 @@ body {
   position: absolute;
   inset: 0;
   transition: opacity 0.16s ease, filter 0.16s ease;
+}
+
+.map-canvas-content {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.map-canvas-content--animated {
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .map-canvas-scene--editor-open {

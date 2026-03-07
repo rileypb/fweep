@@ -283,4 +283,5 @@
  - Double-clicking on a room opens the room editor, which allows editing the room's description and other properties. The room editor should be an overlay on the entire UI. The map should still be visible in the background, but faded, and should not be interactive while the room editor is open. Room edits should be immediately applied to the underlying room model. The room editor should have a close button, or the user can press Escape to close it. Pressing Enter should move the focus to the next input field within the room editor, and should not close the editor. Details of the room editor layout follow:
     - When the room editor is opened, the first input field (the room name) should be focused and its text selected for easy editing.
     - Below the room name, there should be a larger textarea for editing the room description.
+    - When the room editor is opened, the map should pan until the edited room is centered horizontally in the viewport, with its vertical position about one third from the top of the viewport.
 

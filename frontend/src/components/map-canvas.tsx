@@ -9,6 +9,12 @@ import {
 } from '../graph/connection-geometry';
 
 const CLICK_EDIT_DELAY_MS = 225;
+const AUTO_PAN_ANIMATION_MS = 320;
+
+interface PanOffset {
+  x: number;
+  y: number;
+}
 
 export interface MapCanvasProps {
   mapName: string;
@@ -217,9 +223,10 @@ interface RoomNodeProps {
   isEditing: boolean;
   isRoomEditorOpen: boolean;
   onOpenRoomEditor: (roomId: string) => void;
+  toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
-function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor }: RoomNodeProps): React.JSX.Element {
+function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
   const moveRoom = useEditorStore((s) => s.moveRoom);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
@@ -313,10 +320,13 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor }: RoomN
       if (e.button !== 0 || isRoomEditorOpen) return;
       e.preventDefault();
 
-      startConnectionDrag(room.id, direction, e.clientX, e.clientY);
+      const startPoint = toMapPoint(e.clientX, e.clientY);
+
+      startConnectionDrag(room.id, direction, startPoint.x, startPoint.y);
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        updateConnectionDrag(moveEvent.clientX, moveEvent.clientY);
+        const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+        updateConnectionDrag(cursorPoint.x, cursorPoint.y);
       };
 
       const handleMouseUp = (upEvent: MouseEvent) => {
@@ -340,7 +350,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor }: RoomN
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [room.id, isRoomEditorOpen, startConnectionDrag, updateConnectionDrag, completeConnectionDrag, cancelConnectionDrag],
+    [room.id, isRoomEditorOpen, startConnectionDrag, updateConnectionDrag, completeConnectionDrag, cancelConnectionDrag, toMapPoint],
   );
 
   return (
@@ -499,14 +509,41 @@ function ConnectionLines({ rooms, connections }: {
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
   const [showGrid, setShowGrid] = useState(initialShowGrid);
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
+  const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [isAutoPanning, setIsAutoPanning] = useState(false);
   const doc = useEditorStore((s) => s.doc);
   const editingRoomId = useEditorStore((s) => s.editingRoomId);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
   const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
+  const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
+  const autoPanTimeoutRef = useRef<number | null>(null);
 
   const rooms = doc ? Object.values(doc.rooms) : [];
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset;
+  }, [panOffset]);
+
+  useEffect(() => () => {
+    if (autoPanTimeoutRef.current !== null) {
+      window.clearTimeout(autoPanTimeoutRef.current);
+    }
+  }, []);
+
+  const toMapPoint = useCallback((clientX: number, clientY: number): PanOffset => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const left = rect?.left ?? 0;
+    const top = rect?.top ?? 0;
+
+    return {
+      x: clientX - left - panOffset.x,
+      y: clientY - top - panOffset.y,
+    };
+  }, [panOffset.x, panOffset.y]);
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorId(null);
@@ -515,27 +552,117 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     });
   }, []);
 
+  const panToRoomEditorPosition = useCallback((roomId: string) => {
+    const canvasEl = canvasRef.current;
+    const room = doc?.rooms[roomId];
+    if (!canvasEl || !room) {
+      return;
+    }
+
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const canvasWidth = canvasRect.width || canvasEl.clientWidth;
+    const canvasHeight = canvasRect.height || canvasEl.clientHeight;
+
+    const roomEl = canvasEl.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
+
+    let roomCenterX = room.position.x + panOffsetRef.current.x + 40;
+    let roomTopY = room.position.y + panOffsetRef.current.y;
+
+    if (roomEl) {
+      const roomRect = roomEl.getBoundingClientRect();
+      roomCenterX = (roomRect.left - canvasRect.left) + (roomRect.width / 2);
+      roomTopY = roomRect.top - canvasRect.top;
+    }
+
+    const targetCenterX = canvasWidth / 2;
+    const targetTopY = canvasHeight / 3;
+
+    setIsAutoPanning(true);
+    setPanOffset((prev) => ({
+      x: prev.x + (targetCenterX - roomCenterX),
+      y: prev.y + (targetTopY - roomTopY),
+    }));
+
+    if (autoPanTimeoutRef.current !== null) {
+      window.clearTimeout(autoPanTimeoutRef.current);
+    }
+
+    autoPanTimeoutRef.current = window.setTimeout(() => {
+      setIsAutoPanning(false);
+      autoPanTimeoutRef.current = null;
+    }, AUTO_PAN_ANIMATION_MS);
+  }, [doc]);
+
   const openRoomEditor = useCallback((roomId: string) => {
     clearEditingRoomId();
+    panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
-  }, [clearEditingRoomId]);
+  }, [clearEditingRoomId, panToRoomEditorPosition]);
+
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
+      return;
+    }
+
+    const target = e.target as Element | null;
+    if (target?.closest('[data-room-id], .map-canvas-header')) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPan = panOffsetRef.current;
+
+    if (autoPanTimeoutRef.current !== null) {
+      window.clearTimeout(autoPanTimeoutRef.current);
+      autoPanTimeoutRef.current = null;
+    }
+    setIsAutoPanning(false);
+    setIsPanning(true);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      setPanOffset({
+        x: startPan.x + (moveEvent.clientX - startX),
+        y: startPan.y + (moveEvent.clientY - startY),
+      });
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setIsPanning(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [connectionDrag, roomEditorId]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (roomEditorId) return;
       if (!e.shiftKey) return;
 
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const target = e.target as Element | null;
+      if (target?.closest('[data-room-id], .map-canvas-header')) {
+        return;
+      }
+
+      const { x, y } = toMapPoint(e.clientX, e.clientY);
 
       const roomId = addRoomAtPosition('', { x, y });
       setEditingRoomId(roomId);
     },
-    [addRoomAtPosition, roomEditorId, setEditingRoomId],
+    [addRoomAtPosition, roomEditorId, setEditingRoomId, toMapPoint],
   );
 
-  const classes = ['map-canvas', showGrid ? 'map-canvas--grid' : '']
+  const classes = [
+    'map-canvas',
+    showGrid ? 'map-canvas--grid' : '',
+    isPanning ? 'map-canvas--panning' : '',
+    isAutoPanning ? 'map-canvas--grid-animated' : '',
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -544,8 +671,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       ref={canvasRef}
       className={classes}
       data-testid="map-canvas"
+      onMouseDown={handleCanvasMouseDown}
       onClick={handleCanvasClick}
       tabIndex={-1}
+      style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
     >
       <div
         className={`map-canvas-scene${roomEditorId ? ' map-canvas-scene--editor-open' : ''}`}
@@ -571,19 +700,26 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           </button>
         </header>
 
-        {doc && (
-          <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
-        )}
+        <div
+          className={`map-canvas-content${isAutoPanning ? ' map-canvas-content--animated' : ''}`}
+          data-testid="map-canvas-content"
+          style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
+        >
+          {doc && (
+            <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
+          )}
 
-        {rooms.map((room) => (
-          <RoomNode
-            key={room.id}
-            room={room}
-            isEditing={editingRoomId === room.id}
-            isRoomEditorOpen={roomEditorId !== null}
-            onOpenRoomEditor={openRoomEditor}
-          />
-        ))}
+          {rooms.map((room) => (
+            <RoomNode
+              key={room.id}
+              room={room}
+              isEditing={editingRoomId === room.id}
+              isRoomEditorOpen={roomEditorId !== null}
+              onOpenRoomEditor={openRoomEditor}
+              toMapPoint={toMapPoint}
+            />
+          ))}
+        </div>
       </div>
 
       {roomEditorId && <RoomEditorOverlay roomId={roomEditorId} onClose={closeRoomEditor} />}

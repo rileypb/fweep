@@ -58,6 +58,46 @@ describe('MapCanvas', () => {
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
+  describe('map panning', () => {
+    it('pans the map when dragging empty canvas space', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+
+      expect(content.style.transform).toBe('translate(60px, 60px)');
+      expect(canvas).toHaveClass('map-canvas--panning');
+
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+      expect(canvas).not.toHaveClass('map-canvas--panning');
+    });
+
+    it('creates rooms in map coordinates after panning', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 180, clientY: 140 });
+      fireEvent.mouseUp(document, { clientX: 180, clientY: 140 });
+
+      fireEvent.click(canvas, { shiftKey: true, clientX: 120, clientY: 120 });
+
+      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
+      expect(rooms).toHaveLength(1);
+      expect(rooms[0].position).toEqual({ x: 40, y: 80 });
+    });
+  });
+
   /* ---- Room rendering ---- */
 
   describe('room rendering', () => {
@@ -141,6 +181,48 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
       return screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
     }
+
+    it('pans the map to place the edited room horizontally centered and about one third from the top', async () => {
+      const user = userEvent.setup();
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      const doc = addRoom(createEmptyMap('Test'), room);
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const content = screen.getByTestId('map-canvas-content');
+
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 900,
+        bottom: 600,
+        width: 900,
+        height: 600,
+        toJSON: () => ({}),
+      });
+
+      jest.spyOn(roomNode, 'getBoundingClientRect').mockReturnValue({
+        x: 40,
+        y: 320,
+        left: 40,
+        top: 320,
+        right: 120,
+        bottom: 360,
+        width: 80,
+        height: 40,
+        toJSON: () => ({}),
+      });
+
+      await user.dblClick(roomNode);
+
+      expect(content.style.transform).toBe('translate(370px, -120px)');
+      expect(content).toHaveClass('map-canvas-content--animated');
+    });
 
     it('opens the room editor overlay on double-click', async () => {
       const user = userEvent.setup();
