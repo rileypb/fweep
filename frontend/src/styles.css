@@ -563,6 +563,20 @@ body {
   background: rgba(15, 23, 42, 0.28);
 }
 
+.room-editor-room-node {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  cursor: text;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.room-editor-room-name-input {
+  width: 100%;
+  min-width: 5rem;
+}
+
 .room-editor-panel {
   position: relative;
   z-index: 1;

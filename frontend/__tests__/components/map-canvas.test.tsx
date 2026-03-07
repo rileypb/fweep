@@ -171,6 +171,35 @@ describe('MapCanvas', () => {
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe('Kitchen'.length);
     });
+
+    it('clicking outside the inline room name input confirms the new name', () => {
+      jest.useFakeTimers();
+
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
+
+      act(() => {
+        jest.advanceTimersByTime(250);
+      });
+
+      const input = screen.getByRole('textbox', { name: /room name/i });
+      fireEvent.change(input, { target: { value: 'Pantry' } });
+
+      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 10, clientY: 10 });
+
+      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Pantry')).toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Pantry');
+    });
   });
 
   describe('room editor overlay', () => {
@@ -231,6 +260,7 @@ describe('MapCanvas', () => {
       await user.dblClick(roomNode);
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(screen.getByTestId('room-editor-room-node')).toHaveClass('room-node');
       expect(screen.getByTestId('room-editor-dialog')).toBeInTheDocument();
       expect(screen.getByTestId('map-canvas-scene')).toHaveClass('map-canvas-scene--editor-open');
     });

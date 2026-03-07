@@ -91,10 +91,12 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
 
 interface RoomEditorOverlayProps {
   roomId: string;
+  panOffset: PanOffset;
+  canvasRect: DOMRect | null;
   onClose: () => void;
 }
 
-function RoomEditorOverlay({ roomId, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
+function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const describeRoom = useEditorStore((s) => s.describeRoom);
@@ -132,14 +134,33 @@ function RoomEditorOverlay({ roomId, onClose }: RoomEditorOverlayProps): React.J
     return null;
   }
 
+  const anchorLeft = (canvasRect?.left ?? 0) + room.position.x + panOffset.x;
+  const anchorTop = (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
+
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
       <div className="room-editor-backdrop" aria-hidden="true" />
       <div
+        className="room-node room-editor-room-node"
+        data-testid="room-editor-room-node"
+        style={{ transform: `translate(${anchorLeft}px, ${anchorTop}px)` }}
+      >
+        <input
+          ref={nameInputRef}
+          className="room-name-input room-editor-room-name-input"
+          data-testid="room-editor-name-input"
+          type="text"
+          aria-label="Room name"
+          value={room.name}
+          onChange={(e) => renameRoom(room.id, e.target.value)}
+          onKeyDown={handleNameKeyDown}
+        />
+      </div>
+      <div
         className="room-editor-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="room-editor-name-label"
+        aria-label="Room editor"
         data-testid="room-editor-dialog"
       >
         <button
@@ -150,22 +171,6 @@ function RoomEditorOverlay({ roomId, onClose }: RoomEditorOverlayProps): React.J
         >
           ×
         </button>
-
-        <div className="room-editor-field">
-          <label id="room-editor-name-label" className="room-editor-label" htmlFor="room-editor-name-input">
-            Room name
-          </label>
-          <input
-            id="room-editor-name-input"
-            ref={nameInputRef}
-            className="room-editor-input"
-            data-testid="room-editor-name-input"
-            type="text"
-            value={room.name}
-            onChange={(e) => renameRoom(room.id, e.target.value)}
-            onKeyDown={handleNameKeyDown}
-          />
-        </div>
 
         <div className="room-editor-field">
           <label className="room-editor-label" htmlFor="room-editor-description-input">
@@ -521,12 +526,32 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const canvasRef = useRef<HTMLDivElement>(null);
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
   const autoPanTimeoutRef = useRef<number | null>(null);
+  const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
   useEffect(() => {
     panOffsetRef.current = panOffset;
   }, [panOffset]);
+
+  useEffect(() => {
+    if (!canvasRef.current) {
+      return;
+    }
+
+    const updateCanvasRect = () => {
+      if (canvasRef.current) {
+        setCanvasRect(canvasRef.current.getBoundingClientRect());
+      }
+    };
+
+    updateCanvasRect();
+    window.addEventListener('resize', updateCanvasRect);
+
+    return () => {
+      window.removeEventListener('resize', updateCanvasRect);
+    };
+  }, []);
 
   useEffect(() => () => {
     if (autoPanTimeoutRef.current !== null) {
@@ -606,6 +631,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     const target = e.target as Element | null;
     if (target?.closest('[data-room-id], .map-canvas-header')) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLInputElement && activeElement.classList.contains('room-name-input')) {
+      activeElement.blur();
       return;
     }
 
@@ -722,7 +753,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         </div>
       </div>
 
-      {roomEditorId && <RoomEditorOverlay roomId={roomEditorId} onClose={closeRoomEditor} />}
+      {roomEditorId && (
+        <RoomEditorOverlay
+          roomId={roomEditorId}
+          panOffset={panOffset}
+          canvasRect={canvasRect}
+          onClose={closeRoomEditor}
+        />
+      )}
     </div>
   );
 }
