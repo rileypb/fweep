@@ -96,8 +96,11 @@
 - Allow users to export the map visualization as an image (e.g., PNG) for sharing or documentation purposes.
 - Implement a feature to display room descriptions as tooltips when hovering over rooms in the map visualization.
 - Allow users to customize the layout of the map visualization, such as choosing between a grid layout or a force-directed layout.
-- Implement smart layout algorithms that automatically arrange rooms and connections in a visually appealing way, minimizing overlaps and improving readability.
+- Implement smart layout algorithms that automatically arrange rooms and connections in a visually readable way while preserving parser-direction semantics where possible. For example, if a room connects north to another room, the layout should prefer placing the target room visually north of the source room, while still resolving conflicts, overlaps, and dense clusters gracefully.
 - Provide options for users to customize the appearance of the map visualization, such as changing node shapes, edge styles, and label fonts.
+
+
+
 
 ## Architectural Decisions
 
@@ -110,10 +113,11 @@
 - Persist maps in a JSON format that captures all necessary information about rooms, connections, items, and their properties for easy export and import.
 - Use command pattern for implementing undo/redo functionality, where each action is encapsulated as a command object that can be executed and reversed.
 - Layout should support both a manual option and an auto-layout option.
-- For auto-layout, use a force-directed algorithm to arrange rooms in a visually appealing way, minimizing overlaps and improving readability.
+- For auto-layout, use a hybrid layout approach: first derive direction-aware preferred positions from the map's connection semantics, then apply a lightweight force-directed or relaxation pass to reduce overlaps, crossings, and spacing problems. The goal is to preserve parser-direction intent when possible rather than treating the map as a generic graph.
 - Styling: Use CSS modules or styled-components for styling the application, ensuring that styles are scoped to components and do not leak globally.
 - Accessibility: Follow best practices for web accessibility, such as using semantic HTML, providing keyboard navigation, and ensuring sufficient color contrast.
 - Testing: Use Jest and React Testing Library for unit and integration tests, focusing on unit and integration tests for core logic and utility functions, and using end-to-end testing with Cypress for critical user flows.
+
 
 ## Persistence and Storage
 
@@ -144,6 +148,7 @@
 - Treat imported data as untrusted input: validate IDs, references, required fields, and schema version before accepting it.
 - Prefer pure transformation and validation functions for operations like import, export, migration, normalization, and graph derivation.
 - Only one connection binding should exist for a given room and direction; a single direction from one room must not resolve to multiple different connections.
+- Treat auto-layout as a pure graph-derivation step that computes suggested room positions from canonical map data without changing connection semantics.
 
 ## UI/UX
 

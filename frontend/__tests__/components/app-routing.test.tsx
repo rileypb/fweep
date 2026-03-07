@@ -23,6 +23,7 @@ describe('URL routing', () => {
     render(<App />);
 
     expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /prettify layout/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
   });
 

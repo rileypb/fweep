@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { MapCanvas } from './components/map-canvas';
+import { PrettifyButton } from './components/prettify-button';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
@@ -34,6 +35,7 @@ export function App(): React.JSX.Element {
     <main className="app-shell">
       <h1 className="app-title">fweep</h1>
       <div className="app-controls">
+        <PrettifyButton />
         <SnapToggle />
         <ThemeToggle />
       </div>

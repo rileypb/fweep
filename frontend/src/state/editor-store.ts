@@ -9,8 +9,10 @@ import {
   moveRoom as domainMoveRoom,
   describeRoom as domainDescribeRoom,
   setRoomShape as domainSetRoomShape,
+  setRoomPositions as domainSetRoomPositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
+import { computePrettifiedRoomPositions } from '../graph/prettify-layout';
 
 /** Grid size in pixels used for snapping room positions. */
 const GRID_SIZE = 40;
@@ -101,6 +103,9 @@ export interface EditorState {
 
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
+
+  /** Recompute room positions from the connection graph. */
+  prettifyLayout: () => void;
 
   /** Begin a connection drag from a direction handle. */
   startConnectionDrag: (roomId: string, direction: string, cursorX: number, cursorY: number) => void;
@@ -214,6 +219,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     set({ doc: domainMoveRoom(doc, roomId, snapped) });
+  },
+
+  prettifyLayout: () => {
+    const { doc } = get();
+    if (!doc) {
+      return;
+    }
+
+    const nextPositions = computePrettifiedRoomPositions(doc);
+    set({ doc: domainSetRoomPositions(doc, nextPositions) });
   },
 
   startConnectionDrag: (roomId, direction, cursorX, cursorY) => {
