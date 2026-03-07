@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapCanvas } from './components/map-canvas';
 import { PrettifyButton } from './components/prettify-button';
 import { RedoButton } from './components/redo-button';
@@ -15,12 +15,15 @@ export function App(): React.JSX.Element {
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const storeDoc = useEditorStore((s) => s.doc);
+  const pendingInitialSaveSkipKeyRef = useRef<string | null>(null);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
     if (activeMap) {
+      pendingInitialSaveSkipKeyRef.current = `${activeMap.metadata.id}:${activeMap.metadata.updatedAt}`;
       loadDocument(activeMap);
     } else {
+      pendingInitialSaveSkipKeyRef.current = null;
       unloadDocument();
     }
   }, [activeMap, loadDocument, unloadDocument]);
@@ -28,10 +31,15 @@ export function App(): React.JSX.Element {
   // Auto-save when the store document changes.
   useEffect(() => {
     if (!storeDoc) return;
-    // Skip save if this is the initial load (same updatedAt as router doc).
-    if (activeMap && storeDoc.metadata.updatedAt === activeMap.metadata.updatedAt) return;
+    const currentDocKey = `${storeDoc.metadata.id}:${storeDoc.metadata.updatedAt}`;
+    if (pendingInitialSaveSkipKeyRef.current === currentDocKey) {
+      pendingInitialSaveSkipKeyRef.current = null;
+      return;
+    }
+
+    pendingInitialSaveSkipKeyRef.current = null;
     void saveMap(storeDoc);
-  }, [storeDoc, activeMap]);
+  }, [storeDoc]);
 
   return (
     <main className="app-shell">

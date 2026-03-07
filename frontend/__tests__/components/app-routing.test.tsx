@@ -1,8 +1,8 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createEmptyMap } from '../../src/domain/map-types';
-import { saveMap } from '../../src/storage/map-store';
+import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
 import { useEditorStore } from '../../src/state/editor-store';
 
@@ -45,6 +45,34 @@ describe('URL routing', () => {
     expect(await screen.findByText(/routed map/i)).toBeInTheDocument();
     // Should NOT show the selection dialog
     expect(screen.queryByRole('dialog', { name: /choose a map/i })).not.toBeInTheDocument();
+  });
+
+  it('autosaves after undoing back to the originally loaded state', async () => {
+    const originalDoc = createEmptyMap('Undo Save Map');
+    await saveMap(originalDoc);
+
+    navigateTo(`/map/${originalDoc.metadata.id}`);
+    render(<App />);
+
+    await screen.findByText(/undo save map/i);
+
+    act(() => {
+      useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+    });
+
+    await waitFor(async () => {
+      const persisted = await loadMap(originalDoc.metadata.id);
+      expect(Object.values(persisted?.rooms ?? {})).toHaveLength(1);
+    });
+
+    act(() => {
+      useEditorStore.getState().undo();
+    });
+
+    await waitFor(async () => {
+      const persisted = await loadMap(originalDoc.metadata.id);
+      expect(persisted).toEqual(originalDoc);
+    });
   });
 
   it('updates the URL when a map is selected from the dialog', async () => {

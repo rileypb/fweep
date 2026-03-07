@@ -6,7 +6,7 @@ export function UndoButton(): React.JSX.Element {
 
   return (
     <button
-      className="app-control-button"
+      className={`app-control-button${canUndo ? ' app-control-button--active-history' : ''}`}
       onClick={undo}
       aria-label="Undo"
       title="Undo"

@@ -6,7 +6,7 @@ export function RedoButton(): React.JSX.Element {
 
   return (
     <button
-      className="app-control-button"
+      className={`app-control-button${canRedo ? ' app-control-button--active-history' : ''}`}
       onClick={redo}
       aria-label="Redo"
       title="Redo"

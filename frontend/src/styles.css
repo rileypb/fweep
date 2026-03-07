@@ -76,9 +76,19 @@ body {
   transition: opacity 0.15s ease;
 }
 
+.app-control-button--active-history {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
+}
+
 .app-control-button:hover,
 .app-control-button:focus-visible {
   opacity: 1;
+}
+
+.app-control-button:disabled {
+  cursor: default;
 }
 
 /* ---- Map selection dialog ---- */
