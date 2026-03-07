@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -101,11 +101,43 @@ describe('MapCanvas', () => {
       expect(rooms).toHaveLength(1);
       expect(rooms[0].position).toEqual({ x: 40, y: 80 });
     });
+
+    it('clicking the map background clears the room selection', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().selectRoom(room.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 20, clientY: 20, button: 0 });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(screen.queryByTestId('room-selection-outline')).not.toBeInTheDocument();
+    });
   });
 
   /* ---- Room rendering ---- */
 
   describe('room rendering', () => {
+    function setupTwoRooms() {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      return {
+        kitchenNode: screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement,
+        hallwayNode: screen.getByText('Hallway').closest('[data-testid="room-node"]') as HTMLElement,
+      };
+    }
+
     it('renders room nodes from the editor store', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -153,9 +185,7 @@ describe('MapCanvas', () => {
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
     });
 
-    it('single-clicking a room reopens the inline name editor', () => {
-      jest.useFakeTimers();
-
+    it('single-clicking a room does not open a room name textbox', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
@@ -166,20 +196,11 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
       fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
 
-      act(() => {
-        jest.advanceTimersByTime(250);
-      });
-
-      const input = screen.getByRole('textbox', { name: /room name/i }) as HTMLInputElement;
-      expect(input).toBeInTheDocument();
-      expect(input.value).toBe('Kitchen');
-      expect(input.selectionStart).toBe(0);
-      expect(input.selectionEnd).toBe('Kitchen'.length);
+      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Kitchen')).toBeInTheDocument();
     });
 
-    it('preserves a non-rectangular room shape while inline editing', () => {
-      jest.useFakeTimers();
-
+    it('preserves a non-rectangular room shape after single-clicking the room', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), shape: 'diamond' as const, position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
@@ -190,41 +211,56 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
       fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
 
-      act(() => {
-        jest.advanceTimersByTime(250);
-      });
-
-      expect(document.querySelector('.room-node-editor-svg polygon.room-node-shape')).not.toBeNull();
-      expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
+      expect(screen.getByTestId('room-node').querySelector('polygon.room-node-shape')).not.toBeNull();
+      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
     });
 
-    it('clicking outside the inline room name input confirms the new name', () => {
-      jest.useFakeTimers();
+    it('single-clicking a room selects it and clears any previous selection', () => {
+      const { kitchenNode, hallwayNode } = setupTwoRooms();
 
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      expect(within(kitchenNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(within(hallwayNode).queryByTestId('room-selection-outline')).not.toBeInTheDocument();
+
+      fireEvent.mouseDown(hallwayNode, { clientX: 220, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 220, clientY: 140, button: 0 });
+
+      expect(within(kitchenNode).queryByTestId('room-selection-outline')).not.toBeInTheDocument();
+      expect(within(hallwayNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([hallwayNode.dataset.roomId]);
+    });
+
+    it('shift-clicking a room adds it to the selection', () => {
+      const { kitchenNode, hallwayNode } = setupTwoRooms();
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      fireEvent.mouseDown(hallwayNode, { clientX: 220, clientY: 140, button: 0, shiftKey: true });
+      fireEvent.mouseUp(document, { clientX: 220, clientY: 140, button: 0, shiftKey: true });
+
+      expect(within(kitchenNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(within(hallwayNode).getByTestId('room-selection-outline')).toBeInTheDocument();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([
+        kitchenNode.dataset.roomId,
+        hallwayNode.dataset.roomId,
+      ]);
+    });
+
+    it('draws the selected room outline as a bright red rounded rectangle', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
+      useEditorStore.getState().selectRoom(room.id);
 
       render(<MapCanvas mapName="Test" />);
 
-      const canvas = screen.getByTestId('map-canvas');
-      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
-      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
-      fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
-
-      act(() => {
-        jest.advanceTimersByTime(250);
-      });
-
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      fireEvent.change(input, { target: { value: 'Pantry' } });
-
-      fireEvent.mouseDown(canvas, { clientX: 10, clientY: 10, button: 0 });
-      fireEvent.mouseUp(document, { clientX: 10, clientY: 10 });
-
-      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
-      expect(screen.getByText('Pantry')).toBeInTheDocument();
-      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Pantry');
+      const outline = screen.getByTestId('room-selection-outline');
+      expect(outline.tagName.toLowerCase()).toBe('rect');
+      expect(outline).toHaveAttribute('rx', '12');
+      expect(outline).toHaveClass('room-selection-outline');
     });
   });
 
@@ -409,7 +445,7 @@ describe('MapCanvas', () => {
   /* ---- Shift+click to create room ---- */
 
   describe('Shift+click to create room', () => {
-    it('creates a room with an empty name and shows an input on Shift+click', () => {
+    it('creates a room with an empty name on Shift+click', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -422,11 +458,7 @@ describe('MapCanvas', () => {
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
       expect(rooms[0].name).toBe('');
-
-      // An inline input should be visible with focus
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      expect(input).toBeInTheDocument();
-      expect(document.activeElement).toBe(input);
+      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
     });
 
     it('does not create a room on normal click (no Shift)', () => {
@@ -455,8 +487,7 @@ describe('MapCanvas', () => {
       expect(rooms[0].position).toEqual({ x: 40, y: 80 });
     });
 
-    it('commits the name on Enter and hides the input', async () => {
-      const user = userEvent.setup();
+    it('does not open a room name textbox for a new room', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -465,86 +496,8 @@ describe('MapCanvas', () => {
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
 
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      await user.type(input, 'Kitchen{Enter}');
-
-      // Name should be committed
-      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms[0].name).toBe('Kitchen');
-
-      // Input should be gone, label should be visible
       expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
-      expect(screen.getByText('Kitchen')).toBeInTheDocument();
-    });
-
-    it('commits the name on blur', async () => {
-      const user = userEvent.setup();
-      const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
-
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      await user.type(input, 'Hallway');
-      fireEvent.blur(input);
-
-      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms[0].name).toBe('Hallway');
-      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
-    });
-
-    it('deletes the room if the name is left empty on Enter', async () => {
-      const user = userEvent.setup();
-      const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
-
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      await user.type(input, '{Enter}');
-
-      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
-    });
-
-    it('deletes the room if the name is left empty on blur', () => {
-      const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
-
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      fireEvent.blur(input);
-
-      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
-    });
-
-    it('cancels editing and retains the room on Escape', async () => {
-      const user = userEvent.setup();
-      const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
-
-      const input = screen.getByRole('textbox', { name: /room name/i });
-      await user.type(input, 'Kitchen{Escape}');
-
-      // Editing was cancelled; the room remains and the name is restored to original
-      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms).toHaveLength(1);
-      expect(rooms[0].name).toBe('');
-      expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(1);
     });
   });
 
@@ -611,7 +564,7 @@ describe('MapCanvas', () => {
       expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);
     });
 
-    it('does not show directional handles while editing a room name', () => {
+    it('shows directional handles for a newly created room on hover', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -620,11 +573,10 @@ describe('MapCanvas', () => {
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
 
-      // Room is in editing mode — hover over the node
       const roomNode = screen.getByTestId('room-node');
       fireEvent.mouseEnter(roomNode);
 
-      expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);
+      expect(screen.getAllByTestId(/^direction-handle-/)).toHaveLength(8);
     });
   });
 
@@ -679,24 +631,18 @@ describe('MapCanvas', () => {
       expect(room.position).toEqual({ x: 80, y: 120 });
     });
 
-    it('does not drag while editing a room name', () => {
-      const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+    it('does not drag while the room editor overlay is open', async () => {
+      const user = userEvent.setup();
+      const { roomId, roomNode } = setupDraggableRoom(80, 120);
 
-      render(<MapCanvas mapName="Test" />);
+      await user.dblClick(roomNode);
 
-      // Create a room via Shift+click (enters editing mode)
-      const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 80, clientY: 120 });
-
-      const roomNode = screen.getByTestId('room-node');
-      fireEvent.mouseDown(roomNode, { clientX: 90, clientY: 130, button: 0 });
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
       fireEvent.mouseMove(document, { clientX: 200, clientY: 200 });
       fireEvent.mouseUp(document, { clientX: 200, clientY: 200 });
 
-      // Room should still be at original snapped position
-      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms[0].position).toEqual({ x: 80, y: 120 });
+      const room = useEditorStore.getState().doc!.rooms[roomId];
+      expect(room.position).toEqual({ x: 80, y: 120 });
     });
 
     it('does not fire Shift+click room creation during drag', () => {

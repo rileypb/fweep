@@ -476,23 +476,11 @@ body {
   stroke: #818cf8;
 }
 
-.room-node-editor {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: visible;
-  z-index: 6;
-}
-
-.room-node-editor-svg {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.1));
-}
-
-:root[data-theme='dark'] .room-node-editor-svg {
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+.room-selection-outline {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 3;
+  pointer-events: none;
 }
 
 .room-node-name {
@@ -525,16 +513,6 @@ body {
 
 :root[data-theme='dark'] .direction-handle:hover {
   fill: #a5b4fc;
-}
-
-.room-node-editor .room-name-input {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 9rem;
-  min-width: 9rem;
-  max-width: none;
 }
 
 .room-name-input {

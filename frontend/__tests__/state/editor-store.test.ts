@@ -33,6 +33,15 @@ describe('useEditorStore', () => {
       useEditorStore.getState().unloadDocument();
       expect(useEditorStore.getState().doc).toBeNull();
     });
+
+    it('clears the room selection', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().unloadDocument();
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
   });
 
   /* ---- addRoomAtPosition ---- */
@@ -152,21 +161,54 @@ describe('useEditorStore', () => {
     it('throws when no document is loaded', () => {
       expect(() => useEditorStore.getState().removeRoom('r1')).toThrow();
     });
+
+    it('removes deleted rooms from the selection', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().selectRoom(roomId);
+
+      useEditorStore.getState().removeRoom(roomId);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
   });
 
-  /* ---- editingRoomId ---- */
+  /* ---- room selection ---- */
 
-  describe('editingRoomId', () => {
-    it('starts as null', () => {
-      expect(useEditorStore.getState().editingRoomId).toBeNull();
+  describe('room selection', () => {
+    it('starts with no selected rooms', () => {
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
     });
 
-    it('can be set and cleared', () => {
-      useEditorStore.getState().setEditingRoomId('r1');
-      expect(useEditorStore.getState().editingRoomId).toBe('r1');
+    it('selectRoom replaces the current selection', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().selectRoom('r2');
 
-      useEditorStore.getState().clearEditingRoomId();
-      expect(useEditorStore.getState().editingRoomId).toBeNull();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r2']);
+    });
+
+    it('addRoomToSelection appends a room without duplicates', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addRoomToSelection('r2');
+      useEditorStore.getState().addRoomToSelection('r2');
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r1', 'r2']);
+    });
+
+    it('clearRoomSelection empties the selection', () => {
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().clearRoomSelection();
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('loadDocument clears any existing selection', () => {
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().loadDocument(testDoc);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
     });
   });
 

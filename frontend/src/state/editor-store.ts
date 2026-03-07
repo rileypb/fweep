@@ -47,8 +47,8 @@ export interface EditorState {
   /** The currently loaded map document, or null when no map is open. */
   doc: MapDocument | null;
 
-  /** The ID of the room currently being inline-edited, or null. */
-  editingRoomId: string | null;
+  /** The currently selected room IDs. */
+  selectedRoomIds: readonly string[];
 
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
@@ -77,11 +77,14 @@ export interface EditorState {
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
 
-  /** Set the ID of the room being inline-edited. */
-  setEditingRoomId: (id: string) => void;
+  /** Replace the current room selection with a single room. */
+  selectRoom: (roomId: string) => void;
 
-  /** Clear the inline-editing state. */
-  clearEditingRoomId: () => void;
+  /** Add a room to the current selection. */
+  addRoomToSelection: (roomId: string) => void;
+
+  /** Clear the current room selection. */
+  clearRoomSelection: () => void;
 
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
@@ -110,13 +113,13 @@ export interface EditorState {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
-  editingRoomId: null,
+  selectedRoomIds: [],
   connectionDrag: null,
   roomDrag: null,
 
-  loadDocument: (doc) => set({ doc }),
+  loadDocument: (doc) => set({ doc, selectedRoomIds: [] }),
 
-  unloadDocument: () => set({ doc: null, editingRoomId: null, connectionDrag: null, roomDrag: null }),
+  unloadDocument: () => set({ doc: null, selectedRoomIds: [], connectionDrag: null, roomDrag: null }),
 
   addRoomAtPosition: (name, position) => {
     const { doc } = get();
@@ -160,12 +163,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot remove a room: no document is loaded.');
     }
-    set({ doc: domainDeleteRoom(doc, roomId), editingRoomId: null });
+    set((state) => ({
+      doc: domainDeleteRoom(doc, roomId),
+      selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
+    }));
   },
 
-  setEditingRoomId: (id) => set({ editingRoomId: id }),
+  selectRoom: (roomId) => {
+    set({ selectedRoomIds: [roomId] });
+  },
 
-  clearEditingRoomId: () => set({ editingRoomId: null }),
+  addRoomToSelection: (roomId) => {
+    set((state) => ({
+      selectedRoomIds: state.selectedRoomIds.includes(roomId)
+        ? state.selectedRoomIds
+        : [...state.selectedRoomIds, roomId],
+    }));
+  },
+
+  clearRoomSelection: () => {
+    set({ selectedRoomIds: [] });
+  },
 
   moveRoom: (roomId, position) => {
     const { doc } = get();

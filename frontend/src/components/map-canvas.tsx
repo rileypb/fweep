@@ -13,7 +13,6 @@ import {
 } from '../graph/connection-geometry';
 import { normalizeDirection } from '../domain/directions';
 
-const CLICK_EDIT_DELAY_MS = 225;
 const AUTO_PAN_ANIMATION_MS = 320;
 const ROOM_TEXT_CHAR_WIDTH = 6.78;
 const ROOM_HORIZONTAL_PADDING = 24;
@@ -36,71 +35,6 @@ export interface MapCanvasProps {
   mapName: string;
   /** Whether the background grid is visible. Defaults to true. */
   showGrid?: boolean;
-}
-
-/* ---- Inline name input ---- */
-
-function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
-  const currentName = useEditorStore((s) => s.doc?.rooms?.[roomId]?.name ?? '');
-  const [value, setValue] = useState(currentName);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const committedRef = useRef(false);
-  const renameRoom = useEditorStore((s) => s.renameRoom);
-  const removeRoom = useEditorStore((s) => s.removeRoom);
-  const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, []);
-
-  const commit = useCallback(() => {
-    if (committedRef.current) return;
-    committedRef.current = true;
-
-    const trimmed = (inputRef.current?.value ?? value).trim();
-    if (trimmed.length === 0) {
-      removeRoom(roomId);
-    } else {
-      renameRoom(roomId, trimmed);
-      clearEditingRoomId();
-    }
-  }, [value, roomId, renameRoom, removeRoom, clearEditingRoomId]);
-
-  const cancel = useCallback(() => {
-    if (committedRef.current) return;
-    committedRef.current = true;
-    // Discard edits and keep the original name; just exit editing mode
-    clearEditingRoomId();
-  }, [clearEditingRoomId]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        commit();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        cancel();
-      }
-    },
-    [commit, cancel],
-  );
-
-  return (
-    <input
-      ref={inputRef}
-      className="room-name-input"
-      type="text"
-      aria-label="Room name"
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={handleKeyDown}
-      onBlur={commit}
-    />
-  );
 }
 
 /* ---- Room editor overlay ---- */
@@ -370,13 +304,13 @@ function DirectionHandles({ roomWidth, roomHeight, roomShape, onHandleMouseDown 
 
 interface RoomNodeProps {
   room: Room;
-  isEditing: boolean;
+  isSelected: boolean;
   isRoomEditorOpen: boolean;
   onOpenRoomEditor: (roomId: string) => void;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
-function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
+function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
   const moveRoom = useEditorStore((s) => s.moveRoom);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
@@ -387,8 +321,8 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
   const updateRoomDrag = useEditorStore((s) => s.updateRoomDrag);
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
-  const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
-  const clickEditTimeoutRef = useRef<number | null>(null);
+  const selectRoom = useEditorStore((s) => s.selectRoom);
+  const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
 
   const isDragging = roomDrag !== null && roomDrag.roomId === room.id;
   const dragOffset = isDragging ? roomDrag : null;
@@ -398,35 +332,13 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
   const roomWidth = getRoomNodeWidth(room.name);
 
-  useEffect(() => () => {
-    if (clickEditTimeoutRef.current !== null) {
-      window.clearTimeout(clickEditTimeoutRef.current);
-    }
-  }, []);
-
-  const queueInlineRename = useCallback(() => {
-    if (clickEditTimeoutRef.current !== null) {
-      window.clearTimeout(clickEditTimeoutRef.current);
-    }
-
-    clickEditTimeoutRef.current = window.setTimeout(() => {
-      setEditingRoomId(room.id);
-      clickEditTimeoutRef.current = null;
-    }, CLICK_EDIT_DELAY_MS);
-  }, [room.id, setEditingRoomId]);
-
   const openRoomEditor = useCallback(() => {
-    if (clickEditTimeoutRef.current !== null) {
-      window.clearTimeout(clickEditTimeoutRef.current);
-      clickEditTimeoutRef.current = null;
-    }
-
     onOpenRoomEditor(room.id);
   }, [onOpenRoomEditor, room.id]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      if (e.button !== 0 || isEditing || isRoomEditorOpen) return;
+      if (e.button !== 0 || isRoomEditorOpen) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -455,15 +367,17 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
             x: room.position.x + dx,
             y: room.position.y + dy,
           });
+        } else if (upEvent.shiftKey) {
+          addRoomToSelection(room.id);
         } else {
-          queueInlineRename();
+          selectRoom(room.id);
         }
       };
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [isEditing, isRoomEditorOpen, room.id, room.position.x, room.position.y, moveRoom, startRoomDrag, updateRoomDrag, endRoomDrag, queueInlineRename],
+    [addRoomToSelection, isRoomEditorOpen, moveRoom, room.id, room.position.x, room.position.y, selectRoom, startRoomDrag, updateRoomDrag, endRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(
@@ -523,19 +437,29 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           openRoomEditor();
         }}
       >
-        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
-        {!isEditing && (
-          <text
-            className="room-node-name"
-            x={roomWidth / 2}
-            y={ROOM_HEIGHT / 2}
-            dominantBaseline="middle"
-            textAnchor="middle"
-          >
-            {room.name}
-          </text>
+        {isSelected && (
+          <rect
+            className="room-selection-outline"
+            data-testid="room-selection-outline"
+            x={-4}
+            y={-4}
+            width={roomWidth + 8}
+            height={ROOM_HEIGHT + 8}
+            rx={12}
+            ry={12}
+          />
         )}
-        {hovered && !isEditing && !isDragging && !isRoomEditorOpen && (
+        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
+        <text
+          className="room-node-name"
+          x={roomWidth / 2}
+          y={ROOM_HEIGHT / 2}
+          dominantBaseline="middle"
+          textAnchor="middle"
+        >
+          {room.name}
+        </text>
+        {hovered && !isDragging && !isRoomEditorOpen && (
           <DirectionHandles
             roomWidth={roomWidth}
             roomHeight={ROOM_HEIGHT}
@@ -544,23 +468,6 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           />
         )}
       </svg>
-
-      {isEditing && (
-        <div
-          className="room-node-editor"
-          style={{ transform: `translate(${visualX}px, ${visualY}px)`, width: `${roomWidth}px`, height: `${ROOM_HEIGHT}px` }}
-        >
-          <svg
-            className="room-node-editor-svg"
-            aria-hidden="true"
-            width={roomWidth}
-            height={ROOM_HEIGHT}
-          >
-            {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
-          </svg>
-          <RoomNameInput roomId={room.id} />
-        </div>
-      )}
     </>
   );
 }
@@ -703,10 +610,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const doc = useEditorStore((s) => s.doc);
-  const editingRoomId = useEditorStore((s) => s.editingRoomId);
+  const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
-  const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
-  const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
+  const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const canvasRef = useRef<HTMLDivElement>(null);
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
@@ -796,10 +702,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [doc]);
 
   const openRoomEditor = useCallback((roomId: string) => {
-    clearEditingRoomId();
     panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
-  }, [clearEditingRoomId, panToRoomEditorPosition]);
+  }, [panToRoomEditorPosition]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
@@ -807,16 +712,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], .room-node-editor, .map-canvas-header')) {
+    if (target?.closest('[data-room-id], .map-canvas-header')) {
       return;
     }
 
-    const activeElement = document.activeElement;
-    if (activeElement instanceof HTMLInputElement && activeElement.classList.contains('room-name-input')) {
-      activeElement.blur();
-      return;
-    }
-
+    clearRoomSelection();
     e.preventDefault();
 
     const startX = e.clientX;
@@ -845,7 +745,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [connectionDrag, roomEditorId]);
+  }, [clearRoomSelection, connectionDrag, roomEditorId]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -853,16 +753,15 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       if (!e.shiftKey) return;
 
       const target = e.target as Element | null;
-      if (target?.closest('[data-room-id], .room-node-editor, .map-canvas-header')) {
+      if (target?.closest('[data-room-id], .map-canvas-header')) {
         return;
       }
 
       const { x, y } = toMapPoint(e.clientX, e.clientY);
 
-      const roomId = addRoomAtPosition('', { x, y });
-      setEditingRoomId(roomId);
+      addRoomAtPosition('', { x, y });
     },
-    [addRoomAtPosition, roomEditorId, setEditingRoomId, toMapPoint],
+    [addRoomAtPosition, roomEditorId, toMapPoint],
   );
 
   const classes = [
@@ -922,7 +821,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             <RoomNode
               key={room.id}
               room={room}
-              isEditing={editingRoomId === room.id}
+              isSelected={selectedRoomIds.includes(room.id)}
               isRoomEditorOpen={roomEditorId !== null}
               onOpenRoomEditor={openRoomEditor}
               toMapPoint={toMapPoint}
