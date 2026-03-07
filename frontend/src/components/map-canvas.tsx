@@ -19,6 +19,8 @@ interface PanOffset {
   y: number;
 }
 
+type RoomDimensionMap = Readonly<Record<string, RoomDimensions>>;
+
 export interface MapCanvasProps {
   mapName: string;
   /** Whether the background grid is visible. Defaults to true. */
@@ -415,19 +417,10 @@ function applyDragOffset(room: Room, roomDrag: { roomId: string; dx: number; dy:
   };
 }
 
-function getRenderedRoomDimensions(roomId: string): RoomDimensions {
-  const roomEl = document.querySelector(`[data-room-id="${roomId}"]`) as HTMLElement | null;
-  const rect = roomEl?.getBoundingClientRect();
-
-  return {
-    width: rect?.width || ROOM_WIDTH,
-    height: rect?.height || ROOM_HEIGHT,
-  };
-}
-
-function ConnectionLines({ rooms, connections }: {
+function ConnectionLines({ rooms, connections, roomDimensions }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
+  roomDimensions: RoomDimensionMap;
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
@@ -455,8 +448,8 @@ function ConnectionLines({ rooms, connections }: {
         // Apply drag offset for real-time edge update
         const src = applyDragOffset(rawSrc, roomDrag);
         const tgt = applyDragOffset(rawTgt, roomDrag);
-        const srcDimensions = getRenderedRoomDimensions(src.id);
-        const tgtDimensions = getRenderedRoomDimensions(tgt.id);
+        const srcDimensions = roomDimensions[src.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
+        const tgtDimensions = roomDimensions[tgt.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
 
         if (conn.sourceRoomId === conn.targetRoomId) {
           // Self-connection: render a loop via the connection path
@@ -512,7 +505,7 @@ function ConnectionLines({ rooms, connections }: {
         const srcRoom = rooms[connectionDrag.sourceRoomId];
         if (!srcRoom) return null;
         const adjustedSrc = applyDragOffset(srcRoom, roomDrag);
-        const srcDimensions = getRenderedRoomDimensions(adjustedSrc.id);
+        const srcDimensions = roomDimensions[adjustedSrc.id] ?? { width: ROOM_WIDTH, height: ROOM_HEIGHT };
         const points = computePreviewPath(
           adjustedSrc,
           connectionDrag.sourceDirection,
@@ -556,6 +549,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
   const autoPanTimeoutRef = useRef<number | null>(null);
   const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
+  const [roomDimensions, setRoomDimensions] = useState<RoomDimensionMap>({});
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -587,6 +581,65 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       window.clearTimeout(autoPanTimeoutRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const canvasEl = canvasRef.current;
+    if (!canvasEl) {
+      return;
+    }
+
+    const roomElements = canvasEl.querySelectorAll('[data-room-id]');
+
+    if (typeof ResizeObserver === 'undefined') {
+      const nextDimensions: Record<string, RoomDimensions> = {};
+      roomElements.forEach((element) => {
+        const roomId = (element as HTMLElement).dataset.roomId;
+        if (!roomId) return;
+        const rect = element.getBoundingClientRect();
+        nextDimensions[roomId] = {
+          width: rect.width || ROOM_WIDTH,
+          height: rect.height || ROOM_HEIGHT,
+        };
+      });
+      setRoomDimensions(nextDimensions);
+      return;
+    }
+
+    const observed = new Map<Element, string>();
+    const updateDimensions = (roomId: string, rect: DOMRectReadOnly) => {
+      setRoomDimensions((prev) => {
+        const next = {
+          width: rect.width || ROOM_WIDTH,
+          height: rect.height || ROOM_HEIGHT,
+        };
+        const current = prev[roomId];
+        if (current && current.width === next.width && current.height === next.height) {
+          return prev;
+        }
+        return { ...prev, [roomId]: next };
+      });
+    };
+
+    const observer = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        const roomId = observed.get(entry.target);
+        if (!roomId) return;
+        updateDimensions(roomId, entry.contentRect);
+      });
+    });
+
+    roomElements.forEach((element) => {
+      const roomId = (element as HTMLElement).dataset.roomId;
+      if (!roomId) return;
+      observed.set(element, roomId);
+      observer.observe(element);
+      updateDimensions(roomId, element.getBoundingClientRect());
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [rooms.map((room) => `${room.id}:${room.name}`).join('|')]);
 
   const toMapPoint = useCallback((clientX: number, clientY: number): PanOffset => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -766,7 +819,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
           {doc && (
-            <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
+            <ConnectionLines rooms={doc.rooms} connections={doc.connections} roomDimensions={roomDimensions} />
           )}
 
           {rooms.map((room) => (
