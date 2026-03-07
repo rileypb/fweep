@@ -1,4 +1,4 @@
-import type { Room, Connection } from '../domain/map-types';
+import type { Room, Connection, RoomShape } from '../domain/map-types';
 import { normalizeDirection } from '../domain/directions';
 
 /* ---- Constants ---- */
@@ -64,6 +64,175 @@ const DIRECTION_VECTORS: Readonly<Record<string, { vx: number; vy: number }>> = 
   northwest: { vx: -INV_SQRT2, vy: -INV_SQRT2 },
 };
 
+const HANDLE_DIRECTION_ORDER = [
+  'north',
+  'northeast',
+  'east',
+  'southeast',
+  'south',
+  'southwest',
+  'west',
+  'northwest',
+] as const;
+
+function getOctagonVertices(roomDimensions: RoomDimensions): Point[] {
+  const insetX = Math.min(12, roomDimensions.width * 0.18);
+  const insetY = Math.min(10, roomDimensions.height * 0.28);
+
+  return [
+    { x: insetX, y: 0 },
+    { x: roomDimensions.width - insetX, y: 0 },
+    { x: roomDimensions.width, y: insetY },
+    { x: roomDimensions.width, y: roomDimensions.height - insetY },
+    { x: roomDimensions.width - insetX, y: roomDimensions.height },
+    { x: insetX, y: roomDimensions.height },
+    { x: 0, y: roomDimensions.height - insetY },
+    { x: 0, y: insetY },
+  ];
+}
+
+function getPolygonEdgeCenters(vertices: Point[]): Point[] {
+  return vertices.map((start, index) => {
+    const end = vertices[(index + 1) % vertices.length];
+    return {
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2,
+    };
+  });
+}
+
+function getPointOnEllipse(theta: number, roomDimensions: RoomDimensions): Point {
+  const rx = roomDimensions.width / 2;
+  const ry = roomDimensions.height / 2;
+  const cx = rx;
+  const cy = ry;
+
+  return {
+    x: cx + (rx * Math.cos(theta)),
+    y: cy + (ry * Math.sin(theta)),
+  };
+}
+
+function getEllipsePerimeterHandlePoints(roomDimensions: RoomDimensions): Point[] {
+  const steps = 720;
+  const points: Point[] = [];
+  const cumulativeLengths: number[] = [0];
+
+  for (let index = 0; index <= steps; index += 1) {
+    const theta = (-Math.PI / 2) + ((Math.PI * 2 * index) / steps);
+    points.push(getPointOnEllipse(theta, roomDimensions));
+    if (index > 0) {
+      const previous = points[index - 1];
+      const current = points[index];
+      cumulativeLengths.push(
+        cumulativeLengths[index - 1] + Math.hypot(current.x - previous.x, current.y - previous.y),
+      );
+    }
+  }
+
+  const totalLength = cumulativeLengths[cumulativeLengths.length - 1];
+
+  return HANDLE_DIRECTION_ORDER.map((_, index) => {
+    const targetLength = (totalLength * index) / HANDLE_DIRECTION_ORDER.length;
+    let segmentIndex = 1;
+
+    while (segmentIndex < cumulativeLengths.length && cumulativeLengths[segmentIndex] < targetLength) {
+      segmentIndex += 1;
+    }
+
+    const previousLength = cumulativeLengths[segmentIndex - 1];
+    const nextLength = cumulativeLengths[segmentIndex];
+    const segmentRatio = nextLength === previousLength
+      ? 0
+      : (targetLength - previousLength) / (nextLength - previousLength);
+    const previousPoint = points[segmentIndex - 1];
+    const nextPoint = points[segmentIndex];
+
+    return {
+      x: previousPoint.x + ((nextPoint.x - previousPoint.x) * segmentRatio),
+      y: previousPoint.y + ((nextPoint.y - previousPoint.y) * segmentRatio),
+    };
+  });
+}
+
+function intersectRayWithPolygon(center: Point, vector: Point, vertices: Point[]): Point | undefined {
+  let closestDistance = Number.POSITIVE_INFINITY;
+  let closestPoint: Point | undefined;
+
+  for (let index = 0; index < vertices.length; index += 1) {
+    const start = vertices[index];
+    const end = vertices[(index + 1) % vertices.length];
+    const edge = { x: end.x - start.x, y: end.y - start.y };
+    const denominator = (vector.x * edge.y) - (vector.y * edge.x);
+
+    if (Math.abs(denominator) < 1e-9) {
+      continue;
+    }
+
+    const delta = { x: start.x - center.x, y: start.y - center.y };
+    const t = ((delta.x * edge.y) - (delta.y * edge.x)) / denominator;
+    const u = ((delta.x * vector.y) - (delta.y * vector.x)) / denominator;
+
+    if (t < 0 || u < 0 || u > 1) {
+      continue;
+    }
+
+    if (t < closestDistance) {
+      closestDistance = t;
+      closestPoint = {
+        x: center.x + (vector.x * t),
+        y: center.y + (vector.y * t),
+      };
+    }
+  }
+
+  return closestPoint;
+}
+
+function getShapeHandleOffset(
+  direction: string,
+  roomDimensions: RoomDimensions,
+  roomShape: RoomShape,
+): Point | undefined {
+  const directionIndex = HANDLE_DIRECTION_ORDER.indexOf(direction as typeof HANDLE_DIRECTION_ORDER[number]);
+  if (directionIndex === -1) {
+    return undefined;
+  }
+
+  const center = { x: roomDimensions.width / 2, y: roomDimensions.height / 2 };
+
+  if (roomShape === 'diamond') {
+    const vertices = [
+      { x: center.x, y: 0 },
+      { x: roomDimensions.width, y: center.y },
+      { x: center.x, y: roomDimensions.height },
+      { x: 0, y: center.y },
+    ];
+    const handles = [
+      vertices[0],
+      { x: (vertices[0].x + vertices[1].x) / 2, y: (vertices[0].y + vertices[1].y) / 2 },
+      vertices[1],
+      { x: (vertices[1].x + vertices[2].x) / 2, y: (vertices[1].y + vertices[2].y) / 2 },
+      vertices[2],
+      { x: (vertices[2].x + vertices[3].x) / 2, y: (vertices[2].y + vertices[3].y) / 2 },
+      vertices[3],
+      { x: (vertices[3].x + vertices[0].x) / 2, y: (vertices[3].y + vertices[0].y) / 2 },
+    ];
+
+    return handles[directionIndex];
+  }
+
+  if (roomShape === 'oval') {
+    return getEllipsePerimeterHandlePoints(roomDimensions)[directionIndex];
+  }
+
+  if (roomShape === 'octagon') {
+    return getPolygonEdgeCenters(getOctagonVertices(roomDimensions))[directionIndex];
+  }
+
+  return undefined;
+}
+
 /* ---- Public functions ---- */
 
 /**
@@ -74,8 +243,9 @@ export function getHandlePosition(
   roomPosition: Point,
   direction: string,
   roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+  roomShape: RoomShape = 'rectangle',
 ): Point | undefined {
-  const handleOffset = getHandleOffset(direction, roomDimensions);
+  const handleOffset = getHandleOffset(direction, roomDimensions, roomShape);
   if (!handleOffset) return undefined;
 
   return {
@@ -92,7 +262,12 @@ export function getHandlePosition(
 export function getHandleOffset(
   direction: string,
   roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+  roomShape: RoomShape = 'rectangle',
 ): Point | undefined {
+  if (roomShape !== 'rectangle') {
+    return getShapeHandleOffset(direction, roomDimensions, roomShape);
+  }
+
   const offset = HANDLE_OFFSET_FACTORS[direction];
   if (!offset) return undefined;
 
@@ -200,12 +375,12 @@ export function computeConnectionPath(
 
   // Source endpoint
   const srcStart = srcDir
-    ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions)!
+    ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions, srcRoom.shape)!
     : getRoomCenter(srcRoom.position, srcRoomDimensions);
 
   // Target endpoint
   const tgtEnd = tgtDir
-    ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions)!
+    ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions, tgtRoom.shape)!
     : getRoomCenter(tgtRoom.position, tgtRoomDimensions);
 
   // Build points array
@@ -240,7 +415,7 @@ export function computePreviewPath(
   stubLength: number = DEFAULT_STUB_LENGTH,
   srcRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
 ): Point[] {
-  const handlePos = getHandlePosition(srcRoom.position, sourceDirection, srcRoomDimensions);
+  const handlePos = getHandlePosition(srcRoom.position, sourceDirection, srcRoomDimensions, srcRoom.shape);
   if (!handlePos) {
     // Fallback to center
     const center = getRoomCenter(srcRoom.position, srcRoomDimensions);

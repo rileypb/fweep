@@ -1,4 +1,4 @@
-import type { MapDocument, MapMetadata } from '../domain/map-types';
+import { ROOM_SHAPES, type MapDocument, type MapMetadata, type Room } from '../domain/map-types';
 
 const DB_NAME = 'fweep';
 const DB_VERSION = 1;
@@ -27,6 +27,25 @@ function tx(
   return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 }
 
+function normalizeRoom(room: Room | (Omit<Room, 'shape'> & { shape?: Room['shape'] })): Room {
+  const shape = room.shape && ROOM_SHAPES.includes(room.shape) ? room.shape : 'rectangle';
+  return {
+    ...room,
+    shape,
+  };
+}
+
+function normalizeMapDocument(doc: MapDocument): MapDocument {
+  const rooms = Object.fromEntries(
+    Object.entries(doc.rooms).map(([roomId, room]) => [roomId, normalizeRoom(room)]),
+  );
+
+  return {
+    ...doc,
+    rooms,
+  };
+}
+
 /**
  * Return metadata for every stored map, sorted by most-recently-edited first.
  */
@@ -52,7 +71,7 @@ export async function saveMap(doc: MapDocument): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const store = tx(db, 'readwrite');
-    const request = store.put(doc);
+    const request = store.put(normalizeMapDocument(doc));
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
@@ -64,7 +83,10 @@ export async function loadMap(id: string): Promise<MapDocument | undefined> {
   return new Promise((resolve, reject) => {
     const store = tx(db, 'readonly');
     const request = store.get(id);
-    request.onsuccess = () => resolve(request.result as MapDocument | undefined);
+    request.onsuccess = () => {
+      const result = request.result as MapDocument | undefined;
+      resolve(result ? normalizeMapDocument(result) : undefined);
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -100,6 +122,7 @@ export async function importMapFromFile(file: File): Promise<MapDocument> {
   ) {
     throw new Error('File does not contain a valid fweep map.');
   }
-  await saveMap(doc);
-  return doc;
+  const normalizedDoc = normalizeMapDocument(doc);
+  await saveMap(normalizedDoc);
+  return normalizedDoc;
 }

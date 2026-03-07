@@ -20,6 +20,29 @@ describe('map-store', () => {
       const loaded = await loadMap('does-not-exist');
       expect(loaded).toBeUndefined();
     });
+
+    it('hydrates missing room shapes from older saved maps', async () => {
+      const doc = createEmptyMap('Legacy');
+      const roomId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: {},
+            isDark: false,
+          },
+        },
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await saveMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.rooms[roomId].shape).toBe('rectangle');
+    });
   });
 
   describe('listMaps', () => {
@@ -88,6 +111,29 @@ describe('map-store', () => {
 
       const loaded = await loadMap(imported.metadata.id);
       expect(loaded).toEqual(imported);
+    });
+
+    it('hydrates missing room shapes when importing an older map file', async () => {
+      const doc = createEmptyMap('Imported');
+      const roomId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: {},
+            isDark: false,
+          },
+        },
+      };
+      const file = makeFile(JSON.stringify(legacyDoc), 'legacy-map.json');
+
+      const imported = await importMapFromFile(file);
+
+      expect(imported.rooms[roomId].shape).toBe('rectangle');
     });
 
     it('rejects non-JSON files', async () => {

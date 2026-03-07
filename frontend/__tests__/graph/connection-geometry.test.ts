@@ -30,6 +30,26 @@ describe('getHandleOffset', () => {
     expect(getHandleOffset('northwest')).toEqual({ x: 6, y: 6 });
     expect(getHandleOffset('southeast')).toEqual({ x: ROOM_WIDTH - 6, y: ROOM_HEIGHT - 6 });
   });
+
+  it('uses diamond border intersections for diagonal handles', () => {
+    const offset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'diamond');
+
+    expect(offset).toEqual({ x: 60, y: 9 });
+  });
+
+  it('uses equal-perimeter spacing for oval handles', () => {
+    const offset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
+
+    expect(offset?.x).toBeCloseTo(63.27, 2);
+    expect(offset?.y).toBeCloseTo(3.36, 2);
+  });
+
+  it('places octagon handles at side centers', () => {
+    const offset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'octagon');
+
+    expect(offset?.x).toBeCloseTo(74, 2);
+    expect(offset?.y).toBeCloseTo(5, 2);
+  });
 });
 
 describe('getHandlePosition', () => {
@@ -70,6 +90,12 @@ describe('getHandlePosition', () => {
   it('uses the provided room dimensions when computing handle positions', () => {
     expect(getHandlePosition(pos, 'north', { width: 140, height: 40 })).toEqual({ x: 170, y: 200 });
     expect(getHandlePosition(pos, 'east', { width: 140, height: 40 })).toEqual({ x: 240, y: 220 });
+  });
+
+  it('uses the room shape when computing handle positions', () => {
+    const handle = getHandlePosition(pos, 'northeast', { width: 80, height: 36 }, 'diamond');
+
+    expect(handle).toEqual({ x: 160, y: 209 });
   });
 
   it('insets corner handles to match the rounded room border', () => {

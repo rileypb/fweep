@@ -335,6 +335,7 @@ describe('MapCanvas', () => {
       expect(room.shape).toBe('diamond');
       expect(screen.getByTestId('room-node')).toHaveAttribute('data-room-shape', 'diamond');
       expect(screen.getByTestId('room-editor-room-node')).toHaveAttribute('data-room-shape', 'diamond');
+      expect(screen.getByTestId('room-node').querySelector('polygon.room-node-shape')).not.toBeNull();
     });
 
     it('pressing Enter in the room name field moves focus to the description field', async () => {

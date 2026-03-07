@@ -254,6 +254,7 @@ const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 interface DirectionHandlesProps {
   roomWidth: number;
   roomHeight: number;
+  roomShape: RoomShape;
   onHandleMouseDown?: (direction: string, e: React.MouseEvent) => void;
 }
 
@@ -334,11 +335,11 @@ function renderRoomShape(shape: RoomShape, width: number, height: number): React
   );
 }
 
-function DirectionHandles({ roomWidth, roomHeight, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
+function DirectionHandles({ roomWidth, roomHeight, roomShape, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
   return (
     <>
       {DIRECTION_HANDLES.map((dir) => {
-        const handleOffset = getHandleOffset(normalizeDirection(dir), { width: roomWidth, height: roomHeight });
+        const handleOffset = getHandleOffset(normalizeDirection(dir), { width: roomWidth, height: roomHeight }, roomShape);
         if (!handleOffset) {
           return null;
         }
@@ -538,6 +539,7 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           <DirectionHandles
             roomWidth={roomWidth}
             roomHeight={ROOM_HEIGHT}
+            roomShape={room.shape}
             onHandleMouseDown={handleDirectionMouseDown}
           />
         )}
