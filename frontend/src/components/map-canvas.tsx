@@ -149,7 +149,11 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
 
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
-      <div className="room-editor-backdrop" aria-hidden="true" />
+      <div
+        className="room-editor-backdrop"
+        aria-hidden="true"
+        onClick={onClose}
+      />
       <div
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"

@@ -357,6 +357,16 @@ describe('MapCanvas', () => {
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
     });
+
+    it('closes the room editor when clicking the backdrop', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      await user.click(screen.getByTestId('room-editor-overlay').querySelector('.room-editor-backdrop') as HTMLElement);
+
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+    });
   });
 
   /* ---- Shift+click to create room ---- */
