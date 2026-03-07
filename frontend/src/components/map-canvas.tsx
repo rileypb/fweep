@@ -127,7 +127,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
           type="text"
           aria-label="Room name"
           value={room.name}
-          onChange={(e) => renameRoom(room.id, e.target.value)}
+          onChange={(e) => renameRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:name` })}
           onKeyDown={handleNameKeyDown}
         />
       </div>
@@ -157,7 +157,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
             className="room-editor-textarea"
             data-testid="room-editor-description-input"
             value={room.description}
-            onChange={(e) => describeRoom(room.id, e.target.value)}
+            onChange={(e) => describeRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:description` })}
             onKeyDown={handleDescriptionKeyDown}
             rows={8}
           />
@@ -487,7 +487,7 @@ interface RoomNodeProps {
 
 function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
-  const moveRoom = useEditorStore((s) => s.moveRoom);
+  const moveRooms = useEditorStore((s) => s.moveRooms);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
   const updateConnectionDrag = useEditorStore((s) => s.updateConnectionDrag);
   const completeConnectionDrag = useEditorStore((s) => s.completeConnectionDrag);
@@ -545,17 +545,20 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
         endRoomDrag();
 
         if (dx !== 0 || dy !== 0) {
-          draggedRoomIds.forEach((draggedRoomId) => {
-            const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
-            if (!draggedRoom) {
-              return;
-            }
+          const nextPositions = Object.fromEntries(
+            draggedRoomIds.flatMap((draggedRoomId) => {
+              const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
+              if (!draggedRoom) {
+                return [];
+              }
 
-            moveRoom(draggedRoomId, {
-              x: draggedRoom.position.x + dx,
-              y: draggedRoom.position.y + dy,
-            });
-          });
+              return [[draggedRoomId, {
+                x: draggedRoom.position.x + dx,
+                y: draggedRoom.position.y + dy,
+              }]];
+            }),
+          );
+          moveRooms(nextPositions);
         } else if (upEvent.shiftKey) {
           addRoomToSelection(room.id);
         } else {
@@ -566,7 +569,7 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, isRoomEditorOpen, isSelected, moveRoom, room.id, selectRoom, startRoomDrag, updateRoomDrag, endRoomDrag],
+    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, isSelected, moveRooms, room.id, selectRoom, startRoomDrag, updateRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(

@@ -250,6 +250,27 @@ describe('MapCanvas', () => {
 
       expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Pantry');
     });
+
+    it('undoes a burst of typing in the room name input as one step', async () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      const user = userEvent.setup();
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByText('Kitchen'));
+
+      const nameInput = screen.getByLabelText(/room name/i);
+      await user.type(nameInput, 'ab');
+      fireEvent.keyDown(nameInput, { key: 'Escape' });
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Kitchen');
+    });
   });
 
   /* ---- Room rendering ---- */
@@ -1009,6 +1030,33 @@ describe('MapCanvas', () => {
       const rooms = useEditorStore.getState().doc!.rooms;
       expect(rooms[kitchen.id].position).toEqual({ x: 160, y: 160 });
       expect(rooms[hallway.id].position).toEqual({ x: 280, y: 160 });
+    });
+
+    it('undoes a multi-room drag as one history step', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+      useEditorStore.getState().addRoomToSelection(hallway.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const canvas = screen.getByTestId('map-canvas');
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true });
+
+      const rooms = useEditorStore.getState().doc!.rooms;
+      expect(rooms[kitchen.id].position).toEqual({ x: 80, y: 120 });
+      expect(rooms[hallway.id].position).toEqual({ x: 200, y: 120 });
     });
 
     it('updates all selected room positions live while dragging', () => {

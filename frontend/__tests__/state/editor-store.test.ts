@@ -348,6 +348,19 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().doc!.rooms[roomId].description).toBe('Shelves line the walls.');
     });
 
+    it('coalesces successive edits from the same field into one undo step', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      useEditorStore.getState().renameRoom(roomId, 'Kitchena', { historyMergeKey: `room:${roomId}:name` });
+      useEditorStore.getState().renameRoom(roomId, 'Kitchenab', { historyMergeKey: `room:${roomId}:name` });
+
+      useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].name).toBe('Kitchen');
+      expect(useEditorStore.getState().canRedo).toBe(true);
+    });
+
     it('does not add selection-only changes to history', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });

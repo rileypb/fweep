@@ -49,6 +49,10 @@ export interface RoomDrag {
   readonly dy: number;
 }
 
+export interface HistoryOptions {
+  readonly historyMergeKey?: string;
+}
+
 export interface EditorState {
   /** The currently loaded map document, or null when no map is open. */
   doc: MapDocument | null;
@@ -64,6 +68,9 @@ export interface EditorState {
 
   /** Whether a redo operation is currently available. */
   canRedo: boolean;
+
+  /** Internal merge key used to coalesce related edits into one history step. */
+  lastHistoryMergeKey: string | null;
 
   /** The currently selected room IDs. */
   selectedRoomIds: readonly string[];
@@ -93,10 +100,10 @@ export interface EditorState {
   addRoomAtPosition: (name: string, position: Position) => string;
 
   /** Rename an existing room. */
-  renameRoom: (roomId: string, name: string) => void;
+  renameRoom: (roomId: string, name: string, options?: HistoryOptions) => void;
 
   /** Update an existing room's description. */
-  describeRoom: (roomId: string, description: string) => void;
+  describeRoom: (roomId: string, description: string, options?: HistoryOptions) => void;
 
   /** Update an existing room's shape. */
   setRoomShape: (roomId: string, shape: RoomShape) => void;
@@ -124,6 +131,9 @@ export interface EditorState {
 
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
+
+  /** Move multiple rooms to new positions in a single history step. */
+  moveRooms: (positions: Readonly<Record<string, Position>>) => void;
 
   /** Recompute room positions from the connection graph. */
   prettifyLayout: () => void;
@@ -158,12 +168,37 @@ function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonl
   return selectedRoomIds.filter((roomId) => roomId in doc.rooms);
 }
 
+function commitDocumentChange(
+  currentState: EditorState,
+  currentDoc: MapDocument,
+  updatedDoc: MapDocument,
+  options?: HistoryOptions,
+): Partial<EditorState> {
+  if (updatedDoc === currentDoc) {
+    return {};
+  }
+
+  const mergeKey = options?.historyMergeKey ?? null;
+  const shouldMerge = mergeKey !== null && currentState.lastHistoryMergeKey === mergeKey;
+  const nextPastDocs = shouldMerge ? currentState.pastDocs : [...currentState.pastDocs, currentDoc];
+
+  return {
+    doc: updatedDoc,
+    pastDocs: nextPastDocs,
+    futureDocs: [],
+    canUndo: nextPastDocs.length > 0,
+    canRedo: false,
+    lastHistoryMergeKey: mergeKey,
+  };
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
   pastDocs: [],
   futureDocs: [],
   canUndo: false,
   canRedo: false,
+  lastHistoryMergeKey: null,
   selectedRoomIds: [],
   snapToGridEnabled: true,
   connectionDrag: null,
@@ -175,6 +210,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     futureDocs: [],
     canUndo: false,
     canRedo: false,
+    lastHistoryMergeKey: null,
     selectedRoomIds: [],
     connectionDrag: null,
     roomDrag: null,
@@ -186,6 +222,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     futureDocs: [],
     canUndo: false,
     canRedo: false,
+    lastHistoryMergeKey: null,
     selectedRoomIds: [],
     connectionDrag: null,
     roomDrag: null,
@@ -207,6 +244,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       futureDocs: nextFutureDocs,
       canUndo: nextPastDocs.length > 0,
       canRedo: true,
+      lastHistoryMergeKey: null,
       selectedRoomIds: filterSelectionForDoc(previousDoc, selectedRoomIds),
       connectionDrag: null,
       roomDrag: null,
@@ -229,6 +267,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       futureDocs: nextFutureDocs,
       canUndo: true,
       canRedo: nextFutureDocs.length > 0,
+      lastHistoryMergeKey: null,
       selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
       connectionDrag: null,
       roomDrag: null,
@@ -244,44 +283,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
     return room.id;
   },
 
-  renameRoom: (roomId, name) => {
+  renameRoom: (roomId, name, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot rename a room: no document is loaded.');
     }
     const updatedDoc = domainRenameRoom(doc, roomId, name);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
   },
 
-  describeRoom: (roomId, description) => {
+  describeRoom: (roomId, description, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot describe a room: no document is loaded.');
     }
     const updatedDoc = domainDescribeRoom(doc, roomId, description);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
   },
 
   setRoomShape: (roomId, shape) => {
@@ -290,13 +311,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set room shape: no document is loaded.');
     }
     const updatedDoc = domainSetRoomShape(doc, roomId, shape);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
   removeRoom: (roomId) => {
@@ -306,11 +321,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const updatedDoc = domainDeleteRoom(doc, roomId);
     set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
+      ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
     }));
   },
@@ -327,21 +338,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     );
 
     set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
+      ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: [],
     }));
   },
 
   selectRoom: (roomId) => {
-    set({ selectedRoomIds: [roomId] });
+    set({ selectedRoomIds: [roomId], lastHistoryMergeKey: null });
   },
 
   addRoomToSelection: (roomId) => {
     set((state) => ({
+      lastHistoryMergeKey: null,
       selectedRoomIds: state.selectedRoomIds.includes(roomId)
         ? state.selectedRoomIds
         : [...state.selectedRoomIds, roomId],
@@ -349,15 +357,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setSelectedRoomIds: (roomIds) => {
-    set({ selectedRoomIds: [...roomIds] });
+    set({ selectedRoomIds: [...roomIds], lastHistoryMergeKey: null });
   },
 
   clearRoomSelection: () => {
-    set({ selectedRoomIds: [] });
+    set({ selectedRoomIds: [], lastHistoryMergeKey: null });
   },
 
   toggleSnapToGrid: () => {
-    set((state) => ({ snapToGridEnabled: !state.snapToGridEnabled }));
+    set((state) => ({ snapToGridEnabled: !state.snapToGridEnabled, lastHistoryMergeKey: null }));
   },
 
   moveRoom: (roomId, position) => {
@@ -367,13 +375,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const updatedDoc = domainMoveRoom(doc, roomId, snapped);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  moveRooms: (positions) => {
+    const { doc, snapToGridEnabled } = get();
+    if (!doc) {
+      throw new Error('Cannot move rooms: no document is loaded.');
+    }
+
+    const snappedPositions = Object.fromEntries(
+      Object.entries(positions).map(([roomId, position]) => [
+        roomId,
+        maybeSnapPosition(position, snapToGridEnabled),
+      ]),
+    ) as Record<string, Position>;
+
+    const updatedDoc = domainSetRoomPositions(doc, snappedPositions);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
   prettifyLayout: () => {
@@ -384,17 +403,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const nextPositions = computePrettifiedRoomPositions(doc);
     const updatedDoc = domainSetRoomPositions(doc, nextPositions);
-    set((state) => ({
-      doc: updatedDoc,
-      pastDocs: [...state.pastDocs, doc],
-      futureDocs: [],
-      canUndo: true,
-      canRedo: false,
-    }));
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
   startConnectionDrag: (roomId, direction, cursorX, cursorY) => {
     set({
+      lastHistoryMergeKey: null,
       connectionDrag: {
         sourceRoomId: roomId,
         sourceDirection: normalizeDirection(direction),
@@ -407,7 +421,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateConnectionDrag: (cursorX, cursorY) => {
     const { connectionDrag } = get();
     if (!connectionDrag) return;
-    set({ connectionDrag: { ...connectionDrag, cursorX, cursorY } });
+    set({ connectionDrag: { ...connectionDrag, cursorX, cursorY }, lastHistoryMergeKey: null });
   },
 
   completeConnectionDrag: (targetRoomId, targetDirection?) => {
@@ -437,11 +451,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     try {
       const updatedDoc = addConnection(doc, connection, sourceDirection, resolvedTargetDir);
       set((state) => ({
-        doc: updatedDoc,
-        pastDocs: [...state.pastDocs, doc],
-        futureDocs: [],
-        canUndo: true,
-        canRedo: false,
+        ...commitDocumentChange(state, doc, updatedDoc),
         connectionDrag: null,
       }));
     } catch {
@@ -451,11 +461,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   cancelConnectionDrag: () => {
-    set({ connectionDrag: null });
+    set({ connectionDrag: null, lastHistoryMergeKey: null });
   },
 
   startRoomDrag: (roomId) => {
     set((state) => ({
+      lastHistoryMergeKey: null,
       roomDrag: {
         roomIds: state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId],
         dx: 0,
@@ -471,6 +482,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   endRoomDrag: () => {
-    set({ roomDrag: null });
+    set({ roomDrag: null, lastHistoryMergeKey: null });
   },
 }));
