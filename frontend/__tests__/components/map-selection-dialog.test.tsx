@@ -4,10 +4,15 @@ import userEvent from '@testing-library/user-event';
 import type { MapDocument } from '../../src/domain/map-types';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { saveMap, deleteMap } from '../../src/storage/map-store';
+import * as mapStore from '../../src/storage/map-store';
 import { MapSelectionDialog } from '../../src/components/map-selection-dialog';
 
 describe('MapSelectionDialog', () => {
   const noop = () => {};
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   it('shows "No saved maps yet." when there are no maps', async () => {
     render(<MapSelectionDialog onMapSelected={noop} />);
@@ -55,6 +60,20 @@ describe('MapSelectionDialog', () => {
     expect(doc.metadata.name).toBe('New Map');
   });
 
+  it('creates a map when Enter is pressed in the name input', async () => {
+    const user = userEvent.setup();
+    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    render(<MapSelectionDialog onMapSelected={onSelect} />);
+
+    const input = screen.getByPlaceholderText('Map name');
+    await user.type(input, 'Enter Map{Enter}');
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+    expect(onSelect.mock.calls[0][0].metadata.name).toBe('Enter Map');
+  });
+
   it('calls onMapSelected when an existing map is clicked', async () => {
     const doc = createEmptyMap('Clickable Map');
     await saveMap(doc);
@@ -70,6 +89,28 @@ describe('MapSelectionDialog', () => {
       expect(onSelect).toHaveBeenCalledTimes(1);
     });
     expect(onSelect.mock.calls[0][0].metadata.id).toBe(doc.metadata.id);
+  });
+
+  it('shows an error when a selected map can no longer be loaded', async () => {
+    const doc = createEmptyMap('Missing Map');
+    await saveMap(doc);
+
+    const user = userEvent.setup();
+    jest.spyOn(mapStore, 'loadMap').mockResolvedValueOnce(undefined);
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    const mapBtn = await screen.findByText('Missing Map');
+    await user.click(mapBtn);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(`Map not found: ${doc.metadata.id}`);
+  });
+
+  it('shows an error when loading the recent maps list fails', async () => {
+    jest.spyOn(mapStore, 'listMaps').mockRejectedValueOnce(new Error('DB unavailable'));
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Error: DB unavailable');
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
   });
 
   it('has a dialog with the accessible name "Choose a map"', async () => {
@@ -123,5 +164,36 @@ describe('MapSelectionDialog', () => {
     await user.click(cancelBtn);
 
     expect(screen.getByText('Keep This Map')).toBeInTheDocument();
+  });
+
+  it('shows an error if deleting a map fails', async () => {
+    const doc = createEmptyMap('Stubborn Map');
+    await saveMap(doc);
+
+    const user = userEvent.setup();
+    jest.spyOn(mapStore, 'deleteMap').mockRejectedValueOnce(new Error('Delete failed'));
+    render(<MapSelectionDialog onMapSelected={noop} />);
+    await screen.findByText('Stubborn Map');
+
+    await user.click(screen.getByRole('button', { name: /delete stubborn map/i }));
+    await user.click(await screen.findByRole('button', { name: /confirm delete/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Error: Delete failed');
+    expect(screen.getByText('Stubborn Map')).toBeInTheDocument();
+  });
+
+  it('shows an error when importing an invalid file', async () => {
+    const user = userEvent.setup();
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    const fileInput = document.querySelector('.map-selection-file-input') as HTMLInputElement;
+    const badFile = new File(['{'], 'bad.json', { type: 'application/json' });
+    if (typeof badFile.text !== 'function') {
+      (badFile as File & { text: () => Promise<string> }).text = async () => '{';
+    }
+
+    await user.upload(fileInput, badFile);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('File is not valid JSON.');
   });
 });

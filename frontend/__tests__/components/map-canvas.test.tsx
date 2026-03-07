@@ -226,7 +226,7 @@ describe('MapCanvas', () => {
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
     });
 
-    it('cancels editing and deletes the room on Escape', async () => {
+    it('cancels editing and retains the room on Escape', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
@@ -239,7 +239,10 @@ describe('MapCanvas', () => {
       const input = screen.getByRole('textbox', { name: /room name/i });
       await user.type(input, 'Kitchen{Escape}');
 
-      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
+      // Editing was cancelled; the room remains and the name is restored to original
+      const rooms = Object.values(useEditorStore.getState().doc!.rooms);
+      expect(rooms).toHaveLength(1);
+      expect(rooms[0].name).toBe('');
       expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
     });
   });

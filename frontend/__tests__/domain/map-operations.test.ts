@@ -141,6 +141,15 @@ describe('addConnection', () => {
     expect(() => addConnection(doc, conn, 'north')).toThrow(/reverse direction/i);
   });
 
+  it('throws if the target direction is already bound to a different connection', () => {
+    const { doc, r1, r2 } = twoRoomDoc();
+    const first = createConnection(r1.id, r2.id, true);
+    const withFirst = addConnection(doc, first, 'north', 'south');
+    const second = createConnection(r1.id, r2.id, true);
+
+    expect(() => addConnection(withFirst, second, 'east', 'south')).toThrow(/already bound/i);
+  });
+
   it('allows multiple directions in the same room to point to the same connection', () => {
     const { doc, r1, r2 } = twoRoomDoc();
     const conn = createConnection(r1.id, r2.id);

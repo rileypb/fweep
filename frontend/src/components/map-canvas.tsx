@@ -17,15 +17,20 @@ export interface MapCanvasProps {
 /* ---- Inline name input ---- */
 
 function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
-  const [value, setValue] = useState('');
+  const currentName = useEditorStore((s) => s.doc?.rooms?.[roomId]?.name ?? '');
+  const [value, setValue] = useState(currentName);
   const inputRef = useRef<HTMLInputElement>(null);
   const committedRef = useRef(false);
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
+  const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
   }, []);
 
   const commit = useCallback(() => {
@@ -44,7 +49,8 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
   const cancel = useCallback(() => {
     if (committedRef.current) return;
     committedRef.current = true;
-    removeRoom(roomId);
+    // Discard edits and keep the original name; just exit editing mode
+    clearEditingRoomId();
   }, [roomId, removeRoom]);
 
   const handleKeyDown = useCallback(
@@ -116,6 +122,7 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
   const updateRoomDrag = useEditorStore((s) => s.updateRoomDrag);
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
+  const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
 
   const isDragging = roomDrag !== null && roomDrag.roomId === room.id;
   const dragOffset = isDragging ? roomDrag : null;
@@ -155,6 +162,9 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
             x: room.position.x + dx,
             y: room.position.y + dy,
           });
+        } else {
+          // Treat a click (no movement) as a request to edit the room name
+          setEditingRoomId(room.id);
         }
       };
 
