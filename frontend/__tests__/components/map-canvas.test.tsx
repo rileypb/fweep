@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -12,6 +12,10 @@ function resetStore(): void {
 }
 
 describe('MapCanvas', () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(() => {
     resetStore();
   });
@@ -102,6 +106,117 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
+    });
+
+    it('single-clicking a room reopens the inline name editor', () => {
+      jest.useFakeTimers();
+
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
+
+      act(() => {
+        jest.advanceTimersByTime(250);
+      });
+
+      const input = screen.getByRole('textbox', { name: /room name/i }) as HTMLInputElement;
+      expect(input).toBeInTheDocument();
+      expect(input.value).toBe('Kitchen');
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe('Kitchen'.length);
+    });
+  });
+
+  describe('room editor overlay', () => {
+    function setupRoom() {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      render(<MapCanvas mapName="Test" />);
+      return screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+    }
+
+    it('opens the room editor overlay on double-click', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(screen.getByTestId('room-editor-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('map-canvas-scene')).toHaveClass('map-canvas-scene--editor-open');
+    });
+
+    it('focuses and selects the room name when the room editor opens', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const nameInput = screen.getByTestId('room-editor-name-input') as HTMLInputElement;
+      expect(document.activeElement).toBe(nameInput);
+      expect(nameInput.selectionStart).toBe(0);
+      expect(nameInput.selectionEnd).toBe('Kitchen'.length);
+    });
+
+    it('applies room name and description edits immediately', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      const descriptionInput = screen.getByTestId('room-editor-description-input');
+
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
+      await user.type(descriptionInput, 'A pantry with labelled jars.');
+
+      const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      expect(room.name).toBe('Pantry');
+      expect(room.description).toBe('A pantry with labelled jars.');
+    });
+
+    it('pressing Enter in the room name field moves focus to the description field', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      const descriptionInput = screen.getByTestId('room-editor-description-input');
+
+      await user.click(nameInput);
+      await user.keyboard('{Enter}');
+
+      expect(document.activeElement).toBe(descriptionInput);
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('closes the room editor on Escape', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('closes the room editor from the close button', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      await user.click(screen.getByRole('button', { name: /close room editor/i }));
+
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
     });
   });
 

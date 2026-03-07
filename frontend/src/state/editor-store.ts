@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import type { MapDocument, Position } from '../domain/map-types';
 import { createRoom, createConnection } from '../domain/map-types';
-import { addRoom, addConnection, renameRoom as domainRenameRoom, deleteRoom as domainDeleteRoom, moveRoom as domainMoveRoom } from '../domain/map-operations';
+import {
+  addRoom,
+  addConnection,
+  renameRoom as domainRenameRoom,
+  deleteRoom as domainDeleteRoom,
+  moveRoom as domainMoveRoom,
+  describeRoom as domainDescribeRoom,
+} from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
 
 /** Grid size in pixels used for snapping room positions. */
@@ -59,6 +66,9 @@ export interface EditorState {
 
   /** Rename an existing room. */
   renameRoom: (roomId: string, name: string) => void;
+
+  /** Update an existing room's description. */
+  describeRoom: (roomId: string, description: string) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
@@ -123,6 +133,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot rename a room: no document is loaded.');
     }
     set({ doc: domainRenameRoom(doc, roomId, name) });
+  },
+
+  describeRoom: (roomId, description) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot describe a room: no document is loaded.');
+    }
+    set({ doc: domainDescribeRoom(doc, roomId, description) });
   },
 
   removeRoom: (roomId) => {

@@ -278,3 +278,9 @@
  - A one-way connection should have an arrowhead pointing towards the target room, while a two-way connection should not have an arrowhead.
  - A one-way connection should be drawn as a short line extending from the directional handle of the source room just as it does for the initial segment of a two-way connection, and then continue as a straight line towards the center of the target room without an additional segment. This visually distinguishes one-way connections from two-way connections while still maintaining a clear indication of directionality.
 
+ ## Room editing
+ - Clicking on a room reopens the name editor (the input field used when the room was first created) for that room to allow quick renaming. The existing name should be selected so the user can easily overwrite it. Escape or blurring the input should cancel the edit and restore the previous name, while pressing Enter should confirm the new name.
+ - Double-clicking on a room opens the room editor, which allows editing the room's description and other properties. The room editor should be an overlay on the entire UI. The map should still be visible in the background, but faded, and should not be interactive while the room editor is open. Room edits should be immediately applied to the underlying room model. The room editor should have a close button, or the user can press Escape to close it. Pressing Enter should move the focus to the next input field within the room editor, and should not close the editor. Details of the room editor layout follow:
+    - When the room editor is opened, the first input field (the room name) should be focused and its text selected for easy editing.
+    - Below the room name, there should be a larger textarea for editing the room description.
+

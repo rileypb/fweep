@@ -8,6 +8,8 @@ import {
   pointsToSvgString,
 } from '../graph/connection-geometry';
 
+const CLICK_EDIT_DELAY_MS = 225;
+
 export interface MapCanvasProps {
   mapName: string;
   /** Whether the background grid is visible. Defaults to true. */
@@ -24,7 +26,6 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
-  const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -51,7 +52,7 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
     committedRef.current = true;
     // Discard edits and keep the original name; just exit editing mode
     clearEditingRoomId();
-  }, [roomId, removeRoom]);
+  }, [clearEditingRoomId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -77,6 +78,106 @@ function RoomNameInput({ roomId }: { roomId: string }): React.JSX.Element {
       onKeyDown={handleKeyDown}
       onBlur={commit}
     />
+  );
+}
+
+/* ---- Room editor overlay ---- */
+
+interface RoomEditorOverlayProps {
+  roomId: string;
+  onClose: () => void;
+}
+
+function RoomEditorOverlay({ roomId, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
+  const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
+  const renameRoom = useEditorStore((s) => s.renameRoom);
+  const describeRoom = useEditorStore((s) => s.describeRoom);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, []);
+
+  const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      descriptionInputRef.current?.focus();
+    }
+  }, [onClose]);
+
+  const handleDescriptionKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  }, [onClose]);
+
+  if (!room) {
+    return null;
+  }
+
+  return (
+    <div className="room-editor-overlay" data-testid="room-editor-overlay">
+      <div className="room-editor-backdrop" aria-hidden="true" />
+      <div
+        className="room-editor-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="room-editor-name-label"
+        data-testid="room-editor-dialog"
+      >
+        <button
+          className="room-editor-close"
+          type="button"
+          aria-label="Close room editor"
+          onClick={onClose}
+        >
+          ×
+        </button>
+
+        <div className="room-editor-field">
+          <label id="room-editor-name-label" className="room-editor-label" htmlFor="room-editor-name-input">
+            Room name
+          </label>
+          <input
+            id="room-editor-name-input"
+            ref={nameInputRef}
+            className="room-editor-input"
+            data-testid="room-editor-name-input"
+            type="text"
+            value={room.name}
+            onChange={(e) => renameRoom(room.id, e.target.value)}
+            onKeyDown={handleNameKeyDown}
+          />
+        </div>
+
+        <div className="room-editor-field">
+          <label className="room-editor-label" htmlFor="room-editor-description-input">
+            Description
+          </label>
+          <textarea
+            id="room-editor-description-input"
+            ref={descriptionInputRef}
+            className="room-editor-textarea"
+            data-testid="room-editor-description-input"
+            value={room.description}
+            onChange={(e) => describeRoom(room.id, e.target.value)}
+            onKeyDown={handleDescriptionKeyDown}
+            rows={8}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -111,7 +212,14 @@ function DirectionHandles({ onHandleMouseDown }: DirectionHandlesProps): React.J
 
 /* ---- Room node ---- */
 
-function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): React.JSX.Element {
+interface RoomNodeProps {
+  room: Room;
+  isEditing: boolean;
+  isRoomEditorOpen: boolean;
+  onOpenRoomEditor: (roomId: string) => void;
+}
+
+function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor }: RoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
   const moveRoom = useEditorStore((s) => s.moveRoom);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
@@ -123,6 +231,7 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
   const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
+  const clickEditTimeoutRef = useRef<number | null>(null);
 
   const isDragging = roomDrag !== null && roomDrag.roomId === room.id;
   const dragOffset = isDragging ? roomDrag : null;
@@ -131,9 +240,35 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
   const visualX = dragOffset ? room.position.x + dragOffset.dx : room.position.x;
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
 
+  useEffect(() => () => {
+    if (clickEditTimeoutRef.current !== null) {
+      window.clearTimeout(clickEditTimeoutRef.current);
+    }
+  }, []);
+
+  const queueInlineRename = useCallback(() => {
+    if (clickEditTimeoutRef.current !== null) {
+      window.clearTimeout(clickEditTimeoutRef.current);
+    }
+
+    clickEditTimeoutRef.current = window.setTimeout(() => {
+      setEditingRoomId(room.id);
+      clickEditTimeoutRef.current = null;
+    }, CLICK_EDIT_DELAY_MS);
+  }, [room.id, setEditingRoomId]);
+
+  const openRoomEditor = useCallback(() => {
+    if (clickEditTimeoutRef.current !== null) {
+      window.clearTimeout(clickEditTimeoutRef.current);
+      clickEditTimeoutRef.current = null;
+    }
+
+    onOpenRoomEditor(room.id);
+  }, [onOpenRoomEditor, room.id]);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.button !== 0 || isEditing) return;
+      if (e.button !== 0 || isEditing || isRoomEditorOpen) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -163,20 +298,19 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
             y: room.position.y + dy,
           });
         } else {
-          // Treat a click (no movement) as a request to edit the room name
-          setEditingRoomId(room.id);
+          queueInlineRename();
         }
       };
 
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [isEditing, room.id, room.position.x, room.position.y, moveRoom, startRoomDrag, updateRoomDrag, endRoomDrag],
+    [isEditing, isRoomEditorOpen, room.id, room.position.x, room.position.y, moveRoom, startRoomDrag, updateRoomDrag, endRoomDrag, queueInlineRename],
   );
 
   const handleDirectionMouseDown = useCallback(
     (direction: string, e: React.MouseEvent) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || isRoomEditorOpen) return;
       e.preventDefault();
 
       startConnectionDrag(room.id, direction, e.clientX, e.clientY);
@@ -206,7 +340,7 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [room.id, startConnectionDrag, updateConnectionDrag, completeConnectionDrag, cancelConnectionDrag],
+    [room.id, isRoomEditorOpen, startConnectionDrag, updateConnectionDrag, completeConnectionDrag, cancelConnectionDrag],
   );
 
   return (
@@ -218,13 +352,18 @@ function RoomNode({ room, isEditing }: { room: Room; isEditing: boolean }): Reac
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={handleMouseDown}
+      onDoubleClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openRoomEditor();
+      }}
     >
       {isEditing ? (
         <RoomNameInput roomId={room.id} />
       ) : (
         <span className="room-node-name">{room.name}</span>
       )}
-      {hovered && !isEditing && !isDragging && (
+      {hovered && !isEditing && !isDragging && !isRoomEditorOpen && (
         <DirectionHandles onHandleMouseDown={handleDirectionMouseDown} />
       )}
     </div>
@@ -359,15 +498,31 @@ function ConnectionLines({ rooms, connections }: {
 
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
   const [showGrid, setShowGrid] = useState(initialShowGrid);
+  const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const editingRoomId = useEditorStore((s) => s.editingRoomId);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const setEditingRoomId = useEditorStore((s) => s.setEditingRoomId);
+  const clearEditingRoomId = useEditorStore((s) => s.clearEditingRoomId);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
+  const closeRoomEditor = useCallback(() => {
+    setRoomEditorId(null);
+    requestAnimationFrame(() => {
+      canvasRef.current?.focus();
+    });
+  }, []);
+
+  const openRoomEditor = useCallback((roomId: string) => {
+    clearEditingRoomId();
+    setRoomEditorId(roomId);
+  }, [clearEditingRoomId]);
+
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (roomEditorId) return;
       if (!e.shiftKey) return;
 
       const rect = e.currentTarget.getBoundingClientRect();
@@ -377,7 +532,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const roomId = addRoomAtPosition('', { x, y });
       setEditingRoomId(roomId);
     },
-    [addRoomAtPosition, setEditingRoomId],
+    [addRoomAtPosition, roomEditorId, setEditingRoomId],
   );
 
   const classes = ['map-canvas', showGrid ? 'map-canvas--grid' : '']
@@ -385,34 +540,53 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     .join(' ');
 
   return (
-    <div className={classes} data-testid="map-canvas" onClick={handleCanvasClick}>
-      <header className="map-canvas-header">
-        <span className="map-canvas-title">{mapName}</span>
-        <button
-          className="map-canvas-grid-toggle"
-          type="button"
-          aria-label="Toggle grid"
-          title="Toggle grid"
-          onClick={() => setShowGrid((prev) => !prev)}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <line x1="0" y1="4" x2="16" y2="4" />
-            <line x1="0" y1="8" x2="16" y2="8" />
-            <line x1="0" y1="12" x2="16" y2="12" />
-            <line x1="4" y1="0" x2="4" y2="16" />
-            <line x1="8" y1="0" x2="8" y2="16" />
-            <line x1="12" y1="0" x2="12" y2="16" />
-          </svg>
-        </button>
-      </header>
+    <div
+      ref={canvasRef}
+      className={classes}
+      data-testid="map-canvas"
+      onClick={handleCanvasClick}
+      tabIndex={-1}
+    >
+      <div
+        className={`map-canvas-scene${roomEditorId ? ' map-canvas-scene--editor-open' : ''}`}
+        data-testid="map-canvas-scene"
+      >
+        <header className="map-canvas-header">
+          <span className="map-canvas-title">{mapName}</span>
+          <button
+            className="map-canvas-grid-toggle"
+            type="button"
+            aria-label="Toggle grid"
+            title="Toggle grid"
+            onClick={() => setShowGrid((prev) => !prev)}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <line x1="0" y1="4" x2="16" y2="4" />
+              <line x1="0" y1="8" x2="16" y2="8" />
+              <line x1="0" y1="12" x2="16" y2="12" />
+              <line x1="4" y1="0" x2="4" y2="16" />
+              <line x1="8" y1="0" x2="8" y2="16" />
+              <line x1="12" y1="0" x2="12" y2="16" />
+            </svg>
+          </button>
+        </header>
 
-      {doc && (
-        <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
-      )}
+        {doc && (
+          <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
+        )}
 
-      {rooms.map((room) => (
-        <RoomNode key={room.id} room={room} isEditing={editingRoomId === room.id} />
-      ))}
+        {rooms.map((room) => (
+          <RoomNode
+            key={room.id}
+            room={room}
+            isEditing={editingRoomId === room.id}
+            isRoomEditorOpen={roomEditorId !== null}
+            onOpenRoomEditor={openRoomEditor}
+          />
+        ))}
+      </div>
+
+      {roomEditorId && <RoomEditorOverlay roomId={roomEditorId} onClose={closeRoomEditor} />}
     </div>
   );
 }

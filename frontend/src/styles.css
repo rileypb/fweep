@@ -358,6 +358,18 @@ body {
   --grid-color: rgba(255, 255, 255, 0.06);
 }
 
+.map-canvas-scene {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.16s ease, filter 0.16s ease;
+}
+
+.map-canvas-scene--editor-open {
+  opacity: 0.35;
+  filter: saturate(0.85);
+  pointer-events: none;
+}
+
 .map-canvas-header {
   position: absolute;
   top: 0.75rem;
@@ -515,6 +527,110 @@ body {
 :root[data-theme='dark'] .room-name-input:focus {
   border-color: #818cf8;
   box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.25);
+}
+
+/* ---- Room editor overlay ---- */
+
+.room-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+}
+
+.room-editor-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.room-editor-panel {
+  position: relative;
+  z-index: 1;
+  width: min(32rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 0.875rem;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+}
+
+:root[data-theme='dark'] .room-editor-panel {
+  background: #0f172a;
+  color: #f3f4f6;
+  border-color: rgba(129, 140, 248, 0.28);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.48);
+}
+
+.room-editor-close {
+  align-self: flex-end;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.25rem -0.25rem 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.room-editor-close:hover,
+.room-editor-close:focus-visible {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.room-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.room-editor-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.room-editor-input,
+.room-editor-textarea {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.room-editor-textarea {
+  min-height: 10rem;
+  resize: vertical;
+}
+
+.room-editor-input:focus,
+.room-editor-textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+:root[data-theme='dark'] .room-editor-input,
+:root[data-theme='dark'] .room-editor-textarea {
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+:root[data-theme='dark'] .room-editor-input:focus,
+:root[data-theme='dark'] .room-editor-textarea:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.22);
 }
 
 /* ---- Connection lines ---- */

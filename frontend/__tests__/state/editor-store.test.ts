@@ -107,6 +107,22 @@ describe('useEditorStore', () => {
     });
   });
 
+  /* ---- describeRoom ---- */
+
+  describe('describeRoom', () => {
+    it('updates the room description in the document', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      useEditorStore.getState().describeRoom(roomId, 'A bright kitchen with tiled walls.');
+
+      expect(useEditorStore.getState().doc!.rooms[roomId].description).toBe('A bright kitchen with tiled walls.');
+    });
+
+    it('throws when no document is loaded', () => {
+      expect(() => useEditorStore.getState().describeRoom('r1', 'X')).toThrow();
+    });
+  });
+
   /* ---- removeRoom ---- */
 
   describe('removeRoom', () => {
