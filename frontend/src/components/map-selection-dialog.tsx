@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MapMetadata } from '../domain/map-types';
 import { createEmptyMap, type MapDocument } from '../domain/map-types';
-import { importMapFromFile, listMaps, loadMap, saveMap } from '../storage/map-store';
+import { importMapFromFile, listMaps, loadMap, saveMap, deleteMap } from '../storage/map-store';
 
 export interface MapSelectionDialogProps {
   onMapSelected: (doc: MapDocument) => void;
@@ -12,6 +12,7 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newMapName, setNewMapName] = useState('');
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -51,6 +52,16 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMap(id);
+      setMaps((prev) => prev.filter((m) => m.id !== id));
+      setConfirmingDeleteId(null);
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
   const formatDate = (iso: string): string => {
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, {
@@ -83,7 +94,7 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
           {!loading && maps.length > 0 && (
             <ul className="map-selection-list">
               {maps.map((m) => (
-                <li key={m.id}>
+                <li key={m.id} className="map-selection-list-item">
                   <button
                     className="map-selection-item"
                     type="button"
@@ -92,6 +103,35 @@ export function MapSelectionDialog({ onMapSelected }: MapSelectionDialogProps): 
                     <span className="map-selection-item-name">{m.name}</span>
                     <span className="map-selection-item-date">{formatDate(m.updatedAt)}</span>
                   </button>
+                  {confirmingDeleteId === m.id ? (
+                    <span className="map-selection-delete-confirm">
+                      <button
+                        className="map-selection-delete-confirm-btn"
+                        type="button"
+                        aria-label="Confirm delete"
+                        onClick={() => void handleDelete(m.id)}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        className="map-selection-delete-cancel-btn"
+                        type="button"
+                        aria-label="Cancel delete"
+                        onClick={() => setConfirmingDeleteId(null)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      className="map-selection-delete-btn"
+                      type="button"
+                      aria-label={`Delete ${m.name}`}
+                      onClick={() => setConfirmingDeleteId(m.id)}
+                    >
+                      🗑
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

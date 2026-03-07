@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MapDocument } from '../../src/domain/map-types';
 import { createEmptyMap } from '../../src/domain/map-types';
-import { saveMap } from '../../src/storage/map-store';
+import { saveMap, deleteMap } from '../../src/storage/map-store';
 import { MapSelectionDialog } from '../../src/components/map-selection-dialog';
 
 describe('MapSelectionDialog', () => {
@@ -75,5 +75,53 @@ describe('MapSelectionDialog', () => {
   it('has a dialog with the accessible name "Choose a map"', async () => {
     render(<MapSelectionDialog onMapSelected={noop} />);
     expect(screen.getByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+  });
+
+  it('shows a delete button for each saved map', async () => {
+    const doc = createEmptyMap('Deletable Map');
+    await saveMap(doc);
+
+    render(<MapSelectionDialog onMapSelected={noop} />);
+    await screen.findByText('Deletable Map');
+
+    const deleteBtn = screen.getByRole('button', { name: /delete deletable map/i });
+    expect(deleteBtn).toBeInTheDocument();
+  });
+
+  it('removes a map from the list when delete is clicked and confirmed', async () => {
+    const doc = createEmptyMap('To Be Deleted');
+    await saveMap(doc);
+
+    const user = userEvent.setup();
+    render(<MapSelectionDialog onMapSelected={noop} />);
+    await screen.findByText('To Be Deleted');
+
+    const deleteBtn = screen.getByRole('button', { name: /delete to be deleted/i });
+    await user.click(deleteBtn);
+
+    // After clicking, a confirmation button should appear
+    const confirmBtn = await screen.findByRole('button', { name: /confirm delete/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('To Be Deleted')).not.toBeInTheDocument();
+    });
+  });
+
+  it('cancels delete when cancel button is clicked', async () => {
+    const doc = createEmptyMap('Keep This Map');
+    await saveMap(doc);
+
+    const user = userEvent.setup();
+    render(<MapSelectionDialog onMapSelected={noop} />);
+    await screen.findByText('Keep This Map');
+
+    const deleteBtn = screen.getByRole('button', { name: /delete keep this map/i });
+    await user.click(deleteBtn);
+
+    const cancelBtn = await screen.findByRole('button', { name: /cancel delete/i });
+    await user.click(cancelBtn);
+
+    expect(screen.getByText('Keep This Map')).toBeInTheDocument();
   });
 });
