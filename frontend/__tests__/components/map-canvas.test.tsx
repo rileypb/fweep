@@ -657,6 +657,53 @@ describe('MapCanvas', () => {
       // Only the original room should exist
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(1);
     });
+
+    it('drags other selected rooms in parallel when dragging a selected room', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+      useEditorStore.getState().addRoomToSelection(hallway.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      const rooms = useEditorStore.getState().doc!.rooms;
+      expect(rooms[kitchen.id].position).toEqual({ x: 160, y: 160 });
+      expect(rooms[hallway.id].position).toEqual({ x: 280, y: 160 });
+    });
+
+    it('updates all selected room positions live while dragging', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+      useEditorStore.getState().addRoomToSelection(hallway.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const hallwayNode = screen.getByText('Hallway').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 130, clientY: 160 });
+
+      expect(kitchenNode.style.transform).toBe('translate(110px, 140px)');
+      expect(hallwayNode.style.transform).toBe('translate(230px, 140px)');
+
+      fireEvent.mouseUp(document, { clientX: 130, clientY: 160 });
+    });
   });
 
   /* ---- Connection drag from direction handles ---- */

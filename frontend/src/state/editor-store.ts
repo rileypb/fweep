@@ -38,7 +38,7 @@ export interface ConnectionDrag {
 
 /** State for a room being actively dragged (before commit). */
 export interface RoomDrag {
-  readonly roomId: string;
+  readonly roomIds: readonly string[];
   readonly dx: number;
   readonly dy: number;
 }
@@ -249,7 +249,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   startRoomDrag: (roomId) => {
-    set({ roomDrag: { roomId, dx: 0, dy: 0 } });
+    set((state) => ({
+      roomDrag: {
+        roomIds: state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId],
+        dx: 0,
+        dy: 0,
+      },
+    }));
   },
 
   updateRoomDrag: (dx, dy) => {

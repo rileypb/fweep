@@ -236,6 +236,57 @@ describe('useEditorStore', () => {
     });
   });
 
+  /* ---- room drag ---- */
+
+  describe('room drag', () => {
+    it('starts with roomDrag as null', () => {
+      expect(useEditorStore.getState().roomDrag).toBeNull();
+    });
+
+    it('startRoomDrag uses only the dragged room when it is not selected', () => {
+      useEditorStore.getState().startRoomDrag('r1');
+
+      expect(useEditorStore.getState().roomDrag).toEqual({
+        roomIds: ['r1'],
+        dx: 0,
+        dy: 0,
+      });
+    });
+
+    it('startRoomDrag uses the full room selection when dragging a selected room', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addRoomToSelection('r2');
+
+      useEditorStore.getState().startRoomDrag('r1');
+
+      expect(useEditorStore.getState().roomDrag).toEqual({
+        roomIds: ['r1', 'r2'],
+        dx: 0,
+        dy: 0,
+      });
+    });
+
+    it('updateRoomDrag updates the shared drag delta', () => {
+      useEditorStore.getState().startRoomDrag('r1');
+
+      useEditorStore.getState().updateRoomDrag(40, 20);
+
+      expect(useEditorStore.getState().roomDrag).toEqual({
+        roomIds: ['r1'],
+        dx: 40,
+        dy: 20,
+      });
+    });
+
+    it('endRoomDrag clears the drag state', () => {
+      useEditorStore.getState().startRoomDrag('r1');
+
+      useEditorStore.getState().endRoomDrag();
+
+      expect(useEditorStore.getState().roomDrag).toBeNull();
+    });
+  });
+
   /* ---- connection drag ---- */
 
   describe('connection drag', () => {
@@ -392,7 +443,7 @@ describe('useEditorStore', () => {
       const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
       useEditorStore.getState().startRoomDrag(roomId);
 
-      expect(useEditorStore.getState().roomDrag).toEqual({ roomId, dx: 0, dy: 0 });
+      expect(useEditorStore.getState().roomDrag).toEqual({ roomIds: [roomId], dx: 0, dy: 0 });
     });
 
     it('updateRoomDrag updates the offset', () => {
@@ -401,7 +452,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startRoomDrag(roomId);
       useEditorStore.getState().updateRoomDrag(30, 40);
 
-      expect(useEditorStore.getState().roomDrag).toEqual({ roomId, dx: 30, dy: 40 });
+      expect(useEditorStore.getState().roomDrag).toEqual({ roomIds: [roomId], dx: 30, dy: 40 });
     });
 
     it('endRoomDrag clears the drag state', () => {

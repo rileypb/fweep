@@ -324,7 +324,7 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
 
-  const isDragging = roomDrag !== null && roomDrag.roomId === room.id;
+  const isDragging = roomDrag !== null && roomDrag.roomIds.includes(room.id);
   const dragOffset = isDragging ? roomDrag : null;
 
   // Compute visual position: during drag, add offset; otherwise use room.position
@@ -345,6 +345,9 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
 
       const startX = e.clientX;
       const startY = e.clientY;
+      const draggedRoomIds = isSelected
+        ? useEditorStore.getState().selectedRoomIds
+        : [room.id];
 
       startRoomDrag(room.id);
 
@@ -363,9 +366,16 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
         endRoomDrag();
 
         if (dx !== 0 || dy !== 0) {
-          moveRoom(room.id, {
-            x: room.position.x + dx,
-            y: room.position.y + dy,
+          draggedRoomIds.forEach((draggedRoomId) => {
+            const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
+            if (!draggedRoom) {
+              return;
+            }
+
+            moveRoom(draggedRoomId, {
+              x: draggedRoom.position.x + dx,
+              y: draggedRoom.position.y + dy,
+            });
           });
         } else if (upEvent.shiftKey) {
           addRoomToSelection(room.id);
@@ -377,7 +387,7 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, isRoomEditorOpen, moveRoom, room.id, room.position.x, room.position.y, selectRoom, startRoomDrag, updateRoomDrag, endRoomDrag],
+    [addRoomToSelection, isRoomEditorOpen, isSelected, moveRoom, room.id, selectRoom, startRoomDrag, updateRoomDrag, endRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(
@@ -477,8 +487,8 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
 /**
  * Apply a drag offset to a room's position if it's currently being dragged.
  */
-function applyDragOffset(room: Room, roomDrag: { roomId: string; dx: number; dy: number } | null): Room {
-  if (!roomDrag || roomDrag.roomId !== room.id) return room;
+function applyDragOffset(room: Room, roomDrag: { roomIds: readonly string[]; dx: number; dy: number } | null): Room {
+  if (!roomDrag || !roomDrag.roomIds.includes(room.id)) return room;
   return {
     ...room,
     position: {
