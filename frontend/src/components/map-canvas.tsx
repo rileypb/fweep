@@ -5,10 +5,13 @@ import {
   computeConnectionPath,
   computeSegmentArrowheadPoints,
   computePreviewPath,
+  getHandleOffset,
   pointsToSvgString,
   ROOM_HEIGHT,
+  ROOM_CORNER_RADIUS,
   ROOM_WIDTH,
 } from '../graph/connection-geometry';
+import { normalizeDirection } from '../domain/directions';
 
 const CLICK_EDIT_DELAY_MS = 225;
 const AUTO_PAN_ANIMATION_MS = 320;
@@ -222,47 +225,33 @@ function getRoomNodeWidth(name: string): number {
   return Math.max(ROOM_WIDTH, Math.round((name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
 }
 
-function getHandleCenter(direction: typeof DIRECTION_HANDLES[number], roomWidth: number, roomHeight: number): { cx: number; cy: number } {
-  switch (direction) {
-    case 'n':
-      return { cx: roomWidth / 2, cy: 0 };
-    case 'ne':
-      return { cx: roomWidth, cy: 0 };
-    case 'e':
-      return { cx: roomWidth, cy: roomHeight / 2 };
-    case 'se':
-      return { cx: roomWidth, cy: roomHeight };
-    case 's':
-      return { cx: roomWidth / 2, cy: roomHeight };
-    case 'sw':
-      return { cx: 0, cy: roomHeight };
-    case 'w':
-      return { cx: 0, cy: roomHeight / 2 };
-    case 'nw':
-      return { cx: 0, cy: 0 };
-  }
-}
-
 function DirectionHandles({ roomWidth, roomHeight, onHandleMouseDown }: DirectionHandlesProps): React.JSX.Element {
   return (
     <>
-      {DIRECTION_HANDLES.map((dir) => (
-        <circle
-          key={dir}
-          className="direction-handle"
-          data-testid={`direction-handle-${dir}`}
-          data-direction={dir}
-          cx={getHandleCenter(dir, roomWidth, roomHeight).cx}
-          cy={getHandleCenter(dir, roomWidth, roomHeight).cy}
-          r={HANDLE_RADIUS}
-          onMouseDown={(e) => {
-            if (onHandleMouseDown) {
-              e.stopPropagation();
-              onHandleMouseDown(dir, e);
-            }
-          }}
-        />
-      ))}
+      {DIRECTION_HANDLES.map((dir) => {
+        const handleOffset = getHandleOffset(normalizeDirection(dir), { width: roomWidth, height: roomHeight });
+        if (!handleOffset) {
+          return null;
+        }
+
+        return (
+          <circle
+            key={dir}
+            className="direction-handle"
+            data-testid={`direction-handle-${dir}`}
+            data-direction={dir}
+            cx={handleOffset.x}
+            cy={handleOffset.y}
+            r={HANDLE_RADIUS}
+            onMouseDown={(e) => {
+              if (onHandleMouseDown) {
+                e.stopPropagation();
+                onHandleMouseDown(dir, e);
+              }
+            }}
+          />
+        );
+      })}
     </>
   );
 }
@@ -429,8 +418,8 @@ function RoomNode({ room, isEditing, isRoomEditorOpen, onOpenRoomEditor, toMapPo
           y={0}
           width={roomWidth}
           height={ROOM_HEIGHT}
-          rx={8}
-          ry={8}
+          rx={ROOM_CORNER_RADIUS}
+          ry={ROOM_CORNER_RADIUS}
         />
         {!isEditing && (
           <text

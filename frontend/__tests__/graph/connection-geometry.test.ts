@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import {
+  getHandleOffset,
   getHandlePosition,
   getRoomCenter,
   getStubEndpoint,
@@ -18,6 +19,18 @@ import type { Room } from '../../src/domain/map-types';
 function roomAt(name: string, x: number, y: number, directions: Record<string, string> = {}): Room {
   return { ...createRoom(name), position: { x, y }, directions };
 }
+
+describe('getHandleOffset', () => {
+  it('returns local SVG coordinates for edge handles', () => {
+    expect(getHandleOffset('north')).toEqual({ x: ROOM_WIDTH / 2, y: 0 });
+    expect(getHandleOffset('east')).toEqual({ x: ROOM_WIDTH, y: ROOM_HEIGHT / 2 });
+  });
+
+  it('returns inset local SVG coordinates for corner handles', () => {
+    expect(getHandleOffset('northwest')).toEqual({ x: 6, y: 6 });
+    expect(getHandleOffset('southeast')).toEqual({ x: ROOM_WIDTH - 6, y: ROOM_HEIGHT - 6 });
+  });
+});
 
 describe('getHandlePosition', () => {
   const pos = { x: 100, y: 200 };

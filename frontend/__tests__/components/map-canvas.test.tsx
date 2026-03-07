@@ -6,6 +6,7 @@ import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { addRoom, addConnection } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
+import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
 
 function resetStore(): void {
   useEditorStore.setState(useEditorStore.getInitialState());
@@ -540,6 +541,16 @@ describe('MapCanvas', () => {
       setupRoomAndHover();
 
       expect(screen.getByTestId(`direction-handle-${dir}`)).toBeInTheDocument();
+    });
+
+    it('renders handle circles at the shared SVG geometry coordinates', () => {
+      setupRoomAndHover();
+
+      const handle = screen.getByTestId('direction-handle-ne');
+      const expectedOffset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT });
+
+      expect(handle.getAttribute('cx')).toBe(String(expectedOffset?.x));
+      expect(handle.getAttribute('cy')).toBe(String(expectedOffset?.y));
     });
 
     it('hides directional handles when the mouse leaves the room', () => {

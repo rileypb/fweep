@@ -6,6 +6,9 @@ import { normalizeDirection } from '../domain/directions';
 /** Estimated room node dimensions (matches CSS .room-node min-width + padding). */
 export const ROOM_WIDTH = 80;
 export const ROOM_HEIGHT = 36;
+export const ROOM_CORNER_RADIUS = 8;
+export const CORNER_HANDLE_INSET = 6;
+
 export interface RoomDimensions {
   readonly width: number;
   readonly height: number;
@@ -28,7 +31,6 @@ export interface Point {
 const DEFAULT_ARROW_LENGTH = 12;
 const DEFAULT_ARROW_WIDTH = 10;
 const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
-const CORNER_HANDLE_INSET = 6;
 
 /* ---- Handle position offsets ---- */
 
@@ -73,6 +75,24 @@ export function getHandlePosition(
   direction: string,
   roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
 ): Point | undefined {
+  const handleOffset = getHandleOffset(direction, roomDimensions);
+  if (!handleOffset) return undefined;
+
+  return {
+    x: roomPosition.x + handleOffset.x,
+    y: roomPosition.y + handleOffset.y,
+  };
+}
+
+/**
+ * Return the local SVG coordinate for a compass handle inside a room shape.
+ * These coordinates are the canonical anchor points for both rendered handle
+ * circles and connection endpoints.
+ */
+export function getHandleOffset(
+  direction: string,
+  roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+): Point | undefined {
   const offset = HANDLE_OFFSET_FACTORS[direction];
   if (!offset) return undefined;
 
@@ -82,8 +102,8 @@ export function getHandlePosition(
   const isBottomCorner = direction === 'southwest' || direction === 'southeast';
 
   return {
-    x: roomPosition.x + roomDimensions.width * offset.dx + (isLeftCorner ? CORNER_HANDLE_INSET : 0) - (isRightCorner ? CORNER_HANDLE_INSET : 0),
-    y: roomPosition.y + roomDimensions.height * offset.dy + (isTopCorner ? CORNER_HANDLE_INSET : 0) - (isBottomCorner ? CORNER_HANDLE_INSET : 0),
+    x: roomDimensions.width * offset.dx + (isLeftCorner ? CORNER_HANDLE_INSET : 0) - (isRightCorner ? CORNER_HANDLE_INSET : 0),
+    y: roomDimensions.height * offset.dy + (isTopCorner ? CORNER_HANDLE_INSET : 0) - (isBottomCorner ? CORNER_HANDLE_INSET : 0),
   };
 }
 
