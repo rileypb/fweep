@@ -5,6 +5,7 @@ import {
   getStubEndpoint,
   findRoomDirectionForConnection,
   computeConnectionPath,
+  computeSegmentArrowheadPoints,
   computePreviewPath,
   pointsToSvgString,
   ROOM_WIDTH,
@@ -178,6 +179,34 @@ describe('computeConnectionPath', () => {
     expect(points[0]).toEqual(getHandlePosition(srcRoom.position, 'east'));
     expect(points[2]).toEqual(getRoomCenter(tgtRoom.position));
   });
+
+  it('draws a one-way connection to the target room center even when the target has a compass binding', () => {
+    const connId = 'conn-1';
+    const srcRoom = roomAt('A', 0, 200, { north: connId });
+    const tgtRoom = roomAt('B', 0, 0, { east: connId });
+    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    expect(points).toHaveLength(3);
+    expect(points[0]).toEqual(getHandlePosition(srcRoom.position, 'north'));
+    expect(points[2]).toEqual(getRoomCenter(tgtRoom.position));
+  });
+
+  it('uses distinct source and target directions for a bidirectional self-connection', () => {
+    const connId = 'conn-1';
+    const room = roomAt('A', 80, 200, { north: connId, east: connId });
+    const conn = { id: connId, sourceRoomId: room.id, targetRoomId: room.id, isBidirectional: true };
+
+    const points = computeConnectionPath(room, room, conn, 20);
+
+    expect(points).toEqual([
+      { x: 120, y: 200 },
+      { x: 120, y: 180 },
+      { x: 180, y: 218 },
+      { x: 160, y: 218 },
+    ]);
+  });
 });
 
 describe('computePreviewPath', () => {
@@ -200,6 +229,36 @@ describe('computePreviewPath', () => {
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual(getRoomCenter(room.position));
     expect(points[1]).toEqual({ x: 40, y: 50 });
+  });
+});
+
+describe('computeSegmentArrowheadPoints', () => {
+  it('places arrowheads at one-third and two-thirds of the last segment', () => {
+    const pts = [
+      { x: 120, y: 200 },
+      { x: 120, y: 180 },
+      { x: 120, y: 18 },
+    ];
+
+    const arrows = computeSegmentArrowheadPoints(pts, 12, 10);
+
+    expect(arrows).toHaveLength(2);
+
+    expect(arrows[0]).toEqual([
+      { x: 120, y: 120 },
+      { x: 125, y: 132 },
+      { x: 115, y: 132 },
+    ]);
+
+    expect(arrows[1]).toEqual([
+      { x: 120, y: 66 },
+      { x: 125, y: 78 },
+      { x: 115, y: 78 },
+    ]);
+  });
+
+  it('returns an empty array when no non-zero segment exists', () => {
+    expect(computeSegmentArrowheadPoints([{ x: 1, y: 1 }, { x: 1, y: 1 }])).toEqual([]);
   });
 });
 

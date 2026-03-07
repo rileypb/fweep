@@ -221,7 +221,7 @@ describe('useEditorStore', () => {
       const conn = connections[0];
       expect(conn.sourceRoomId).toBe(kitchenId);
       expect(conn.targetRoomId).toBe(hallwayId);
-      expect(conn.isBidirectional).toBe(true);
+      expect(conn.isBidirectional).toBe(false);
 
       // Source room should have 'north' bound
       expect(doc.rooms[kitchenId].directions['north']).toBe(conn.id);
@@ -253,7 +253,7 @@ describe('useEditorStore', () => {
       expect(doc.rooms[hallwayId].directions['west']).toBe(conn.id);
     });
 
-    it('completeConnectionDrag creates a self-connection (one-way)', () => {
+    it('completeConnectionDrag creates a one-way self-connection when dropped on the room body', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
 
@@ -274,6 +274,25 @@ describe('useEditorStore', () => {
 
       // Drag state should be cleared
       expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
+    it('completeConnectionDrag creates a bidirectional self-connection when dropped on a handle', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      useEditorStore.getState().completeConnectionDrag(kitchenId, 'east');
+
+      const doc = useEditorStore.getState().doc!;
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+
+      const conn = connections[0];
+      expect(conn.sourceRoomId).toBe(kitchenId);
+      expect(conn.targetRoomId).toBe(kitchenId);
+      expect(conn.isBidirectional).toBe(true);
+      expect(doc.rooms[kitchenId].directions['north']).toBe(conn.id);
+      expect(doc.rooms[kitchenId].directions['east']).toBe(conn.id);
     });
 
     it('completeConnectionDrag does nothing when no drag is active', () => {

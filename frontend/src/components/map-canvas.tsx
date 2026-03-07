@@ -3,6 +3,7 @@ import { useEditorStore } from '../state/editor-store';
 import type { Room, Connection } from '../domain/map-types';
 import {
   computeConnectionPath,
+  computeSegmentArrowheadPoints,
   computePreviewPath,
   pointsToSvgString,
 } from '../graph/connection-geometry';
@@ -258,20 +259,6 @@ function ConnectionLines({ rooms, connections }: {
         zIndex: 2,
       }}
     >
-      <defs>
-        <marker
-          id="arrowhead"
-          markerWidth="10"
-          markerHeight="7"
-          refX="10"
-          refY="3.5"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1" />
-        </marker>
-      </defs>
-
       {entries.map((conn) => {
         const rawSrc = rooms[conn.sourceRoomId];
         const rawTgt = rooms[conn.targetRoomId];
@@ -284,32 +271,50 @@ function ConnectionLines({ rooms, connections }: {
         if (conn.sourceRoomId === conn.targetRoomId) {
           // Self-connection: render a loop via the connection path
           const points = computeConnectionPath(src, tgt, conn);
+          const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
           return (
-            <polyline
-              key={conn.id}
-              data-testid={`connection-line-${conn.id}`}
-              className="connection-line connection-line--self"
-              points={pointsToSvgString(points)}
-              fill="none"
-              stroke="#6366f1"
-              strokeWidth="2"
-              markerEnd="url(#arrowhead)"
-            />
+            <g key={conn.id}>
+              <polyline
+                data-testid={`connection-line-${conn.id}`}
+                className="connection-line connection-line--self"
+                points={pointsToSvgString(points)}
+                fill="none"
+                stroke="#6366f1"
+                strokeWidth="2"
+              />
+              {arrowPointSets.map((arrowPoints, index) => (
+                <polygon
+                  key={`${conn.id}-arrow-${index}`}
+                  data-testid={`connection-arrow-${conn.id}-${index}`}
+                  points={pointsToSvgString(arrowPoints)}
+                  fill="#6366f1"
+                />
+              ))}
+            </g>
           );
         }
 
         const points = computeConnectionPath(src, tgt, conn);
+        const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
         return (
-          <polyline
-            key={conn.id}
-            data-testid={`connection-line-${conn.id}`}
-            className="connection-line"
-            points={pointsToSvgString(points)}
-            fill="none"
-            stroke="#6366f1"
-            strokeWidth="2"
-            markerEnd={conn.isBidirectional ? undefined : 'url(#arrowhead)'}
-          />
+          <g key={conn.id}>
+            <polyline
+              data-testid={`connection-line-${conn.id}`}
+              className="connection-line"
+              points={pointsToSvgString(points)}
+              fill="none"
+              stroke="#6366f1"
+              strokeWidth="2"
+            />
+            {arrowPointSets.map((arrowPoints, index) => (
+              <polygon
+                key={`${conn.id}-arrow-${index}`}
+                data-testid={`connection-arrow-${conn.id}-${index}`}
+                points={pointsToSvgString(arrowPoints)}
+                fill="#6366f1"
+              />
+            ))}
+          </g>
         );
       })}
 

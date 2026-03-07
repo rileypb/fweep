@@ -16,6 +16,10 @@ export interface Point {
   readonly y: number;
 }
 
+const DEFAULT_ARROW_LENGTH = 12;
+const DEFAULT_ARROW_WIDTH = 10;
+const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
+
 /* ---- Handle position offsets ---- */
 
 /**
@@ -87,27 +91,40 @@ export function getStubEndpoint(handlePosition: Point, direction: string, stubLe
  * given connection ID.  Returns `undefined` if no compass binding is found.
  */
 export function findRoomDirectionForConnection(room: Room, connectionId: string): string | undefined {
+  return findRoomDirectionsForConnection(room, connectionId)[0];
+}
+
+/**
+ * Find all distinct compass directions in a room that reference a given
+ * connection ID, preserving insertion order.
+ */
+function findRoomDirectionsForConnection(room: Room, connectionId: string): string[] {
+  const directions: string[] = [];
+
   for (const [dir, cid] of Object.entries(room.directions)) {
     if (cid === connectionId && HANDLE_OFFSETS[dir] !== undefined) {
-      return dir;
+      directions.push(dir);
     }
   }
+
   // Check if there's a non-compass direction that normalizes to a compass one
   for (const [dir, cid] of Object.entries(room.directions)) {
     if (cid === connectionId) {
       const normalized = normalizeDirection(dir);
-      if (HANDLE_OFFSETS[normalized] !== undefined) {
-        return normalized;
+      if (HANDLE_OFFSETS[normalized] !== undefined && !directions.includes(normalized)) {
+        directions.push(normalized);
       }
     }
   }
-  return undefined;
+
+  return directions;
 }
 
 /**
  * Compute the polyline points for a connection between two rooms.
  *
- * The path is: sourceHandle → sourceStub → targetStub → targetHandle.
+ * Bidirectional path: sourceHandle → sourceStub → targetStub → targetHandle.
+ * One-way path: sourceHandle → sourceStub → targetCenter.
  * When a room does not have a compass direction for the connection,
  * the room center is used and the stub is omitted.
  *
@@ -123,8 +140,15 @@ export function computeConnectionPath(
   conn: Connection,
   stubLength: number = DEFAULT_STUB_LENGTH,
 ): Point[] {
-  const srcDir = findRoomDirectionForConnection(srcRoom, conn.id);
-  const tgtDir = findRoomDirectionForConnection(tgtRoom, conn.id);
+  const isSelfConnection = conn.sourceRoomId === conn.targetRoomId;
+  const srcDirections = findRoomDirectionsForConnection(srcRoom, conn.id);
+  const srcDir = srcDirections[0];
+  const isOneWayBetweenDifferentRooms = !conn.isBidirectional && conn.sourceRoomId !== conn.targetRoomId;
+  const tgtDir = isOneWayBetweenDifferentRooms
+    ? undefined
+    : isSelfConnection && conn.isBidirectional
+      ? srcDirections[1]
+      : findRoomDirectionForConnection(tgtRoom, conn.id);
 
   // Source endpoint
   const srcStart = srcDir
@@ -182,6 +206,97 @@ export function computePreviewPath(
   points.push({ x: cursorX, y: cursorY });
 
   return points;
+}
+
+interface ArrowSegment {
+  readonly start: Point;
+  readonly end: Point;
+  readonly ux: number;
+  readonly uy: number;
+  readonly px: number;
+  readonly py: number;
+  readonly length: number;
+}
+
+function getLastNonZeroSegment(pts: Point[]): ArrowSegment | undefined {
+  if (pts.length < 2) return undefined;
+
+  for (let i = pts.length - 2; i >= 0; i -= 1) {
+    const start = pts[i];
+    const end = pts[i + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy);
+
+    if (length === 0) {
+      continue;
+    }
+
+    const ux = dx / length;
+    const uy = dy / length;
+    return {
+      start,
+      end,
+      ux,
+      uy,
+      px: -uy,
+      py: ux,
+      length,
+    };
+  }
+
+  return undefined;
+}
+
+function computeArrowheadAtFraction(
+  segment: ArrowSegment,
+  fraction: number,
+  arrowLength: number,
+  arrowWidth: number,
+): Point[] {
+  const centerX = segment.start.x + (segment.end.x - segment.start.x) * fraction;
+  const centerY = segment.start.y + (segment.end.y - segment.start.y) * fraction;
+  const halfArrowLength = arrowLength / 2;
+  const halfArrowWidth = arrowWidth / 2;
+
+  const tip = {
+    x: centerX + segment.ux * halfArrowLength,
+    y: centerY + segment.uy * halfArrowLength,
+  };
+
+  const baseCenter = {
+    x: centerX - segment.ux * halfArrowLength,
+    y: centerY - segment.uy * halfArrowLength,
+  };
+
+  const left = {
+    x: baseCenter.x + segment.px * halfArrowWidth,
+    y: baseCenter.y + segment.py * halfArrowWidth,
+  };
+
+  const right = {
+    x: baseCenter.x - segment.px * halfArrowWidth,
+    y: baseCenter.y - segment.py * halfArrowWidth,
+  };
+
+  return [tip, left, right];
+}
+
+/**
+ * Compute triangle points for two arrowheads on the last non-zero segment of a
+ * polyline, positioned at one-third and two-thirds of the segment length.
+ */
+export function computeSegmentArrowheadPoints(
+  pts: Point[],
+  arrowLength: number = DEFAULT_ARROW_LENGTH,
+  arrowWidth: number = DEFAULT_ARROW_WIDTH,
+): Point[][] {
+  const segment = getLastNonZeroSegment(pts);
+  if (!segment) return [];
+
+  return DEFAULT_ARROW_FRACTIONS.map((fraction) =>
+    computeArrowheadAtFraction(segment, fraction, arrowLength, arrowWidth),
+  );
 }
 
 /** Convert an array of points to an SVG polyline `points` attribute string. */

@@ -469,7 +469,7 @@ describe('MapCanvas', () => {
       expect(connections).toHaveLength(1);
       expect(connections[0].sourceRoomId).toBe(kitchenId);
       expect(connections[0].targetRoomId).toBe(hallwayId);
-      expect(connections[0].isBidirectional).toBe(true);
+      expect(connections[0].isBidirectional).toBe(false);
 
       // Direction bindings — fallback to opposite
       expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
@@ -507,7 +507,7 @@ describe('MapCanvas', () => {
       expect(doc.rooms[hallwayId].directions['west']).toBe(connections[0].id);
     });
 
-    it('creates a self-connection when releasing on the same room', () => {
+    it('creates a one-way self-connection when releasing on the same room body', () => {
       const { kitchenId } = setupTwoRooms();
       render(<MapCanvas mapName="Test" />);
 
@@ -528,6 +528,31 @@ describe('MapCanvas', () => {
       expect(connections[0].sourceRoomId).toBe(kitchenId);
       expect(connections[0].targetRoomId).toBe(kitchenId);
       expect(connections[0].isBidirectional).toBe(false);
+    });
+
+    it('creates a bidirectional self-connection when releasing on another handle of the same room', () => {
+      const { kitchenId } = setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const sourceHandle = within(kitchenNode).getByTestId('direction-handle-n');
+      fireEvent.mouseDown(sourceHandle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 120, clientY: 205 });
+
+      const targetHandle = within(kitchenNode).getByTestId('direction-handle-e');
+      fireEvent.mouseUp(targetHandle, { clientX: 160, clientY: 218 });
+
+      const doc = useEditorStore.getState().doc!;
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+      expect(connections[0].sourceRoomId).toBe(kitchenId);
+      expect(connections[0].targetRoomId).toBe(kitchenId);
+      expect(connections[0].isBidirectional).toBe(true);
+      expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
+      expect(doc.rooms[kitchenId].directions['east']).toBe(connections[0].id);
     });
 
     it('cancels the drag when releasing on empty canvas', () => {
@@ -623,9 +648,11 @@ describe('MapCanvas', () => {
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('marker-end')).toBeNull();
+      expect(screen.queryByTestId(`connection-arrow-${conn.id}-0`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-arrow-${conn.id}-1`)).not.toBeInTheDocument();
     });
 
-    it('renders an arrowhead for a one-way connection', () => {
+    it('renders two arrowhead polygons for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -638,7 +665,29 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
-      expect(connectionLine.getAttribute('marker-end')).toBe('url(#arrowhead)');
+      expect(connectionLine.getAttribute('marker-end')).toBeNull();
+      const connectionArrowA = screen.getByTestId(`connection-arrow-${conn.id}-0`);
+      const connectionArrowB = screen.getByTestId(`connection-arrow-${conn.id}-1`);
+      expect(connectionArrowA.tagName.toLowerCase()).toBe('polygon');
+      expect(connectionArrowB.tagName.toLowerCase()).toBe('polygon');
+      expect(connectionArrowA.getAttribute('points')).toBe('120,120 125,132 115,132');
+      expect(connectionArrowB.getAttribute('points')).toBe('120,66 125,78 115,78');
+    });
+
+    it('draws a one-way connection to the target room center without a target stub', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, false);
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
+      expect(connectionLine.getAttribute('points')).toBe('120,200 120,180 120,18');
     });
 
     it('renders a self-connection as a polyline element', () => {
@@ -654,6 +703,20 @@ describe('MapCanvas', () => {
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionPath).toBeInTheDocument();
       expect(connectionPath.tagName.toLowerCase()).toBe('polyline');
+    });
+
+    it('renders a bidirectional self-connection using distinct source and target handles', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, kitchen);
+      const conn = createConnection(kitchen.id, kitchen.id, true);
+      d = addConnection(d, conn, 'north', 'east');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
+      expect(connectionPath.getAttribute('points')).toBe('120,200 120,180 180,218 160,218');
     });
 
     it('updates connection lines in real time during room drag', () => {

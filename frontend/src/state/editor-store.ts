@@ -181,8 +181,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? undefined
         : oppositeDirection(sourceDirection);
 
-    // Bidirectional when connecting two different rooms AND a target direction exists
-    const isBidirectional = !isSelfConnection && resolvedTargetDir !== undefined;
+    // A targeted handle creates a bidirectional connection, including for
+    // self-connections. Dropping on the room body creates a one-way connection.
+    const isBidirectional = targetDirection !== undefined;
 
     const connection = createConnection(sourceRoomId, targetRoomId, isBidirectional);
 
