@@ -64,7 +64,7 @@ describe('MapCanvas', () => {
   });
 
   describe('map panning', () => {
-    it('pans the map when dragging empty canvas space', () => {
+    it('pans the map when middle-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -73,7 +73,7 @@ describe('MapCanvas', () => {
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
 
-      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0 });
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 1 });
       fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
 
       expect(content.style.transform).toBe('translate(60px, 60px)');
@@ -91,7 +91,7 @@ describe('MapCanvas', () => {
 
       const canvas = screen.getByTestId('map-canvas');
 
-      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100, button: 0 });
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100, button: 1 });
       fireEvent.mouseMove(document, { clientX: 180, clientY: 140 });
       fireEvent.mouseUp(document, { clientX: 180, clientY: 140 });
 
@@ -111,11 +111,27 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
-      fireEvent.mouseUp(document, { clientX: 20, clientY: 20, button: 0 });
+      fireEvent.click(canvas, { clientX: 20, clientY: 20, button: 0 });
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
       expect(screen.queryByTestId('room-selection-outline')).not.toBeInTheDocument();
+    });
+
+    it('does not pan on left mouse drag over empty canvas', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      expect(content.style.transform).toBe('translate(0px, 0px)');
+      expect(canvas).not.toHaveClass('map-canvas--panning');
     });
   });
 

@@ -717,7 +717,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [panToRoomEditorPosition]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 1 || roomEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -726,7 +726,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
-    clearRoomSelection();
     e.preventDefault();
 
     const startX = e.clientX;
@@ -755,15 +754,19 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [clearRoomSelection, connectionDrag, roomEditorId]);
+  }, [connectionDrag, roomEditorId]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (roomEditorId) return;
-      if (!e.shiftKey) return;
 
       const target = e.target as Element | null;
       if (target?.closest('[data-room-id], .map-canvas-header')) {
+        return;
+      }
+
+      if (!e.shiftKey) {
+        clearRoomSelection();
         return;
       }
 
@@ -771,7 +774,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
       addRoomAtPosition('', { x, y });
     },
-    [addRoomAtPosition, roomEditorId, toMapPoint],
+    [addRoomAtPosition, clearRoomSelection, roomEditorId, toMapPoint],
   );
 
   const classes = [
