@@ -28,6 +28,7 @@ export interface Point {
 const DEFAULT_ARROW_LENGTH = 12;
 const DEFAULT_ARROW_WIDTH = 10;
 const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
+const CORNER_HANDLE_INSET = 6;
 
 /* ---- Handle position offsets ---- */
 
@@ -74,9 +75,15 @@ export function getHandlePosition(
 ): Point | undefined {
   const offset = HANDLE_OFFSET_FACTORS[direction];
   if (!offset) return undefined;
+
+  const isLeftCorner = direction === 'northwest' || direction === 'southwest';
+  const isRightCorner = direction === 'northeast' || direction === 'southeast';
+  const isTopCorner = direction === 'northwest' || direction === 'northeast';
+  const isBottomCorner = direction === 'southwest' || direction === 'southeast';
+
   return {
-    x: roomPosition.x + roomDimensions.width * offset.dx,
-    y: roomPosition.y + roomDimensions.height * offset.dy,
+    x: roomPosition.x + roomDimensions.width * offset.dx + (isLeftCorner ? CORNER_HANDLE_INSET : 0) - (isRightCorner ? CORNER_HANDLE_INSET : 0),
+    y: roomPosition.y + roomDimensions.height * offset.dy + (isTopCorner ? CORNER_HANDLE_INSET : 0) - (isBottomCorner ? CORNER_HANDLE_INSET : 0),
   };
 }
 

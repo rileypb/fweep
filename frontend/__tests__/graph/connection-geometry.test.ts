@@ -39,11 +39,11 @@ describe('getHandlePosition', () => {
   });
 
   it('returns the northeast handle at top-right', () => {
-    expect(getHandlePosition(pos, 'northeast')).toEqual({ x: 100 + ROOM_WIDTH, y: 200 });
+    expect(getHandlePosition(pos, 'northeast')).toEqual({ x: 100 + ROOM_WIDTH - 6, y: 200 + 6 });
   });
 
   it('returns the southwest handle at bottom-left', () => {
-    expect(getHandlePosition(pos, 'southwest')).toEqual({ x: 100, y: 200 + ROOM_HEIGHT });
+    expect(getHandlePosition(pos, 'southwest')).toEqual({ x: 100 + 6, y: 200 + ROOM_HEIGHT - 6 });
   });
 
   it('returns undefined for non-compass directions like "up"', () => {
@@ -57,6 +57,11 @@ describe('getHandlePosition', () => {
   it('uses the provided room dimensions when computing handle positions', () => {
     expect(getHandlePosition(pos, 'north', { width: 140, height: 40 })).toEqual({ x: 170, y: 200 });
     expect(getHandlePosition(pos, 'east', { width: 140, height: 40 })).toEqual({ x: 240, y: 220 });
+  });
+
+  it('insets corner handles to match the rounded room border', () => {
+    expect(getHandlePosition(pos, 'northwest')).toEqual({ x: 106, y: 206 });
+    expect(getHandlePosition(pos, 'southeast')).toEqual({ x: 174, y: 230 });
   });
 });
 
