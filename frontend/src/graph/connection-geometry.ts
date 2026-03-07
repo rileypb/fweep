@@ -101,6 +101,42 @@ function getPolygonEdgeCenters(vertices: Point[]): Point[] {
   });
 }
 
+function normalizeVector(vector: Point): Point | undefined {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length === 0) {
+    return undefined;
+  }
+
+  return {
+    x: vector.x / length,
+    y: vector.y / length,
+  };
+}
+
+function getPolygonEdgeOutwardNormals(vertices: Point[]): Point[] {
+  const centerSum = vertices.reduce(
+    (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
+    { x: 0, y: 0 },
+  );
+  const center = {
+    x: centerSum.x / vertices.length,
+    y: centerSum.y / vertices.length,
+  };
+
+  return vertices.map((start, index) => {
+    const end = vertices[(index + 1) % vertices.length];
+    const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    const edge = { x: end.x - start.x, y: end.y - start.y };
+    const candidateA = normalizeVector({ x: edge.y, y: -edge.x })!;
+    const candidateB = { x: -candidateA.x, y: -candidateA.y };
+    const toMidpoint = { x: midpoint.x - center.x, y: midpoint.y - center.y };
+
+    return ((candidateA.x * toMidpoint.x) + (candidateA.y * toMidpoint.y)) >= 0
+      ? candidateA
+      : candidateB;
+  });
+}
+
 function getPointOnEllipse(theta: number, roomDimensions: RoomDimensions): Point {
   const rx = roomDimensions.width / 2;
   const ry = roomDimensions.height / 2;
@@ -231,6 +267,69 @@ function getShapeHandleOffset(
   }
 
   return undefined;
+}
+
+function getShapeStubVector(
+  direction: string,
+  roomDimensions: RoomDimensions,
+  roomShape: RoomShape,
+  handleOffset: Point,
+): Point | undefined {
+  const directionIndex = HANDLE_DIRECTION_ORDER.indexOf(direction as typeof HANDLE_DIRECTION_ORDER[number]);
+  if (directionIndex === -1) {
+    return undefined;
+  }
+
+  if (roomShape === 'diamond') {
+    return DIRECTION_VECTORS[direction]
+      ? { x: DIRECTION_VECTORS[direction].vx, y: DIRECTION_VECTORS[direction].vy }
+      : undefined;
+  }
+
+  if (roomShape === 'oval') {
+    const rx = roomDimensions.width / 2;
+    const ry = roomDimensions.height / 2;
+    const cx = rx;
+    const cy = ry;
+    return normalizeVector({
+      x: (handleOffset.x - cx) / (rx * rx),
+      y: (handleOffset.y - cy) / (ry * ry),
+    });
+  }
+
+  if (roomShape === 'octagon') {
+    return getPolygonEdgeOutwardNormals(getOctagonVertices(roomDimensions))[directionIndex];
+  }
+
+  return undefined;
+}
+
+function getStubEndpointForRoom(
+  handlePosition: Point,
+  direction: string,
+  stubLength: number,
+  roomDimensions: RoomDimensions,
+  roomShape: RoomShape,
+): Point | undefined {
+  const handleOffset = getHandleOffset(direction, roomDimensions, roomShape);
+  if (!handleOffset) {
+    return getStubEndpoint(handlePosition, direction, stubLength);
+  }
+
+  const vector = roomShape === 'rectangle'
+    ? DIRECTION_VECTORS[direction]
+      ? { x: DIRECTION_VECTORS[direction].vx, y: DIRECTION_VECTORS[direction].vy }
+      : undefined
+    : getShapeStubVector(direction, roomDimensions, roomShape, handleOffset);
+
+  if (!vector) {
+    return undefined;
+  }
+
+  return {
+    x: handlePosition.x + (vector.x * stubLength),
+    y: handlePosition.y + (vector.y * stubLength),
+  };
 }
 
 /* ---- Public functions ---- */
@@ -388,13 +487,13 @@ export function computeConnectionPath(
 
   // Source stub
   if (srcDir) {
-    const stub = getStubEndpoint(srcStart, srcDir, stubLength);
+    const stub = getStubEndpointForRoom(srcStart, srcDir, stubLength, srcRoomDimensions, srcRoom.shape);
     if (stub) points.push(stub);
   }
 
   // Target stub (in reverse — the stub extends outward from the target handle)
   if (tgtDir) {
-    const stub = getStubEndpoint(tgtEnd, tgtDir, stubLength);
+    const stub = getStubEndpointForRoom(tgtEnd, tgtDir, stubLength, tgtRoomDimensions, tgtRoom.shape);
     if (stub) points.push(stub);
   }
 
@@ -424,7 +523,7 @@ export function computePreviewPath(
 
   const points: Point[] = [handlePos];
 
-  const stub = getStubEndpoint(handlePos, sourceDirection, stubLength);
+  const stub = getStubEndpointForRoom(handlePos, sourceDirection, stubLength, srcRoomDimensions, srcRoom.shape);
   if (stub) points.push(stub);
 
   points.push({ x: cursorX, y: cursorY });

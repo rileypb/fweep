@@ -275,6 +275,35 @@ describe('computeConnectionPath', () => {
     expect(points[0]).toEqual({ x: 190, y: 200 });
     expect(points[3]).toEqual({ x: 140, y: 36 });
   });
+
+  it('uses the oval surface normal for diagonal stubs', () => {
+    const connId = 'conn-1';
+    const srcRoom = { ...roomAt('Oval', 0, 200, { northeast: connId }), shape: 'oval' as const };
+    const tgtRoom = roomAt('Target', 200, 0);
+    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    const dx = points[1].x - points[0].x;
+    const dy = points[1].y - points[0].y;
+
+    expect(Math.hypot(dx, dy)).toBeCloseTo(20, 5);
+    expect(Math.abs(dx)).toBeLessThan(Math.abs(dy));
+    expect(points[1].y).toBeLessThan(points[0].y);
+  });
+
+  it('uses the octagon side normal for diagonal stubs', () => {
+    const connId = 'conn-1';
+    const srcRoom = { ...roomAt('Octagon', 0, 200, { northeast: connId }), shape: 'octagon' as const };
+    const tgtRoom = roomAt('Target', 200, 0);
+    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    expect(points[1].x - points[0].x).toBeGreaterThan(12);
+    expect(points[1].y - points[0].y).toBeLessThan(-12);
+    expect(Math.abs((points[1].x - points[0].x) - -(points[1].y - points[0].y))).toBeGreaterThan(1);
+  });
 });
 
 describe('computePreviewPath', () => {
