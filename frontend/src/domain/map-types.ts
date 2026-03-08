@@ -17,6 +17,11 @@ export interface Position {
 
 export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
 export type RoomShape = (typeof ROOM_SHAPES)[number];
+export const ROOM_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const;
+export type RoomStrokeStyle = (typeof ROOM_STROKE_STYLES)[number];
+export const DEFAULT_ROOM_FILL_COLOR = '#ffffff';
+export const DEFAULT_ROOM_STROKE_COLOR = '#6366f1';
+export const DEFAULT_ROOM_STROKE_STYLE: RoomStrokeStyle = 'solid';
 
 export interface Room {
   readonly id: string;
@@ -27,6 +32,9 @@ export interface Room {
   readonly directions: Readonly<Record<string, string>>;
   readonly isDark: boolean;
   readonly shape: RoomShape;
+  readonly fillColor: string;
+  readonly strokeColor: string;
+  readonly strokeStyle: RoomStrokeStyle;
 }
 
 /* ---- Connection ---- */
@@ -94,6 +102,9 @@ export function createRoom(name: string): Room {
     directions: {},
     isDark: false,
     shape: 'rectangle',
+    fillColor: DEFAULT_ROOM_FILL_COLOR,
+    strokeColor: DEFAULT_ROOM_STROKE_COLOR,
+    strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
   };
 }
 

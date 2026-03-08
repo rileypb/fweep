@@ -43,6 +43,32 @@ describe('map-store', () => {
 
       expect(loaded?.rooms[roomId].shape).toBe('rectangle');
     });
+
+    it('hydrates missing room style fields from older saved maps', async () => {
+      const doc = createEmptyMap('Legacy Styles');
+      const roomId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: {},
+            isDark: false,
+            shape: 'rectangle',
+          },
+        },
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await saveMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.rooms[roomId].fillColor).toBe('#ffffff');
+      expect(loaded?.rooms[roomId].strokeColor).toBe('#6366f1');
+      expect(loaded?.rooms[roomId].strokeStyle).toBe('solid');
+    });
   });
 
   describe('listMaps', () => {
@@ -134,6 +160,32 @@ describe('map-store', () => {
       const imported = await importMapFromFile(file);
 
       expect(imported.rooms[roomId].shape).toBe('rectangle');
+    });
+
+    it('hydrates missing room style fields when importing an older map file', async () => {
+      const doc = createEmptyMap('Imported Styles');
+      const roomId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: {},
+            isDark: false,
+            shape: 'rectangle',
+          },
+        },
+      };
+      const file = makeFile(JSON.stringify(legacyDoc), 'legacy-style-map.json');
+
+      const imported = await importMapFromFile(file);
+
+      expect(imported.rooms[roomId].fillColor).toBe('#ffffff');
+      expect(imported.rooms[roomId].strokeColor).toBe('#6366f1');
+      expect(imported.rooms[roomId].strokeStyle).toBe('solid');
     });
 
     it('rejects non-JSON files', async () => {

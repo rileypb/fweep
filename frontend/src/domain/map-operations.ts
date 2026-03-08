@@ -1,4 +1,4 @@
-import type { MapDocument, Room, Connection, Item, Position, RoomShape } from './map-types';
+import type { MapDocument, Room, Connection, Item, Position, RoomShape, RoomStrokeStyle } from './map-types';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -333,6 +333,32 @@ export function setRoomShape(doc: MapDocument, roomId: string, shape: RoomShape)
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [roomId]: { ...room, shape } },
+  });
+}
+
+/** Return a new document with the room's visual styling updated. */
+export function setRoomStyle(
+  doc: MapDocument,
+  roomId: string,
+  style: {
+    fillColor?: string;
+    strokeColor?: string;
+    strokeStyle?: RoomStrokeStyle;
+  },
+): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  return touch({
+    ...doc,
+    rooms: {
+      ...doc.rooms,
+      [roomId]: {
+        ...room,
+        ...style,
+      },
+    },
   });
 }
 

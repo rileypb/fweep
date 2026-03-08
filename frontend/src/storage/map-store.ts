@@ -1,4 +1,13 @@
-import { ROOM_SHAPES, type MapDocument, type MapMetadata, type Room } from '../domain/map-types';
+import {
+  DEFAULT_ROOM_FILL_COLOR,
+  DEFAULT_ROOM_STROKE_COLOR,
+  DEFAULT_ROOM_STROKE_STYLE,
+  ROOM_SHAPES,
+  ROOM_STROKE_STYLES,
+  type MapDocument,
+  type MapMetadata,
+  type Room,
+} from '../domain/map-types';
 
 const DB_NAME = 'fweep';
 const DB_VERSION = 1;
@@ -27,11 +36,28 @@ function tx(
   return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 }
 
-function normalizeRoom(room: Room | (Omit<Room, 'shape'> & { shape?: Room['shape'] })): Room {
+function normalizeRoom(
+  room: Room | (
+    Omit<Room, 'shape' | 'fillColor' | 'strokeColor' | 'strokeStyle'> & {
+      shape?: Room['shape'];
+      fillColor?: Room['fillColor'];
+      strokeColor?: Room['strokeColor'];
+      strokeStyle?: Room['strokeStyle'];
+    }
+  ),
+): Room {
   const shape = room.shape && ROOM_SHAPES.includes(room.shape) ? room.shape : 'rectangle';
+  const fillColor = typeof room.fillColor === 'string' ? room.fillColor : DEFAULT_ROOM_FILL_COLOR;
+  const strokeColor = typeof room.strokeColor === 'string' ? room.strokeColor : DEFAULT_ROOM_STROKE_COLOR;
+  const strokeStyle = room.strokeStyle && ROOM_STROKE_STYLES.includes(room.strokeStyle)
+    ? room.strokeStyle
+    : DEFAULT_ROOM_STROKE_STYLE;
   return {
     ...room,
     shape,
+    fillColor,
+    strokeColor,
+    strokeStyle,
   };
 }
 

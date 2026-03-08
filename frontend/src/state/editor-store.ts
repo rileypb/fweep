@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MapDocument, Position, RoomShape } from '../domain/map-types';
+import type { MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
 import { createRoom, createConnection } from '../domain/map-types';
 import {
   addRoom,
@@ -10,6 +10,7 @@ import {
   moveRoom as domainMoveRoom,
   describeRoom as domainDescribeRoom,
   setRoomShape as domainSetRoomShape,
+  setRoomStyle as domainSetRoomStyle,
   setRoomPositions as domainSetRoomPositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
@@ -111,6 +112,16 @@ export interface EditorState {
 
   /** Update an existing room's shape. */
   setRoomShape: (roomId: string, shape: RoomShape) => void;
+
+  /** Update an existing room's visual styling. */
+  setRoomStyle: (
+    roomId: string,
+    style: {
+      fillColor?: string;
+      strokeColor?: string;
+      strokeStyle?: RoomStrokeStyle;
+    },
+  ) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
@@ -346,6 +357,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set room shape: no document is loaded.');
     }
     const updatedDoc = domainSetRoomShape(doc, roomId, shape);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setRoomStyle: (roomId, style) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set room style: no document is loaded.');
+    }
+    const updatedDoc = domainSetRoomStyle(doc, roomId, style);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 

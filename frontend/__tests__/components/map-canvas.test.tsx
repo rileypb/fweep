@@ -804,6 +804,32 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-node').querySelector('polygon.room-node-shape')).not.toBeNull();
     });
 
+    it('updates room style options from the room editor', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const fillColorInput = screen.getByLabelText('Fill color');
+      const strokeColorInput = screen.getByLabelText('Stroke color');
+      const strokeStyleInput = screen.getByLabelText('Stroke style');
+
+      fireEvent.change(fillColorInput, { target: { value: '#ffcc00' } });
+      fireEvent.change(strokeColorInput, { target: { value: '#14532d' } });
+      await user.selectOptions(strokeStyleInput, 'dashed');
+
+      const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      expect(room.fillColor).toBe('#ffcc00');
+      expect(room.strokeColor).toBe('#14532d');
+      expect(room.strokeStyle).toBe('dashed');
+
+      const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
+      const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
+
+      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#14532d', strokeDasharray: '8 5' });
+      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#14532d', strokeDasharray: '8 5' });
+    });
+
     it('pressing Enter in the room name field moves focus to the description field', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();

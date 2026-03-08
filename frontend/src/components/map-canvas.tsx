@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useEditorStore } from '../state/editor-store';
-import { ROOM_SHAPES, type Room, type Connection, type RoomShape } from '../domain/map-types';
+import { ROOM_SHAPES, ROOM_STROKE_STYLES, type Room, type Connection, type RoomShape, type RoomStrokeStyle } from '../domain/map-types';
 import {
   computeConnectionPath,
   computeSegmentArrowheadPoints,
@@ -59,6 +59,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const describeRoom = useEditorStore((s) => s.describeRoom);
   const setRoomShape = useEditorStore((s) => s.setRoomShape);
+  const setRoomStyle = useEditorStore((s) => s.setRoomStyle);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -118,7 +119,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
           width={roomGeometry.width}
           height={roomGeometry.height}
         >
-          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height)}
+          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height, room)}
         </svg>
         <input
           ref={nameInputRef}
@@ -147,41 +148,94 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
           ×
         </button>
 
-        <div className="room-editor-field">
-          <label className="room-editor-label" htmlFor="room-editor-description-input">
-            Description
-          </label>
-          <textarea
-            id="room-editor-description-input"
-            ref={descriptionInputRef}
-            className="room-editor-textarea"
-            data-testid="room-editor-description-input"
-            value={room.description}
-            onChange={(e) => describeRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:description` })}
-            onKeyDown={handleDescriptionKeyDown}
-            rows={8}
-          />
-        </div>
+        <div className="room-editor-content">
+          <aside className="room-editor-sidebar">
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="room-editor-fill-color-input">
+                Fill color
+              </label>
+              <input
+                id="room-editor-fill-color-input"
+                className="room-editor-input room-editor-color-input"
+                type="color"
+                aria-label="Fill color"
+                value={room.fillColor}
+                onChange={(e) => setRoomStyle(room.id, { fillColor: e.target.value })}
+              />
+            </div>
 
-        <div className="room-editor-field">
-          <span className="room-editor-label">Shape</span>
-          <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
-            {ROOM_SHAPES.map((shape) => (
-              <button
-                key={shape}
-                type="button"
-                role="radio"
-                aria-checked={room.shape === shape}
-                className={`room-shape-option${room.shape === shape ? ' room-shape-option--selected' : ''}`}
-                data-testid={`room-shape-option-${shape}`}
-                onClick={() => setRoomShape(room.id, shape)}
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="room-editor-stroke-color-input">
+                Stroke color
+              </label>
+              <input
+                id="room-editor-stroke-color-input"
+                className="room-editor-input room-editor-color-input"
+                type="color"
+                aria-label="Stroke color"
+                value={room.strokeColor}
+                onChange={(e) => setRoomStyle(room.id, { strokeColor: e.target.value })}
+              />
+            </div>
+
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="room-editor-stroke-style-input">
+                Stroke style
+              </label>
+              <select
+                id="room-editor-stroke-style-input"
+                className="room-editor-input"
+                aria-label="Stroke style"
+                value={room.strokeStyle}
+                onChange={(e) => setRoomStyle(room.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
               >
-                <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
-                  {renderRoomShape(shape, 44, 28)}
-                </svg>
-                <span>{shape}</span>
-              </button>
-            ))}
+                {ROOM_STROKE_STYLES.map((strokeStyle) => (
+                  <option key={strokeStyle} value={strokeStyle}>
+                    {strokeStyle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </aside>
+
+          <div className="room-editor-main">
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="room-editor-description-input">
+                Description
+              </label>
+              <textarea
+                id="room-editor-description-input"
+                ref={descriptionInputRef}
+                className="room-editor-textarea"
+                data-testid="room-editor-description-input"
+                value={room.description}
+                onChange={(e) => describeRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:description` })}
+                onKeyDown={handleDescriptionKeyDown}
+                rows={8}
+              />
+            </div>
+
+            <div className="room-editor-field">
+              <span className="room-editor-label">Shape</span>
+              <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
+                {ROOM_SHAPES.map((shape) => (
+                  <button
+                    key={shape}
+                    type="button"
+                    role="radio"
+                    aria-checked={room.shape === shape}
+                    className={`room-shape-option${room.shape === shape ? ' room-shape-option--selected' : ''}`}
+                    data-testid={`room-shape-option-${shape}`}
+                    onClick={() => setRoomShape(room.id, shape)}
+                  >
+                    <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
+                      {renderRoomShape(shape, 44, 28, room)}
+                    </svg>
+                    <span>{shape}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -500,12 +554,33 @@ function getOctagonPoints(width: number, height: number): string {
   ].join(' ');
 }
 
-function renderRoomShape(shape: RoomShape, width: number, height: number): React.JSX.Element {
+function getRoomStrokeDasharray(strokeStyle: RoomStrokeStyle): string | undefined {
+  if (strokeStyle === 'dashed') {
+    return '8 5';
+  }
+
+  if (strokeStyle === 'dotted') {
+    return '2 4';
+  }
+
+  return undefined;
+}
+
+function renderRoomShape(shape: RoomShape, width: number, height: number, roomStyle?: Pick<Room, 'fillColor' | 'strokeColor' | 'strokeStyle'>): React.JSX.Element {
+  const shapeStyleProps = roomStyle ? {
+    style: {
+      fill: roomStyle.fillColor,
+      stroke: roomStyle.strokeColor,
+      strokeDasharray: getRoomStrokeDasharray(roomStyle.strokeStyle),
+    },
+  } : undefined;
+
   if (shape === 'diamond') {
     return (
       <polygon
         className="room-node-shape"
         points={`${width / 2},0 ${width},${height / 2} ${width / 2},${height} 0,${height / 2}`}
+        {...shapeStyleProps}
       />
     );
   }
@@ -518,6 +593,7 @@ function renderRoomShape(shape: RoomShape, width: number, height: number): React
         cy={height / 2}
         rx={width / 2}
         ry={height / 2}
+        {...shapeStyleProps}
       />
     );
   }
@@ -527,6 +603,7 @@ function renderRoomShape(shape: RoomShape, width: number, height: number): React
       <polygon
         className="room-node-shape"
         points={getOctagonPoints(width, height)}
+        {...shapeStyleProps}
       />
     );
   }
@@ -540,6 +617,7 @@ function renderRoomShape(shape: RoomShape, width: number, height: number): React
       height={height}
       rx={ROOM_CORNER_RADIUS}
       ry={ROOM_CORNER_RADIUS}
+      {...shapeStyleProps}
     />
   );
 }
@@ -741,7 +819,7 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
             ry={12}
           />
         )}
-        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT)}
+        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT, room)}
         <text
           className="room-node-name"
           x={roomWidth / 2}

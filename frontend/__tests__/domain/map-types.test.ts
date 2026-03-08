@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { createEmptyMap, CURRENT_SCHEMA_VERSION } from '../../src/domain/map-types';
+import { createEmptyMap, createRoom, CURRENT_SCHEMA_VERSION } from '../../src/domain/map-types';
 
 describe('createEmptyMap', () => {
   it('creates a map with the given name', () => {
@@ -32,5 +32,15 @@ describe('createEmptyMap', () => {
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});
     expect(doc.items).toEqual({});
+  });
+});
+
+describe('createRoom', () => {
+  it('initialises default room styling', () => {
+    const room = createRoom('Kitchen');
+
+    expect(room.fillColor).toBe('#ffffff');
+    expect(room.strokeColor).toBe('#6366f1');
+    expect(room.strokeStyle).toBe('solid');
   });
 });
