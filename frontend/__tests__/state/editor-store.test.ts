@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { createEmptyMap, createRoom } from '../../src/domain/map-types';
 import type { MapDocument, Position } from '../../src/domain/map-types';
-import { addRoom } from '../../src/domain/map-operations';
+import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { createConnection } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 
 function resetStore(): void {
@@ -247,6 +248,53 @@ describe('useEditorStore', () => {
       useEditorStore.getState().loadDocument(testDoc);
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('addConnectionToSelection appends a connection without clearing selected rooms', () => {
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().addConnectionToSelection('c1');
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r1']);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual(['c1']);
+    });
+
+    it('setSelection replaces both selected rooms and selected connections', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addConnectionToSelection('c1');
+
+      useEditorStore.getState().setSelection(['r2'], ['c2', 'c3']);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r2']);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual(['c2', 'c3']);
+    });
+  });
+
+  describe('connection selection', () => {
+    it('selectConnection replaces the current selection with one connection', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addConnectionToSelection('c1');
+
+      useEditorStore.getState().selectConnection('c2');
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual(['c2']);
+    });
+
+    it('removeSelectedConnections removes every selected connection from the document', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 120, y: 0 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const connectionId = Object.keys(doc.connections)[0];
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().selectConnection(connectionId);
+
+      useEditorStore.getState().removeSelectedConnections();
+
+      expect(useEditorStore.getState().doc!.connections[connectionId]).toBeUndefined();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });
   });
 

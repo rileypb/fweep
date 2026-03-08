@@ -6,6 +6,7 @@ import {
   addConnection,
   renameRoom as domainRenameRoom,
   deleteRoom as domainDeleteRoom,
+  deleteConnection as domainDeleteConnection,
   moveRoom as domainMoveRoom,
   describeRoom as domainDescribeRoom,
   setRoomShape as domainSetRoomShape,
@@ -75,8 +76,8 @@ export interface EditorState {
   /** The currently selected room IDs. */
   selectedRoomIds: readonly string[];
 
-  /** The currently selected connection ID, or null when none is selected. */
-  selectedConnectionId: string | null;
+  /** The currently selected connection IDs. */
+  selectedConnectionIds: readonly string[];
 
   /** Whether room movement and placement snap to the grid. */
   snapToGridEnabled: boolean;
@@ -117,11 +118,17 @@ export interface EditorState {
   /** Delete all currently selected rooms. */
   removeSelectedRooms: () => void;
 
+  /** Delete all currently selected connections. */
+  removeSelectedConnections: () => void;
+
   /** Replace the current room selection with a single room. */
   selectRoom: (roomId: string) => void;
 
   /** Replace the current selection with a single connection. */
   selectConnection: (connectionId: string) => void;
+
+  /** Add a connection to the current selection. */
+  addConnectionToSelection: (connectionId: string) => void;
 
   /** Add a room to the current selection. */
   addRoomToSelection: (roomId: string) => void;
@@ -129,11 +136,17 @@ export interface EditorState {
   /** Replace the current selection with the provided room IDs. */
   setSelectedRoomIds: (roomIds: readonly string[]) => void;
 
+  /** Replace the current selection with the provided room and connection IDs. */
+  setSelection: (roomIds: readonly string[], connectionIds: readonly string[]) => void;
+
   /** Clear the current room selection. */
   clearRoomSelection: () => void;
 
   /** Clear the current connection selection. */
   clearConnectionSelection: () => void;
+
+  /** Clear both room and connection selection. */
+  clearSelection: () => void;
 
   /** Toggle grid snapping for room movement and placement. */
   toggleSnapToGrid: () => void;
@@ -177,12 +190,12 @@ function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonl
   return selectedRoomIds.filter((roomId) => roomId in doc.rooms);
 }
 
-function filterConnectionSelectionForDoc(doc: MapDocument | null, selectedConnectionId: string | null): string | null {
-  if (!doc || selectedConnectionId === null) {
-    return null;
+function filterConnectionSelectionForDoc(doc: MapDocument | null, selectedConnectionIds: readonly string[]): readonly string[] {
+  if (!doc) {
+    return [];
   }
 
-  return selectedConnectionId in doc.connections ? selectedConnectionId : null;
+  return selectedConnectionIds.filter((connectionId) => connectionId in doc.connections);
 }
 
 function commitDocumentChange(
@@ -217,7 +230,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   canRedo: false,
   lastHistoryMergeKey: null,
   selectedRoomIds: [],
-  selectedConnectionId: null,
+  selectedConnectionIds: [],
   snapToGridEnabled: true,
   connectionDrag: null,
   roomDrag: null,
@@ -230,7 +243,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     canRedo: false,
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
-    selectedConnectionId: null,
+    selectedConnectionIds: [],
     connectionDrag: null,
     roomDrag: null,
   }),
@@ -243,13 +256,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     canRedo: false,
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
-    selectedConnectionId: null,
+    selectedConnectionIds: [],
     connectionDrag: null,
     roomDrag: null,
   }),
 
   undo: () => {
-    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionId } = get();
+    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionIds } = get();
     if (!doc || pastDocs.length === 0) {
       return;
     }
@@ -266,14 +279,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       canRedo: true,
       lastHistoryMergeKey: null,
       selectedRoomIds: filterSelectionForDoc(previousDoc, selectedRoomIds),
-      selectedConnectionId: filterConnectionSelectionForDoc(previousDoc, selectedConnectionId),
+      selectedConnectionIds: filterConnectionSelectionForDoc(previousDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
     });
   },
 
   redo: () => {
-    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionId } = get();
+    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionIds } = get();
     if (!doc || futureDocs.length === 0) {
       return;
     }
@@ -290,7 +303,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       canRedo: nextFutureDocs.length > 0,
       lastHistoryMergeKey: null,
       selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
-      selectedConnectionId: filterConnectionSelectionForDoc(nextDoc, selectedConnectionId),
+      selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
     });
@@ -345,7 +358,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
-      selectedConnectionId: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionId),
+      selectedConnectionIds: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionIds),
     }));
   },
 
@@ -363,30 +376,63 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: [],
-      selectedConnectionId: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionId),
+      selectedConnectionIds: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionIds),
+    }));
+  },
+
+  removeSelectedConnections: () => {
+    const { doc, selectedConnectionIds } = get();
+    if (!doc) {
+      throw new Error('Cannot remove selected connections: no document is loaded.');
+    }
+
+    const updatedDoc = selectedConnectionIds.reduce(
+      (nextDoc, connectionId) => domainDeleteConnection(nextDoc, connectionId),
+      doc,
+    );
+
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedConnectionIds: [],
     }));
   },
 
   selectRoom: (roomId) => {
-    set({ selectedRoomIds: [roomId], selectedConnectionId: null, lastHistoryMergeKey: null });
+    set({ selectedRoomIds: [roomId], selectedConnectionIds: [], lastHistoryMergeKey: null });
   },
 
   selectConnection: (connectionId) => {
-    set({ selectedRoomIds: [], selectedConnectionId: connectionId, lastHistoryMergeKey: null });
+    set({ selectedRoomIds: [], selectedConnectionIds: [connectionId], lastHistoryMergeKey: null });
   },
 
   addRoomToSelection: (roomId) => {
     set((state) => ({
       lastHistoryMergeKey: null,
-      selectedConnectionId: null,
       selectedRoomIds: state.selectedRoomIds.includes(roomId)
         ? state.selectedRoomIds
         : [...state.selectedRoomIds, roomId],
     }));
   },
 
+  addConnectionToSelection: (connectionId) => {
+    set((state) => ({
+      lastHistoryMergeKey: null,
+      selectedConnectionIds: state.selectedConnectionIds.includes(connectionId)
+        ? state.selectedConnectionIds
+        : [...state.selectedConnectionIds, connectionId],
+    }));
+  },
+
   setSelectedRoomIds: (roomIds) => {
-    set({ selectedRoomIds: [...roomIds], selectedConnectionId: null, lastHistoryMergeKey: null });
+    set({ selectedRoomIds: [...roomIds], selectedConnectionIds: [], lastHistoryMergeKey: null });
+  },
+
+  setSelection: (roomIds, connectionIds) => {
+    set({
+      selectedRoomIds: [...roomIds],
+      selectedConnectionIds: [...connectionIds],
+      lastHistoryMergeKey: null,
+    });
   },
 
   clearRoomSelection: () => {
@@ -394,7 +440,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearConnectionSelection: () => {
-    set({ selectedConnectionId: null, lastHistoryMergeKey: null });
+    set({ selectedConnectionIds: [], lastHistoryMergeKey: null });
+  },
+
+  clearSelection: () => {
+    set({ selectedRoomIds: [], selectedConnectionIds: [], lastHistoryMergeKey: null });
   },
 
   toggleSnapToGrid: () => {

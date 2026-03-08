@@ -132,7 +132,7 @@ describe('MapCanvas', () => {
 
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 20, clientY: 20, button: 0 });
 
-      expect(useEditorStore.getState().selectedConnectionId).toBeNull();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });
 
     it('does not pan on left mouse drag over empty canvas', () => {
@@ -201,6 +201,28 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id, hallway.id]);
 
       fireEvent.mouseUp(document, { clientX: 320, clientY: 170, button: 0 });
+    });
+
+    it('captures connections in marquee selection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const connectionId = Object.keys(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 60, clientY: 100, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 320, clientY: 180 });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id, hallway.id]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connectionId]);
+
+      fireEvent.mouseUp(document, { clientX: 320, clientY: 180, button: 0 });
     });
   });
 
@@ -392,7 +414,7 @@ describe('MapCanvas', () => {
       });
       fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
 
-      expect(useEditorStore.getState().selectedConnectionId).toBeNull();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
       expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id]);
     });
 
@@ -443,6 +465,27 @@ describe('MapCanvas', () => {
         kitchenNode.dataset.roomId,
         hallwayNode.dataset.roomId,
       ]);
+    });
+
+    it('shift-clicking a room preserves selected connections', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const connectionId = Object.keys(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(connectionId);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0, shiftKey: true });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0, shiftKey: true });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connectionId]);
     });
 
     it('deletes every selected room when Delete is pressed on the canvas', () => {
@@ -1377,7 +1420,26 @@ describe('MapCanvas', () => {
       fireEvent.click(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
-      expect(useEditorStore.getState().selectedConnectionId).toBe(conn.id);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
+    });
+
+    it('shift-clicking a connection expands the mixed selection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const conn = Object.values(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.click(screen.getByTestId(`connection-hit-target-${conn.id}`), { shiftKey: true });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
     it('renders selected connections with layered highlight strokes', () => {

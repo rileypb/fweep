@@ -253,6 +253,106 @@ function getRoomsWithinSelectionBox(
     .map((room) => room.id);
 }
 
+function isPointWithinBounds(
+  point: { x: number; y: number },
+  bounds: { left: number; top: number; width: number; height: number },
+): boolean {
+  const right = bounds.left + bounds.width;
+  const bottom = bounds.top + bounds.height;
+  return point.x >= bounds.left && point.x <= right && point.y >= bounds.top && point.y <= bottom;
+}
+
+function lineSegmentsIntersect(
+  startA: { x: number; y: number },
+  endA: { x: number; y: number },
+  startB: { x: number; y: number },
+  endB: { x: number; y: number },
+): boolean {
+  const cross = (origin: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }) =>
+    ((p1.x - origin.x) * (p2.y - origin.y)) - ((p1.y - origin.y) * (p2.x - origin.x));
+
+  const onSegment = (start: { x: number; y: number }, point: { x: number; y: number }, end: { x: number; y: number }) =>
+    point.x >= Math.min(start.x, end.x)
+    && point.x <= Math.max(start.x, end.x)
+    && point.y >= Math.min(start.y, end.y)
+    && point.y <= Math.max(start.y, end.y);
+
+  const d1 = cross(startA, endA, startB);
+  const d2 = cross(startA, endA, endB);
+  const d3 = cross(startB, endB, startA);
+  const d4 = cross(startB, endB, endA);
+
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+
+  if (d1 === 0 && onSegment(startA, startB, endA)) return true;
+  if (d2 === 0 && onSegment(startA, endB, endA)) return true;
+  if (d3 === 0 && onSegment(startB, startA, endB)) return true;
+  if (d4 === 0 && onSegment(startB, endA, endB)) return true;
+
+  return false;
+}
+
+function doesPolylineIntersectBounds(
+  points: ReturnType<typeof computeConnectionPath>,
+  bounds: { left: number; top: number; width: number; height: number },
+): boolean {
+  if (points.some((point) => isPointWithinBounds(point, bounds))) {
+    return true;
+  }
+
+  const rectLeft = bounds.left;
+  const rectTop = bounds.top;
+  const rectRight = bounds.left + bounds.width;
+  const rectBottom = bounds.top + bounds.height;
+  const rectEdges = [
+    [{ x: rectLeft, y: rectTop }, { x: rectRight, y: rectTop }],
+    [{ x: rectRight, y: rectTop }, { x: rectRight, y: rectBottom }],
+    [{ x: rectRight, y: rectBottom }, { x: rectLeft, y: rectBottom }],
+    [{ x: rectLeft, y: rectBottom }, { x: rectLeft, y: rectTop }],
+  ] as const;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (rectEdges.some(([edgeStart, edgeEnd]) => lineSegmentsIntersect(start, end, edgeStart, edgeEnd))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getConnectionsWithinSelectionBox(
+  rooms: Readonly<Record<string, Room>>,
+  connections: Readonly<Record<string, Connection>>,
+  panOffset: PanOffset,
+  selectionBox: SelectionBox,
+): string[] {
+  const bounds = getSelectionBounds(selectionBox);
+
+  return Object.values(connections)
+    .filter((connection) => {
+      const sourceRoom = rooms[connection.sourceRoomId];
+      const targetRoom = rooms[connection.targetRoomId];
+      if (!sourceRoom || !targetRoom) {
+        return false;
+      }
+
+      const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
+      const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+      const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions)
+        .map((point) => ({
+          x: point.x + panOffset.x,
+          y: point.y + panOffset.y,
+        }));
+
+      return doesPolylineIntersectBounds(points, bounds);
+    })
+    .map((connection) => connection.id);
+}
+
 type ArrowDirection = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 
 interface RoomCenter {
@@ -686,8 +786,9 @@ function ConnectionLines({ rooms, connections }: {
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
-  const selectedConnectionId = useEditorStore((s) => s.selectedConnectionId);
+  const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const selectConnection = useEditorStore((s) => s.selectConnection);
+  const addConnectionToSelection = useEditorStore((s) => s.addConnectionToSelection);
   const entries = Object.values(connections);
 
   const renderConnectionLine = (
@@ -695,7 +796,7 @@ function ConnectionLines({ rooms, connections }: {
     points: ReturnType<typeof computeConnectionPath>,
     isSelfConnection: boolean,
   ): React.JSX.Element => {
-    const isSelected = selectedConnectionId === conn.id;
+    const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
 
     return (
@@ -711,7 +812,11 @@ function ConnectionLines({ rooms, connections }: {
           style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
           onClick={(e) => {
             e.stopPropagation();
-            selectConnection(conn.id);
+            if (e.shiftKey) {
+              addConnectionToSelection(conn.id);
+            } else {
+              selectConnection(conn.id);
+            }
           }}
         />
         <polyline
@@ -843,11 +948,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
-  const clearConnectionSelection = useEditorStore((s) => s.clearConnectionSelection);
+  const clearSelection = useEditorStore((s) => s.clearSelection);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
-  const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
-  const setSelectedRoomIds = useEditorStore((s) => s.setSelectedRoomIds);
+  const setSelection = useEditorStore((s) => s.setSelection);
   const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
+  const removeSelectedConnections = useEditorStore((s) => s.removeSelectedConnections);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
@@ -993,7 +1098,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       };
 
       setSelectionBox(nextSelectionBox);
-      setSelectedRoomIds(getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox));
+        setSelection(
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
+        );
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
@@ -1011,7 +1119,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
       if (didDrag) {
         suppressCanvasClickRef.current = true;
-        setSelectedRoomIds(getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, finalSelectionBox));
+        setSelection(
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, finalSelectionBox),
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, finalSelectionBox) : [],
+        );
       }
 
       setSelectionBox(null);
@@ -1019,7 +1130,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [canvasRect, connectionDrag, roomEditorId, rooms, setSelectedRoomIds]);
+  }, [canvasRect, connectionDrag, doc, roomEditorId, rooms, setSelection]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 1 || roomEditorId !== null || connectionDrag !== null) {
@@ -1078,8 +1189,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       canvasRef.current?.focus();
 
       if (!e.shiftKey) {
-        clearRoomSelection();
-        clearConnectionSelection();
+        clearSelection();
         return;
       }
 
@@ -1088,7 +1198,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const roomId = addRoomAtPosition('Room', { x, y });
       openRoomEditor(roomId);
     },
-    [addRoomAtPosition, clearConnectionSelection, clearRoomSelection, openRoomEditor, roomEditorId, toMapPoint],
+    [addRoomAtPosition, clearSelection, openRoomEditor, roomEditorId, toMapPoint],
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1123,12 +1233,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (selectedRoomIds.length === 0) {
+      const { selectedConnectionIds } = useEditorStore.getState();
+      if (selectedRoomIds.length === 0 && selectedConnectionIds.length === 0) {
         return;
       }
 
       e.preventDefault();
       removeSelectedRooms();
+      removeSelectedConnections();
       return;
     }
 
@@ -1163,7 +1275,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [connectionDrag, openRoomEditor, panRoomIntoView, redo, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
+  }, [connectionDrag, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
 
   const classes = [
     'map-canvas',
