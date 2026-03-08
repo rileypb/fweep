@@ -55,6 +55,8 @@ export interface Connection {
   readonly targetRoomId: string;
   readonly isBidirectional: boolean;
   readonly annotation: ConnectionAnnotation | null;
+  readonly startLabel: string;
+  readonly endLabel: string;
   readonly strokeColorIndex: number;
   readonly strokeStyle: RoomStrokeStyle;
 }
@@ -133,6 +135,8 @@ export function createConnection(
     targetRoomId,
     isBidirectional,
     annotation: null,
+    startLabel: '',
+    endLabel: '',
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
   };

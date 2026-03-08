@@ -237,6 +237,26 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.connections[connectionId].annotation).toEqual({ kind: 'door' });
   });
 
+  it('accepts connection endpoint labels', () => {
+    const doc = validMap();
+    const connectionId = Object.keys(doc.connections)[0];
+    const labelled = {
+      ...doc,
+      connections: {
+        ...doc.connections,
+        [connectionId]: {
+          ...doc.connections[connectionId],
+          startLabel: 'cliff edge',
+          endLabel: 'bridge',
+        },
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(labelled);
+    expect(parsed.connections[connectionId].startLabel).toBe('cliff edge');
+    expect(parsed.connections[connectionId].endLabel).toBe('bridge');
+  });
+
   it('rejects text annotations without text', () => {
     const doc = validMap();
     const connectionId = Object.keys(doc.connections)[0];

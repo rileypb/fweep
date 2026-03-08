@@ -1707,6 +1707,28 @@ describe('MapCanvas', () => {
       expect(screen.getByLabelText('Text')).toBeChecked();
     });
 
+    it('updates connection start and end labels from the connection editor', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.type(screen.getByLabelText(/connection start label/i), 'archway');
+      await user.type(screen.getByLabelText(/connection end label/i), 'landing');
+
+      const updatedConnection = useEditorStore.getState().doc!.connections[conn.id];
+      expect(updatedConnection.startLabel).toBe('archway');
+      expect(updatedConnection.endLabel).toBe('landing');
+    });
+
     it('shift-clicking a connection expands the mixed selection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2073,6 +2095,53 @@ describe('MapCanvas', () => {
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('points')).toBe('120,200 120,180 120,18');
+    });
+
+    it('renders endpoint labels next to the source and target stubs for bidirectional connections', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = {
+        ...createConnection(kitchen.id, hallway.id, true),
+        startLabel: 'stairs',
+        endLabel: 'balcony',
+      };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const startLabel = screen.getByTestId(`connection-start-label-${conn.id}`);
+      const endLabel = screen.getByTestId(`connection-end-label-${conn.id}`);
+
+      expect(startLabel).toHaveTextContent('stairs');
+      expect(startLabel.getAttribute('x')).toBe('130');
+      expect(startLabel.getAttribute('y')).toBe('190');
+      expect(endLabel).toHaveTextContent('balcony');
+      expect(endLabel.getAttribute('x')).toBe('130');
+      expect(endLabel.getAttribute('y')).toBe('46');
+    });
+
+    it('renders only the start label for one-way connections', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = {
+        ...createConnection(kitchen.id, hallway.id, false),
+        startLabel: 'stairs',
+        endLabel: 'ignored',
+      };
+      d = addConnection(d, conn, 'north');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-start-label-${conn.id}`)).toHaveTextContent('stairs');
+      expect(screen.queryByTestId(`connection-end-label-${conn.id}`)).not.toBeInTheDocument();
     });
 
     it('renders a self-connection as a polyline element', () => {

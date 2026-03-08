@@ -70,6 +70,7 @@ export function ConnectionEditorOverlay({
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
   const setConnectionAnnotation = useEditorStore((s) => s.setConnectionAnnotation);
+  const setConnectionLabels = useEditorStore((s) => s.setConnectionLabels);
   const setConnectionStyle = useEditorStore((s) => s.setConnectionStyle);
 
   useEffect(() => {
@@ -144,6 +145,32 @@ export function ConnectionEditorOverlay({
             </div>
           </aside>
           <div className="connection-editor-main" data-testid="connection-editor-main">
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="connection-editor-start-label-input">
+                Start label
+              </label>
+              <input
+                id="connection-editor-start-label-input"
+                className="room-editor-input"
+                type="text"
+                aria-label="Connection start label"
+                value={connection.startLabel}
+                onChange={(e) => setConnectionLabels(connection.id, { startLabel: e.target.value })}
+              />
+            </div>
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="connection-editor-end-label-input">
+                End label
+              </label>
+              <input
+                id="connection-editor-end-label-input"
+                className="room-editor-input"
+                type="text"
+                aria-label="Connection end label"
+                value={connection.endLabel}
+                onChange={(e) => setConnectionLabels(connection.id, { endLabel: e.target.value })}
+              />
+            </div>
             <fieldset className="connection-annotation-group">
               <legend className="room-editor-label">Annotation</legend>
               {presetAnnotationKinds.map((kind) => (

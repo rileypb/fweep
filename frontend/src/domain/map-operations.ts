@@ -420,6 +420,32 @@ export function setConnectionAnnotation(
   });
 }
 
+/** Return a new document with the connection's endpoint labels updated. */
+export function setConnectionLabels(
+  doc: MapDocument,
+  connectionId: string,
+  labels: {
+    startLabel?: string;
+    endLabel?: string;
+  },
+): MapDocument {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    throw new Error(`Connection "${connectionId}" not found.`);
+  }
+
+  return touch({
+    ...doc,
+    connections: {
+      ...doc.connections,
+      [connectionId]: {
+        ...connection,
+        ...labels,
+      },
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  describeItem                                                       */
 /* ------------------------------------------------------------------ */

@@ -111,6 +111,26 @@ function requireString(
   return value;
 }
 
+function parseOptionalString(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+  defaultValue: string = '',
+): string {
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof value !== 'string') {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be a string.`);
+    return defaultValue;
+  }
+
+  return value;
+}
+
 function requireBoolean(
   value: unknown,
   issues: ValidationIssue[],
@@ -495,6 +515,20 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     targetRoomId,
     isBidirectional,
     annotation: parseConnectionAnnotation(connection.annotation, issues, entryKey),
+    startLabel: parseOptionalString(
+      connection.startLabel,
+      issues,
+      `connections.${entryKey}.startLabel`,
+      'connection',
+      entryKey,
+    ),
+    endLabel: parseOptionalString(
+      connection.endLabel,
+      issues,
+      `connections.${entryKey}.endLabel`,
+      'connection',
+      entryKey,
+    ),
     strokeColorIndex: parseColorIndex(
       connection.strokeColorIndex,
       connection.strokeColor,

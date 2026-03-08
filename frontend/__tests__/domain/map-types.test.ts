@@ -50,6 +50,8 @@ describe('createConnection', () => {
     const connection = createConnection('room-a', 'room-b');
 
     expect(connection.annotation).toBeNull();
+    expect(connection.startLabel).toBe('');
+    expect(connection.endLabel).toBe('');
     expect(connection.strokeColorIndex).toBe(0);
     expect(connection.strokeStyle).toBe('solid');
   });

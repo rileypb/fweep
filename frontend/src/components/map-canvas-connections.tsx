@@ -43,6 +43,12 @@ interface VectorPoint {
   readonly y: number;
 }
 
+interface ConnectionLabelGeometry {
+  readonly x: number;
+  readonly y: number;
+  readonly textAnchor: 'start' | 'middle';
+}
+
 function getSegmentLength(start: VectorPoint, end: VectorPoint): number {
   return Math.hypot(end.x - start.x, end.y - start.y);
 }
@@ -168,6 +174,35 @@ function getSegmentCenter(segment: { start: VectorPoint; end: VectorPoint }): Ve
   return {
     x: (segment.start.x + segment.end.x) / 2,
     y: (segment.start.y + segment.end.y) / 2,
+  };
+}
+
+function getStubLabelGeometry(
+  start: VectorPoint,
+  end: VectorPoint,
+): ConnectionLabelGeometry | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) {
+    return null;
+  }
+
+  const center = getSegmentCenter({ start, end });
+  const isMostlyHorizontal = Math.abs(dx) >= Math.abs(dy);
+
+  if (isMostlyHorizontal) {
+    return {
+      x: center.x,
+      y: center.y - 8,
+      textAnchor: 'middle',
+    };
+  }
+
+  return {
+    x: center.x + 10,
+    y: center.y,
+    textAnchor: 'start',
   };
 }
 
@@ -400,73 +435,148 @@ export function MapCanvasConnections({
     );
   };
 
+  const renderConnectionEndpointLabels = (
+    conn: Connection,
+    points: ReturnType<typeof computeConnectionPath>,
+  ): React.JSX.Element | null => {
+    const startLabel = conn.startLabel.trim();
+    const endLabel = conn.endLabel.trim();
+    const startLabelGeometry = points.length >= 2 ? getStubLabelGeometry(points[0], points[1]) : null;
+    const endLabelGeometry = conn.isBidirectional && points.length >= 2
+      ? getStubLabelGeometry(points[points.length - 2], points[points.length - 1])
+      : null;
+
+    if ((!startLabel || !startLabelGeometry) && (!conn.isBidirectional || !endLabel || !endLabelGeometry)) {
+      return null;
+    }
+
+    return (
+      <>
+        {startLabel.length > 0 && startLabelGeometry && (
+          <text
+            data-testid={`connection-start-label-${conn.id}`}
+            className="connection-endpoint-label"
+            x={startLabelGeometry.x}
+            y={startLabelGeometry.y}
+            textAnchor={startLabelGeometry.textAnchor}
+            dominantBaseline="middle"
+          >
+            {startLabel}
+          </text>
+        )}
+        {conn.isBidirectional && endLabel.length > 0 && endLabelGeometry && (
+          <text
+            data-testid={`connection-end-label-${conn.id}`}
+            className="connection-endpoint-label"
+            x={endLabelGeometry.x}
+            y={endLabelGeometry.y}
+            textAnchor={endLabelGeometry.textAnchor}
+            dominantBaseline="middle"
+          >
+            {endLabel}
+          </text>
+        )}
+      </>
+    );
+  };
+
   return (
-    <svg
-      className="connection-svg-overlay"
-      data-testid="connection-svg-overlay"
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        overflow: 'visible',
-        zIndex: 2,
-      }}
-    >
-      {entries.map((conn) => {
-        const rawSrc = rooms[conn.sourceRoomId];
-        const rawTgt = rooms[conn.targetRoomId];
-        if (!rawSrc || !rawTgt) return null;
+    <>
+      <svg
+        className="connection-svg-overlay"
+        data-testid="connection-svg-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'visible',
+          zIndex: 2,
+        }}
+      >
+        {entries.map((conn) => {
+          const rawSrc = rooms[conn.sourceRoomId];
+          const rawTgt = rooms[conn.targetRoomId];
+          if (!rawSrc || !rawTgt) return null;
 
-        const src = applyDragOffset(rawSrc, roomDrag);
-        const tgt = applyDragOffset(rawTgt, roomDrag);
-        const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
-        const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
-        const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
-        const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
+          const src = applyDragOffset(rawSrc, roomDrag);
+          const tgt = applyDragOffset(rawTgt, roomDrag);
+          const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
+          const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
+          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
+          const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
 
-        return (
-          <g key={conn.id}>
-            {renderConnectionLine(conn, points, conn.sourceRoomId === conn.targetRoomId)}
-            {arrowPointSets.map((arrowPoints, index) => (
-              <polygon
-                key={`${conn.id}-arrow-${index}`}
-                data-testid={`connection-arrow-${conn.id}-${index}`}
-                points={pointsToSvgString(arrowPoints)}
-                fill={getRoomStrokeColor(conn.strokeColorIndex, theme)}
-              />
-            ))}
-          </g>
-        );
-      })}
+          return (
+            <g key={conn.id}>
+              {renderConnectionLine(conn, points, conn.sourceRoomId === conn.targetRoomId)}
+              {arrowPointSets.map((arrowPoints, index) => (
+                <polygon
+                  key={`${conn.id}-arrow-${index}`}
+                  data-testid={`connection-arrow-${conn.id}-${index}`}
+                  points={pointsToSvgString(arrowPoints)}
+                  fill={getRoomStrokeColor(conn.strokeColorIndex, theme)}
+                />
+              ))}
+            </g>
+          );
+        })}
 
-      {connectionDrag && (() => {
-        const srcRoom = rooms[connectionDrag.sourceRoomId];
-        if (!srcRoom) return null;
-        const adjustedSrc = applyDragOffset(srcRoom, roomDrag);
-        const srcDimensions = { width: getRoomNodeWidth(adjustedSrc.name), height: ROOM_HEIGHT };
-        const points = computePreviewPath(
-          adjustedSrc,
-          connectionDrag.sourceDirection,
-          connectionDrag.cursorX,
-          connectionDrag.cursorY,
-          undefined,
-          srcDimensions,
-        );
-        return (
-          <polyline
-            data-testid="connection-preview-line"
-            className="connection-preview-line"
-            points={pointsToSvgString(points)}
-            fill="none"
-            stroke="#6366f1"
-            strokeWidth="2"
-            strokeDasharray="6 4"
-            opacity="0.6"
-          />
-        );
-      })()}
-    </svg>
+        {connectionDrag && (() => {
+          const srcRoom = rooms[connectionDrag.sourceRoomId];
+          if (!srcRoom) return null;
+          const adjustedSrc = applyDragOffset(srcRoom, roomDrag);
+          const srcDimensions = { width: getRoomNodeWidth(adjustedSrc.name), height: ROOM_HEIGHT };
+          const points = computePreviewPath(
+            adjustedSrc,
+            connectionDrag.sourceDirection,
+            connectionDrag.cursorX,
+            connectionDrag.cursorY,
+            undefined,
+            srcDimensions,
+          );
+          return (
+            <polyline
+              data-testid="connection-preview-line"
+              className="connection-preview-line"
+              points={pointsToSvgString(points)}
+              fill="none"
+              stroke="#6366f1"
+              strokeWidth="2"
+              strokeDasharray="6 4"
+              opacity="0.6"
+            />
+          );
+        })()}
+      </svg>
+      <svg
+        className="connection-label-overlay"
+        data-testid="connection-label-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'visible',
+          pointerEvents: 'none',
+          zIndex: 6,
+        }}
+      >
+        {entries.map((conn) => {
+          const rawSrc = rooms[conn.sourceRoomId];
+          const rawTgt = rooms[conn.targetRoomId];
+          if (!rawSrc || !rawTgt) return null;
+
+          const src = applyDragOffset(rawSrc, roomDrag);
+          const tgt = applyDragOffset(rawTgt, roomDrag);
+          const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
+          const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
+          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
+
+          return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;
+        })}
+      </svg>
+    </>
   );
 }

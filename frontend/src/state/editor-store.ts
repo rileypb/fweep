@@ -12,6 +12,7 @@ import {
   setRoomShape as domainSetRoomShape,
   setRoomStyle as domainSetRoomStyle,
   setConnectionAnnotation as domainSetConnectionAnnotation,
+  setConnectionLabels as domainSetConnectionLabels,
   setConnectionStyle as domainSetConnectionStyle,
   setRoomPositions as domainSetRoomPositions,
 } from '../domain/map-operations';
@@ -136,6 +137,15 @@ export interface EditorState {
 
   /** Update an existing connection's annotation. */
   setConnectionAnnotation: (connectionId: string, annotation: ConnectionAnnotation | null) => void;
+
+  /** Update an existing connection's endpoint labels. */
+  setConnectionLabels: (
+    connectionId: string,
+    labels: {
+      startLabel?: string;
+      endLabel?: string;
+    },
+  ) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
@@ -398,6 +408,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set connection annotation: no document is loaded.');
     }
     const updatedDoc = domainSetConnectionAnnotation(doc, connectionId, annotation);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setConnectionLabels: (connectionId, labels) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set connection labels: no document is loaded.');
+    }
+    const updatedDoc = domainSetConnectionLabels(doc, connectionId, labels);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
