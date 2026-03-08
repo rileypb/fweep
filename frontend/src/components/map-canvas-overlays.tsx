@@ -113,68 +113,72 @@ export function ConnectionEditorOverlay({
           ×
         </button>
         <div className="connection-editor-content">
-          <fieldset className="connection-annotation-group">
-            <legend className="room-editor-label">Annotation</legend>
-            {presetAnnotationKinds.map((kind) => (
-              <label key={kind} className="connection-annotation-option">
+          <aside className="connection-editor-sidebar" data-testid="connection-editor-sidebar">
+            <div className="room-editor-field">
+              <span className="room-editor-label">Stroke color</span>
+              <ColorChipGroup
+                label="Connection stroke color"
+                options={ROOM_STROKE_PALETTE}
+                selectedIndex={connection.strokeColorIndex}
+                onSelect={(strokeColorIndex) => setConnectionStyle(connection.id, { strokeColorIndex })}
+                testIdPrefix="connection-stroke-color-chip"
+              />
+            </div>
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="connection-editor-stroke-style-input">
+                Stroke style
+              </label>
+              <select
+                id="connection-editor-stroke-style-input"
+                className="room-editor-input"
+                aria-label="Connection stroke style"
+                value={connection.strokeStyle}
+                onChange={(e) => setConnectionStyle(connection.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
+              >
+                {ROOM_STROKE_STYLES.map((strokeStyle) => (
+                  <option key={strokeStyle} value={strokeStyle}>
+                    {strokeStyle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </aside>
+          <div className="connection-editor-main" data-testid="connection-editor-main">
+            <fieldset className="connection-annotation-group">
+              <legend className="room-editor-label">Annotation</legend>
+              {presetAnnotationKinds.map((kind) => (
+                <label key={kind} className="connection-annotation-option">
+                  <input
+                    type="radio"
+                    name={`connection-annotation-${connection.id}`}
+                    checked={selectedAnnotationKind === kind}
+                    onChange={() => setConnectionAnnotation(connection.id, { kind })}
+                  />
+                  <span>{kind}</span>
+                </label>
+              ))}
+              <label className="connection-annotation-option connection-annotation-option--text">
                 <input
                   type="radio"
                   name={`connection-annotation-${connection.id}`}
-                  checked={selectedAnnotationKind === kind}
-                  onChange={() => setConnectionAnnotation(connection.id, { kind })}
+                  checked={selectedAnnotationKind === 'text'}
+                  onChange={() => setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText })}
                 />
-                <span>{kind}</span>
+                <span>Text</span>
+                <input
+                  className="room-editor-input connection-annotation-text-input"
+                  type="text"
+                  aria-label="Connection annotation text"
+                  value={annotationText}
+                  onFocus={() => {
+                    if (selectedAnnotationKind !== 'text') {
+                      setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText });
+                    }
+                  }}
+                  onChange={(e) => setConnectionAnnotation(connection.id, { kind: 'text', text: e.target.value })}
+                />
               </label>
-            ))}
-            <label className="connection-annotation-option connection-annotation-option--text">
-              <input
-                type="radio"
-                name={`connection-annotation-${connection.id}`}
-                checked={selectedAnnotationKind === 'text'}
-                onChange={() => setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText })}
-              />
-              <span>Text</span>
-              <input
-                className="room-editor-input connection-annotation-text-input"
-                type="text"
-                aria-label="Connection annotation text"
-                value={annotationText}
-                onFocus={() => {
-                  if (selectedAnnotationKind !== 'text') {
-                    setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText });
-                  }
-                }}
-                onChange={(e) => setConnectionAnnotation(connection.id, { kind: 'text', text: e.target.value })}
-              />
-            </label>
-          </fieldset>
-          <div className="room-editor-field">
-            <span className="room-editor-label">Stroke color</span>
-            <ColorChipGroup
-              label="Connection stroke color"
-              options={ROOM_STROKE_PALETTE}
-              selectedIndex={connection.strokeColorIndex}
-              onSelect={(strokeColorIndex) => setConnectionStyle(connection.id, { strokeColorIndex })}
-              testIdPrefix="connection-stroke-color-chip"
-            />
-          </div>
-          <div className="room-editor-field">
-            <label className="room-editor-label" htmlFor="connection-editor-stroke-style-input">
-              Stroke style
-            </label>
-            <select
-              id="connection-editor-stroke-style-input"
-              className="room-editor-input"
-              aria-label="Connection stroke style"
-              value={connection.strokeStyle}
-              onChange={(e) => setConnectionStyle(connection.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
-            >
-              {ROOM_STROKE_STYLES.map((strokeStyle) => (
-                <option key={strokeStyle} value={strokeStyle}>
-                  {strokeStyle}
-                </option>
-              ))}
-            </select>
+            </fieldset>
           </div>
         </div>
       </div>

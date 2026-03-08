@@ -751,7 +751,7 @@ body {
 .connection-editor-panel {
   position: relative;
   z-index: 1;
-  width: min(28rem, calc(100vw - 2rem));
+  width: min(42rem, calc(100vw - 2rem));
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -832,9 +832,17 @@ body {
 }
 
 .connection-editor-content {
+  display: grid;
+  grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.connection-editor-sidebar,
+.connection-editor-main {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 1rem;
 }
 
 .connection-annotation-text {

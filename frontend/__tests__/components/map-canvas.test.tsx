@@ -1587,6 +1587,8 @@ describe('MapCanvas', () => {
 
       expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
       expect(screen.getByTestId('connection-editor-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('connection-editor-sidebar')).toBeInTheDocument();
+      expect(screen.getByTestId('connection-editor-main')).toBeInTheDocument();
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
