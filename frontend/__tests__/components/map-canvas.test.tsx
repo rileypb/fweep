@@ -1449,6 +1449,7 @@ describe('MapCanvas', () => {
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine).toBeInTheDocument();
       expect(connectionLine.tagName.toLowerCase()).toBe('polyline');
+      expect(screen.getByTestId('connection-svg-overlay')).toHaveStyle({ overflow: 'visible' });
     });
 
     it('clicking a connection selects only that connection', () => {

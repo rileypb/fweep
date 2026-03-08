@@ -941,6 +941,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   pointer-events: auto;
   z-index: 2;
 }
