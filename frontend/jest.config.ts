@@ -13,6 +13,8 @@ export default {
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleNameMapper: {
     '\\.(css|less|scss)$': '<rootDir>/__tests__/__mocks__/style-mock.ts',
+    '\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
+    '\\.md$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
   },
   testMatch: ['<rootDir>/__tests__/**/*.{test,spec}.{ts,tsx}'],
   setupFiles: ['fake-indexeddb/auto'],

@@ -91,6 +91,117 @@ body {
   cursor: default;
 }
 
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+}
+
+.help-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.help-panel {
+  position: relative;
+  z-index: 1;
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: min(80vh, 42rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: #111827;
+  box-shadow: 6px 6px 6px rgba(15, 23, 42, 0.22);
+}
+
+:root[data-theme='dark'] .help-panel {
+  background: rgba(15, 23, 42, 0.72);
+  color: #f3f4f6;
+  border-color: rgba(129, 140, 248, 0.28);
+  box-shadow: 6px 6px 6px rgba(0, 0, 0, 0.42);
+}
+
+.help-close {
+  align-self: flex-end;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.25rem -0.25rem 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.help-close:hover,
+.help-close:focus-visible {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.help-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.help-heading {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.help-section-heading {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.help-subheading {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.help-rule {
+  width: 100%;
+  margin: 0.2rem 0;
+  border: none;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+:root[data-theme='dark'] .help-rule {
+  border-top-color: rgba(226, 232, 240, 0.14);
+}
+
+.help-body {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 /* ---- Map selection dialog ---- */
 
 .map-selection-backdrop {

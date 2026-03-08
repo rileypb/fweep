@@ -27,6 +27,20 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /undo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /redo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
+  });
+
+  it('opens and closes the help dialog', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /help/i }));
+    expect(screen.getByRole('dialog', { name: /help/i })).toBeInTheDocument();
+    expect(screen.getByText(/fweep help/i)).toBeInTheDocument();
+    expect(screen.getByText(/navigating the map/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /close help/i }));
+    expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
   });
 
   it('shows the map selection dialog at the root URL', async () => {
