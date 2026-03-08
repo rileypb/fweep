@@ -1774,6 +1774,69 @@ describe('MapCanvas', () => {
       expect(annotationText.getAttribute('transform')).toBeNull();
     });
 
+    it('renders an in annotation as a centered parallel arrow and horizontal label', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'in' as const } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
+
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(167.6, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(68.4, 5);
+      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(68.4, 5);
+      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
+      expect(arrowBasePoints[0][1]).toBeCloseTo(78.4, 5);
+      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
+      expect(arrowBasePoints[1][1]).toBeCloseTo(78.4, 5);
+      expect(annotationText).toHaveTextContent('in');
+      expect(annotationText.getAttribute('transform')).toBeNull();
+    });
+
+    it('renders an out annotation arrow pointing toward the source room with an in label', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'out' as const } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(68.4, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(167.6, 5);
+      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(167.6, 5);
+      expect(arrowPoints[1][0]).toBeCloseTo(132, 5);
+      expect(arrowPoints[1][1]).toBeCloseTo(157.6, 5);
+      expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
+      expect(arrowPoints[2][1]).toBeCloseTo(157.6, 5);
+      expect(annotationText).toHaveTextContent('in');
+      expect(annotationText.getAttribute('transform')).toBeNull();
+    });
+
     it('renders two arrowhead polygons for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
@@ -1838,6 +1901,21 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
+      expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
+    });
+
+    it('renders only the label for an in annotation on a self-connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, kitchen);
+      const conn = { ...createConnection(kitchen.id, kitchen.id, false), annotation: { kind: 'in' as const } };
+      d = addConnection(d, conn, 'north');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('in');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
     });

@@ -1224,13 +1224,20 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
     const annotationKind = conn.annotation?.kind;
-    const rendersVerticalAnnotation = annotationKind === 'up' || annotationKind === 'down';
-    const annotationLabel = rendersVerticalAnnotation ? 'up' : annotationKind;
-    const annotationSegment = rendersVerticalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
+    const rendersDirectionalAnnotation = annotationKind === 'up'
+      || annotationKind === 'down'
+      || annotationKind === 'in'
+      || annotationKind === 'out';
+    const annotationLabel = annotationKind === 'up' || annotationKind === 'down'
+      ? 'up'
+      : annotationKind === 'in' || annotationKind === 'out'
+        ? 'in'
+        : annotationKind;
+    const annotationSegment = rendersDirectionalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
     const annotationGeometry = annotationSegment
-      ? getAnnotationGeometry(annotationSegment, annotationKind === 'down')
+      ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
       : null;
-    const selfAnnotationPosition = rendersVerticalAnnotation && isSelfConnection
+    const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
       ? getSelfAnnotationPosition(points)
       : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
