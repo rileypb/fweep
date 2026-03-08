@@ -26,6 +26,8 @@ export interface UseMapRouterResult {
   activeMap: MapDocument | null;
   /** True while the initial URL-based map load is in progress. */
   loading: boolean;
+  /** Error to show after route-based map loading fails. */
+  routeError: string | null;
   /** Open a map and push the URL. */
   openMap: (doc: MapDocument) => void;
   /** Return to the selection screen and reset the URL. */
@@ -48,12 +50,14 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
   const loadMapImpl = options.loadMap ?? loadMap;
   const [activeMap, setActiveMap] = useState<MapDocument | null>(null);
   const [loading, setLoading] = useState(() => mapIdFromHash(currentHashRoute()) !== null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   // On mount: if URL already contains a map ID, try to load it.
   useEffect(() => {
     const id = mapIdFromHash(currentHashRoute());
     if (!id) {
       setLoading(false);
+      setRouteError(null);
       return;
     }
 
@@ -62,14 +66,18 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
       .then((doc) => {
         if (cancelled) return;
         if (doc) {
+          setRouteError(null);
           setActiveMap(doc);
         } else {
           // Invalid ID — reset to selection screen.
+          setRouteError(null);
           replaceHashRoute('#/');
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
+          setActiveMap(null);
+          setRouteError(err instanceof Error ? err.message : 'This map could not be opened.');
           replaceHashRoute('#/');
         }
       })
@@ -89,6 +97,7 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
       if (!id) {
         setActiveMap(null);
         setLoading(false);
+        setRouteError(null);
         return;
       }
 
@@ -96,12 +105,14 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
       void loadMapImpl(id).then((doc) => {
         setActiveMap(doc ?? null);
         setLoading(false);
+        setRouteError(null);
         if (!doc) {
           replaceHashRoute('#/');
         }
-      }).catch(() => {
+      }).catch((err: unknown) => {
         setActiveMap(null);
         setLoading(false);
+        setRouteError(err instanceof Error ? err.message : 'This map could not be opened.');
         replaceHashRoute('#/');
       });
     };
@@ -116,13 +127,15 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
 
   const openMap = useCallback((doc: MapDocument) => {
     setActiveMap(doc);
+    setRouteError(null);
     pushHashRoute(`#/map/${doc.metadata.id}`);
   }, []);
 
   const closeMap = useCallback(() => {
     setActiveMap(null);
+    setRouteError(null);
     pushHashRoute('#/');
   }, []);
 
-  return { activeMap, loading, openMap, closeMap };
+  return { activeMap, loading, routeError, openMap, closeMap };
 }

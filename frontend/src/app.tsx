@@ -11,19 +11,19 @@ import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
 
 export function App(): React.JSX.Element {
-  const { activeMap, loading, openMap } = useMapRouter();
+  const { activeMap, loading, openMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const storeDoc = useEditorStore((s) => s.doc);
-  const pendingInitialSaveSkipKeyRef = useRef<string | null>(null);
+  const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
     if (activeMap) {
-      pendingInitialSaveSkipKeyRef.current = `${activeMap.metadata.id}:${activeMap.metadata.updatedAt}`;
+      pendingInitialSaveSkipDocRef.current = activeMap;
       loadDocument(activeMap);
     } else {
-      pendingInitialSaveSkipKeyRef.current = null;
+      pendingInitialSaveSkipDocRef.current = null;
       unloadDocument();
     }
   }, [activeMap, loadDocument, unloadDocument]);
@@ -31,13 +31,12 @@ export function App(): React.JSX.Element {
   // Auto-save when the store document changes.
   useEffect(() => {
     if (!storeDoc) return;
-    const currentDocKey = `${storeDoc.metadata.id}:${storeDoc.metadata.updatedAt}`;
-    if (pendingInitialSaveSkipKeyRef.current === currentDocKey) {
-      pendingInitialSaveSkipKeyRef.current = null;
+    if (pendingInitialSaveSkipDocRef.current === storeDoc) {
+      pendingInitialSaveSkipDocRef.current = null;
       return;
     }
 
-    pendingInitialSaveSkipKeyRef.current = null;
+    pendingInitialSaveSkipDocRef.current = null;
     void saveMap(storeDoc);
   }, [storeDoc]);
 
@@ -52,7 +51,7 @@ export function App(): React.JSX.Element {
         <ThemeToggle />
       </div>
       {loading ? null : activeMap === null ? (
-        <MapSelectionDialog onMapSelected={openMap} />
+        <MapSelectionDialog onMapSelected={openMap} initialError={routeError} />
       ) : (
         <MapCanvas mapName={activeMap.metadata.name} />
       )}

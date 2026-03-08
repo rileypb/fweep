@@ -1,10 +1,56 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { createEmptyMap } from '../../src/domain/map-types';
-import { deleteMap, importMapFromFile, listMaps, loadMap, saveMap } from '../../src/storage/map-store';
+import {
+  deleteMap,
+  importMapFromFile,
+  listMaps,
+  loadMap,
+  MAX_IMPORT_FILE_BYTES,
+  saveMap,
+} from '../../src/storage/map-store';
 
-// Each test gets a fresh IndexedDB via fake-indexeddb (auto-polyfill in setup).
-// Because the module-level `openDb` reuses the global indexedDB, and
-// fake-indexeddb/auto replaces it, tests are isolated per-file.
+const DB_NAME = 'fweep';
+const STORE_NAME = 'maps';
+
+function makeFile(content: string, name: string, sizeOverride?: number): File {
+  const blob = new Blob([content], { type: 'application/json' });
+  const file = new File([blob], name, { type: 'application/json' });
+  if (typeof file.text !== 'function') {
+    (file as { text: () => Promise<string> }).text = () =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(blob);
+      });
+  }
+  if (sizeOverride !== undefined) {
+    Object.defineProperty(file, 'size', { configurable: true, value: sizeOverride });
+  }
+  return file;
+}
+
+async function putRawStoredMap(rawValue: unknown): Promise<void> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'metadata.id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.put(rawValue);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
 
 describe('map-store', () => {
   describe('saveMap / loadMap round-trip', () => {
@@ -69,19 +115,33 @@ describe('map-store', () => {
       expect(loaded?.rooms[roomId].strokeColor).toBe('#6366f1');
       expect(loaded?.rooms[roomId].strokeStyle).toBe('solid');
     });
+
+    it('rejects invalid saved maps already present in IndexedDB', async () => {
+      const doc = createEmptyMap('Broken');
+      const raw = {
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          updatedAt: 123,
+        },
+      };
+
+      await putRawStoredMap(raw);
+
+      await expect(loadMap(doc.metadata.id)).rejects.toThrow(
+        'This map could not be opened because its saved data is invalid or incompatible.',
+      );
+    });
   });
 
   describe('listMaps', () => {
     it('returns an empty array when no maps exist', async () => {
       const metas = await listMaps();
-      // May contain maps from previous tests in this suite; filter is acceptable.
-      // In a clean DB this should be empty.
       expect(Array.isArray(metas)).toBe(true);
     });
 
     it('returns maps sorted by most-recently-edited first', async () => {
       const older = createEmptyMap('Older');
-      // Manually backdate the older map
       const olderDoc = {
         ...older,
         metadata: { ...older.metadata, updatedAt: '2020-01-01T00:00:00.000Z' },
@@ -111,23 +171,6 @@ describe('map-store', () => {
   });
 
   describe('importMapFromFile', () => {
-    /** Helper: create a File-like object with a working .text() method for jsdom. */
-    function makeFile(content: string, name: string): File {
-      const blob = new Blob([content], { type: 'application/json' });
-      const file = new File([blob], name, { type: 'application/json' });
-      // jsdom File may lack .text(); polyfill if needed
-      if (typeof file.text !== 'function') {
-        (file as { text: () => Promise<string> }).text = () =>
-          new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(reader.error);
-            reader.readAsText(blob);
-          });
-      }
-      return file;
-    }
-
     it('imports a valid JSON map file and persists it', async () => {
       const doc = createEmptyMap('Imported');
       const file = makeFile(JSON.stringify(doc), 'map.json');
@@ -162,30 +205,15 @@ describe('map-store', () => {
       expect(imported.rooms[roomId].shape).toBe('rectangle');
     });
 
-    it('hydrates missing room style fields when importing an older map file', async () => {
-      const doc = createEmptyMap('Imported Styles');
-      const roomId = crypto.randomUUID();
-      const legacyDoc = {
-        ...doc,
-        rooms: {
-          [roomId]: {
-            id: roomId,
-            name: 'Kitchen',
-            description: '',
-            position: { x: 0, y: 0 },
-            directions: {},
-            isDark: false,
-            shape: 'rectangle',
-          },
-        },
-      };
-      const file = makeFile(JSON.stringify(legacyDoc), 'legacy-style-map.json');
+    it('rejects oversized files before reading them', async () => {
+      const file = makeFile('{}', 'huge.json', MAX_IMPORT_FILE_BYTES + 1);
+      const textSpy = jest.spyOn(file, 'text');
 
-      const imported = await importMapFromFile(file);
+      await expect(importMapFromFile(file)).rejects.toThrow(
+        'Map file is too large to import. Maximum size is 1 MB.',
+      );
 
-      expect(imported.rooms[roomId].fillColor).toBe('#ffffff');
-      expect(imported.rooms[roomId].strokeColor).toBe('#6366f1');
-      expect(imported.rooms[roomId].strokeStyle).toBe('solid');
+      expect(textSpy).not.toHaveBeenCalled();
     });
 
     it('rejects non-JSON files', async () => {
@@ -198,6 +226,47 @@ describe('map-store', () => {
       await expect(importMapFromFile(file)).rejects.toThrow(
         'File does not contain a valid fweep map.',
       );
+    });
+
+    it('rejects structurally invalid map JSON without persisting it', async () => {
+      const doc = createEmptyMap('Broken Import');
+      const file = makeFile(JSON.stringify({
+        ...doc,
+        rooms: {
+          broken: {
+            id: 'broken',
+            name: 'Broken',
+            description: '',
+            position: { x: 'left', y: 0 },
+            directions: {},
+            isDark: false,
+          },
+        },
+      }), 'broken.json');
+
+      await expect(importMapFromFile(file)).rejects.toThrow('File does not contain a valid fweep map.');
+      expect(await loadMap(doc.metadata.id)).toBeUndefined();
+    });
+
+    it('rejects semantically invalid map JSON without persisting it', async () => {
+      const doc = createEmptyMap('Semantically Broken');
+      const roomId = crypto.randomUUID();
+      const file = makeFile(JSON.stringify({
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Room',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: { north: 'missing-connection' },
+            isDark: false,
+          },
+        },
+      }), 'broken-semantic.json');
+
+      await expect(importMapFromFile(file)).rejects.toThrow('File does not contain a valid fweep map.');
+      expect(await loadMap(doc.metadata.id)).toBeUndefined();
     });
   });
 });

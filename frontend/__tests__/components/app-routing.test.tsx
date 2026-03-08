@@ -112,4 +112,25 @@ describe('URL routing', () => {
     // Should fall back to showing the selection dialog
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
+
+  it('shows an error when a saved map in the URL is invalid', async () => {
+    const doc = createEmptyMap('Broken Routed Map');
+    const brokenDoc = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        updatedAt: 123,
+      },
+    };
+
+    await saveMap(brokenDoc as never);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    render(<App />);
+
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This map could not be opened because its saved data is invalid or incompatible.',
+    );
+  });
 });

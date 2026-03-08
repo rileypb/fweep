@@ -118,6 +118,24 @@ describe('MapSelectionDialog', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(`Map not found: ${doc.metadata.id}`);
   });
 
+  it('shows an error when a saved map is invalid', async () => {
+    const doc = createEmptyMap('Invalid Map');
+    const user = userEvent.setup();
+    const storage = createStorageOverrides({
+      listMaps: async () => [doc.metadata],
+      loadMap: async () => {
+        throw new Error('This map could not be opened because its saved data is invalid or incompatible.');
+      },
+    });
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
+
+    await user.click(await screen.findByText('Invalid Map'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This map could not be opened because its saved data is invalid or incompatible.',
+    );
+  });
+
   it('shows an error when loading the recent maps list fails', async () => {
     const storage = createStorageOverrides({
       listMaps: async () => {
@@ -215,6 +233,12 @@ describe('MapSelectionDialog', () => {
     await user.upload(fileInput, badFile);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('File is not valid JSON.');
+  });
+
+  it('shows an external routing error when provided', async () => {
+    render(<MapSelectionDialog onMapSelected={noop} initialError="Blocked by router" />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Blocked by router');
   });
 
   it('calls onMapSelected when importing a valid file succeeds', async () => {

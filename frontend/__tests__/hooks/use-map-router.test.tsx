@@ -9,13 +9,14 @@ interface RouterHarnessProps {
 }
 
 function RouterHarness({ loadMap }: RouterHarnessProps): React.JSX.Element {
-  const { activeMap, loading, openMap, closeMap } = useMapRouter({ loadMap });
+  const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter({ loadMap });
   const testDoc = createEmptyMap('Opened From Harness');
 
   return (
     <div>
       <div data-testid="loading-state">{loading ? 'loading' : 'idle'}</div>
       <div data-testid="active-map-name">{activeMap?.metadata.name ?? 'none'}</div>
+      <div data-testid="route-error">{routeError ?? 'none'}</div>
       <button type="button" onClick={() => openMap(testDoc)}>
         Open
       </button>
@@ -45,6 +46,7 @@ describe('useMapRouter', () => {
       expect(screen.getByTestId('loading-state')).toHaveTextContent('idle');
     });
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
+    expect(screen.getByTestId('route-error')).toHaveTextContent('DB failed');
     expect(window.location.hash).toBe('#/');
     expect(loadMap).toHaveBeenCalledWith('broken-map');
   });
@@ -77,6 +79,21 @@ describe('useMapRouter', () => {
     });
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
     expect(loadMap).toHaveBeenCalledWith('missing-after-popstate');
+  });
+
+  it('exposes a route error when an invalid saved map is loaded', async () => {
+    navigateTo('#/map/invalid-saved');
+    const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>()
+      .mockRejectedValue(new Error('This map could not be opened because its saved data is invalid or incompatible.'));
+
+    render(<RouterHarness loadMap={loadMap} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('route-error')).toHaveTextContent(
+        'This map could not be opened because its saved data is invalid or incompatible.',
+      );
+    });
+    expect(window.location.hash).toBe('#/');
   });
 
   it('closeMap clears the active map and pushes the root hash route', async () => {

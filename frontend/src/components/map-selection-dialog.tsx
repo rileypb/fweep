@@ -22,15 +22,17 @@ const defaultStorage: MapSelectionStorage = {
 export interface MapSelectionDialogProps {
   onMapSelected: (doc: MapDocument) => void;
   storage?: MapSelectionStorage;
+  initialError?: string | null;
 }
 
 export function MapSelectionDialog({
   onMapSelected,
   storage = defaultStorage,
+  initialError = null,
 }: MapSelectionDialogProps): React.JSX.Element {
   const [maps, setMaps] = useState<MapMetadata[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [newMapName, setNewMapName] = useState('');
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +43,10 @@ export function MapSelectionDialog({
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setLoading(false));
   }, [storage]);
+
+  useEffect(() => {
+    setError(initialError);
+  }, [initialError]);
 
   const canCreate = newMapName.trim().length > 0;
 
@@ -53,11 +59,15 @@ export function MapSelectionDialog({
   };
 
   const handleSelect = async (id: string) => {
-    const doc = await storage.loadMap(id);
-    if (doc) {
-      onMapSelected(doc);
-    } else {
-      setError(`Map not found: ${id}`);
+    try {
+      const doc = await storage.loadMap(id);
+      if (doc) {
+        onMapSelected(doc);
+      } else {
+        setError(`Map not found: ${id}`);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 

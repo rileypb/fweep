@@ -8,10 +8,13 @@ import {
   type MapMetadata,
   type Room,
 } from '../domain/map-types';
+import { MapValidationError, parseUntrustedMapDocument } from '../domain/validation';
 
 const DB_NAME = 'fweep';
 const DB_VERSION = 1;
 const STORE_NAME = 'maps';
+
+export const MAX_IMPORT_FILE_BYTES = 1_048_576;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -29,10 +32,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-function tx(
-  db: IDBDatabase,
-  mode: IDBTransactionMode,
-): IDBObjectStore {
+function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
   return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 }
 
@@ -52,6 +52,7 @@ function normalizeRoom(
   const strokeStyle = room.strokeStyle && ROOM_STROKE_STYLES.includes(room.strokeStyle)
     ? room.strokeStyle
     : DEFAULT_ROOM_STROKE_STYLE;
+
   return {
     ...room,
     shape,
@@ -72,9 +73,21 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
   };
 }
 
-/**
- * Return metadata for every stored map, sorted by most-recently-edited first.
- */
+function formatMegabytes(byteCount: number): string {
+  return `${Math.round(byteCount / (1024 * 1024))} MB`;
+}
+
+function toUserMessage(err: unknown, fallback: string): string {
+  if (err instanceof MapValidationError) {
+    return err.message;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  return fallback;
+}
+
 export async function listMaps(): Promise<MapMetadata[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -92,7 +105,6 @@ export async function listMaps(): Promise<MapMetadata[]> {
   });
 }
 
-/** Persist a full map document (create or overwrite). */
 export async function saveMap(doc: MapDocument): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -103,21 +115,37 @@ export async function saveMap(doc: MapDocument): Promise<void> {
   });
 }
 
-/** Load a single map document by ID. Returns undefined if not found. */
 export async function loadMap(id: string): Promise<MapDocument | undefined> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const store = tx(db, 'readonly');
     const request = store.get(id);
     request.onsuccess = () => {
-      const result = request.result as MapDocument | undefined;
-      resolve(result ? normalizeMapDocument(result) : undefined);
+      const result = request.result as unknown;
+      if (result === undefined) {
+        resolve(undefined);
+        return;
+      }
+
+      try {
+        const parsed = parseUntrustedMapDocument(result, 'invalid-saved-map');
+        resolve(parsed);
+      } catch (err) {
+        if (err instanceof MapValidationError) {
+          reject(new MapValidationError(
+            'invalid-saved-map',
+            'This map could not be opened because its saved data is invalid or incompatible.',
+            err.issues,
+          ));
+          return;
+        }
+        reject(err);
+      }
     };
     request.onerror = () => reject(request.error);
   });
 }
 
-/** Delete a map by ID. */
 export async function deleteMap(id: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -128,27 +156,26 @@ export async function deleteMap(id: string): Promise<void> {
   });
 }
 
-/**
- * Import a map from a JSON file.
- * Validates that the file contains a parseable MapDocument with required fields.
- * Returns the imported document.
- */
 export async function importMapFromFile(file: File): Promise<MapDocument> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error(`Map file is too large to import. Maximum size is ${formatMegabytes(MAX_IMPORT_FILE_BYTES)}.`);
+  }
+
   const text = await file.text();
-  let doc: MapDocument;
+  let parsedJson: unknown;
   try {
-    doc = JSON.parse(text) as MapDocument;
+    parsedJson = JSON.parse(text) as unknown;
   } catch {
     throw new Error('File is not valid JSON.');
   }
-  if (
-    typeof doc?.schemaVersion !== 'number' ||
-    typeof doc?.metadata?.id !== 'string' ||
-    typeof doc?.metadata?.name !== 'string'
-  ) {
-    throw new Error('File does not contain a valid fweep map.');
+
+  let doc: MapDocument;
+  try {
+    doc = parseUntrustedMapDocument(parsedJson);
+  } catch (err: unknown) {
+    throw new Error(toUserMessage(err, 'File does not contain a valid fweep map.'));
   }
-  const normalizedDoc = normalizeMapDocument(doc);
-  await saveMap(normalizedDoc);
-  return normalizedDoc;
+
+  await saveMap(doc);
+  return doc;
 }

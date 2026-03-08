@@ -1,16 +1,40 @@
-import type { MapDocument } from './map-types';
-
-/* ------------------------------------------------------------------ */
-/*  Result types                                                       */
-/* ------------------------------------------------------------------ */
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_ROOM_FILL_COLOR,
+  DEFAULT_ROOM_STROKE_COLOR,
+  DEFAULT_ROOM_STROKE_STYLE,
+  ROOM_SHAPES,
+  ROOM_STROKE_STYLES,
+  type Connection,
+  type Item,
+  type MapDocument,
+  type MapMetadata,
+  type Position,
+  type Room,
+} from './map-types';
 
 export type ValidationSeverity = 'error' | 'warning';
-export type EntityType = 'room' | 'connection' | 'item';
+export type EntityType = 'map' | 'metadata' | 'room' | 'connection' | 'item';
+export type MapValidationErrorCode =
+  | 'invalid-map-document'
+  | 'unsupported-schema-version'
+  | 'invalid-saved-map';
+
+export const MAX_MAP_NAME_LENGTH = 200;
+export const MAX_ENTITY_NAME_LENGTH = 200;
+export const MAX_DESCRIPTION_LENGTH = 10_000;
+export const MAX_ROOMS = 5_000;
+export const MAX_CONNECTIONS = 10_000;
+export const MAX_ITEMS = 10_000;
+export const MAX_DIRECTIONS_PER_ROOM = 64;
+
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export interface ValidationIssue {
   readonly severity: ValidationSeverity;
   readonly entityType: EntityType;
   readonly entityId: string;
+  readonly path: string;
   readonly message: string;
 }
 
@@ -19,66 +43,470 @@ export interface ValidationResult {
   readonly warnings: readonly ValidationIssue[];
 }
 
-/* ------------------------------------------------------------------ */
-/*  validateMap                                                        */
-/* ------------------------------------------------------------------ */
+export class MapValidationError extends Error {
+  readonly code: MapValidationErrorCode;
+  readonly issues: readonly ValidationIssue[];
 
-/**
- * Validate the internal consistency of a MapDocument.
- *
- * Returns structured errors (blocking) and warnings (non-blocking).
- * This is a pure function — it never mutates the input.
- */
-export function validateMap(doc: MapDocument): ValidationResult {
-  const issues: ValidationIssue[] = [];
+  constructor(code: MapValidationErrorCode, message: string, issues: readonly ValidationIssue[]) {
+    super(message);
+    this.name = 'MapValidationError';
+    this.code = code;
+    this.issues = issues;
+  }
+}
 
-  // --- Connection reference checks ---
-  for (const [cid, conn] of Object.entries(doc.connections)) {
-    if (!doc.rooms[conn.sourceRoomId]) {
-      issues.push({
-        severity: 'error',
-        entityType: 'connection',
-        entityId: cid,
-        message: `Connection "${cid}" references a missing source room "${conn.sourceRoomId}".`,
-      });
+function pushIssue(
+  issues: ValidationIssue[],
+  severity: ValidationSeverity,
+  entityType: EntityType,
+  entityId: string,
+  path: string,
+  message: string,
+): void {
+  issues.push({
+    severity,
+    entityType,
+    entityId,
+    path,
+    message,
+  });
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asRecord(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): Record<string, unknown> | null {
+  if (!isPlainObject(value)) {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be an object.`);
+    return null;
+  }
+
+  return value;
+}
+
+function requireString(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): string | null {
+  if (typeof value !== 'string') {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be a string.`);
+    return null;
+  }
+
+  return value;
+}
+
+function requireBoolean(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): boolean | null {
+  if (typeof value !== 'boolean') {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be a boolean.`);
+    return null;
+  }
+
+  return value;
+}
+
+function requireFiniteNumber(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be a finite number.`);
+    return null;
+  }
+
+  return value;
+}
+
+function validateLength(
+  value: string,
+  maxLength: number,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+  label: string,
+): void {
+  if (value.length > maxLength) {
+    pushIssue(
+      issues,
+      'error',
+      entityType,
+      entityId,
+      path,
+      `${label} must be at most ${maxLength} characters long.`,
+    );
+  }
+}
+
+function parseMetadata(value: unknown, issues: ValidationIssue[]): MapMetadata | null {
+  const metadata = asRecord(value, issues, 'metadata', 'metadata', 'metadata');
+  if (!metadata) {
+    return null;
+  }
+
+  const id = requireString(metadata.id, issues, 'metadata.id', 'metadata', 'metadata');
+  const name = requireString(metadata.name, issues, 'metadata.name', 'metadata', 'metadata');
+  const createdAt = requireString(metadata.createdAt, issues, 'metadata.createdAt', 'metadata', 'metadata');
+  const updatedAt = requireString(metadata.updatedAt, issues, 'metadata.updatedAt', 'metadata', 'metadata');
+
+  if (id === null || name === null || createdAt === null || updatedAt === null) {
+    return null;
+  }
+
+  if (name.trim().length === 0) {
+    pushIssue(issues, 'error', 'metadata', id, 'metadata.name', 'Map name must not be empty.');
+  }
+  validateLength(name, MAX_MAP_NAME_LENGTH, issues, 'metadata.name', 'metadata', id, 'Map name');
+
+  return { id, name, createdAt, updatedAt };
+}
+
+function parsePosition(value: unknown, issues: ValidationIssue[], roomId: string): Position | null {
+  const position = asRecord(value, issues, `rooms.${roomId}.position`, 'room', roomId);
+  if (!position) {
+    return null;
+  }
+
+  const x = requireFiniteNumber(position.x, issues, `rooms.${roomId}.position.x`, 'room', roomId);
+  const y = requireFiniteNumber(position.y, issues, `rooms.${roomId}.position.y`, 'room', roomId);
+  if (x === null || y === null) {
+    return null;
+  }
+
+  return { x, y };
+}
+
+function parseDirections(value: unknown, issues: ValidationIssue[], roomId: string): Readonly<Record<string, string>> | null {
+  const directions = asRecord(value, issues, `rooms.${roomId}.directions`, 'room', roomId);
+  if (!directions) {
+    return null;
+  }
+
+  const entries = Object.entries(directions);
+  if (entries.length > MAX_DIRECTIONS_PER_ROOM) {
+    pushIssue(
+      issues,
+      'error',
+      'room',
+      roomId,
+      `rooms.${roomId}.directions`,
+      `rooms.${roomId}.directions must not contain more than ${MAX_DIRECTIONS_PER_ROOM} entries.`,
+    );
+  }
+
+  const normalizedEntries: Array<[string, string]> = [];
+  for (const [direction, connectionId] of entries) {
+    if (typeof connectionId !== 'string') {
+      pushIssue(
+        issues,
+        'error',
+        'room',
+        roomId,
+        `rooms.${roomId}.directions.${direction}`,
+        `rooms.${roomId}.directions.${direction} must be a string.`,
+      );
+      continue;
     }
-    if (!doc.rooms[conn.targetRoomId]) {
-      issues.push({
-        severity: 'error',
-        entityType: 'connection',
-        entityId: cid,
-        message: `Connection "${cid}" references a missing target room "${conn.targetRoomId}".`,
-      });
+
+    normalizedEntries.push([direction, connectionId]);
+  }
+
+  return Object.fromEntries(normalizedEntries);
+}
+
+function parseColor(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  roomId: string,
+  fallback: string,
+): string {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value !== 'string' || !HEX_COLOR_PATTERN.test(value)) {
+    pushIssue(issues, 'error', 'room', roomId, path, `${path} must be a hex color like #RRGGBB.`);
+    return fallback;
+  }
+  return value;
+}
+
+function parseRoomShape(value: unknown, issues: ValidationIssue[], roomId: string): Room['shape'] {
+  if (value === undefined) {
+    return 'rectangle';
+  }
+  if (typeof value !== 'string' || !ROOM_SHAPES.includes(value as Room['shape'])) {
+    pushIssue(issues, 'error', 'room', roomId, `rooms.${roomId}.shape`, `rooms.${roomId}.shape is invalid.`);
+    return 'rectangle';
+  }
+  return value as Room['shape'];
+}
+
+function parseStrokeStyle(value: unknown, issues: ValidationIssue[], roomId: string): Room['strokeStyle'] {
+  if (value === undefined) {
+    return DEFAULT_ROOM_STROKE_STYLE;
+  }
+  if (typeof value !== 'string' || !ROOM_STROKE_STYLES.includes(value as Room['strokeStyle'])) {
+    pushIssue(
+      issues,
+      'error',
+      'room',
+      roomId,
+      `rooms.${roomId}.strokeStyle`,
+      `rooms.${roomId}.strokeStyle is invalid.`,
+    );
+    return DEFAULT_ROOM_STROKE_STYLE;
+  }
+  return value as Room['strokeStyle'];
+}
+
+function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]): Room | null {
+  const room = asRecord(value, issues, `rooms.${entryKey}`, 'room', entryKey);
+  if (!room) {
+    return null;
+  }
+
+  const id = requireString(room.id, issues, `rooms.${entryKey}.id`, 'room', entryKey);
+  const name = requireString(room.name, issues, `rooms.${entryKey}.name`, 'room', entryKey);
+  const description = requireString(room.description, issues, `rooms.${entryKey}.description`, 'room', entryKey);
+  const position = parsePosition(room.position, issues, entryKey);
+  const directions = parseDirections(room.directions, issues, entryKey);
+  const isDark = requireBoolean(room.isDark, issues, `rooms.${entryKey}.isDark`, 'room', entryKey);
+
+  if (id === null || name === null || description === null || position === null || directions === null || isDark === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(issues, 'error', 'room', entryKey, `rooms.${entryKey}.id`, 'Room id must match its record key.');
+  }
+
+  validateLength(name, MAX_ENTITY_NAME_LENGTH, issues, `rooms.${entryKey}.name`, 'room', entryKey, 'Room name');
+  validateLength(
+    description,
+    MAX_DESCRIPTION_LENGTH,
+    issues,
+    `rooms.${entryKey}.description`,
+    'room',
+    entryKey,
+    'Room description',
+  );
+
+  return {
+    id,
+    name,
+    description,
+    position,
+    directions,
+    isDark,
+    shape: parseRoomShape(room.shape, issues, entryKey),
+    fillColor: parseColor(room.fillColor, issues, `rooms.${entryKey}.fillColor`, entryKey, DEFAULT_ROOM_FILL_COLOR),
+    strokeColor: parseColor(room.strokeColor, issues, `rooms.${entryKey}.strokeColor`, entryKey, DEFAULT_ROOM_STROKE_COLOR),
+    strokeStyle: parseStrokeStyle(room.strokeStyle, issues, entryKey),
+  };
+}
+
+function parseConnection(entryKey: string, value: unknown, issues: ValidationIssue[]): Connection | null {
+  const connection = asRecord(value, issues, `connections.${entryKey}`, 'connection', entryKey);
+  if (!connection) {
+    return null;
+  }
+
+  const id = requireString(connection.id, issues, `connections.${entryKey}.id`, 'connection', entryKey);
+  const sourceRoomId = requireString(
+    connection.sourceRoomId,
+    issues,
+    `connections.${entryKey}.sourceRoomId`,
+    'connection',
+    entryKey,
+  );
+  const targetRoomId = requireString(
+    connection.targetRoomId,
+    issues,
+    `connections.${entryKey}.targetRoomId`,
+    'connection',
+    entryKey,
+  );
+  const isBidirectional = requireBoolean(
+    connection.isBidirectional,
+    issues,
+    `connections.${entryKey}.isBidirectional`,
+    'connection',
+    entryKey,
+  );
+
+  if (id === null || sourceRoomId === null || targetRoomId === null || isBidirectional === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(
+      issues,
+      'error',
+      'connection',
+      entryKey,
+      `connections.${entryKey}.id`,
+      'Connection id must match its record key.',
+    );
+  }
+
+  return { id, sourceRoomId, targetRoomId, isBidirectional };
+}
+
+function parseItem(entryKey: string, value: unknown, issues: ValidationIssue[]): Item | null {
+  const item = asRecord(value, issues, `items.${entryKey}`, 'item', entryKey);
+  if (!item) {
+    return null;
+  }
+
+  const id = requireString(item.id, issues, `items.${entryKey}.id`, 'item', entryKey);
+  const name = requireString(item.name, issues, `items.${entryKey}.name`, 'item', entryKey);
+  const description = requireString(item.description, issues, `items.${entryKey}.description`, 'item', entryKey);
+  const roomId = requireString(item.roomId, issues, `items.${entryKey}.roomId`, 'item', entryKey);
+  const isScenery = requireBoolean(item.isScenery, issues, `items.${entryKey}.isScenery`, 'item', entryKey);
+  const isContainer = requireBoolean(item.isContainer, issues, `items.${entryKey}.isContainer`, 'item', entryKey);
+  const isSupporter = requireBoolean(item.isSupporter, issues, `items.${entryKey}.isSupporter`, 'item', entryKey);
+  const isLightSource = requireBoolean(
+    item.isLightSource,
+    issues,
+    `items.${entryKey}.isLightSource`,
+    'item',
+    entryKey,
+  );
+
+  if (id === null || name === null || description === null || roomId === null || isScenery === null || isContainer === null
+    || isSupporter === null || isLightSource === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(issues, 'error', 'item', entryKey, `items.${entryKey}.id`, 'Item id must match its record key.');
+  }
+
+  validateLength(name, MAX_ENTITY_NAME_LENGTH, issues, `items.${entryKey}.name`, 'item', entryKey, 'Item name');
+  validateLength(
+    description,
+    MAX_DESCRIPTION_LENGTH,
+    issues,
+    `items.${entryKey}.description`,
+    'item',
+    entryKey,
+    'Item description',
+  );
+
+  return {
+    id,
+    name,
+    description,
+    roomId,
+    isScenery,
+    isContainer,
+    isSupporter,
+    isLightSource,
+  };
+}
+
+function parseRecordCollection<T>(
+  value: unknown,
+  path: 'rooms' | 'connections' | 'items',
+  maxEntries: number,
+  issues: ValidationIssue[],
+  parser: (entryKey: string, entryValue: unknown, parseIssues: ValidationIssue[]) => T | null,
+): Readonly<Record<string, T>> {
+  const record = asRecord(value, issues, path, 'map', path);
+  if (!record) {
+    return {};
+  }
+
+  const entries = Object.entries(record);
+  if (entries.length > maxEntries) {
+    pushIssue(issues, 'error', 'map', path, path, `${path} must not contain more than ${maxEntries} entries.`);
+  }
+
+  const normalizedEntries: Array<[string, T]> = [];
+  for (const [entryKey, entryValue] of entries) {
+    const parsed = parser(entryKey, entryValue, issues);
+    if (parsed) {
+      normalizedEntries.push([entryKey, parsed]);
     }
   }
 
-  // --- Room direction binding checks ---
+  return Object.fromEntries(normalizedEntries);
+}
+
+export function validateMap(doc: MapDocument): ValidationResult {
+  const issues: ValidationIssue[] = [];
+
+  for (const [cid, conn] of Object.entries(doc.connections)) {
+    if (!doc.rooms[conn.sourceRoomId]) {
+      pushIssue(
+        issues,
+        'error',
+        'connection',
+        cid,
+        `connections.${cid}.sourceRoomId`,
+        `Connection "${cid}" references a missing source room "${conn.sourceRoomId}".`,
+      );
+    }
+    if (!doc.rooms[conn.targetRoomId]) {
+      pushIssue(
+        issues,
+        'error',
+        'connection',
+        cid,
+        `connections.${cid}.targetRoomId`,
+        `Connection "${cid}" references a missing target room "${conn.targetRoomId}".`,
+      );
+    }
+  }
+
   for (const [rid, room] of Object.entries(doc.rooms)) {
     for (const [dir, connId] of Object.entries(room.directions)) {
       if (!doc.connections[connId]) {
-        issues.push({
-          severity: 'error',
-          entityType: 'room',
-          entityId: rid,
-          message: `Direction binding "${dir}" in room "${room.name}" references a missing connection "${connId}".`,
-        });
+        pushIssue(
+          issues,
+          'error',
+          'room',
+          rid,
+          `rooms.${rid}.directions.${dir}`,
+          `Direction binding "${dir}" in room "${room.name}" references a missing connection "${connId}".`,
+        );
       }
     }
   }
 
-  // --- Item room reference checks ---
   for (const [iid, item] of Object.entries(doc.items)) {
     if (!doc.rooms[item.roomId]) {
-      issues.push({
-        severity: 'error',
-        entityType: 'item',
-        entityId: iid,
-        message: `Item "${item.name}" references a missing room "${item.roomId}".`,
-      });
+      pushIssue(
+        issues,
+        'error',
+        'item',
+        iid,
+        `items.${iid}.roomId`,
+        `Item "${item.name}" references a missing room "${item.roomId}".`,
+      );
     }
   }
 
-  // --- Warnings: unreachable rooms ---
   const roomIds = Object.keys(doc.rooms);
   if (roomIds.length > 1) {
     const connectedRoomIds = new Set<string>();
@@ -88,18 +516,76 @@ export function validateMap(doc: MapDocument): ValidationResult {
     }
     for (const [rid, room] of Object.entries(doc.rooms)) {
       if (!connectedRoomIds.has(rid)) {
-        issues.push({
-          severity: 'warning',
-          entityType: 'room',
-          entityId: rid,
-          message: `Room "${room.name}" has no connections and may be unreachable.`,
-        });
+        pushIssue(
+          issues,
+          'warning',
+          'room',
+          rid,
+          `rooms.${rid}`,
+          `Room "${room.name}" has no connections and may be unreachable.`,
+        );
       }
     }
   }
 
   return {
-    errors: issues.filter((i) => i.severity === 'error'),
-    warnings: issues.filter((i) => i.severity === 'warning'),
+    errors: issues.filter((issue) => issue.severity === 'error'),
+    warnings: issues.filter((issue) => issue.severity === 'warning'),
   };
+}
+
+function throwForIssues(code: MapValidationErrorCode, message: string, issues: readonly ValidationIssue[]): never {
+  throw new MapValidationError(code, message, issues);
+}
+
+export function parseUntrustedMapDocument(
+  input: unknown,
+  errorCode: MapValidationErrorCode = 'invalid-map-document',
+): MapDocument {
+  const issues: ValidationIssue[] = [];
+  const doc = asRecord(input, issues, 'root', 'map', 'root');
+  if (!doc) {
+    throwForIssues(errorCode, 'File does not contain a valid fweep map.', issues);
+  }
+
+  const schemaVersion = doc.schemaVersion;
+  if (typeof schemaVersion !== 'number') {
+    pushIssue(issues, 'error', 'map', 'root', 'schemaVersion', 'schemaVersion must be a number.');
+  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    throwForIssues(
+      'unsupported-schema-version',
+      'This fweep map uses an unsupported schema version.',
+      [{
+        severity: 'error',
+        entityType: 'map',
+        entityId: 'root',
+        path: 'schemaVersion',
+        message: `schemaVersion ${schemaVersion} is unsupported.`,
+      }],
+    );
+  }
+
+  const metadata = parseMetadata(doc.metadata, issues);
+  const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
+  const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
+  const items = parseRecordCollection(doc.items, 'items', MAX_ITEMS, issues, parseItem);
+
+  if (!metadata || issues.some((issue) => issue.severity === 'error')) {
+    throwForIssues(errorCode, 'File does not contain a valid fweep map.', issues);
+  }
+
+  const normalizedDoc: MapDocument = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    metadata,
+    rooms,
+    connections,
+    items,
+  };
+
+  const semanticValidation = validateMap(normalizedDoc);
+  if (semanticValidation.errors.length > 0) {
+    throwForIssues(errorCode, 'File does not contain a valid fweep map.', semanticValidation.errors);
+  }
+
+  return normalizedDoc;
 }
