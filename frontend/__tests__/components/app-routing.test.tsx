@@ -77,6 +77,23 @@ describe('URL routing', () => {
     expect(screen.queryByRole('dialog', { name: /choose a map/i })).not.toBeInTheDocument();
   });
 
+  it('returns to the selection screen from the map header back button', async () => {
+    const doc = createEmptyMap('Return Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText(/return map/i);
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/');
+    });
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+  });
+
   it('autosaves after undoing back to the originally loaded state', async () => {
     const originalDoc = createEmptyMap('Undo Save Map');
     await saveMap(originalDoc);

@@ -109,7 +109,7 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
 const HELP_CONTENT = parseHelpMarkdown(helpMarkdown);
 
 export function App(): React.JSX.Element {
-  const { activeMap, loading, openMap, routeError } = useMapRouter();
+  const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const storeDoc = useEditorStore((s) => s.doc);
@@ -231,7 +231,7 @@ export function App(): React.JSX.Element {
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog onMapSelected={openMap} initialError={routeError} />
       ) : (
-        <MapCanvas mapName={activeMap.metadata.name} />
+        <MapCanvas mapName={activeMap.metadata.name} onBack={closeMap} />
       )}
     </main>
   );

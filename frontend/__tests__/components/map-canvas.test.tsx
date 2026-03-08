@@ -55,6 +55,16 @@ describe('MapCanvas', () => {
     expect(screen.getByText('My Adventure')).toBeInTheDocument();
   });
 
+  it('calls the back handler from the header button', async () => {
+    const user = userEvent.setup();
+    const onBack = jest.fn<() => void>();
+
+    render(<MapCanvas mapName="My Adventure" onBack={onBack} />);
+    await user.click(screen.getByRole('button', { name: 'Back to maps' }));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the background grid by default', () => {
     render(<MapCanvas mapName="Test" />);
     const canvas = screen.getByTestId('map-canvas');

@@ -641,6 +641,7 @@ body {
   user-select: none;
 }
 
+.map-canvas-back-button,
 .map-canvas-grid-toggle {
   display: grid;
   place-items: center;
@@ -656,12 +657,16 @@ body {
   transition: opacity 0.12s ease, background 0.12s ease;
 }
 
+.map-canvas-back-button:hover,
+.map-canvas-back-button:focus-visible,
 .map-canvas-grid-toggle:hover,
 .map-canvas-grid-toggle:focus-visible {
   opacity: 1;
   background: rgba(0, 0, 0, 0.06);
 }
 
+:root[data-theme='dark'] .map-canvas-back-button:hover,
+:root[data-theme='dark'] .map-canvas-back-button:focus-visible,
 :root[data-theme='dark'] .map-canvas-grid-toggle:hover,
 :root[data-theme='dark'] .map-canvas-grid-toggle:focus-visible {
   background: rgba(255, 255, 255, 0.08);

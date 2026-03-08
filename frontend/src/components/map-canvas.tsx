@@ -104,9 +104,10 @@ function isRedoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boo
 export interface MapCanvasProps {
   mapName: string;
   showGrid?: boolean;
+  onBack?: () => void;
 }
 
-export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
+export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }: MapCanvasProps): React.JSX.Element {
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -932,6 +933,18 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       >
         <MapDrawingToolbar />
         <header className="map-canvas-header">
+          <button
+            className="map-canvas-back-button"
+            type="button"
+            aria-label="Back to maps"
+            title="Back to maps"
+            onClick={onBack}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5.5 8H13" strokeLinecap="round" />
+            </svg>
+          </button>
           <span className="map-canvas-title">{mapName}</span>
           <button
             className="map-canvas-grid-toggle"
