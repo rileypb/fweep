@@ -8,6 +8,7 @@ import {
   type Item,
   type MapDocument,
   type MapMetadata,
+  type MapView,
   type Position,
   type Room,
 } from './map-types';
@@ -203,6 +204,44 @@ function parseMetadata(value: unknown, issues: ValidationIssue[]): MapMetadata |
   validateLength(name, MAX_MAP_NAME_LENGTH, issues, 'metadata.name', 'metadata', id, 'Map name');
 
   return { id, name, createdAt, updatedAt };
+}
+
+function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
+  if (value === undefined) {
+    return {
+      pan: { x: 0, y: 0 },
+      showGrid: true,
+      snapToGrid: true,
+    };
+  }
+
+  const view = asRecord(value, issues, 'view', 'map', 'root');
+  if (!view) {
+    return {
+      pan: { x: 0, y: 0 },
+      showGrid: true,
+      snapToGrid: true,
+    };
+  }
+
+  const panRecord = asRecord(view.pan ?? { x: 0, y: 0 }, issues, 'view.pan', 'map', 'root');
+  const panX = panRecord ? requireFiniteNumber(panRecord.x, issues, 'view.pan.x', 'map', 'root') : null;
+  const panY = panRecord ? requireFiniteNumber(panRecord.y, issues, 'view.pan.y', 'map', 'root') : null;
+  const showGrid = view.showGrid === undefined
+    ? true
+    : requireBoolean(view.showGrid, issues, 'view.showGrid', 'map', 'root');
+  const snapToGrid = view.snapToGrid === undefined
+    ? true
+    : requireBoolean(view.snapToGrid, issues, 'view.snapToGrid', 'map', 'root');
+
+  return {
+    pan: {
+      x: panX ?? 0,
+      y: panY ?? 0,
+    },
+    showGrid: showGrid ?? true,
+    snapToGrid: snapToGrid ?? true,
+  };
 }
 
 function parsePosition(value: unknown, issues: ValidationIssue[], roomId: string): Position | null {
@@ -743,6 +782,7 @@ export function parseUntrustedMapDocument(
   }
 
   const metadata = parseMetadata(doc.metadata, issues);
+  const view = parseMapView(doc.view, issues);
   const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
   const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
   const items = parseRecordCollection(doc.items, 'items', MAX_ITEMS, issues, parseItem);
@@ -754,6 +794,7 @@ export function parseUntrustedMapDocument(
   const normalizedDoc: MapDocument = {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     metadata,
+    view,
     rooms,
     connections,
     items,

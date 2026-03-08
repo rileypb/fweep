@@ -18,6 +18,12 @@ export interface Position {
   readonly y: number;
 }
 
+export interface MapView {
+  readonly pan: Position;
+  readonly showGrid: boolean;
+  readonly snapToGrid: boolean;
+}
+
 /* ---- Room ---- */
 
 export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
@@ -80,6 +86,7 @@ export interface Item {
 export interface MapDocument {
   readonly schemaVersion: number;
   readonly metadata: MapMetadata;
+  readonly view: MapView;
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly items: Readonly<Record<string, Item>>;
@@ -100,6 +107,11 @@ export function createEmptyMap(name: string): MapDocument {
       name,
       createdAt: now,
       updatedAt: now,
+    },
+    view: {
+      pan: { x: 0, y: 0 },
+      showGrid: true,
+      snapToGrid: true,
     },
     rooms: {},
     connections: {},

@@ -22,15 +22,24 @@ export interface MapViewportApi {
   readonly toMapPoint: (clientX: number, clientY: number) => MapPoint;
 }
 
-export function useMapViewport(): MapViewportApi {
+export interface UseMapViewportOptions {
+  readonly initialPanOffset?: PanOffset;
+}
+
+export function useMapViewport(options: UseMapViewportOptions = {}): MapViewportApi {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
-  const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 });
-  const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
+  const initialPanOffset = options.initialPanOffset ?? { x: 0, y: 0 };
+  const [panOffset, setPanOffset] = useState<PanOffset>(initialPanOffset);
+  const panOffsetRef = useRef<PanOffset>(initialPanOffset);
 
   useEffect(() => {
     panOffsetRef.current = panOffset;
   }, [panOffset]);
+
+  useEffect(() => {
+    setPanOffset(initialPanOffset);
+  }, [initialPanOffset.x, initialPanOffset.y]);
 
   useEffect(() => {
     if (!canvasRef.current) {

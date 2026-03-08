@@ -24,6 +24,23 @@ describe('useEditorStore', () => {
       useEditorStore.getState().loadDocument(testDoc);
       expect(useEditorStore.getState().doc).toEqual(testDoc);
     });
+
+    it('hydrates persisted view state into the editor store', () => {
+      const doc = {
+        ...testDoc,
+        view: {
+          pan: { x: 120, y: -80 },
+          showGrid: false,
+          snapToGrid: false,
+        },
+      };
+
+      useEditorStore.getState().loadDocument(doc);
+
+      expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 120, y: -80 });
+      expect(useEditorStore.getState().showGridEnabled).toBe(false);
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(false);
+    });
   });
 
   /* ---- unloadDocument ---- */
@@ -42,6 +59,24 @@ describe('useEditorStore', () => {
       useEditorStore.getState().unloadDocument();
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('resets persisted view state to defaults', () => {
+      const doc = {
+        ...testDoc,
+        view: {
+          pan: { x: 120, y: -80 },
+          showGrid: false,
+          snapToGrid: false,
+        },
+      };
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().unloadDocument();
+
+      expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 0, y: 0 });
+      expect(useEditorStore.getState().showGridEnabled).toBe(true);
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
     });
   });
 
@@ -109,6 +144,35 @@ describe('useEditorStore', () => {
       const doc = useEditorStore.getState().doc!;
       const room = Object.values(doc.rooms)[0];
       expect(room.position).toEqual({ x: 55, y: 85 });
+    });
+  });
+
+  describe('map view persistence', () => {
+    it('toggleSnapToGrid updates the stored map view', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().toggleSnapToGrid();
+
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(false);
+      expect(useEditorStore.getState().doc?.view.snapToGrid).toBe(false);
+    });
+
+    it('toggleShowGrid updates the stored map view', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().toggleShowGrid();
+
+      expect(useEditorStore.getState().showGridEnabled).toBe(false);
+      expect(useEditorStore.getState().doc?.view.showGrid).toBe(false);
+    });
+
+    it('setMapPanOffset updates the stored map view', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().setMapPanOffset({ x: 160, y: -40 });
+
+      expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 160, y: -40 });
+      expect(useEditorStore.getState().doc?.view.pan).toEqual({ x: 160, y: -40 });
     });
   });
 

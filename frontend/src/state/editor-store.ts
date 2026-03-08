@@ -86,6 +86,12 @@ export interface EditorState {
   /** Whether room movement and placement snap to the grid. */
   snapToGridEnabled: boolean;
 
+  /** Whether the current map shows the background grid. */
+  showGridEnabled: boolean;
+
+  /** The persisted pan offset for the current map. */
+  mapPanOffset: Position;
+
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
 
@@ -186,6 +192,12 @@ export interface EditorState {
   /** Toggle grid snapping for room movement and placement. */
   toggleSnapToGrid: () => void;
 
+  /** Toggle the background grid visibility for the current map. */
+  toggleShowGrid: () => void;
+
+  /** Persist the current map pan offset without adding a history entry. */
+  setMapPanOffset: (position: Position) => void;
+
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
 
@@ -257,6 +269,17 @@ function commitDocumentChange(
   };
 }
 
+function patchDocumentView(doc: MapDocument, state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled'>): MapDocument {
+  return {
+    ...doc,
+    view: {
+      pan: state.mapPanOffset,
+      showGrid: state.showGridEnabled,
+      snapToGrid: state.snapToGridEnabled,
+    },
+  };
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
   pastDocs: [],
@@ -267,11 +290,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedRoomIds: [],
   selectedConnectionIds: [],
   snapToGridEnabled: true,
+  showGridEnabled: true,
+  mapPanOffset: { x: 0, y: 0 },
   connectionDrag: null,
   roomDrag: null,
 
   loadDocument: (doc) => set({
-    doc,
+    doc: patchDocumentView(doc, {
+      mapPanOffset: doc.view.pan,
+      showGridEnabled: doc.view.showGrid,
+      snapToGridEnabled: doc.view.snapToGrid,
+    }),
     pastDocs: [],
     futureDocs: [],
     canUndo: false,
@@ -279,6 +308,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
     selectedConnectionIds: [],
+    snapToGridEnabled: doc.view.snapToGrid,
+    showGridEnabled: doc.view.showGrid,
+    mapPanOffset: doc.view.pan,
     connectionDrag: null,
     roomDrag: null,
   }),
@@ -292,6 +324,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
     selectedConnectionIds: [],
+    snapToGridEnabled: true,
+    showGridEnabled: true,
+    mapPanOffset: { x: 0, y: 0 },
     connectionDrag: null,
     roomDrag: null,
   }),
@@ -305,16 +340,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const previousDoc = pastDocs[pastDocs.length - 1];
     const nextPastDocs = pastDocs.slice(0, -1);
     const nextFutureDocs = [doc, ...futureDocs];
+    const nextDoc = patchDocumentView(previousDoc, get());
 
     set({
-      doc: previousDoc,
+      doc: nextDoc,
       pastDocs: nextPastDocs,
       futureDocs: nextFutureDocs,
       canUndo: nextPastDocs.length > 0,
       canRedo: true,
       lastHistoryMergeKey: null,
-      selectedRoomIds: filterSelectionForDoc(previousDoc, selectedRoomIds),
-      selectedConnectionIds: filterConnectionSelectionForDoc(previousDoc, selectedConnectionIds),
+      selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
+      selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
     });
@@ -329,16 +365,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const nextDoc = futureDocs[0];
     const nextFutureDocs = futureDocs.slice(1);
     const nextPastDocs = [...pastDocs, doc];
+    const patchedNextDoc = patchDocumentView(nextDoc, get());
 
     set({
-      doc: nextDoc,
+      doc: patchedNextDoc,
       pastDocs: nextPastDocs,
       futureDocs: nextFutureDocs,
       canUndo: true,
       canRedo: nextFutureDocs.length > 0,
       lastHistoryMergeKey: null,
-      selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
-      selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
+      selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
+      selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
     });
@@ -519,7 +556,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   toggleSnapToGrid: () => {
-    set((state) => ({ snapToGridEnabled: !state.snapToGridEnabled, lastHistoryMergeKey: null }));
+    set((state) => {
+      const snapToGridEnabled = !state.snapToGridEnabled;
+      const nextDoc = state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            snapToGrid: snapToGridEnabled,
+          },
+        }
+        : state.doc;
+
+      return {
+        doc: nextDoc,
+        snapToGridEnabled,
+        lastHistoryMergeKey: null,
+      };
+    });
+  },
+
+  toggleShowGrid: () => {
+    set((state) => {
+      const showGridEnabled = !state.showGridEnabled;
+      const nextDoc = state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            showGrid: showGridEnabled,
+          },
+        }
+        : state.doc;
+
+      return {
+        doc: nextDoc,
+        showGridEnabled,
+        lastHistoryMergeKey: null,
+      };
+    });
+  },
+
+  setMapPanOffset: (position) => {
+    set((state) => ({
+      doc: state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            pan: position,
+          },
+        }
+        : state.doc,
+      mapPanOffset: position,
+      lastHistoryMergeKey: null,
+    }));
   },
 
   moveRoom: (roomId, position) => {

@@ -157,6 +157,11 @@ describe('map-store', () => {
       expect(loaded?.connections[connectionId].strokeColorIndex).toBe(0);
       expect(loaded?.connections[connectionId].strokeStyle).toBe('solid');
       expect(loaded?.connections[connectionId].annotation).toBeNull();
+      expect(loaded?.view).toEqual({
+        pan: { x: 0, y: 0 },
+        showGrid: true,
+        snapToGrid: true,
+      });
     });
 
     it('maps legacy direct room colors to palette indices when loading saved maps', async () => {

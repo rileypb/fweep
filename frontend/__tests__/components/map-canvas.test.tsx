@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -67,21 +67,24 @@ describe('MapCanvas', () => {
     expect(canvas).not.toHaveClass('map-canvas--grid');
   });
 
-  it('provides a button to toggle the grid on and off', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
+    it('provides a button to toggle the grid on and off', async () => {
+      const user = userEvent.setup();
+      useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+      render(<MapCanvas mapName="Test" />);
 
-    const canvas = screen.getByTestId('map-canvas');
+      const canvas = screen.getByTestId('map-canvas');
     expect(canvas).toHaveClass('map-canvas--grid');
 
     const toggleBtn = screen.getByRole('button', { name: /toggle grid/i });
-    await user.click(toggleBtn);
+      await user.click(toggleBtn);
 
-    expect(canvas).not.toHaveClass('map-canvas--grid');
+      expect(canvas).not.toHaveClass('map-canvas--grid');
+      expect(useEditorStore.getState().doc?.view.showGrid).toBe(false);
 
-    await user.click(toggleBtn);
-    expect(canvas).toHaveClass('map-canvas--grid');
-  });
+      await user.click(toggleBtn);
+      expect(canvas).toHaveClass('map-canvas--grid');
+      expect(useEditorStore.getState().doc?.view.showGrid).toBe(true);
+    });
 
   describe('map panning', () => {
     it('pans the map when middle-dragging empty canvas space', () => {
@@ -101,6 +104,26 @@ describe('MapCanvas', () => {
 
       fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
       expect(canvas).not.toHaveClass('map-canvas--panning');
+    });
+
+    it('persists pan offset into the loaded map after panning settles', () => {
+      jest.useFakeTimers();
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 1 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(useEditorStore.getState().doc?.view.pan).toEqual({ x: 60, y: 60 });
+      jest.useRealTimers();
     });
 
     it('creates rooms in map coordinates after panning', () => {

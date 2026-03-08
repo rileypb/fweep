@@ -29,6 +29,11 @@ describe('createEmptyMap', () => {
 
   it('initialises with empty rooms, connections, and items', () => {
     const doc = createEmptyMap('Empty');
+    expect(doc.view).toEqual({
+      pan: { x: 0, y: 0 },
+      showGrid: true,
+      snapToGrid: true,
+    });
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});
     expect(doc.items).toEqual({});

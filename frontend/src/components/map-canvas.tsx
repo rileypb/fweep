@@ -29,7 +29,6 @@ export interface MapCanvasProps {
 }
 
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
-  const [showGrid, setShowGrid] = useState(initialShowGrid);
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -46,8 +45,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
+  const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
+  const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
+  const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
+  const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const autoPanTimeoutRef = useRef<number | null>(null);
   const suppressCanvasClickRef = useRef(false);
+  const persistPanTimeoutRef = useRef<number | null>(null);
   const theme = useDocumentTheme();
   const {
     canvasRef,
@@ -59,7 +63,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     panBy,
     centerOnMapPoint,
     toMapPoint,
-  } = useMapViewport();
+  } = useMapViewport({ initialPanOffset: persistedPanOffset });
+
+  const showGrid = doc ? showGridEnabled : initialShowGrid;
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -67,7 +73,39 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     if (autoPanTimeoutRef.current !== null) {
       window.clearTimeout(autoPanTimeoutRef.current);
     }
+    if (persistPanTimeoutRef.current !== null) {
+      window.clearTimeout(persistPanTimeoutRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!doc) {
+      return;
+    }
+
+    if (
+      persistedPanOffset.x === panOffset.x
+      && persistedPanOffset.y === panOffset.y
+    ) {
+      return;
+    }
+
+    if (persistPanTimeoutRef.current !== null) {
+      window.clearTimeout(persistPanTimeoutRef.current);
+    }
+
+    persistPanTimeoutRef.current = window.setTimeout(() => {
+      setMapPanOffset(panOffset);
+      persistPanTimeoutRef.current = null;
+    }, 150);
+
+    return () => {
+      if (persistPanTimeoutRef.current !== null) {
+        window.clearTimeout(persistPanTimeoutRef.current);
+        persistPanTimeoutRef.current = null;
+      }
+    };
+  }, [doc, panOffset, persistedPanOffset.x, persistedPanOffset.y, setMapPanOffset]);
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorId(null);
@@ -388,7 +426,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             type="button"
             aria-label="Toggle grid"
             title="Toggle grid"
-            onClick={() => setShowGrid((prev) => !prev)}
+            onClick={toggleShowGrid}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <line x1="0" y1="4" x2="16" y2="4" />

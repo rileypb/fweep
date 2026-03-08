@@ -4,6 +4,7 @@ import {
   ROOM_STROKE_STYLES,
   type MapDocument,
   type MapMetadata,
+  type MapView,
   type Room,
 } from '../domain/map-types';
 import { MapValidationError, parseUntrustedMapDocument } from '../domain/validation';
@@ -124,6 +125,17 @@ function normalizeConnection(
   };
 }
 
+function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
+  return {
+    pan: {
+      x: typeof view?.pan?.x === 'number' ? view.pan.x : 0,
+      y: typeof view?.pan?.y === 'number' ? view.pan.y : 0,
+    },
+    showGrid: typeof view?.showGrid === 'boolean' ? view.showGrid : true,
+    snapToGrid: typeof view?.snapToGrid === 'boolean' ? view.snapToGrid : true,
+  };
+}
+
 function normalizeMapDocument(doc: MapDocument): MapDocument {
   const rooms = Object.fromEntries(
     Object.entries(doc.rooms).map(([roomId, room]) => [roomId, normalizeRoom(room)]),
@@ -134,6 +146,7 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
 
   return {
     ...doc,
+    view: normalizeMapView(doc.view),
     rooms,
     connections,
   };
