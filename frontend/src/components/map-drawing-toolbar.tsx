@@ -78,10 +78,13 @@ function EraserGlyph(): React.JSX.Element {
 function BucketGlyph(): React.JSX.Element {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7 5.5 14.5 13a2.6 2.6 0 0 1 0 3.7l-1.8 1.8a2.6 2.6 0 0 1-3.7 0L1.5 11 7 5.5Z" />
-      <path d="M10.5 2.5 21 13" />
-      <path d="M14 18.5h6.5" />
-      <path d="M17.4 15.8c1.2 0 2.1 1 2.1 2.2 0 .9-.5 1.6-1.2 2-.3.2-.4.5-.3.8" />
+      <g transform="translate(-1.8 1.2)">
+        <g transform="translate(24 0) scale(-1 1)">
+          <path d="M7.1 1 17.6 11.5a1.7 1.7 0 0 1 0 2.4l-5.8 5.8a1.7 1.7 0 0 1-2.4 0L.5 10.8a1.7 1.7 0 0 1 0-2.4L6.3 .7" />
+        </g>
+        <path d="M24 8.4v9.6" />
+        <path d="M21.6 5.9 23.4 7.7" />
+      </g>
     </svg>
   );
 }
