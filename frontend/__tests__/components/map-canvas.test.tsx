@@ -1851,12 +1851,12 @@ describe('MapCanvas', () => {
 
       const doorGlyph = screen.getByTestId(`connection-annotation-door-${conn.id}`);
       const doorPath = doorGlyph.querySelector('path');
-      const doorKnob = doorGlyph.querySelector('circle');
 
       expect(doorGlyph.getAttribute('transform')).toBe('translate(114 110)');
       expect(doorPath?.getAttribute('d')).toBe('M1 15 L1 7 Q6 1 11 7 L11 15 Z');
-      expect(doorKnob?.getAttribute('cx')).toBe('8');
-      expect(doorKnob?.getAttribute('cy')).toBe('9');
+      expect(doorPath).toHaveAttribute('fill', '#6366f1');
+      expect(doorGlyph.querySelector('circle')).toBeNull();
+      expect(doorGlyph.querySelectorAll('line')).toHaveLength(0);
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();

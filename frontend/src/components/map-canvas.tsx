@@ -1361,15 +1361,9 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
           >
             <path
               d={`M1 ${CONNECTION_DOOR_HEIGHT - 1} L1 7 Q${CONNECTION_DOOR_WIDTH / 2} 1 ${CONNECTION_DOOR_WIDTH - 1} 7 L${CONNECTION_DOOR_WIDTH - 1} ${CONNECTION_DOOR_HEIGHT - 1} Z`}
-              fill={theme === 'dark' ? 'rgba(17, 24, 39, 0.92)' : 'rgba(255, 255, 255, 0.92)'}
+              fill={connectionStroke}
               stroke={connectionStroke}
               strokeWidth="1.5"
-            />
-            <circle
-              cx={CONNECTION_DOOR_WIDTH - 4}
-              cy={CONNECTION_DOOR_HEIGHT / 2 + 1}
-              r="1"
-              fill={connectionStroke}
             />
           </g>
         )}
