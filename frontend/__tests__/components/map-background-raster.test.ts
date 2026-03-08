@@ -1,5 +1,11 @@
-import { describe, expect, it } from '@jest/globals';
-import { getChunkCoverageForPoint, getToolStampRadius, usesHardEdgeStamp } from '../../src/components/map-background-raster';
+import { describe, expect, it, jest } from '@jest/globals';
+import {
+  compositeStrokePreview,
+  drawStrokeSegment,
+  getChunkCoverageForPoint,
+  getToolStampRadius,
+  usesHardEdgeStamp,
+} from '../../src/components/map-background-raster';
 import type { DrawingToolState } from '../../src/state/editor-store';
 
 describe('map-background-raster', () => {
@@ -46,5 +52,64 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0,
     })).toBe(true);
+  });
+
+  it('draws eraser stroke masks with source-over compositing', () => {
+    const context = {
+      imageSmoothingEnabled: true,
+      globalCompositeOperation: 'source-over',
+      fillStyle: '',
+      beginPath: jest.fn<() => void>(),
+      arc: jest.fn<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>(),
+      fill: jest.fn<() => void>(),
+      createRadialGradient: jest.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const canvas = {
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => context),
+    } as unknown as HTMLCanvasElement;
+
+    drawStrokeSegment(canvas, {
+      tool: 'eraser',
+      colorRgbHex: '#000000',
+      opacity: 1,
+      size: 16,
+      softness: 0,
+    }, { x: 32, y: 32 }, { x: 32, y: 32 });
+
+    expect(context.globalCompositeOperation).toBe('source-over');
+    expect(context.fillStyle).toBe('rgba(0, 0, 0, 1)');
+  });
+
+  it('applies eraser preview composites with destination-out compositing', () => {
+    const compositeModes: string[] = [];
+    const context = {
+      clearRect: jest.fn<(x: number, y: number, width: number, height: number) => void>(),
+      drawImage: jest.fn<(image: CanvasImageSource, dx: number, dy: number) => void>(() => {
+        compositeModes.push(context.globalCompositeOperation);
+      }),
+      globalAlpha: 1,
+      globalCompositeOperation: 'source-over',
+    } as unknown as CanvasRenderingContext2D;
+    const previewCanvas = {
+      width: 256,
+      height: 256,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => context),
+    } as unknown as HTMLCanvasElement;
+    const baseCanvas = {} as HTMLCanvasElement;
+    const strokeCanvas = {} as HTMLCanvasElement;
+
+    compositeStrokePreview(previewCanvas, baseCanvas, strokeCanvas, {
+      tool: 'eraser',
+      colorRgbHex: '#000000',
+      opacity: 0.4,
+      size: 16,
+      softness: 0,
+    });
+
+    expect(context.drawImage).toHaveBeenNthCalledWith(1, baseCanvas, 0, 0);
+    expect(context.drawImage).toHaveBeenNthCalledWith(2, strokeCanvas, 0, 0);
+    expect(compositeModes).toEqual(['source-over', 'destination-out']);
+    expect(context.globalCompositeOperation).toBe('source-over');
+    expect(context.globalAlpha).toBe(1);
   });
 });

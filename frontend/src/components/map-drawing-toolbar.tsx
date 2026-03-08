@@ -92,9 +92,11 @@ export function MapDrawingToolbar(): React.JSX.Element {
   const setDrawingSoftness = useEditorStore((state) => state.setDrawingSoftness);
   const maxSize = drawingToolState.tool === 'pencil' ? 6 : 64;
   const showsSoftness = drawingToolState.tool !== 'pencil';
-  const drawingControlsDisabled = canvasInteractionMode !== 'draw';
   const nextMode: CanvasInteractionMode = canvasInteractionMode === 'map' ? 'draw' : 'map';
   const modeButtonLabel = canvasInteractionMode === 'map' ? 'Switch to draw mode' : 'Switch to map mode';
+  const activateDrawMode = (): void => {
+    setCanvasInteractionMode('draw');
+  };
 
   return (
     <aside className="map-drawing-toolbar" data-testid="map-drawing-toolbar">
@@ -118,11 +120,13 @@ export function MapDrawingToolbar(): React.JSX.Element {
             key={tool}
             type="button"
             className={`map-drawing-tool-button map-drawing-tool-button--icon${drawingToolState.tool === tool ? ' map-drawing-tool-button--active' : ''}`}
-            onClick={() => setDrawingTool(tool)}
+            onClick={() => {
+              setDrawingTool(tool);
+              activateDrawMode();
+            }}
             aria-pressed={drawingToolState.tool === tool}
             aria-label={label}
             title={label}
-            disabled={drawingControlsDisabled}
           >
             <ToolGlyph tool={tool} />
           </button>
@@ -134,8 +138,10 @@ export function MapDrawingToolbar(): React.JSX.Element {
         <input
           type="color"
           value={normalizeHexColor(drawingToolState.colorRgbHex)}
-          onChange={(event) => setDrawingColor(event.target.value)}
-          disabled={drawingControlsDisabled}
+          onChange={(event) => {
+            setDrawingColor(event.target.value);
+            activateDrawMode();
+          }}
         />
       </label>
 
@@ -144,10 +150,15 @@ export function MapDrawingToolbar(): React.JSX.Element {
         <input
           type="text"
           value={drawingToolState.colorRgbHex}
-          onChange={(event) => setDrawingColor(event.target.value)}
-          onBlur={(event) => setDrawingColor(normalizeHexColor(event.target.value))}
+          onChange={(event) => {
+            setDrawingColor(event.target.value);
+            activateDrawMode();
+          }}
+          onBlur={(event) => {
+            setDrawingColor(normalizeHexColor(event.target.value));
+            activateDrawMode();
+          }}
           aria-label="Drawing color hex"
-          disabled={drawingControlsDisabled}
         />
       </label>
 
@@ -158,9 +169,11 @@ export function MapDrawingToolbar(): React.JSX.Element {
           min={1}
           max={maxSize}
           value={clamp(drawingToolState.size, 1, maxSize)}
-          onChange={(event) => setDrawingSize(Number(event.target.value))}
+          onChange={(event) => {
+            setDrawingSize(Number(event.target.value));
+            activateDrawMode();
+          }}
           aria-label="Drawing tool size"
-          disabled={drawingControlsDisabled}
         />
       </label>
 
@@ -171,9 +184,11 @@ export function MapDrawingToolbar(): React.JSX.Element {
           min={0}
           max={100}
           value={Math.round(drawingToolState.opacity * 100)}
-          onChange={(event) => setDrawingOpacity(Number(event.target.value) / 100)}
+          onChange={(event) => {
+            setDrawingOpacity(Number(event.target.value) / 100);
+            activateDrawMode();
+          }}
           aria-label="Drawing tool opacity"
-          disabled={drawingControlsDisabled}
         />
       </label>
 
@@ -185,9 +200,11 @@ export function MapDrawingToolbar(): React.JSX.Element {
             min={0}
             max={100}
             value={Math.round(drawingToolState.softness * 100)}
-            onChange={(event) => setDrawingSoftness(Number(event.target.value) / 100)}
+            onChange={(event) => {
+              setDrawingSoftness(Number(event.target.value) / 100);
+              activateDrawMode();
+            }}
             aria-label="Drawing tool softness"
-            disabled={drawingControlsDisabled}
           />
         </label>
       )}

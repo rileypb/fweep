@@ -149,14 +149,10 @@ function drawSoftStamp(
   const innerRadius = radius * (1 - softness);
   const gradient = context.createRadialGradient(point.x, point.y, innerRadius, point.x, point.y, radius);
   const alpha = clamp(opacity, 0, 1);
-  const rgba = hexToRgba(colorRgbHex, alpha);
-  const edgeRgba = hexToRgba(colorRgbHex, 0);
+  const rgba = erase ? hexToRgba('#000000', alpha) : hexToRgba(colorRgbHex, alpha);
+  const edgeRgba = erase ? hexToRgba('#000000', 0) : hexToRgba(colorRgbHex, 0);
 
-  if (erase) {
-    context.globalCompositeOperation = 'destination-out';
-  } else {
-    context.globalCompositeOperation = 'source-over';
-  }
+  context.globalCompositeOperation = 'source-over';
 
   gradient.addColorStop(0, rgba);
   gradient.addColorStop(1, edgeRgba);
@@ -174,8 +170,8 @@ function drawHardStamp(
   opacity: number,
   erase: boolean,
 ): void {
-  context.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
-  context.fillStyle = hexToRgba(colorRgbHex, clamp(opacity, 0, 1));
+  context.globalCompositeOperation = 'source-over';
+  context.fillStyle = erase ? hexToRgba('#000000', clamp(opacity, 0, 1)) : hexToRgba(colorRgbHex, clamp(opacity, 0, 1));
   context.beginPath();
   context.arc(point.x, point.y, Math.max(size / 2, 0.5), 0, Math.PI * 2);
   context.fill();

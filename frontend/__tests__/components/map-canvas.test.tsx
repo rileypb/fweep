@@ -77,6 +77,26 @@ describe('MapCanvas', () => {
     expect(screen.getByRole('button', { name: 'Switch to map mode' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('switches into draw mode when selecting a drawing tool', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Brush' }));
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(useEditorStore.getState().drawingToolState.tool).toBe('brush');
+  });
+
+  it('switches into draw mode when changing drawing settings', () => {
+    render(<MapCanvas mapName="Test" />);
+
+    const sizeInput = screen.getByLabelText('Drawing tool size');
+    fireEvent.change(sizeInput, { target: { value: '4' } });
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(useEditorStore.getState().drawingToolState.size).toBe(4);
+  });
+
   it('hides the background grid when showGrid is false', () => {
     render(<MapCanvas mapName="Test" showGrid={false} />);
     const canvas = screen.getByTestId('map-canvas');
