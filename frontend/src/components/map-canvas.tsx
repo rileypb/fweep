@@ -39,6 +39,8 @@ const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
 const CONNECTION_ANNOTATION_ARROWHEAD_LENGTH = 10;
 const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+const CONNECTION_DOOR_WIDTH = 12;
+const CONNECTION_DOOR_HEIGHT = 16;
 
 interface PanOffset {
   x: number;
@@ -1203,6 +1205,13 @@ function getSelfAnnotationPosition(points: readonly VectorPoint[]): VectorPoint 
   };
 }
 
+function getSegmentCenter(segment: { start: VectorPoint; end: VectorPoint }): VectorPoint {
+  return {
+    x: (segment.start.x + segment.end.x) / 2,
+    y: (segment.start.y + segment.end.y) / 2,
+  };
+}
+
 function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
@@ -1233,13 +1242,16 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
       : annotationKind === 'in' || annotationKind === 'out'
         ? 'in'
         : annotationKind;
+    const rendersDoorAnnotation = annotationKind === 'door';
     const annotationSegment = rendersDirectionalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
+    const doorSegment = rendersDoorAnnotation ? getLongestSegment(points) : null;
     const annotationGeometry = annotationSegment
       ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
       : null;
     const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
       ? getSelfAnnotationPosition(points)
       : null;
+    const doorCenter = doorSegment ? getSegmentCenter(doorSegment) : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
 
     return (
@@ -1339,6 +1351,27 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
           >
             {annotationLabel}
           </text>
+        )}
+        {doorCenter && (
+          <g
+            data-testid={`connection-annotation-door-${conn.id}`}
+            className="connection-annotation-door"
+            transform={`translate(${doorCenter.x - (CONNECTION_DOOR_WIDTH / 2)} ${doorCenter.y - (CONNECTION_DOOR_HEIGHT / 2)})`}
+            pointerEvents="none"
+          >
+            <path
+              d={`M1 ${CONNECTION_DOOR_HEIGHT - 1} L1 7 Q${CONNECTION_DOOR_WIDTH / 2} 1 ${CONNECTION_DOOR_WIDTH - 1} 7 L${CONNECTION_DOOR_WIDTH - 1} ${CONNECTION_DOOR_HEIGHT - 1} Z`}
+              fill={theme === 'dark' ? 'rgba(17, 24, 39, 0.92)' : 'rgba(255, 255, 255, 0.92)'}
+              stroke={connectionStroke}
+              strokeWidth="1.5"
+            />
+            <circle
+              cx={CONNECTION_DOOR_WIDTH - 4}
+              cy={CONNECTION_DOOR_HEIGHT / 2 + 1}
+              r="1"
+              fill={connectionStroke}
+            />
+          </g>
         )}
       </>
     );
