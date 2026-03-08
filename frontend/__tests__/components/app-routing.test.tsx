@@ -6,14 +6,14 @@ import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
 import { useEditorStore } from '../../src/state/editor-store';
 
-/** Push a path into jsdom's location and fire popstate. */
-function navigateTo(path: string) {
-  window.history.pushState({}, '', path);
+/** Push a hash route into jsdom's location and fire popstate. */
+function navigateTo(hashRoute: string) {
+  window.history.pushState({}, '', hashRoute);
 }
 
 beforeEach(() => {
-  // Reset URL to root before each test
-  window.history.replaceState({}, '', '/');
+  // Reset URL to the selection screen before each test
+  window.history.replaceState({}, '', '#/');
   // Reset editor store
   useEditorStore.setState(useEditorStore.getInitialState());
 });
@@ -30,16 +30,16 @@ describe('URL routing', () => {
   });
 
   it('shows the map selection dialog at the root URL', async () => {
-    navigateTo('/');
+    navigateTo('#/');
     render(<App />);
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
 
-  it('loads and displays a saved map when URL is /map/<id>', async () => {
+  it('loads and displays a saved map when URL is #/map/<id>', async () => {
     const doc = createEmptyMap('Routed Map');
     await saveMap(doc);
 
-    navigateTo(`/map/${doc.metadata.id}`);
+    navigateTo(`#/map/${doc.metadata.id}`);
     render(<App />);
 
     expect(await screen.findByText(/routed map/i)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe('URL routing', () => {
     const originalDoc = createEmptyMap('Undo Save Map');
     await saveMap(originalDoc);
 
-    navigateTo(`/map/${originalDoc.metadata.id}`);
+    navigateTo(`#/map/${originalDoc.metadata.id}`);
     render(<App />);
 
     await screen.findByText(/undo save map/i);
@@ -79,7 +79,7 @@ describe('URL routing', () => {
     const doc = createEmptyMap('Clickable Map');
     await saveMap(doc);
 
-    navigateTo('/');
+    navigateTo('#/');
     const user = userEvent.setup();
     render(<App />);
 
@@ -87,12 +87,12 @@ describe('URL routing', () => {
     await user.click(mapBtn);
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe(`/map/${doc.metadata.id}`);
+      expect(window.location.hash).toBe(`#/map/${doc.metadata.id}`);
     });
   });
 
   it('updates the URL when a new map is created', async () => {
-    navigateTo('/');
+    navigateTo('#/');
     const user = userEvent.setup();
     render(<App />);
 
@@ -101,12 +101,12 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /create/i }));
 
     await waitFor(() => {
-      expect(window.location.pathname).toMatch(/^\/map\/.+$/);
+      expect(window.location.hash).toMatch(/^#\/map\/.+$/);
     });
   });
 
   it('falls back to the selection dialog for an invalid map ID in the URL', async () => {
-    navigateTo('/map/nonexistent-id');
+    navigateTo('#/map/nonexistent-id');
     render(<App />);
 
     // Should fall back to showing the selection dialog

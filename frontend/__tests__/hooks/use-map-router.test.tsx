@@ -26,17 +26,17 @@ function RouterHarness({ loadMap }: RouterHarnessProps): React.JSX.Element {
   );
 }
 
-function navigateTo(path: string): void {
-  window.history.replaceState({}, '', path);
+function navigateTo(hashRoute: string): void {
+  window.history.replaceState({}, '', hashRoute);
 }
 
 beforeEach(() => {
-  navigateTo('/');
+  navigateTo('#/');
 });
 
 describe('useMapRouter', () => {
   it('returns to the root URL and stops loading when the initial map load fails', async () => {
-    navigateTo('/map/broken-map');
+    navigateTo('#/map/broken-map');
     const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>().mockRejectedValue(new Error('DB failed'));
 
     render(<RouterHarness loadMap={loadMap} />);
@@ -45,19 +45,19 @@ describe('useMapRouter', () => {
       expect(screen.getByTestId('loading-state')).toHaveTextContent('idle');
     });
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.hash).toBe('#/');
     expect(loadMap).toHaveBeenCalledWith('broken-map');
   });
 
-  it('clears the active map when browser navigation returns to the root path', async () => {
+  it('clears the active map when browser navigation returns to the root hash route', async () => {
     const user = userEvent.setup();
     render(<RouterHarness />);
 
     await user.click(screen.getByRole('button', { name: 'Open' }));
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('Opened From Harness');
-    expect(window.location.pathname).toMatch(/^\/map\/.+$/);
+    expect(window.location.hash).toMatch(/^#\/map\/.+$/);
 
-    navigateTo('/');
+    navigateTo('#/');
     fireEvent.popState(window);
 
     await waitFor(() => {
@@ -65,21 +65,21 @@ describe('useMapRouter', () => {
     });
   });
 
-  it('replaces the URL with the root path when popstate loads a missing map', async () => {
+  it('replaces the URL with the root hash route when popstate loads a missing map', async () => {
     const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>().mockResolvedValue(undefined);
     render(<RouterHarness loadMap={loadMap} />);
 
-    navigateTo('/map/missing-after-popstate');
+    navigateTo('#/map/missing-after-popstate');
     fireEvent.popState(window);
 
     await waitFor(() => {
-      expect(window.location.pathname).toBe('/');
+      expect(window.location.hash).toBe('#/');
     });
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
     expect(loadMap).toHaveBeenCalledWith('missing-after-popstate');
   });
 
-  it('closeMap clears the active map and pushes the root URL', async () => {
+  it('closeMap clears the active map and pushes the root hash route', async () => {
     const user = userEvent.setup();
     render(<RouterHarness />);
 
@@ -89,6 +89,6 @@ describe('useMapRouter', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.hash).toBe('#/');
   });
 });
