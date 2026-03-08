@@ -59,6 +59,7 @@ interface ActiveDrawingStroke {
   readonly layerId: string;
   readonly toolState: ReturnType<typeof getDrawingToolSnapshot>;
   readonly maskToolState: ReturnType<typeof getDrawingToolSnapshot>;
+  readonly startPoint: MapPixelPoint;
   lastPoint: MapPixelPoint;
   readonly chunks: Map<string, StrokeChunkState>;
 }
@@ -376,6 +377,24 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     });
   }, [getOrCreateStrokeChunk]);
 
+  const redrawLineStroke = useCallback(async (startPoint: MapPixelPoint, endPoint: MapPixelPoint) => {
+    const currentStroke = drawingStrokeRef.current;
+    if (!currentStroke) {
+      return;
+    }
+
+    currentStroke.chunks.forEach((chunk) => {
+      const strokeContext = chunk.strokeCanvas.getContext('2d');
+      if (strokeContext) {
+        strokeContext.clearRect(0, 0, chunk.strokeCanvas.width, chunk.strokeCanvas.height);
+      }
+      compositeStrokePreview(chunk.previewCanvas, chunk.baseCanvas, chunk.strokeCanvas, currentStroke.toolState);
+      backgroundRef.current?.redrawChunk(chunk.key, chunk.chunkX, chunk.chunkY, chunk.previewCanvas);
+    });
+
+    await drawStrokePoint(startPoint, endPoint);
+  }, [drawStrokePoint]);
+
   const finishDrawingStroke = useCallback(async () => {
     const currentStroke = drawingStrokeRef.current;
     if (!doc || !currentStroke) {
@@ -449,6 +468,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           ...toolState,
           opacity: 1,
         },
+        startPoint,
         lastPoint: startPoint,
         chunks: new Map<string, StrokeChunkState>(),
       };
@@ -458,7 +478,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         if (!drawingStrokeRef.current) {
           return;
         }
-        await drawStrokePoint(drawingStrokeRef.current.lastPoint, point);
+        if (drawingStrokeRef.current.toolState.tool === 'line') {
+          await redrawLineStroke(drawingStrokeRef.current.startPoint, point);
+        } else {
+          await drawStrokePoint(drawingStrokeRef.current.lastPoint, point);
+        }
         drawingStrokeRef.current.lastPoint = point;
       };
 

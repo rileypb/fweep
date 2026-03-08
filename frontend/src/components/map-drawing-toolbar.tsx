@@ -5,6 +5,7 @@ const TOOL_LABELS: readonly { readonly tool: DrawingTool; readonly label: string
   { tool: 'pencil', label: 'Pencil' },
   { tool: 'brush', label: 'Brush' },
   { tool: 'eraser', label: 'Eraser' },
+  { tool: 'line', label: 'Line' },
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -71,12 +72,25 @@ function EraserGlyph(): React.JSX.Element {
   );
 }
 
+function LineGlyph(): React.JSX.Element {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="6" r="2.2" />
+      <path d="M7.8 16.2 16.2 7.8" />
+    </svg>
+  );
+}
+
 function ToolGlyph({ tool }: { tool: DrawingTool }): React.JSX.Element {
   if (tool === 'pencil') {
     return <PencilGlyph />;
   }
   if (tool === 'brush') {
     return <BrushGlyph />;
+  }
+  if (tool === 'line') {
+    return <LineGlyph />;
   }
   return <EraserGlyph />;
 }

@@ -95,7 +95,7 @@ export function getToolStampRadius(toolState: DrawingToolState): number {
 }
 
 export function usesHardEdgeStamp(toolState: DrawingToolState): boolean {
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line';
   return isBrushLike && toolState.softness <= 0;
 }
 
@@ -217,7 +217,7 @@ export function drawStrokeSegment(
 
   context.imageSmoothingEnabled = false;
   const points = getInterpolatedLinePoints(startPoint, endPoint);
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line';
   const usesHardEdgeBrushStamp = usesHardEdgeStamp(toolState);
 
   for (const point of points) {

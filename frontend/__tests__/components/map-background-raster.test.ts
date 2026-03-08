@@ -54,6 +54,16 @@ describe('map-background-raster', () => {
     })).toBe(true);
   });
 
+  it('uses a hard-edge stamp for line strokes when softness is zero', () => {
+    expect(usesHardEdgeStamp({
+      tool: 'line',
+      colorRgbHex: '#000000',
+      opacity: 1,
+      size: 12,
+      softness: 0,
+    })).toBe(true);
+  });
+
   it('draws eraser stroke masks with source-over compositing', () => {
     const context = {
       imageSmoothingEnabled: true,
