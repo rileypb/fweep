@@ -734,6 +734,44 @@ body {
   gap: 0.35rem;
 }
 
+.connection-annotation-text {
+  fill: currentColor;
+  font-size: 0.85rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.connection-annotation-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.connection-annotation-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+}
+
+.connection-annotation-option input[type='radio'] {
+  margin: 0;
+}
+
+.connection-annotation-option--text {
+  grid-template-columns: auto auto 1fr;
+}
+
+.connection-annotation-text-input {
+  min-width: 0;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
 .room-editor-field {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useEditorStore } from '../state/editor-store';
-import { ROOM_SHAPES, ROOM_STROKE_STYLES, type Room, type Connection, type RoomShape, type RoomStrokeStyle } from '../domain/map-types';
+import {
+  CONNECTION_ANNOTATION_KINDS,
+  ROOM_SHAPES,
+  ROOM_STROKE_STYLES,
+  type Connection,
+  type Room,
+  type RoomShape,
+  type RoomStrokeStyle,
+} from '../domain/map-types';
 import {
   getRoomFillColor,
   getRoomStrokeColor,
@@ -26,6 +34,11 @@ const ROOM_VISIBILITY_PADDING = 24;
 const ROOM_TEXT_CHAR_WIDTH = 6.78;
 const ROOM_HORIZONTAL_PADDING = 24;
 const HANDLE_RADIUS = 5;
+const CONNECTION_ANNOTATION_OFFSET = 8;
+const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
+const CONNECTION_ANNOTATION_ARROWHEAD_LENGTH = 10;
+const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
+const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 
 interface PanOffset {
   x: number;
@@ -118,6 +131,7 @@ function ConnectionEditorOverlay({
   onBackdropClose,
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
+  const setConnectionAnnotation = useEditorStore((s) => s.setConnectionAnnotation);
   const setConnectionStyle = useEditorStore((s) => s.setConnectionStyle);
 
   useEffect(() => {
@@ -137,6 +151,10 @@ function ConnectionEditorOverlay({
   if (!connection) {
     return null;
   }
+
+  const selectedAnnotationKind = connection.annotation?.kind ?? null;
+  const annotationText = connection.annotation?.kind === 'text' ? connection.annotation.text ?? '' : '';
+  const presetAnnotationKinds = CONNECTION_ANNOTATION_KINDS.filter((kind) => kind !== 'text');
 
   return (
     <div className="connection-editor-overlay" data-testid="connection-editor-overlay">
@@ -161,6 +179,41 @@ function ConnectionEditorOverlay({
           ×
         </button>
         <div className="connection-editor-content">
+          <fieldset className="connection-annotation-group">
+            <legend className="room-editor-label">Annotation</legend>
+            {presetAnnotationKinds.map((kind) => (
+              <label key={kind} className="connection-annotation-option">
+                <input
+                  type="radio"
+                  name={`connection-annotation-${connection.id}`}
+                  checked={selectedAnnotationKind === kind}
+                  onChange={() => setConnectionAnnotation(connection.id, { kind })}
+                />
+                <span>{kind}</span>
+              </label>
+            ))}
+            <label className="connection-annotation-option connection-annotation-option--text">
+              <input
+                type="radio"
+                name={`connection-annotation-${connection.id}`}
+                checked={selectedAnnotationKind === 'text'}
+                onChange={() => setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText })}
+              />
+              <span>Text</span>
+              <input
+                className="room-editor-input connection-annotation-text-input"
+                type="text"
+                aria-label="Connection annotation text"
+                value={annotationText}
+                onFocus={() => {
+                  if (selectedAnnotationKind !== 'text') {
+                    setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText });
+                  }
+                }}
+                onChange={(e) => setConnectionAnnotation(connection.id, { kind: 'text', text: e.target.value })}
+              />
+            </label>
+          </fieldset>
           <div className="room-editor-field">
             <span className="room-editor-label">Stroke color</span>
             <ColorChipGroup
@@ -1032,6 +1085,124 @@ function applyDragOffset(room: Room, roomDrag: { roomIds: readonly string[]; dx:
   };
 }
 
+interface VectorPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+function getSegmentLength(start: VectorPoint, end: VectorPoint): number {
+  return Math.hypot(end.x - start.x, end.y - start.y);
+}
+
+function getLongestSegment(points: readonly VectorPoint[]): { start: VectorPoint; end: VectorPoint } | null {
+  let bestSegment: { start: VectorPoint; end: VectorPoint } | null = null;
+  let bestLength = -1;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const length = getSegmentLength(start, end);
+    if (length > bestLength) {
+      bestLength = length;
+      bestSegment = { start, end };
+    }
+  }
+
+  return bestSegment;
+}
+
+function getAnnotationGeometry(
+  segment: { start: VectorPoint; end: VectorPoint },
+  reverseDirection: boolean,
+): {
+  lineStart: VectorPoint;
+  lineEnd: VectorPoint;
+  arrowTip: VectorPoint;
+  arrowBaseCenter: VectorPoint;
+  arrowBaseA: VectorPoint;
+  arrowBaseB: VectorPoint;
+  textPosition: VectorPoint;
+  rotationDegrees: number;
+} | null {
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) {
+    return null;
+  }
+
+  const ux = dx / length;
+  const uy = dy / length;
+  const directionX = reverseDirection ? -ux : ux;
+  const directionY = reverseDirection ? -uy : uy;
+  const normalX = -uy;
+  const normalY = ux;
+  const centerX = (segment.start.x + segment.end.x) / 2;
+  const centerY = (segment.start.y + segment.end.y) / 2;
+  const annotationCenterX = centerX + (normalX * CONNECTION_ANNOTATION_OFFSET);
+  const annotationCenterY = centerY + (normalY * CONNECTION_ANNOTATION_OFFSET);
+  const annotationLength = length * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const halfLength = annotationLength / 2;
+  const lineStart = {
+    x: annotationCenterX - (directionX * halfLength),
+    y: annotationCenterY - (directionY * halfLength),
+  };
+  const lineEnd = {
+    x: annotationCenterX + (directionX * halfLength),
+    y: annotationCenterY + (directionY * halfLength),
+  };
+  const arrowTip = lineEnd;
+  const arrowBaseCenter = {
+    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+  };
+  const arrowBaseA = {
+    x: arrowBaseCenter.x + (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    y: arrowBaseCenter.y + (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+  };
+  const arrowBaseB = {
+    x: arrowBaseCenter.x - (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    y: arrowBaseCenter.y - (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+  };
+  const textPosition = {
+    x: annotationCenterX + (normalX * CONNECTION_ANNOTATION_TEXT_OFFSET),
+    y: annotationCenterY + (normalY * CONNECTION_ANNOTATION_TEXT_OFFSET),
+  };
+  const rotationDegrees = (Math.atan2(directionY, directionX) * 180) / Math.PI;
+
+  return {
+    lineStart,
+    lineEnd,
+    arrowTip,
+    arrowBaseCenter,
+    arrowBaseA,
+    arrowBaseB,
+    textPosition,
+    rotationDegrees,
+  };
+}
+
+function getSelfAnnotationPosition(points: readonly VectorPoint[]): VectorPoint | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+  }
+
+  return {
+    x: maxX + CONNECTION_ANNOTATION_OFFSET,
+    y: minY - CONNECTION_ANNOTATION_OFFSET,
+  };
+}
+
 function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
@@ -1052,6 +1223,17 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
   ): React.JSX.Element => {
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
+    const annotationKind = conn.annotation?.kind;
+    const rendersVerticalAnnotation = annotationKind === 'up' || annotationKind === 'down';
+    const annotationLabel = rendersVerticalAnnotation ? 'up' : annotationKind;
+    const annotationSegment = rendersVerticalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
+    const annotationGeometry = annotationSegment
+      ? getAnnotationGeometry(annotationSegment, annotationKind === 'down')
+      : null;
+    const selfAnnotationPosition = rendersVerticalAnnotation && isSelfConnection
+      ? getSelfAnnotationPosition(points)
+      : null;
+    const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
 
     return (
       <>
@@ -1084,7 +1266,7 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
           points={pointsToSvgString(points)}
           fill="none"
           style={{
-            stroke: getRoomStrokeColor(conn.strokeColorIndex, theme),
+            stroke: connectionStroke,
             strokeWidth: isSelected ? 6 : 2,
             strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
             pointerEvents: 'none',
@@ -1102,6 +1284,54 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
               pointerEvents: 'none',
             }}
           />
+        )}
+        {annotationGeometry && (
+          <>
+            <line
+              data-testid={`connection-annotation-line-${conn.id}`}
+              className="connection-annotation-line"
+              x1={annotationGeometry.lineStart.x}
+              y1={annotationGeometry.lineStart.y}
+              x2={annotationGeometry.lineEnd.x}
+              y2={annotationGeometry.lineEnd.y}
+              stroke={connectionStroke}
+              strokeWidth="2"
+              pointerEvents="none"
+            />
+            <polygon
+              data-testid={`connection-annotation-arrow-${conn.id}`}
+              className="connection-annotation-arrow"
+              points={pointsToSvgString([
+                annotationGeometry.arrowTip,
+                annotationGeometry.arrowBaseA,
+                annotationGeometry.arrowBaseB,
+              ])}
+              fill={connectionStroke}
+              pointerEvents="none"
+            />
+            <text
+              data-testid={`connection-annotation-text-${conn.id}`}
+              className="connection-annotation-text"
+              x={annotationGeometry.textPosition.x}
+              y={annotationGeometry.textPosition.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+            >
+              {annotationLabel}
+            </text>
+          </>
+        )}
+        {selfAnnotationPosition && (
+          <text
+            data-testid={`connection-annotation-text-${conn.id}`}
+            className="connection-annotation-text"
+            x={selfAnnotationPosition.x}
+            y={selfAnnotationPosition.y}
+            textAnchor="start"
+            dominantBaseline="middle"
+          >
+            {annotationLabel}
+          </text>
         )}
       </>
     );

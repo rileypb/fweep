@@ -1575,6 +1575,35 @@ describe('MapCanvas', () => {
       });
     });
 
+    it('updates connection annotations from the connection editor', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.click(screen.getByLabelText('door'));
+
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toEqual({ kind: 'door' });
+
+      const textInput = screen.getByLabelText(/connection annotation text/i);
+      await user.clear(textInput);
+      await user.type(textInput, 'secret passage');
+
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toEqual({
+        kind: 'text',
+        text: 'secret passage',
+      });
+      expect(screen.getByLabelText('Text')).toBeChecked();
+    });
+
     it('shift-clicking a connection expands the mixed selection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -1681,6 +1710,70 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-arrow-${conn.id}-1`)).not.toBeInTheDocument();
     });
 
+    it('renders an up annotation as a centered parallel arrow and rotated label', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'up' as const } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
+
+      expect(annotationLine.tagName.toLowerCase()).toBe('line');
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(167.6, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(68.4, 5);
+      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(68.4, 5);
+      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
+      expect(arrowBasePoints[0][1]).toBeCloseTo(78.4, 5);
+      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
+      expect(arrowBasePoints[1][1]).toBeCloseTo(78.4, 5);
+      expect(annotationText).toHaveTextContent('up');
+      expect(annotationText.getAttribute('transform')).toBeNull();
+    });
+
+    it('renders a down annotation arrow pointing toward the source room', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'down' as const } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(68.4, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
+      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(167.6, 5);
+      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(167.6, 5);
+      expect(arrowPoints[1][0]).toBeCloseTo(132, 5);
+      expect(arrowPoints[1][1]).toBeCloseTo(157.6, 5);
+      expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
+      expect(arrowPoints[2][1]).toBeCloseTo(157.6, 5);
+      expect(annotationText).toHaveTextContent('up');
+      expect(annotationText.getAttribute('transform')).toBeNull();
+    });
+
     it('renders two arrowhead polygons for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
@@ -1732,6 +1825,21 @@ describe('MapCanvas', () => {
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionPath).toBeInTheDocument();
       expect(connectionPath.tagName.toLowerCase()).toBe('polyline');
+    });
+
+    it('renders only the label for an up annotation on a self-connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, kitchen);
+      const conn = { ...createConnection(kitchen.id, kitchen.id, false), annotation: { kind: 'up' as const } };
+      d = addConnection(d, conn, 'north');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
+      expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
     });
 
     it('renders a bidirectional self-connection using distinct source and target handles', () => {

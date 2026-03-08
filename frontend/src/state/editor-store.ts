@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
+import type { ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
 import { createRoom, createConnection } from '../domain/map-types';
 import {
   addRoom,
@@ -11,6 +11,7 @@ import {
   describeRoom as domainDescribeRoom,
   setRoomShape as domainSetRoomShape,
   setRoomStyle as domainSetRoomStyle,
+  setConnectionAnnotation as domainSetConnectionAnnotation,
   setConnectionStyle as domainSetConnectionStyle,
   setRoomPositions as domainSetRoomPositions,
 } from '../domain/map-operations';
@@ -132,6 +133,9 @@ export interface EditorState {
       strokeStyle?: RoomStrokeStyle;
     },
   ) => void;
+
+  /** Update an existing connection's annotation. */
+  setConnectionAnnotation: (connectionId: string, annotation: ConnectionAnnotation | null) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
   removeRoom: (roomId: string) => void;
@@ -385,6 +389,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set connection style: no document is loaded.');
     }
     const updatedDoc = domainSetConnectionStyle(doc, connectionId, style);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setConnectionAnnotation: (connectionId, annotation) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set connection annotation: no document is loaded.');
+    }
+    const updatedDoc = domainSetConnectionAnnotation(doc, connectionId, annotation);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 

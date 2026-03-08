@@ -1,4 +1,13 @@
-import type { MapDocument, Room, Connection, Item, Position, RoomShape, RoomStrokeStyle } from './map-types';
+import type {
+  Connection,
+  ConnectionAnnotation,
+  Item,
+  MapDocument,
+  Position,
+  Room,
+  RoomShape,
+  RoomStrokeStyle,
+} from './map-types';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -383,6 +392,29 @@ export function setConnectionStyle(
       [connectionId]: {
         ...connection,
         ...style,
+      },
+    },
+  });
+}
+
+/** Return a new document with the connection's annotation updated. */
+export function setConnectionAnnotation(
+  doc: MapDocument,
+  connectionId: string,
+  annotation: ConnectionAnnotation | null,
+): MapDocument {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    throw new Error(`Connection "${connectionId}" not found.`);
+  }
+
+  return touch({
+    ...doc,
+    connections: {
+      ...doc.connections,
+      [connectionId]: {
+        ...connection,
+        annotation,
       },
     },
   });
