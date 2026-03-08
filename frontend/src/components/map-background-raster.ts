@@ -132,6 +132,23 @@ export function getInterpolatedLinePoints(start: MapPixelPoint, end: MapPixelPoi
   return points;
 }
 
+export function constrainLineToCompassDirection(start: MapPixelPoint, end: MapPixelPoint): MapPixelPoint {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  if (deltaX === 0 && deltaY === 0) {
+    return end;
+  }
+
+  const angle = Math.atan2(deltaY, deltaX);
+  const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+  const distance = Math.hypot(deltaX, deltaY);
+
+  return {
+    x: Math.round(start.x + (Math.cos(snappedAngle) * distance)),
+    y: Math.round(start.y + (Math.sin(snappedAngle) * distance)),
+  };
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

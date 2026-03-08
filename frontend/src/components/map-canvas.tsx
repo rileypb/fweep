@@ -26,6 +26,7 @@ import {
   blobToCanvas,
   canvasToBlob,
   compositeStrokePreview,
+  constrainLineToCompassDirection,
   createRasterCanvas,
   drawStrokeSegment,
   getChunkCoverageForPoint,
@@ -453,8 +454,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const drawingEnabled = supportsRasterCanvas();
+    const drawingTool = useEditorStore.getState().drawingToolState.tool;
+    const isShiftLineDraw = canvasInteractionMode === 'draw' && drawingTool === 'line';
 
-    if (!e.shiftKey && doc && drawingEnabled && canvasInteractionMode === 'draw') {
+    if ((!e.shiftKey || isShiftLineDraw) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
       e.preventDefault();
       suppressCanvasClickRef.current = true;
       const layerId = ensureDefaultBackgroundLayer();
@@ -474,22 +477,29 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       };
       drawingStrokeRef.current = activeDrawingStroke;
 
-      const drawAtPoint = async (point: MapPixelPoint) => {
+      const drawAtPoint = async (point: MapPixelPoint, constrainToCompass: boolean) => {
         if (!drawingStrokeRef.current) {
           return;
         }
         if (drawingStrokeRef.current.toolState.tool === 'line') {
-          await redrawLineStroke(drawingStrokeRef.current.startPoint, point);
+          const nextPoint = constrainToCompass
+            ? constrainLineToCompassDirection(drawingStrokeRef.current.startPoint, point)
+            : point;
+          await redrawLineStroke(drawingStrokeRef.current.startPoint, nextPoint);
+          drawingStrokeRef.current.lastPoint = nextPoint;
         } else {
           await drawStrokePoint(drawingStrokeRef.current.lastPoint, point);
+          drawingStrokeRef.current.lastPoint = point;
         }
-        drawingStrokeRef.current.lastPoint = point;
       };
 
-      void drawAtPoint(startPoint);
+      void drawAtPoint(startPoint, false);
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        void drawAtPoint(toMapPoint(moveEvent.clientX, moveEvent.clientY));
+        void drawAtPoint(
+          toMapPoint(moveEvent.clientX, moveEvent.clientY),
+          drawingStrokeRef.current?.toolState.tool === 'line' && moveEvent.shiftKey,
+        );
       };
 
       const handleMouseUp = () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import {
   compositeStrokePreview,
+  constrainLineToCompassDirection,
   drawStrokeSegment,
   getChunkCoverageForPoint,
   getToolStampRadius,
@@ -62,6 +63,20 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0,
     })).toBe(true);
+  });
+
+  it('constrains a line to the nearest horizontal compass direction', () => {
+    expect(constrainLineToCompassDirection(
+      { x: 10, y: 10 },
+      { x: 30, y: 13 },
+    )).toEqual({ x: 30, y: 10 });
+  });
+
+  it('constrains a line to the nearest diagonal compass direction', () => {
+    expect(constrainLineToCompassDirection(
+      { x: 10, y: 10 },
+      { x: 22, y: 25 },
+    )).toEqual({ x: 24, y: 24 });
   });
 
   it('draws eraser stroke masks with source-over compositing', () => {
