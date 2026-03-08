@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { loadMap, saveMap } from '../../src/storage/map-store';
@@ -40,6 +40,22 @@ describe('URL routing', () => {
     expect(screen.getByText(/navigating the map/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /close help/i }));
+    expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
+  });
+
+  it('closes the help dialog from the backdrop and Escape key, and renders subheadings and rules', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /help/i }));
+    expect(screen.getByRole('heading', { name: /undo\/redo/i })).toBeInTheDocument();
+    expect(document.querySelectorAll('.help-rule').length).toBeGreaterThan(0);
+
+    await user.click(document.querySelector('.help-backdrop') as HTMLElement);
+    expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /help/i }));
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
   });
 

@@ -4,6 +4,7 @@ import type { MapDocument, Position } from '../../src/domain/map-types';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { createConnection } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
+import { getBackgroundChunkKey, loadBackgroundChunk, saveBackgroundChunks } from '../../src/storage/map-store';
 
 function resetStore(): void {
   useEditorStore.setState(useEditorStore.getInitialState());
@@ -181,6 +182,23 @@ describe('useEditorStore', () => {
       useEditorStore.getState().setDrawingSize(0);
 
       expect(useEditorStore.getState().drawingToolState.size).toBe(1);
+    });
+
+    it('updates drawing tool controls and interaction mode', () => {
+      useEditorStore.getState().setDrawingTool('ellipse');
+      useEditorStore.getState().setDrawingColor('#336699');
+      useEditorStore.getState().setDrawingOpacity(0.4);
+      useEditorStore.getState().setDrawingSoftness(0.25);
+      useEditorStore.getState().setCanvasInteractionMode('draw');
+
+      expect(useEditorStore.getState().drawingToolState).toMatchObject({
+        tool: 'ellipse',
+        colorRgbHex: '#336699',
+        opacity: 0.4,
+        size: 1,
+        softness: 0.25,
+      });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
     });
   });
 
@@ -368,6 +386,21 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().doc!.connections[connectionId]).toBeUndefined();
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });
+
+    it('throws when removing selected connections without a document', () => {
+      expect(() => useEditorStore.getState().removeSelectedConnections()).toThrow();
+    });
+
+    it('clears connection and mixed selections', () => {
+      useEditorStore.getState().setSelection(['r1'], ['c1']);
+      useEditorStore.getState().clearConnectionSelection();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+
+      useEditorStore.getState().setSelection(['r1'], ['c1']);
+      useEditorStore.getState().clearSelection();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+    });
   });
 
   /* ---- moveRoom ---- */
@@ -401,6 +434,33 @@ describe('useEditorStore', () => {
       useEditorStore.getState().moveRoom(roomId, { x: 55, y: 85 });
 
       expect(useEditorStore.getState().doc!.rooms[roomId].position).toEqual({ x: 55, y: 85 });
+    });
+  });
+
+  describe('moveRooms', () => {
+    it('updates multiple room positions in one step', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const firstRoomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+      const secondRoomId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 120, y: 0 });
+
+      useEditorStore.getState().moveRooms({
+        [firstRoomId]: { x: 45, y: 85 },
+        [secondRoomId]: { x: 200, y: 160 },
+      });
+
+      expect(useEditorStore.getState().doc!.rooms[firstRoomId].position).toEqual({ x: 40, y: 80 });
+      expect(useEditorStore.getState().doc!.rooms[secondRoomId].position).toEqual({ x: 200, y: 160 });
+    });
+
+    it('throws when moving rooms without a document', () => {
+      expect(() => useEditorStore.getState().moveRooms({ r1: { x: 0, y: 0 } })).toThrow();
+    });
+  });
+
+  describe('prettifyLayout', () => {
+    it('is a no-op when no document is loaded', () => {
+      expect(() => useEditorStore.getState().prettifyLayout()).not.toThrow();
+      expect(useEditorStore.getState().doc).toBeNull();
     });
   });
 
@@ -504,6 +564,49 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().canUndo).toBe(false);
       expect(useEditorStore.getState().canRedo).toBe(false);
       expect(useEditorStore.getState().doc).toEqual(secondDoc);
+    });
+
+    it('undoes and redoes background stroke history entries', async () => {
+      const doc = createEmptyMap('Background History');
+      useEditorStore.getState().loadDocument(doc);
+      const layerId = useEditorStore.getState().ensureDefaultBackgroundLayer();
+      const beforeBlob = new Blob(['before'], { type: 'image/png' });
+      const afterBlob = new Blob(['after'], { type: 'image/png' });
+      const key = getBackgroundChunkKey({
+        mapId: doc.metadata.id,
+        layerId,
+        chunkX: 1,
+        chunkY: 2,
+      });
+
+      await saveBackgroundChunks([{
+        mapId: doc.metadata.id,
+        layerId,
+        chunkX: 1,
+        chunkY: 2,
+        blob: beforeBlob,
+      }]);
+
+      useEditorStore.getState().commitBackgroundStroke({
+        kind: 'background-stroke',
+        mapId: doc.metadata.id,
+        layerId,
+        chunks: [{
+          key,
+          before: beforeBlob,
+          after: afterBlob,
+        }],
+      });
+
+      expect(useEditorStore.getState().backgroundRevision).toBe(1);
+
+      await useEditorStore.getState().undo();
+      expect(useEditorStore.getState().backgroundRevision).toBe(2);
+      expect(await loadBackgroundChunk(doc.metadata.id, layerId, 1, 2)).toMatchObject({ blob: beforeBlob });
+
+      await useEditorStore.getState().redo();
+      expect(useEditorStore.getState().backgroundRevision).toBe(3);
+      expect(await loadBackgroundChunk(doc.metadata.id, layerId, 1, 2)).toMatchObject({ blob: afterBlob });
     });
   });
 
@@ -699,6 +802,72 @@ describe('useEditorStore', () => {
 
       const doc = useEditorStore.getState().doc!;
       expect(Object.values(doc.connections)).toHaveLength(0);
+    });
+
+    it('completeConnectionDrag clears the drag state when no document is loaded', () => {
+      useEditorStore.setState({
+        ...useEditorStore.getState(),
+        connectionDrag: {
+          sourceRoomId: 'r1',
+          sourceDirection: 'north',
+          cursorX: 0,
+          cursorY: 0,
+        },
+      });
+
+      useEditorStore.getState().completeConnectionDrag('r2');
+
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+  });
+
+  describe('background stroke state', () => {
+    it('throws when ensuring a background layer without a document', () => {
+      expect(() => useEditorStore.getState().ensureDefaultBackgroundLayer()).toThrow();
+    });
+
+    it('activates an existing background layer when one is already present', () => {
+      const doc = createEmptyMap('Existing Layer');
+      const layerId = crypto.randomUUID();
+      useEditorStore.getState().loadDocument({
+        ...doc,
+        background: {
+          layers: {
+            [layerId]: {
+              id: layerId,
+              name: 'Background',
+              visible: true,
+              opacity: 1,
+              pixelSize: 1,
+              chunkSize: 256,
+            },
+          },
+          activeLayerId: null,
+        },
+      });
+
+      expect(useEditorStore.getState().ensureDefaultBackgroundLayer()).toBe(layerId);
+      expect(useEditorStore.getState().doc?.background.activeLayerId).toBe(layerId);
+    });
+
+    it('begins and cancels a background stroke using the active drawing tool', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      useEditorStore.getState().setDrawingTool('rectangle');
+      const layerId = useEditorStore.getState().ensureDefaultBackgroundLayer();
+
+      useEditorStore.getState().beginBackgroundStroke(layerId);
+      expect(useEditorStore.getState().activeStroke).toEqual({
+        mapId: testDoc.metadata.id,
+        layerId,
+        tool: 'rectangle',
+      });
+
+      useEditorStore.getState().cancelBackgroundStroke();
+      expect(useEditorStore.getState().activeStroke).toBeNull();
+    });
+
+    it('throws when beginning a background stroke without a document', () => {
+      expect(() => useEditorStore.getState().beginBackgroundStroke('layer-1')).toThrow();
     });
   });
 

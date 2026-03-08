@@ -6,6 +6,12 @@ You can move around the map by middle-clicking and dragging, or by single-clicki
 
 ## Creating, Editing and Deleting Rooms
 
+### Undo/Redo
+
+Use Command-Z to undo and Command-Y to redo.
+
+---
+
 You can create a room by double-clicking on an empty space on the map. This will bring up the room editor, in which you can name your room, set its description, and change its style and shape. You may dismiss the editor by hitting escape, clicking the X button, or clicking outside of the editor on the map.
 
 Double-clicking on a room also shows the room editor.

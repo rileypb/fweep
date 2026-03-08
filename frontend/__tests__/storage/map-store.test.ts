@@ -1,14 +1,18 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { createEmptyMap } from '../../src/domain/map-types';
 import {
+  deleteBackgroundChunks,
+  deleteBackgroundChunksForMap,
   deleteMap,
   getBackgroundChunkKey,
   importMapFromFile,
+  listBackgroundChunksForLayer,
   listBackgroundChunksInBounds,
   listMaps,
   loadBackgroundChunk,
   loadMap,
   MAX_IMPORT_FILE_BYTES,
+  restoreBackgroundChunks,
   saveBackgroundChunks,
   saveMap,
 } from '../../src/storage/map-store';
@@ -291,6 +295,147 @@ describe('map-store', () => {
 
       const listed = await listBackgroundChunksInBounds(doc.metadata.id, 'layer-1', 0, 2, -3, 0);
       expect(listed).toHaveLength(1);
+    });
+
+    it('lists chunks for a single layer only', async () => {
+      const doc = createEmptyMap('Layered Chunks');
+      await saveMap(doc);
+      const blob = new Blob(['chunk-data'], { type: 'image/png' });
+
+      await saveBackgroundChunks([
+        {
+          mapId: doc.metadata.id,
+          layerId: 'layer-1',
+          chunkX: 0,
+          chunkY: 0,
+          blob,
+        },
+        {
+          mapId: doc.metadata.id,
+          layerId: 'layer-2',
+          chunkX: 0,
+          chunkY: 0,
+          blob,
+        },
+      ]);
+
+      const listed = await listBackgroundChunksForLayer(doc.metadata.id, 'layer-1');
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.layerId).toBe('layer-1');
+    });
+
+    it('deletes background chunks by explicit key', async () => {
+      const doc = createEmptyMap('Delete Chunks');
+      await saveMap(doc);
+      const blob = new Blob(['chunk-data'], { type: 'image/png' });
+      await saveBackgroundChunks([{
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 3,
+        chunkY: 4,
+        blob,
+      }]);
+
+      const key = getBackgroundChunkKey({
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 3,
+        chunkY: 4,
+      });
+      await deleteBackgroundChunks([key]);
+
+      expect(await loadBackgroundChunk(doc.metadata.id, 'layer-1', 3, 4)).toBeUndefined();
+    });
+
+    it('deletes every chunk for a map', async () => {
+      const firstDoc = createEmptyMap('First Map Chunks');
+      const secondDoc = createEmptyMap('Second Map Chunks');
+      const blob = new Blob(['chunk-data'], { type: 'image/png' });
+      await saveMap(firstDoc);
+      await saveMap(secondDoc);
+      await saveBackgroundChunks([
+        {
+          mapId: firstDoc.metadata.id,
+          layerId: 'layer-1',
+          chunkX: 0,
+          chunkY: 0,
+          blob,
+        },
+        {
+          mapId: secondDoc.metadata.id,
+          layerId: 'layer-1',
+          chunkX: 0,
+          chunkY: 0,
+          blob,
+        },
+      ]);
+
+      await deleteBackgroundChunksForMap(firstDoc.metadata.id);
+
+      expect(await loadBackgroundChunk(firstDoc.metadata.id, 'layer-1', 0, 0)).toBeUndefined();
+      expect(await loadBackgroundChunk(secondDoc.metadata.id, 'layer-1', 0, 0)).toBeDefined();
+    });
+
+    it('restores background chunks for undo and redo history', async () => {
+      const doc = createEmptyMap('Restore Chunks');
+      const beforeBlob = new Blob(['before'], { type: 'image/png' });
+      const afterBlob = new Blob(['after'], { type: 'image/png' });
+      await saveMap(doc);
+
+      const key = getBackgroundChunkKey({
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 2,
+        chunkY: -1,
+      });
+
+      await restoreBackgroundChunks(doc.metadata.id, 'layer-1', [{
+        key,
+        before: beforeBlob,
+        after: afterBlob,
+      }], 'redo');
+
+      expect(await loadBackgroundChunk(doc.metadata.id, 'layer-1', 2, -1)).toMatchObject({
+        blob: afterBlob,
+      });
+
+      await restoreBackgroundChunks(doc.metadata.id, 'layer-1', [{
+        key,
+        before: beforeBlob,
+        after: afterBlob,
+      }], 'undo');
+
+      expect(await loadBackgroundChunk(doc.metadata.id, 'layer-1', 2, -1)).toMatchObject({
+        blob: beforeBlob,
+      });
+    });
+
+    it('deletes restored chunks when the target history blob is null', async () => {
+      const doc = createEmptyMap('Restore Delete Chunks');
+      const blob = new Blob(['after'], { type: 'image/png' });
+      await saveMap(doc);
+      await saveBackgroundChunks([{
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 5,
+        chunkY: 6,
+        blob,
+      }]);
+
+      const key = getBackgroundChunkKey({
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 5,
+        chunkY: 6,
+      });
+
+      await restoreBackgroundChunks(doc.metadata.id, 'layer-1', [{
+        key,
+        before: null,
+        after: blob,
+      }], 'undo');
+
+      expect(await loadBackgroundChunk(doc.metadata.id, 'layer-1', 5, 6)).toBeUndefined();
     });
   });
 
