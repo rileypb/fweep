@@ -25,17 +25,29 @@ describe('MapDrawingToolbar', () => {
 
   it('shows and updates the fill toggle for rectangle and ellipse tools', async () => {
     const user = userEvent.setup();
-    render(<MapDrawingToolbar />);
+    const { container } = render(<MapDrawingToolbar />);
 
     expect(screen.queryByLabelText('Fill shape')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Rectangle' }));
     const fillToggle = screen.getByLabelText('Fill shape') as HTMLInputElement;
     expect(fillToggle.checked).toBe(false);
+    expect(screen.getByLabelText('Fill color')).toBeInTheDocument();
+    expect(screen.getByLabelText('Fill color hex')).toBeInTheDocument();
 
     await user.click(fillToggle);
     expect(useEditorStore.getState().drawingToolState.shapeFilled).toBe(true);
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+
+    const fillColorInput = container.querySelectorAll('input[type="color"]')[1] as HTMLInputElement;
+    fireEvent.change(fillColorInput, { target: { value: '#884422' } });
+    expect(useEditorStore.getState().drawingToolState.fillColorRgbHex).toBe('#884422');
+
+    const fillHexInput = screen.getByLabelText('Fill color hex');
+    await user.clear(fillHexInput);
+    await user.type(fillHexInput, 'def');
+    fireEvent.blur(fillHexInput);
+    expect(useEditorStore.getState().drawingToolState.fillColorRgbHex).toBe('#ddeeff');
 
     await user.click(screen.getByRole('button', { name: 'Ellipse' }));
     expect(screen.getByLabelText('Fill shape')).toBeChecked();

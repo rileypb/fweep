@@ -195,6 +195,7 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().drawingToolState).toMatchObject({
         tool: 'ellipse',
         colorRgbHex: '#336699',
+        fillColorRgbHex: '#000000',
         opacity: 0.4,
         size: 1,
         softness: 0.25,

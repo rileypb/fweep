@@ -65,6 +65,7 @@ export type CanvasInteractionMode = 'map' | 'draw';
 export interface DrawingToolState {
   readonly tool: DrawingTool;
   readonly colorRgbHex: string;
+  readonly fillColorRgbHex: string;
   readonly opacity: number;
   readonly size: number;
   readonly softness: number;
@@ -283,6 +284,9 @@ export interface EditorState {
   /** Update the drawing color hex value. */
   setDrawingColor: (colorRgbHex: string) => void;
 
+  /** Update the shape fill color hex value. */
+  setDrawingFillColor: (fillColorRgbHex: string) => void;
+
   /** Update tool opacity. */
   setDrawingOpacity: (opacity: number) => void;
 
@@ -402,6 +406,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   drawingToolState: {
     tool: 'pencil',
     colorRgbHex: '#000000',
+    fillColorRgbHex: '#000000',
     opacity: 1,
     size: 1,
     softness: 0.5,
@@ -919,6 +924,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       drawingToolState: {
         ...state.drawingToolState,
         colorRgbHex,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setDrawingFillColor: (fillColorRgbHex) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        fillColorRgbHex,
       },
       lastHistoryMergeKey: null,
     }));

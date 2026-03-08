@@ -247,7 +247,7 @@ function fillShapeInterior(
   fillPath: () => void,
 ): void {
   context.globalCompositeOperation = 'source-over';
-  context.fillStyle = hexToRgba(toolState.colorRgbHex, clamp(toolState.opacity, 0, 1));
+  context.fillStyle = hexToRgba(toolState.fillColorRgbHex, clamp(toolState.opacity, 0, 1));
   context.beginPath();
   fillPath();
   context.fill();

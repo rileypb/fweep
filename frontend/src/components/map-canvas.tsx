@@ -78,6 +78,7 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
   return {
     ...drawingToolState,
     colorRgbHex: normalizeHexColor(drawingToolState.colorRgbHex),
+    fillColorRgbHex: normalizeHexColor(drawingToolState.fillColorRgbHex),
   };
 }
 

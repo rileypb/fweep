@@ -125,6 +125,7 @@ export function MapDrawingToolbar(): React.JSX.Element {
   const setDrawingTool = useEditorStore((state) => state.setDrawingTool);
   const setCanvasInteractionMode = useEditorStore((state) => state.setCanvasInteractionMode);
   const setDrawingColor = useEditorStore((state) => state.setDrawingColor);
+  const setDrawingFillColor = useEditorStore((state) => state.setDrawingFillColor);
   const setDrawingOpacity = useEditorStore((state) => state.setDrawingOpacity);
   const setDrawingSize = useEditorStore((state) => state.setDrawingSize);
   const setDrawingSoftness = useEditorStore((state) => state.setDrawingSoftness);
@@ -174,7 +175,7 @@ export function MapDrawingToolbar(): React.JSX.Element {
       </div>
 
       <label className="map-drawing-toolbar-field">
-        <span>Color</span>
+        <span>Stroke</span>
         <input
           type="color"
           value={normalizeHexColor(drawingToolState.colorRgbHex)}
@@ -186,7 +187,7 @@ export function MapDrawingToolbar(): React.JSX.Element {
       </label>
 
       <label className="map-drawing-toolbar-field">
-        <span>Hex</span>
+        <span>Stroke hex</span>
         <input
           type="text"
           value={drawingToolState.colorRgbHex}
@@ -201,6 +202,40 @@ export function MapDrawingToolbar(): React.JSX.Element {
           aria-label="Drawing color hex"
         />
       </label>
+
+      {showsShapeFill && (
+        <>
+          <label className="map-drawing-toolbar-field">
+            <span>Fill color</span>
+            <input
+              type="color"
+              value={normalizeHexColor(drawingToolState.fillColorRgbHex)}
+              onChange={(event) => {
+                setDrawingFillColor(event.target.value);
+                activateDrawMode();
+              }}
+              aria-label="Fill color"
+            />
+          </label>
+
+          <label className="map-drawing-toolbar-field">
+            <span>Fill hex</span>
+            <input
+              type="text"
+              value={drawingToolState.fillColorRgbHex}
+              onChange={(event) => {
+                setDrawingFillColor(event.target.value);
+                activateDrawMode();
+              }}
+              onBlur={(event) => {
+                setDrawingFillColor(normalizeHexColor(event.target.value));
+                activateDrawMode();
+              }}
+              aria-label="Fill color hex"
+            />
+          </label>
+        </>
+      )}
 
       <label className="map-drawing-toolbar-field">
         <span>Size</span>

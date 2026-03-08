@@ -248,6 +248,7 @@ describe('map-background-raster', () => {
     const toolState: DrawingToolState = {
       tool: 'brush',
       colorRgbHex: '#00ff00',
+      fillColorRgbHex: '#00ff00',
       opacity: 1,
       size: 18,
       softness: 0.5,
@@ -261,6 +262,7 @@ describe('map-background-raster', () => {
     expect(usesHardEdgeStamp({
       tool: 'eraser',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 12,
       softness: 0,
@@ -269,6 +271,7 @@ describe('map-background-raster', () => {
     expect(usesHardEdgeStamp({
       tool: 'line',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 12,
       softness: 0,
@@ -277,6 +280,7 @@ describe('map-background-raster', () => {
     expect(usesHardEdgeStamp({
       tool: 'ellipse',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 12,
       softness: 0.25,
@@ -285,6 +289,7 @@ describe('map-background-raster', () => {
     expect(usesHardEdgeStamp({
       tool: 'pencil',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 1,
       softness: 0,
@@ -321,6 +326,7 @@ describe('map-background-raster', () => {
     compositeStrokePreview(previewCanvas, baseCanvas, strokeCanvas, {
       tool: 'eraser',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 0.4,
       size: 16,
       softness: 0,
@@ -338,6 +344,7 @@ describe('map-background-raster', () => {
     expect(() => compositeStrokePreview(createMockCanvas(null), {} as HTMLCanvasElement, {} as HTMLCanvasElement, {
       tool: 'brush',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 12,
       softness: 0.5,
@@ -352,6 +359,7 @@ describe('map-background-raster', () => {
     drawStrokeSegment(canvas, {
       tool: 'brush',
       colorRgbHex: '#336699',
+      fillColorRgbHex: '#336699',
       opacity: 0.75,
       size: 8,
       softness: 0.5,
@@ -371,6 +379,7 @@ describe('map-background-raster', () => {
     drawStrokeSegment(canvas, {
       tool: 'eraser',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 16,
       softness: 0,
@@ -391,6 +400,7 @@ describe('map-background-raster', () => {
     expect(() => drawStrokeSegment(throwingCanvas, {
       tool: 'pencil',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 1,
       softness: 0,
@@ -400,6 +410,7 @@ describe('map-background-raster', () => {
     expect(() => drawStrokeSegment(createMockCanvas(null), {
       tool: 'pencil',
       colorRgbHex: '#000000',
+      fillColorRgbHex: '#000000',
       opacity: 1,
       size: 1,
       softness: 0,
@@ -413,6 +424,7 @@ describe('map-background-raster', () => {
     const toolState: DrawingToolState = {
       tool: 'rectangle',
       colorRgbHex: '#ff0000',
+      fillColorRgbHex: '#ff0000',
       opacity: 1,
       size: 2,
       softness: 0,
@@ -429,10 +441,15 @@ describe('map-background-raster', () => {
 
   it('fills rectangle and ellipse interiors when shape fill is enabled', () => {
     const context = createMockContext();
+    const fillStylesAtFillTime: Array<string | MockGradient> = [];
+    context.fill.mockImplementation(() => {
+      fillStylesAtFillTime.push(context.fillStyle);
+    });
     const canvas = createMockCanvas(context as unknown as CanvasRenderingContext2D);
     const rectangleTool: DrawingToolState = {
       tool: 'rectangle',
       colorRgbHex: '#336699',
+      fillColorRgbHex: '#884422',
       opacity: 1,
       size: 3,
       softness: 0,
@@ -441,6 +458,7 @@ describe('map-background-raster', () => {
 
     drawRectangleStroke(canvas, rectangleTool, { x: 10, y: 12 }, { x: 20, y: 18 });
     expect(context.rect).toHaveBeenCalledWith(10, 12, 10, 6);
+    expect(fillStylesAtFillTime).toContain('rgba(136, 68, 34, 1)');
 
     drawEllipseStroke(canvas, { ...rectangleTool, tool: 'ellipse' }, { x: 10, y: 12 }, { x: 20, y: 18 });
     expect(context.ellipse).toHaveBeenCalledWith(15, 15, 5, 3, 0, 0, Math.PI * 2);
