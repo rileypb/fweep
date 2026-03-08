@@ -686,7 +686,61 @@ function ConnectionLines({ rooms, connections }: {
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
+  const selectedConnectionId = useEditorStore((s) => s.selectedConnectionId);
+  const selectConnection = useEditorStore((s) => s.selectConnection);
   const entries = Object.values(connections);
+
+  const renderConnectionLine = (
+    conn: Connection,
+    points: ReturnType<typeof computeConnectionPath>,
+    isSelfConnection: boolean,
+  ): React.JSX.Element => {
+    const isSelected = selectedConnectionId === conn.id;
+    const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
+
+    return (
+      <>
+        <polyline
+          data-testid={`connection-hit-target-${conn.id}`}
+          data-connection-id={conn.id}
+          className="connection-hit-target"
+          points={pointsToSvgString(points)}
+          fill="none"
+          stroke="transparent"
+          strokeWidth="18"
+          style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            selectConnection(conn.id);
+          }}
+        />
+        <polyline
+          data-testid={`connection-line-${conn.id}`}
+          className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+          points={pointsToSvgString(points)}
+          fill="none"
+          style={{
+            stroke: '#6366f1',
+            strokeWidth: isSelected ? 6 : 2,
+            pointerEvents: 'none',
+          }}
+        />
+        {isSelected && (
+          <polyline
+            data-testid={`connection-selection-inner-${conn.id}`}
+            className="connection-line connection-line--selected-inner"
+            points={pointsToSvgString(points)}
+            fill="none"
+            style={{
+              stroke: '#f59e0b',
+              strokeWidth: 2,
+              pointerEvents: 'none',
+            }}
+          />
+        )}
+      </>
+    );
+  };
 
   return (
     <svg
@@ -698,7 +752,6 @@ function ConnectionLines({ rooms, connections }: {
         left: 0,
         width: '100%',
         height: '100%',
-        pointerEvents: 'none',
         zIndex: 2,
       }}
     >
@@ -719,14 +772,7 @@ function ConnectionLines({ rooms, connections }: {
           const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
           return (
             <g key={conn.id}>
-              <polyline
-                data-testid={`connection-line-${conn.id}`}
-                className="connection-line connection-line--self"
-                points={pointsToSvgString(points)}
-                fill="none"
-                stroke="#6366f1"
-                strokeWidth="2"
-              />
+              {renderConnectionLine(conn, points, true)}
               {arrowPointSets.map((arrowPoints, index) => (
                 <polygon
                   key={`${conn.id}-arrow-${index}`}
@@ -743,14 +789,7 @@ function ConnectionLines({ rooms, connections }: {
         const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
         return (
           <g key={conn.id}>
-            <polyline
-              data-testid={`connection-line-${conn.id}`}
-              className="connection-line"
-              points={pointsToSvgString(points)}
-              fill="none"
-              stroke="#6366f1"
-              strokeWidth="2"
-            />
+            {renderConnectionLine(conn, points, false)}
             {arrowPointSets.map((arrowPoints, index) => (
               <polygon
                 key={`${conn.id}-arrow-${index}`}
@@ -804,6 +843,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
+  const clearConnectionSelection = useEditorStore((s) => s.clearConnectionSelection);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const clearRoomSelection = useEditorStore((s) => s.clearRoomSelection);
   const setSelectedRoomIds = useEditorStore((s) => s.setSelectedRoomIds);
@@ -929,7 +969,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], .map-canvas-header')) {
+    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
       return;
     }
 
@@ -987,7 +1027,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], .map-canvas-header')) {
+    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
       return;
     }
 
@@ -1031,7 +1071,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       }
 
       const target = e.target as Element | null;
-      if (target?.closest('[data-room-id], .map-canvas-header')) {
+      if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
         return;
       }
 
@@ -1039,6 +1079,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
       if (!e.shiftKey) {
         clearRoomSelection();
+        clearConnectionSelection();
         return;
       }
 
@@ -1047,7 +1088,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const roomId = addRoomAtPosition('Room', { x, y });
       openRoomEditor(roomId);
     },
-    [addRoomAtPosition, clearRoomSelection, openRoomEditor, roomEditorId, toMapPoint],
+    [addRoomAtPosition, clearConnectionSelection, clearRoomSelection, openRoomEditor, roomEditorId, toMapPoint],
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {

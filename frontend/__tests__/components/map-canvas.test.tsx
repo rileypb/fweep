@@ -117,6 +117,24 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId('room-selection-outline')).not.toBeInTheDocument();
     });
 
+    it('clicking the map background clears the selected connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const connectionId = Object.keys(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(connectionId);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 20, clientY: 20, button: 0 });
+
+      expect(useEditorStore.getState().selectedConnectionId).toBeNull();
+    });
+
     it('does not pan on left mouse drag over empty canvas', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
@@ -352,6 +370,30 @@ describe('MapCanvas', () => {
 
       expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
       expect(screen.getByText('Kitchen')).toBeInTheDocument();
+    });
+
+    it('single-clicking a room clears any selected connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const connectionId = Object.keys(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(connectionId);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.mouseDown(screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement, {
+        clientX: 100,
+        clientY: 140,
+        button: 0,
+      });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      expect(useEditorStore.getState().selectedConnectionId).toBeNull();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id]);
     });
 
     it('preserves a non-rectangular room shape after single-clicking the room', () => {
@@ -1317,6 +1359,45 @@ describe('MapCanvas', () => {
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine).toBeInTheDocument();
       expect(connectionLine.tagName.toLowerCase()).toBe('polyline');
+    });
+
+    it('clicking a connection selects only that connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const conn = Object.values(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.click(screen.getByTestId(`connection-hit-target-${conn.id}`));
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionId).toBe(conn.id);
+    });
+
+    it('renders selected connections with layered highlight strokes', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+      const conn = Object.values(updated.connections)[0];
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(conn.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const outerLine = screen.getByTestId(`connection-line-${conn.id}`);
+      const innerLine = screen.getByTestId(`connection-selection-inner-${conn.id}`);
+
+      expect(outerLine).toHaveStyle({ strokeWidth: '6' });
+      expect(innerLine).toHaveStyle({ strokeWidth: '2' });
     });
 
     it('anchors a north connection to the rendered center of a wide room', () => {
