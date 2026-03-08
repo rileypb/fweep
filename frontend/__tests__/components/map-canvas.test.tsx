@@ -97,6 +97,16 @@ describe('MapCanvas', () => {
     expect(useEditorStore.getState().drawingToolState.tool).toBe('line');
   });
 
+  it('selects the rectangle tool from the drawing toolbar', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Rectangle' }));
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(useEditorStore.getState().drawingToolState.tool).toBe('rectangle');
+  });
+
   it('switches into draw mode when changing drawing settings', () => {
     render(<MapCanvas mapName="Test" />);
 

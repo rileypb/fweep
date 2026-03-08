@@ -59,7 +59,7 @@ export interface HistoryOptions {
   readonly historyMergeKey?: string;
 }
 
-export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'line';
+export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'line' | 'rectangle';
 export type CanvasInteractionMode = 'map' | 'draw';
 
 export interface DrawingToolState {
@@ -933,7 +933,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       drawingToolState: {
         ...state.drawingToolState,
-        size,
+        size: Math.max(size, 1),
       },
       lastHistoryMergeKey: null,
     }));

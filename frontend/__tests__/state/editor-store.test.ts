@@ -176,6 +176,14 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('drawing tool state', () => {
+    it('clamps drawing size to at least one pixel', () => {
+      useEditorStore.getState().setDrawingSize(0);
+
+      expect(useEditorStore.getState().drawingToolState.size).toBe(1);
+    });
+  });
+
   /* ---- renameRoom ---- */
 
   describe('renameRoom', () => {

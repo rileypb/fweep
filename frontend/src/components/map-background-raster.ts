@@ -11,6 +11,13 @@ export interface MapPixelPoint {
   readonly y: number;
 }
 
+export interface MapPixelRect {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 export interface ChunkLoadResult extends ChunkCoordinates {
   readonly key: string;
   readonly blob: Blob;
@@ -95,7 +102,7 @@ export function getToolStampRadius(toolState: DrawingToolState): number {
 }
 
 export function usesHardEdgeStamp(toolState: DrawingToolState): boolean {
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle';
   return isBrushLike && toolState.softness <= 0;
 }
 
@@ -113,6 +120,31 @@ export function getChunkCoverageForPoint(point: MapPixelPoint, radius: number): 
   }
 
   return chunks;
+}
+
+export function getChunkCoverageForRect(rect: MapPixelRect, radius: number): ChunkCoordinates[] {
+  const minChunkX = Math.floor((rect.left - radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const maxChunkX = Math.floor((rect.right + radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const minChunkY = Math.floor((rect.top - radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const maxChunkY = Math.floor((rect.bottom + radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const chunks: ChunkCoordinates[] = [];
+
+  for (let chunkY = minChunkY; chunkY <= maxChunkY; chunkY += 1) {
+    for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX += 1) {
+      chunks.push({ chunkX, chunkY });
+    }
+  }
+
+  return chunks;
+}
+
+export function getBoundsFromPoints(start: MapPixelPoint, end: MapPixelPoint): MapPixelRect {
+  return {
+    left: Math.min(start.x, end.x),
+    top: Math.min(start.y, end.y),
+    right: Math.max(start.x, end.x),
+    bottom: Math.max(start.y, end.y),
+  };
 }
 
 export function getInterpolatedLinePoints(start: MapPixelPoint, end: MapPixelPoint): MapPixelPoint[] {
@@ -146,6 +178,17 @@ export function constrainLineToCompassDirection(start: MapPixelPoint, end: MapPi
   return {
     x: Math.round(start.x + (Math.cos(snappedAngle) * distance)),
     y: Math.round(start.y + (Math.sin(snappedAngle) * distance)),
+  };
+}
+
+export function constrainRectangleToSquare(start: MapPixelPoint, end: MapPixelPoint): MapPixelPoint {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const size = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+
+  return {
+    x: start.x + (deltaX < 0 ? -size : size),
+    y: start.y + (deltaY < 0 ? -size : size),
   };
 }
 
@@ -234,7 +277,7 @@ export function drawStrokeSegment(
 
   context.imageSmoothingEnabled = false;
   const points = getInterpolatedLinePoints(startPoint, endPoint);
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle';
   const usesHardEdgeBrushStamp = usesHardEdgeStamp(toolState);
 
   for (const point of points) {
@@ -274,6 +317,19 @@ export function drawStrokeSegment(
   }
 
   context.globalCompositeOperation = 'source-over';
+}
+
+export function drawRectangleStroke(
+  canvas: HTMLCanvasElement,
+  toolState: DrawingToolState,
+  startPoint: MapPixelPoint,
+  endPoint: MapPixelPoint,
+): void {
+  const bounds = getBoundsFromPoints(startPoint, endPoint);
+  drawStrokeSegment(canvas, toolState, { x: bounds.left, y: bounds.top }, { x: bounds.right, y: bounds.top });
+  drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.top }, { x: bounds.right, y: bounds.bottom });
+  drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.bottom }, { x: bounds.left, y: bounds.bottom });
+  drawStrokeSegment(canvas, toolState, { x: bounds.left, y: bounds.bottom }, { x: bounds.left, y: bounds.top });
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

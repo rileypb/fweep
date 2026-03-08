@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   compositeStrokePreview,
   constrainLineToCompassDirection,
+  constrainRectangleToSquare,
   drawStrokeSegment,
   getChunkCoverageForPoint,
   getToolStampRadius,
@@ -77,6 +78,13 @@ describe('map-background-raster', () => {
       { x: 10, y: 10 },
       { x: 22, y: 25 },
     )).toEqual({ x: 24, y: 24 });
+  });
+
+  it('constrains a rectangle drag to a square when shift is held', () => {
+    expect(constrainRectangleToSquare(
+      { x: 10, y: 10 },
+      { x: 28, y: 20 },
+    )).toEqual({ x: 28, y: 28 });
   });
 
   it('draws eraser stroke masks with source-over compositing', () => {

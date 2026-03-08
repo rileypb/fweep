@@ -27,8 +27,12 @@ import {
   canvasToBlob,
   compositeStrokePreview,
   constrainLineToCompassDirection,
+  constrainRectangleToSquare,
   createRasterCanvas,
+  drawRectangleStroke,
   drawStrokeSegment,
+  getBoundsFromPoints,
+  getChunkCoverageForRect,
   getChunkCoverageForPoint,
   getChunkCoordinatesForPoint,
   getInterpolatedLinePoints,
@@ -396,6 +400,34 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     await drawStrokePoint(startPoint, endPoint);
   }, [drawStrokePoint]);
 
+  const redrawRectangleStroke = useCallback(async (startPoint: MapPixelPoint, endPoint: MapPixelPoint) => {
+    const currentStroke = drawingStrokeRef.current;
+    if (!currentStroke) {
+      return;
+    }
+
+    currentStroke.chunks.forEach((chunk) => {
+      const strokeContext = chunk.strokeCanvas.getContext('2d');
+      if (strokeContext) {
+        strokeContext.clearRect(0, 0, chunk.strokeCanvas.width, chunk.strokeCanvas.height);
+      }
+      compositeStrokePreview(chunk.previewCanvas, chunk.baseCanvas, chunk.strokeCanvas, currentStroke.toolState);
+      backgroundRef.current?.redrawChunk(chunk.key, chunk.chunkX, chunk.chunkY, chunk.previewCanvas);
+    });
+
+    const bounds = getBoundsFromPoints(startPoint, endPoint);
+    const coveredChunks = getChunkCoverageForRect(bounds, getToolStampRadius(currentStroke.toolState));
+
+    for (const coveredChunk of coveredChunks) {
+      const chunk = await getOrCreateStrokeChunk(coveredChunk, currentStroke.layerId);
+      const localStart = getLocalChunkPoint(startPoint, chunk);
+      const localEnd = getLocalChunkPoint(endPoint, chunk);
+      drawRectangleStroke(chunk.strokeCanvas, currentStroke.maskToolState, localStart, localEnd);
+      compositeStrokePreview(chunk.previewCanvas, chunk.baseCanvas, chunk.strokeCanvas, currentStroke.toolState);
+      backgroundRef.current?.redrawChunk(chunk.key, chunk.chunkX, chunk.chunkY, chunk.previewCanvas);
+    }
+  }, [getOrCreateStrokeChunk]);
+
   const finishDrawingStroke = useCallback(async () => {
     const currentStroke = drawingStrokeRef.current;
     if (!doc || !currentStroke) {
@@ -455,9 +487,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     const drawingEnabled = supportsRasterCanvas();
     const drawingTool = useEditorStore.getState().drawingToolState.tool;
-    const isShiftLineDraw = canvasInteractionMode === 'draw' && drawingTool === 'line';
+    const isShiftShapeDraw = canvasInteractionMode === 'draw' && (drawingTool === 'line' || drawingTool === 'rectangle');
 
-    if ((!e.shiftKey || isShiftLineDraw) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
+    if ((!e.shiftKey || isShiftShapeDraw) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
       e.preventDefault();
       suppressCanvasClickRef.current = true;
       const layerId = ensureDefaultBackgroundLayer();
@@ -487,6 +519,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             : point;
           await redrawLineStroke(drawingStrokeRef.current.startPoint, nextPoint);
           drawingStrokeRef.current.lastPoint = nextPoint;
+        } else if (drawingStrokeRef.current.toolState.tool === 'rectangle') {
+          const nextPoint = constrainToCompass
+            ? constrainRectangleToSquare(drawingStrokeRef.current.startPoint, point)
+            : point;
+          await redrawRectangleStroke(drawingStrokeRef.current.startPoint, nextPoint);
+          drawingStrokeRef.current.lastPoint = nextPoint;
         } else {
           await drawStrokePoint(drawingStrokeRef.current.lastPoint, point);
           drawingStrokeRef.current.lastPoint = point;
@@ -498,7 +536,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const handleMouseMove = (moveEvent: MouseEvent) => {
         void drawAtPoint(
           toMapPoint(moveEvent.clientX, moveEvent.clientY),
-          drawingStrokeRef.current?.toolState.tool === 'line' && moveEvent.shiftKey,
+          (drawingStrokeRef.current?.toolState.tool === 'line' || drawingStrokeRef.current?.toolState.tool === 'rectangle') && moveEvent.shiftKey,
         );
       };
 
