@@ -419,6 +419,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       chunks: historyChunks,
     });
     drawingStrokeRef.current = null;
+    backgroundRef.current?.clearLivePreviewChunks();
     await backgroundRef.current?.reloadVisibleChunks();
   }, [cancelBackgroundStroke, commitBackgroundStroke, doc]);
 

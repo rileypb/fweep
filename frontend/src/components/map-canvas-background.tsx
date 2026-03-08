@@ -26,6 +26,7 @@ export interface MapCanvasBackgroundHandle {
     chunkY: number,
     sourceCanvas: HTMLCanvasElement,
   ) => void;
+  clearLivePreviewChunks: () => void;
   reloadVisibleChunks: () => Promise<void>;
 }
 
@@ -46,6 +47,7 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
 }, ref) {
   const [visibleChunks, setVisibleChunks] = useState<readonly VisibleChunk[]>([]);
   const canvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const livePreviewChunkKeysRef = useRef<Set<string>>(new Set());
   const activeLayer = background.activeLayerId ? background.layers[background.activeLayerId] : null;
 
   const visibleBounds = useMemo(() => {
@@ -68,6 +70,10 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
   }, [canvasRect, panOffset.x, panOffset.y]);
 
   const paintChunkBlobIntoCanvas = useCallback(async (chunk: StoredVisibleChunk) => {
+    if (livePreviewChunkKeysRef.current.has(chunk.key)) {
+      return;
+    }
+
     const canvas = canvasRefs.current[chunk.key];
     if (!canvas) {
       return;
@@ -99,15 +105,21 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
       visibleBounds.minChunkY,
       visibleBounds.maxChunkY,
     );
-    setVisibleChunks(chunks.map((chunk) => ({
-      ...chunk,
-      left: chunk.chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
-      top: chunk.chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
-    })));
+    setVisibleChunks((currentChunks) => {
+      const loadedChunks = chunks.map((chunk) => ({
+        ...chunk,
+        left: chunk.chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
+        top: chunk.chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
+      }));
+      const loadedChunkKeys = new Set(loadedChunks.map((chunk) => chunk.key));
+      const previewOnlyChunks = currentChunks.filter((chunk) => !('blob' in chunk) && !loadedChunkKeys.has(chunk.key));
+      return [...loadedChunks, ...previewOnlyChunks];
+    });
   }, [activeLayer, mapId, visibleBounds]);
 
   useImperativeHandle(ref, () => ({
     redrawChunk: (chunkKey, chunkX, chunkY, sourceCanvas) => {
+      livePreviewChunkKeysRef.current.add(chunkKey);
       setVisibleChunks((currentChunks) => {
         if (currentChunks.some((chunk) => chunk.key === chunkKey)) {
           return currentChunks;
@@ -140,6 +152,9 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
         context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
         context.drawImage(sourceCanvas, 0, 0);
       });
+    },
+    clearLivePreviewChunks: () => {
+      livePreviewChunkKeysRef.current.clear();
     },
     reloadVisibleChunks,
   }), [reloadVisibleChunks]);
