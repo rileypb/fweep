@@ -189,6 +189,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().setDrawingColor('#336699');
       useEditorStore.getState().setDrawingOpacity(0.4);
       useEditorStore.getState().setDrawingSoftness(0.25);
+      useEditorStore.getState().setShapeFilled(true);
       useEditorStore.getState().setCanvasInteractionMode('draw');
 
       expect(useEditorStore.getState().drawingToolState).toMatchObject({
@@ -197,6 +198,7 @@ describe('useEditorStore', () => {
         opacity: 0.4,
         size: 1,
         softness: 0.25,
+        shapeFilled: true,
       });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
     });

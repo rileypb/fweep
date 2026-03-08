@@ -241,6 +241,18 @@ function drawHardStamp(
   context.fill();
 }
 
+function fillShapeInterior(
+  context: CanvasRenderingContext2D,
+  toolState: DrawingToolState,
+  fillPath: () => void,
+): void {
+  context.globalCompositeOperation = 'source-over';
+  context.fillStyle = hexToRgba(toolState.colorRgbHex, clamp(toolState.opacity, 0, 1));
+  context.beginPath();
+  fillPath();
+  context.fill();
+}
+
 export function compositeStrokePreview(
   targetCanvas: HTMLCanvasElement,
   baseCanvas: HTMLCanvasElement,
@@ -330,6 +342,19 @@ export function drawRectangleStroke(
   endPoint: MapPixelPoint,
 ): void {
   const bounds = getBoundsFromPoints(startPoint, endPoint);
+  const context = canvas.getContext('2d');
+
+  if (context && toolState.shapeFilled) {
+    fillShapeInterior(context, toolState, () => {
+      context.rect(
+        bounds.left,
+        bounds.top,
+        Math.max(bounds.right - bounds.left, 1),
+        Math.max(bounds.bottom - bounds.top, 1),
+      );
+    });
+  }
+
   drawStrokeSegment(canvas, toolState, { x: bounds.left, y: bounds.top }, { x: bounds.right, y: bounds.top });
   drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.top }, { x: bounds.right, y: bounds.bottom });
   drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.bottom }, { x: bounds.left, y: bounds.bottom });
@@ -347,6 +372,14 @@ export function drawEllipseStroke(
   const centerY = (bounds.top + bounds.bottom) / 2;
   const radiusX = Math.max((bounds.right - bounds.left) / 2, 0.5);
   const radiusY = Math.max((bounds.bottom - bounds.top) / 2, 0.5);
+  const context = canvas.getContext('2d');
+
+  if (context && toolState.shapeFilled) {
+    fillShapeInterior(context, toolState, () => {
+      context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+    });
+  }
+
   const circumference = Math.PI * (3 * (radiusX + radiusY) - Math.sqrt(((3 * radiusX) + radiusY) * (radiusX + (3 * radiusY))));
   const steps = Math.max(Math.ceil(circumference), 12);
   let previousPoint: MapPixelPoint | null = null;

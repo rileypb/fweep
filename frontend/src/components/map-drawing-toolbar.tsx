@@ -128,8 +128,10 @@ export function MapDrawingToolbar(): React.JSX.Element {
   const setDrawingOpacity = useEditorStore((state) => state.setDrawingOpacity);
   const setDrawingSize = useEditorStore((state) => state.setDrawingSize);
   const setDrawingSoftness = useEditorStore((state) => state.setDrawingSoftness);
+  const setShapeFilled = useEditorStore((state) => state.setShapeFilled);
   const maxSize = drawingToolState.tool === 'pencil' ? 6 : 64;
   const showsSoftness = drawingToolState.tool !== 'pencil';
+  const showsShapeFill = drawingToolState.tool === 'rectangle' || drawingToolState.tool === 'ellipse';
   const nextMode: CanvasInteractionMode = canvasInteractionMode === 'map' ? 'draw' : 'map';
   const modeButtonLabel = canvasInteractionMode === 'map' ? 'Switch to draw mode' : 'Switch to map mode';
   const activateDrawMode = (): void => {
@@ -243,6 +245,21 @@ export function MapDrawingToolbar(): React.JSX.Element {
               activateDrawMode();
             }}
             aria-label="Drawing tool softness"
+          />
+        </label>
+      )}
+
+      {showsShapeFill && (
+        <label className="map-drawing-toolbar-field">
+          <span>Fill</span>
+          <input
+            type="checkbox"
+            checked={drawingToolState.shapeFilled}
+            onChange={(event) => {
+              setShapeFilled(event.target.checked);
+              activateDrawMode();
+            }}
+            aria-label="Fill shape"
           />
         </label>
       )}

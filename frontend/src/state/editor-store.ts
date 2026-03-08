@@ -68,6 +68,7 @@ export interface DrawingToolState {
   readonly opacity: number;
   readonly size: number;
   readonly softness: number;
+  readonly shapeFilled: boolean;
 }
 
 export interface ActiveStroke {
@@ -291,6 +292,9 @@ export interface EditorState {
   /** Update tool softness. */
   setDrawingSoftness: (softness: number) => void;
 
+  /** Update whether shape tools fill their interior. */
+  setShapeFilled: (shapeFilled: boolean) => void;
+
   /** Ensure a default background layer exists and return its ID. */
   ensureDefaultBackgroundLayer: () => string;
 
@@ -401,6 +405,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     opacity: 1,
     size: 1,
     softness: 0.5,
+    shapeFilled: false,
   },
   canvasInteractionMode: 'map',
   activeStroke: null,
@@ -944,6 +949,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       drawingToolState: {
         ...state.drawingToolState,
         softness,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setShapeFilled: (shapeFilled) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        shapeFilled,
       },
       lastHistoryMergeKey: null,
     }));

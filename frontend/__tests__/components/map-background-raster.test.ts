@@ -38,6 +38,8 @@ interface MockCanvasContext {
   drawImage: jest.Mock<(...args: unknown[]) => void>;
   getImageData: jest.Mock<(x: number, y: number, width: number, height: number) => ImageData>;
   beginPath: jest.Mock<() => void>;
+  rect: jest.Mock<(x: number, y: number, width: number, height: number) => void>;
+  ellipse: jest.Mock<(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number) => void>;
   arc: jest.Mock<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>;
   fill: jest.Mock<() => void>;
   createRadialGradient: jest.Mock<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>;
@@ -62,6 +64,8 @@ function createMockContext(alphaValues: number[] = []): MockCanvasContext {
       colorSpace: 'srgb',
     } as ImageData)),
     beginPath: jest.fn<() => void>(),
+    rect: jest.fn<(x: number, y: number, width: number, height: number) => void>(),
+    ellipse: jest.fn<(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number) => void>(),
     arc: jest.fn<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>(),
     fill: jest.fn<() => void>(),
     createRadialGradient: jest.fn<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>(() => gradient),
@@ -131,7 +135,7 @@ describe('map-background-raster', () => {
 
   it('returns an empty canvas from blobToCanvas when no 2d context is available', async () => {
     const bitmap = { close: jest.fn<() => void>() };
-    globalThis.createImageBitmap = jest.fn<(blob: Blob) => Promise<typeof bitmap>>(async () => bitmap);
+    globalThis.createImageBitmap = (jest.fn(async () => bitmap) as unknown) as typeof createImageBitmap;
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 
     const canvas = await blobToCanvas(new Blob(['x'], { type: 'image/png' }));
@@ -142,7 +146,7 @@ describe('map-background-raster', () => {
   it('draws and closes image bitmaps in blobToCanvas when a 2d context exists', async () => {
     const bitmap = { close: jest.fn<() => void>() };
     const context = createMockContext();
-    globalThis.createImageBitmap = jest.fn<(blob: Blob) => Promise<typeof bitmap>>(async () => bitmap);
+    globalThis.createImageBitmap = (jest.fn(async () => bitmap) as unknown) as typeof createImageBitmap;
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
 
     const canvas = await blobToCanvas(new Blob(['x'], { type: 'image/png' }));
@@ -247,6 +251,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 18,
       softness: 0.5,
+      shapeFilled: false,
     };
 
     expect(getToolStampRadius(toolState)).toBe(9);
@@ -259,6 +264,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 12,
       softness: 0,
+      shapeFilled: false,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'line',
@@ -266,6 +272,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 12,
       softness: 0,
+      shapeFilled: false,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'ellipse',
@@ -273,6 +280,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 12,
       softness: 0.25,
+      shapeFilled: false,
     })).toBe(false);
     expect(usesHardEdgeStamp({
       tool: 'pencil',
@@ -280,6 +288,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 1,
       softness: 0,
+      shapeFilled: false,
     })).toBe(false);
   });
 
@@ -315,6 +324,7 @@ describe('map-background-raster', () => {
       opacity: 0.4,
       size: 16,
       softness: 0,
+      shapeFilled: false,
     });
 
     expect(drawImageMock.mock.calls[0]).toEqual([baseCanvas, 0, 0]);
@@ -331,6 +341,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 12,
       softness: 0.5,
+      shapeFilled: false,
     })).not.toThrow();
   });
 
@@ -344,6 +355,7 @@ describe('map-background-raster', () => {
       opacity: 0.75,
       size: 8,
       softness: 0.5,
+      shapeFilled: false,
     }, { x: 0, y: 0 }, { x: 0, y: 0 });
 
     expect(context.createRadialGradient).toHaveBeenCalled();
@@ -362,6 +374,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 16,
       softness: 0,
+      shapeFilled: false,
     }, { x: 32, y: 32 }, { x: 32, y: 32 });
 
     expect(context.fillStyle).toBe('rgba(0, 0, 0, 1)');
@@ -381,6 +394,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 1,
       softness: 0,
+      shapeFilled: false,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
 
     expect(() => drawStrokeSegment(createMockCanvas(null), {
@@ -389,6 +403,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 1,
       softness: 0,
+      shapeFilled: false,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
   });
 
@@ -401,6 +416,7 @@ describe('map-background-raster', () => {
       opacity: 1,
       size: 2,
       softness: 0,
+      shapeFilled: false,
     };
 
     drawRectangleStroke(canvas, toolState, { x: 10, y: 12 }, { x: 20, y: 18 });
@@ -409,6 +425,25 @@ describe('map-background-raster', () => {
 
     drawEllipseStroke(canvas, { ...toolState, tool: 'ellipse', softness: 0.3 }, { x: 10, y: 12 }, { x: 20, y: 18 });
     expect(context.arc.mock.calls.length).toBeGreaterThan(rectangleArcCalls);
+  });
+
+  it('fills rectangle and ellipse interiors when shape fill is enabled', () => {
+    const context = createMockContext();
+    const canvas = createMockCanvas(context as unknown as CanvasRenderingContext2D);
+    const rectangleTool: DrawingToolState = {
+      tool: 'rectangle',
+      colorRgbHex: '#336699',
+      opacity: 1,
+      size: 3,
+      softness: 0,
+      shapeFilled: true,
+    };
+
+    drawRectangleStroke(canvas, rectangleTool, { x: 10, y: 12 }, { x: 20, y: 18 });
+    expect(context.rect).toHaveBeenCalledWith(10, 12, 10, 6);
+
+    drawEllipseStroke(canvas, { ...rectangleTool, tool: 'ellipse' }, { x: 10, y: 12 }, { x: 20, y: 18 });
+    expect(context.ellipse).toHaveBeenCalledWith(15, 15, 5, 3, 0, 0, Math.PI * 2);
   });
 
   it('formats rgba strings and normalizes hex colors', () => {

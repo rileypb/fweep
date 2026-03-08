@@ -31,7 +31,7 @@ describe('MapCanvasBackground', () => {
   const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
 
   beforeEach(() => {
-    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function getContext() {
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function getContext(this: HTMLCanvasElement) {
       let context = contextByCanvas.get(this);
       if (!context) {
         context = {
@@ -95,7 +95,7 @@ describe('MapCanvasBackground', () => {
     const layer = { ...createBackgroundLayer('Background'), id: 'layer-1' };
     const chunkBlob = new Blob(['chunk'], { type: 'image/png' });
     const bitmap = { close: jest.fn<() => void>() };
-    globalThis.createImageBitmap = jest.fn<(blob: Blob) => Promise<typeof bitmap>>(async () => bitmap);
+    globalThis.createImageBitmap = (jest.fn(async () => bitmap) as unknown) as typeof createImageBitmap;
     await saveBackgroundChunks([{
       mapId: 'map-1a',
       layerId: layer.id,
