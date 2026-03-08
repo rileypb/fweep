@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import {
+  BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
   canvasToBlob,
   compositeStrokePreview,
   constrainEllipseToCircle,
   constrainLineToCompassDirection,
   constrainRectangleToSquare,
+  createSizedCanvas,
+  drawBucketFill,
   createRasterCanvas,
   drawEllipseStroke,
   drawRectangleStroke,
@@ -43,6 +46,8 @@ interface MockCanvasContext {
   arc: jest.Mock<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>;
   fill: jest.Mock<() => void>;
   createRadialGradient: jest.Mock<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>;
+  createImageData: jest.Mock<(width: number, height: number) => ImageData>;
+  putImageData: jest.Mock<(imageData: ImageData, dx: number, dy: number) => void>;
 }
 
 function createMockContext(alphaValues: number[] = []): MockCanvasContext {
@@ -69,6 +74,13 @@ function createMockContext(alphaValues: number[] = []): MockCanvasContext {
     arc: jest.fn<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>(),
     fill: jest.fn<() => void>(),
     createRadialGradient: jest.fn<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>(() => gradient),
+    createImageData: jest.fn<(width: number, height: number) => ImageData>((width: number, height: number) => ({
+      data: new Uint8ClampedArray(width * height * 4),
+      width,
+      height,
+      colorSpace: 'srgb',
+    } as ImageData)),
+    putImageData: jest.fn<(imageData: ImageData, dx: number, dy: number) => void>(),
   };
 }
 
@@ -123,6 +135,12 @@ describe('map-background-raster', () => {
     const canvas = createRasterCanvas();
     expect(canvas.width).toBe(256);
     expect(canvas.height).toBe(256);
+  });
+
+  it('creates arbitrary-sized canvases for temporary bucket fill work', () => {
+    const canvas = createSizedCanvas(33, 44);
+    expect(canvas.width).toBe(33);
+    expect(canvas.height).toBe(44);
   });
 
   it('returns an empty canvas from blobToCanvas when image bitmaps are unavailable', async () => {
@@ -253,6 +271,7 @@ describe('map-background-raster', () => {
       size: 18,
       softness: 0.5,
       shapeFilled: false,
+      bucketTolerance: 0,
     };
 
     expect(getToolStampRadius(toolState)).toBe(9);
@@ -267,6 +286,7 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'line',
@@ -276,6 +296,7 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'ellipse',
@@ -285,6 +306,7 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0.25,
       shapeFilled: false,
+      bucketTolerance: 0,
     })).toBe(false);
     expect(usesHardEdgeStamp({
       tool: 'pencil',
@@ -294,6 +316,7 @@ describe('map-background-raster', () => {
       size: 1,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     })).toBe(false);
   });
 
@@ -331,6 +354,7 @@ describe('map-background-raster', () => {
       size: 16,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     });
 
     expect(drawImageMock.mock.calls[0]).toEqual([baseCanvas, 0, 0]);
@@ -349,6 +373,7 @@ describe('map-background-raster', () => {
       size: 12,
       softness: 0.5,
       shapeFilled: false,
+      bucketTolerance: 0,
     })).not.toThrow();
   });
 
@@ -364,6 +389,7 @@ describe('map-background-raster', () => {
       size: 8,
       softness: 0.5,
       shapeFilled: false,
+      bucketTolerance: 0,
     }, { x: 0, y: 0 }, { x: 0, y: 0 });
 
     expect(context.createRadialGradient).toHaveBeenCalled();
@@ -384,6 +410,7 @@ describe('map-background-raster', () => {
       size: 16,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     }, { x: 32, y: 32 }, { x: 32, y: 32 });
 
     expect(context.fillStyle).toBe('rgba(0, 0, 0, 1)');
@@ -405,6 +432,7 @@ describe('map-background-raster', () => {
       size: 1,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
 
     expect(() => drawStrokeSegment(createMockCanvas(null), {
@@ -415,6 +443,7 @@ describe('map-background-raster', () => {
       size: 1,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
   });
 
@@ -429,6 +458,7 @@ describe('map-background-raster', () => {
       size: 2,
       softness: 0,
       shapeFilled: false,
+      bucketTolerance: 0,
     };
 
     drawRectangleStroke(canvas, toolState, { x: 10, y: 12 }, { x: 20, y: 18 });
@@ -454,6 +484,7 @@ describe('map-background-raster', () => {
       size: 3,
       softness: 0,
       shapeFilled: true,
+      bucketTolerance: 0,
     };
 
     drawRectangleStroke(canvas, rectangleTool, { x: 10, y: 12 }, { x: 20, y: 18 });
@@ -469,5 +500,115 @@ describe('map-background-raster', () => {
     expect(normalizeHexColor('336699')).toBe('#336699');
     expect(normalizeHexColor('#369')).toBe('#336699');
     expect(normalizeHexColor('oops')).toBe('#000000');
+  });
+
+  it('draws a bounded bucket fill into a target canvas', () => {
+    const width = 5;
+    const height = 5;
+    const sourceContext = createMockContext();
+    const targetContext = createMockContext();
+    const sourcePixels = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = ((y * width) + x) * 4;
+        sourcePixels[offset + 3] = 255;
+      }
+    }
+
+    const wallOffset = ((2 * width) + 3) * 4;
+    sourcePixels[wallOffset] = 255;
+    sourcePixels[wallOffset + 3] = 255;
+
+    sourceContext.getImageData.mockReturnValue({
+      data: sourcePixels,
+      width,
+      height,
+      colorSpace: 'srgb',
+    } as ImageData);
+
+    const sourceCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => sourceContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+    const targetCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => targetContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+
+    const changed = drawBucketFill(sourceCanvas, targetCanvas, { x: 2, y: 2 }, '#336699', 1, 0);
+
+    expect(changed).toBe(true);
+    expect(targetContext.putImageData).toHaveBeenCalled();
+    const imageData = targetContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    const filledCenter = ((2 * width) + 2) * 4;
+    expect(Array.from(imageData.data.slice(filledCenter, filledCenter + 4))).toEqual([51, 102, 153, 255]);
+    const outsideRadius = ((0 * width) + 2) * 4;
+    expect(Array.from(imageData.data.slice(outsideRadius, outsideRadius + 4))).toEqual([0, 0, 0, 0]);
+    const wallPixel = ((2 * width) + 3) * 4;
+    expect(Array.from(imageData.data.slice(wallPixel, wallPixel + 4))).toEqual([0, 0, 0, 0]);
+  });
+
+  it('returns false when bucket fill has no valid target', () => {
+    const context = createMockContext();
+    const sourceCanvas = createMockCanvas(context as unknown as CanvasRenderingContext2D);
+    const targetCanvas = createMockCanvas(context as unknown as CanvasRenderingContext2D);
+    context.getImageData.mockReturnValue({
+      data: Uint8ClampedArray.from([51, 102, 153, 255]),
+      width: 1,
+      height: 1,
+      colorSpace: 'srgb',
+    } as ImageData);
+
+    expect(drawBucketFill(sourceCanvas, targetCanvas, { x: -1, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
+    expect(drawBucketFill(sourceCanvas, targetCanvas, { x: 0, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
+    expect(drawBucketFill(createMockCanvas(null), targetCanvas, { x: 0, y: 0 }, '#000000', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
+  });
+
+  it('bucket fill tolerance expands across near-matching pixels', () => {
+    const width = 3;
+    const height = 1;
+    const sourceContext = createMockContext();
+    const targetContext = createMockContext();
+    const sourcePixels = Uint8ClampedArray.from([
+      100, 100, 100, 255,
+      108, 104, 97, 255,
+      140, 140, 140, 255,
+    ]);
+    sourceContext.getImageData.mockReturnValue({
+      data: sourcePixels,
+      width,
+      height,
+      colorSpace: 'srgb',
+    } as ImageData);
+
+    const sourceCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => sourceContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+    const targetCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => targetContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+
+    expect(drawBucketFill(sourceCanvas, targetCanvas, { x: 0, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0)).toBe(true);
+    let imageData = targetContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(imageData.data.slice(0, 12))).toEqual([
+      51, 102, 153, 255,
+      0, 0, 0, 0,
+      0, 0, 0, 0,
+    ]);
+
+    targetContext.putImageData.mockClear();
+    expect(drawBucketFill(sourceCanvas, targetCanvas, { x: 0, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 10)).toBe(true);
+    imageData = targetContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(imageData.data.slice(0, 12))).toEqual([
+      51, 102, 153, 255,
+      51, 102, 153, 255,
+      0, 0, 0, 0,
+    ]);
   });
 });

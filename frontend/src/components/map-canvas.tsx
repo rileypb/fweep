@@ -23,12 +23,15 @@ import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
 import { MapDrawingToolbar } from './map-drawing-toolbar';
 import {
+  BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
   canvasToBlob,
   compositeStrokePreview,
   constrainLineToCompassDirection,
   constrainEllipseToCircle,
   constrainRectangleToSquare,
+  createSizedCanvas,
+  drawBucketFill,
   createRasterCanvas,
   drawEllipseStroke,
   drawRectangleStroke,
@@ -459,6 +462,89 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
   }, [getOrCreateStrokeChunk]);
 
+  const applyBucketFill = useCallback(async (startPoint: MapPixelPoint) => {
+    const currentStroke = drawingStrokeRef.current;
+    if (!currentStroke) {
+      return false;
+    }
+
+    const bounds = {
+      left: startPoint.x - BUCKET_FILL_MAX_RADIUS,
+      top: startPoint.y - BUCKET_FILL_MAX_RADIUS,
+      right: startPoint.x + BUCKET_FILL_MAX_RADIUS,
+      bottom: startPoint.y + BUCKET_FILL_MAX_RADIUS,
+    };
+    const coveredChunks = getChunkCoverageForRect(bounds, 0);
+    if (coveredChunks.length === 0) {
+      return false;
+    }
+
+    const minChunkX = Math.min(...coveredChunks.map((chunk) => chunk.chunkX));
+    const maxChunkX = Math.max(...coveredChunks.map((chunk) => chunk.chunkX));
+    const minChunkY = Math.min(...coveredChunks.map((chunk) => chunk.chunkY));
+    const maxChunkY = Math.max(...coveredChunks.map((chunk) => chunk.chunkY));
+    const combinedBaseCanvas = createSizedCanvas(
+      (maxChunkX - minChunkX + 1) * 256,
+      (maxChunkY - minChunkY + 1) * 256,
+    );
+    const combinedFillCanvas = createSizedCanvas(combinedBaseCanvas.width, combinedBaseCanvas.height);
+    const combinedBaseContext = combinedBaseCanvas.getContext('2d');
+
+    if (!combinedBaseContext) {
+      return false;
+    }
+
+    for (const coveredChunk of coveredChunks) {
+      const chunk = await getOrCreateStrokeChunk(coveredChunk, currentStroke.layerId);
+      combinedBaseContext.drawImage(
+        chunk.baseCanvas,
+        (coveredChunk.chunkX - minChunkX) * 256,
+        (coveredChunk.chunkY - minChunkY) * 256,
+      );
+    }
+
+    const changed = drawBucketFill(
+      combinedBaseCanvas,
+      combinedFillCanvas,
+      {
+        x: startPoint.x - (minChunkX * 256),
+        y: startPoint.y - (minChunkY * 256),
+      },
+      currentStroke.toolState.colorRgbHex,
+      BUCKET_FILL_MAX_RADIUS,
+      currentStroke.toolState.bucketTolerance,
+    );
+
+    if (!changed) {
+      return false;
+    }
+
+    for (const coveredChunk of coveredChunks) {
+      const chunk = await getOrCreateStrokeChunk(coveredChunk, currentStroke.layerId);
+      const strokeContext = chunk.strokeCanvas.getContext('2d');
+      if (!strokeContext) {
+        continue;
+      }
+
+      strokeContext.clearRect(0, 0, chunk.strokeCanvas.width, chunk.strokeCanvas.height);
+      strokeContext.drawImage(
+        combinedFillCanvas,
+        (coveredChunk.chunkX - minChunkX) * 256,
+        (coveredChunk.chunkY - minChunkY) * 256,
+        256,
+        256,
+        0,
+        0,
+        256,
+        256,
+      );
+      compositeStrokePreview(chunk.previewCanvas, chunk.baseCanvas, chunk.strokeCanvas, currentStroke.toolState);
+      backgroundRef.current?.redrawChunk(chunk.key, chunk.chunkX, chunk.chunkY, chunk.previewCanvas);
+    }
+
+    return true;
+  }, [getOrCreateStrokeChunk]);
+
   const finishDrawingStroke = useCallback(async () => {
     const currentStroke = drawingStrokeRef.current;
     if (!doc || !currentStroke) {
@@ -519,8 +605,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     const drawingEnabled = supportsRasterCanvas();
     const drawingTool = useEditorStore.getState().drawingToolState.tool;
     const isShiftShapeDraw = canvasInteractionMode === 'draw' && (drawingTool === 'line' || drawingTool === 'rectangle' || drawingTool === 'ellipse');
+    const isBucketTool = drawingTool === 'bucket';
 
-    if ((!e.shiftKey || isShiftShapeDraw) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
+    if ((!e.shiftKey || isShiftShapeDraw || isBucketTool) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
       e.preventDefault();
       suppressCanvasClickRef.current = true;
       const layerId = ensureDefaultBackgroundLayer();
@@ -539,6 +626,19 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         chunks: new Map<string, StrokeChunkState>(),
       };
       drawingStrokeRef.current = activeDrawingStroke;
+
+      if (toolState.tool === 'bucket') {
+        void (async () => {
+          const changed = await applyBucketFill(startPoint);
+          if (changed) {
+            await finishDrawingStroke();
+          } else {
+            cancelBackgroundStroke();
+            drawingStrokeRef.current = null;
+          }
+        })();
+        return;
+      }
 
       const drawAtPoint = async (point: MapPixelPoint, constrainToCompass: boolean) => {
         if (!drawingStrokeRef.current) {
@@ -657,6 +757,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     connectionEditorId,
     doc,
     drawStrokePoint,
+    applyBucketFill,
     ensureDefaultBackgroundLayer,
     finishDrawingStroke,
     panOffsetRef,

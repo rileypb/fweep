@@ -23,6 +23,19 @@ describe('MapDrawingToolbar', () => {
     expect(screen.getByLabelText('Drawing tool softness')).toBeInTheDocument();
   });
 
+  it('hides size and softness controls for the bucket fill tool', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Bucket fill' }));
+
+    expect(screen.queryByLabelText('Drawing tool size')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Drawing tool softness')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Bucket fill tolerance')).toBeInTheDocument();
+    expect(useEditorStore.getState().drawingToolState.tool).toBe('bucket');
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+  });
+
   it('shows and updates the fill toggle for rectangle and ellipse tools', async () => {
     const user = userEvent.setup();
     const { container } = render(<MapDrawingToolbar />);
@@ -81,6 +94,17 @@ describe('MapDrawingToolbar', () => {
 
     expect(useEditorStore.getState().drawingToolState.opacity).toBe(0.25);
     expect(useEditorStore.getState().drawingToolState.softness).toBe(0.8);
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+  });
+
+  it('updates the bucket fill tolerance slider', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Bucket fill' }));
+    fireEvent.change(screen.getByLabelText('Bucket fill tolerance'), { target: { value: '48' } });
+
+    expect(useEditorStore.getState().drawingToolState.bucketTolerance).toBe(48);
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
   });
 

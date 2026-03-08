@@ -107,6 +107,16 @@ describe('MapCanvas', () => {
     expect(useEditorStore.getState().drawingToolState.tool).toBe('rectangle');
   });
 
+  it('selects the bucket fill tool from the drawing toolbar', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Bucket fill' }));
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(useEditorStore.getState().drawingToolState.tool).toBe('bucket');
+  });
+
   it('selects the ellipse tool from the drawing toolbar', async () => {
     const user = userEvent.setup();
     render(<MapCanvas mapName="Test" />);

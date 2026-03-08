@@ -200,8 +200,17 @@ describe('useEditorStore', () => {
         size: 1,
         softness: 0.25,
         shapeFilled: true,
+        bucketTolerance: 0,
       });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    });
+
+    it('updates bucket fill tolerance', () => {
+      useEditorStore.getState().setBucketTolerance(300);
+      expect(useEditorStore.getState().drawingToolState.bucketTolerance).toBe(255);
+
+      useEditorStore.getState().setBucketTolerance(-20);
+      expect(useEditorStore.getState().drawingToolState.bucketTolerance).toBe(0);
     });
   });
 

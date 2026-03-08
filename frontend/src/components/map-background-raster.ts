@@ -23,6 +23,8 @@ export interface ChunkLoadResult extends ChunkCoordinates {
   readonly blob: Blob;
 }
 
+export const BUCKET_FILL_MAX_RADIUS = 512;
+
 export function supportsRasterCanvas(): boolean {
   return !window.navigator.userAgent.toLowerCase().includes('jsdom');
 }
@@ -31,6 +33,13 @@ export function createRasterCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = BACKGROUND_LAYER_CHUNK_SIZE;
   canvas.height = BACKGROUND_LAYER_CHUNK_SIZE;
+  return canvas;
+}
+
+export function createSizedCanvas(width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
   return canvas;
 }
 
@@ -397,11 +406,122 @@ export function drawEllipseStroke(
   }
 }
 
+function parseRgbHex(hex: string): { red: number; green: number; blue: number } {
+  const normalized = normalizeHexColor(hex);
+  return {
+    red: Number.parseInt(normalized.slice(1, 3), 16),
+    green: Number.parseInt(normalized.slice(3, 5), 16),
+    blue: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+}
+
+export function drawBucketFill(
+  sourceCanvas: HTMLCanvasElement,
+  targetCanvas: HTMLCanvasElement,
+  startPoint: MapPixelPoint,
+  colorRgbHex: string,
+  maxRadius: number = BUCKET_FILL_MAX_RADIUS,
+  tolerance: number = 0,
+): boolean {
+  const sourceContext = sourceCanvas.getContext('2d');
+  const targetContext = targetCanvas.getContext('2d');
+  if (!sourceContext || !targetContext) {
+    return false;
+  }
+
+  const startX = Math.round(startPoint.x);
+  const startY = Math.round(startPoint.y);
+  if (
+    startX < 0
+    || startY < 0
+    || startX >= sourceCanvas.width
+    || startY >= sourceCanvas.height
+  ) {
+    return false;
+  }
+
+  const sourceImage = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const targetImage = targetContext.createImageData(sourceCanvas.width, sourceCanvas.height);
+  const sourceData = sourceImage.data;
+  const targetData = targetImage.data;
+  const width = sourceCanvas.width;
+  const height = sourceCanvas.height;
+  const startIndex = ((startY * width) + startX) * 4;
+  const targetRed = sourceData[startIndex];
+  const targetGreen = sourceData[startIndex + 1];
+  const targetBlue = sourceData[startIndex + 2];
+  const targetAlpha = sourceData[startIndex + 3];
+  const { red, green, blue } = parseRgbHex(colorRgbHex);
+  const clampedTolerance = clamp(tolerance, 0, 255);
+
+  if (
+    targetRed === red
+    && targetGreen === green
+    && targetBlue === blue
+    && targetAlpha === 255
+  ) {
+    return false;
+  }
+
+  const radiusSquared = maxRadius * maxRadius;
+  const visited = new Uint8Array(width * height);
+  const stack: Array<{ x: number; y: number }> = [{ x: startX, y: startY }];
+  let changed = false;
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const { x, y } = current;
+
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      continue;
+    }
+
+    const dx = x - startX;
+    const dy = y - startY;
+    if ((dx * dx) + (dy * dy) > radiusSquared) {
+      continue;
+    }
+
+    const pixelIndex = (y * width) + x;
+    if (visited[pixelIndex] === 1) {
+      continue;
+    }
+    visited[pixelIndex] = 1;
+
+    const offset = pixelIndex * 4;
+    if (
+      Math.abs(sourceData[offset] - targetRed) > clampedTolerance
+      || Math.abs(sourceData[offset + 1] - targetGreen) > clampedTolerance
+      || Math.abs(sourceData[offset + 2] - targetBlue) > clampedTolerance
+      || Math.abs(sourceData[offset + 3] - targetAlpha) > clampedTolerance
+    ) {
+      continue;
+    }
+
+    targetData[offset] = red;
+    targetData[offset + 1] = green;
+    targetData[offset + 2] = blue;
+    targetData[offset + 3] = 255;
+    changed = true;
+
+    stack.push({ x: x + 1, y });
+    stack.push({ x: x - 1, y });
+    stack.push({ x, y: y + 1 });
+    stack.push({ x, y: y - 1 });
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  targetContext.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+  targetContext.putImageData(targetImage, 0, 0);
+  return true;
+}
+
 export function hexToRgba(hex: string, alpha: number): string {
   const normalized = normalizeHexColor(hex);
-  const red = Number.parseInt(normalized.slice(1, 3), 16);
-  const green = Number.parseInt(normalized.slice(3, 5), 16);
-  const blue = Number.parseInt(normalized.slice(5, 7), 16);
+  const { red, green, blue } = parseRgbHex(normalized);
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 

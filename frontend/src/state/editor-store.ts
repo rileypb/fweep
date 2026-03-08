@@ -59,7 +59,7 @@ export interface HistoryOptions {
   readonly historyMergeKey?: string;
 }
 
-export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'line' | 'rectangle' | 'ellipse';
+export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'bucket' | 'line' | 'rectangle' | 'ellipse';
 export type CanvasInteractionMode = 'map' | 'draw';
 
 export interface DrawingToolState {
@@ -70,6 +70,7 @@ export interface DrawingToolState {
   readonly size: number;
   readonly softness: number;
   readonly shapeFilled: boolean;
+  readonly bucketTolerance: number;
 }
 
 export interface ActiveStroke {
@@ -299,6 +300,9 @@ export interface EditorState {
   /** Update whether shape tools fill their interior. */
   setShapeFilled: (shapeFilled: boolean) => void;
 
+  /** Update bucket fill tolerance. */
+  setBucketTolerance: (bucketTolerance: number) => void;
+
   /** Ensure a default background layer exists and return its ID. */
   ensureDefaultBackgroundLayer: () => string;
 
@@ -411,6 +415,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     size: 1,
     softness: 0.5,
     shapeFilled: false,
+    bucketTolerance: 0,
   },
   canvasInteractionMode: 'map',
   activeStroke: null,
@@ -974,6 +979,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       drawingToolState: {
         ...state.drawingToolState,
         shapeFilled,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setBucketTolerance: (bucketTolerance) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        bucketTolerance: Math.max(0, Math.min(255, Math.round(bucketTolerance))),
       },
       lastHistoryMergeKey: null,
     }));

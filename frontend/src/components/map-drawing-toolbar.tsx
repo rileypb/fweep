@@ -5,6 +5,7 @@ const TOOL_LABELS: readonly { readonly tool: DrawingTool; readonly label: string
   { tool: 'pencil', label: 'Pencil' },
   { tool: 'brush', label: 'Brush' },
   { tool: 'eraser', label: 'Eraser' },
+  { tool: 'bucket', label: 'Bucket fill' },
   { tool: 'line', label: 'Line' },
   { tool: 'rectangle', label: 'Rectangle' },
   { tool: 'ellipse', label: 'Ellipse' },
@@ -74,6 +75,17 @@ function EraserGlyph(): React.JSX.Element {
   );
 }
 
+function BucketGlyph(): React.JSX.Element {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 5.5 14.5 13a2.6 2.6 0 0 1 0 3.7l-1.8 1.8a2.6 2.6 0 0 1-3.7 0L1.5 11 7 5.5Z" />
+      <path d="M10.5 2.5 21 13" />
+      <path d="M14 18.5h6.5" />
+      <path d="M17.4 15.8c1.2 0 2.1 1 2.1 2.2 0 .9-.5 1.6-1.2 2-.3.2-.4.5-.3.8" />
+    </svg>
+  );
+}
+
 function LineGlyph(): React.JSX.Element {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -107,6 +119,9 @@ function ToolGlyph({ tool }: { tool: DrawingTool }): React.JSX.Element {
   if (tool === 'brush') {
     return <BrushGlyph />;
   }
+  if (tool === 'bucket') {
+    return <BucketGlyph />;
+  }
   if (tool === 'line') {
     return <LineGlyph />;
   }
@@ -130,9 +145,12 @@ export function MapDrawingToolbar(): React.JSX.Element {
   const setDrawingSize = useEditorStore((state) => state.setDrawingSize);
   const setDrawingSoftness = useEditorStore((state) => state.setDrawingSoftness);
   const setShapeFilled = useEditorStore((state) => state.setShapeFilled);
+  const setBucketTolerance = useEditorStore((state) => state.setBucketTolerance);
+  const showsSize = drawingToolState.tool !== 'bucket';
   const maxSize = drawingToolState.tool === 'pencil' ? 6 : 64;
-  const showsSoftness = drawingToolState.tool !== 'pencil';
+  const showsSoftness = drawingToolState.tool !== 'pencil' && drawingToolState.tool !== 'bucket';
   const showsShapeFill = drawingToolState.tool === 'rectangle' || drawingToolState.tool === 'ellipse';
+  const showsBucketTolerance = drawingToolState.tool === 'bucket';
   const nextMode: CanvasInteractionMode = canvasInteractionMode === 'map' ? 'draw' : 'map';
   const modeButtonLabel = canvasInteractionMode === 'map' ? 'Switch to draw mode' : 'Switch to map mode';
   const activateDrawMode = (): void => {
@@ -237,20 +255,22 @@ export function MapDrawingToolbar(): React.JSX.Element {
         </>
       )}
 
-      <label className="map-drawing-toolbar-field">
-        <span>Size</span>
-        <input
-          type="range"
-          min={1}
-          max={maxSize}
-          value={clamp(drawingToolState.size, 1, maxSize)}
-          onChange={(event) => {
-            setDrawingSize(Number(event.target.value));
-            activateDrawMode();
-          }}
-          aria-label="Drawing tool size"
-        />
-      </label>
+      {showsSize && (
+        <label className="map-drawing-toolbar-field">
+          <span>Size</span>
+          <input
+            type="range"
+            min={1}
+            max={maxSize}
+            value={clamp(drawingToolState.size, 1, maxSize)}
+            onChange={(event) => {
+              setDrawingSize(Number(event.target.value));
+              activateDrawMode();
+            }}
+            aria-label="Drawing tool size"
+          />
+        </label>
+      )}
 
       <label className="map-drawing-toolbar-field">
         <span>Opacity</span>
@@ -280,6 +300,23 @@ export function MapDrawingToolbar(): React.JSX.Element {
               activateDrawMode();
             }}
             aria-label="Drawing tool softness"
+          />
+        </label>
+      )}
+
+      {showsBucketTolerance && (
+        <label className="map-drawing-toolbar-field">
+          <span>Tolerance</span>
+          <input
+            type="range"
+            min={0}
+            max={255}
+            value={drawingToolState.bucketTolerance}
+            onChange={(event) => {
+              setBucketTolerance(Number(event.target.value));
+              activateDrawMode();
+            }}
+            aria-label="Bucket fill tolerance"
           />
         </label>
       )}
