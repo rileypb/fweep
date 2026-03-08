@@ -181,6 +181,28 @@ function drawHardStamp(
   context.fill();
 }
 
+export function compositeStrokePreview(
+  targetCanvas: HTMLCanvasElement,
+  baseCanvas: HTMLCanvasElement,
+  strokeCanvas: HTMLCanvasElement,
+  toolState: DrawingToolState,
+): void {
+  const context = targetCanvas.getContext('2d');
+  if (!context) {
+    return;
+  }
+
+  context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+  context.drawImage(baseCanvas, 0, 0);
+  context.globalAlpha = clamp(toolState.opacity, 0, 1);
+  context.globalCompositeOperation = toolState.tool === 'eraser' ? 'destination-out' : 'source-over';
+  context.drawImage(strokeCanvas, 0, 0);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+}
+
 export function drawStrokeSegment(
   canvas: HTMLCanvasElement,
   toolState: DrawingToolState,

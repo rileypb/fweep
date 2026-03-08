@@ -25,6 +25,7 @@ import { MapDrawingToolbar } from './map-drawing-toolbar';
 import {
   blobToCanvas,
   canvasToBlob,
+  compositeStrokePreview,
   createRasterCanvas,
   drawStrokeSegment,
   getChunkCoverageForPoint,
@@ -49,12 +50,15 @@ interface StrokeChunkState {
   readonly chunkY: number;
   readonly key: string;
   readonly beforeBlob: Blob | null;
-  readonly canvas: HTMLCanvasElement;
+  readonly baseCanvas: HTMLCanvasElement;
+  readonly strokeCanvas: HTMLCanvasElement;
+  readonly previewCanvas: HTMLCanvasElement;
 }
 
 interface ActiveDrawingStroke {
   readonly layerId: string;
   readonly toolState: ReturnType<typeof getDrawingToolSnapshot>;
+  readonly maskToolState: ReturnType<typeof getDrawingToolSnapshot>;
   lastPoint: MapPixelPoint;
   readonly chunks: Map<string, StrokeChunkState>;
 }
@@ -326,14 +330,19 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const storedChunk = await loadBackgroundChunk(doc.metadata.id, layerId, coordinates.chunkX, coordinates.chunkY);
-    const canvas = storedChunk ? await blobToCanvas(storedChunk.blob) : createRasterCanvas();
+    const baseCanvas = storedChunk ? await blobToCanvas(storedChunk.blob) : createRasterCanvas();
+    const strokeCanvas = createRasterCanvas();
+    const previewCanvas = createRasterCanvas();
     const strokeChunk: StrokeChunkState = {
       chunkX: coordinates.chunkX,
       chunkY: coordinates.chunkY,
       key,
       beforeBlob: storedChunk?.blob ?? null,
-      canvas,
+      baseCanvas,
+      strokeCanvas,
+      previewCanvas,
     };
+    compositeStrokePreview(previewCanvas, baseCanvas, strokeCanvas, activeDrawingStroke.toolState);
     activeDrawingStroke.chunks.set(key, strokeChunk);
     return strokeChunk;
   }, [doc]);
@@ -353,7 +362,8 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       for (const coveredChunk of coveredChunks) {
         const chunk = await getOrCreateStrokeChunk(coveredChunk, currentStroke.layerId);
         const localPoint = getLocalChunkPoint(point, chunk);
-        drawStrokeSegment(chunk.canvas, currentStroke.toolState, localPoint, localPoint);
+        drawStrokeSegment(chunk.strokeCanvas, currentStroke.maskToolState, localPoint, localPoint);
+        compositeStrokePreview(chunk.previewCanvas, chunk.baseCanvas, chunk.strokeCanvas, currentStroke.toolState);
         touchedKeys.add(chunk.key);
       }
     }
@@ -361,7 +371,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     touchedKeys.forEach((chunkKey) => {
       const chunk = currentStroke.chunks.get(chunkKey);
       if (chunk) {
-        backgroundRef.current?.redrawChunk(chunkKey, chunk.chunkX, chunk.chunkY, chunk.canvas);
+        backgroundRef.current?.redrawChunk(chunkKey, chunk.chunkX, chunk.chunkY, chunk.previewCanvas);
       }
     });
   }, [getOrCreateStrokeChunk]);
@@ -376,7 +386,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     const chunks = Array.from(currentStroke.chunks.values());
     const historyChunks = await Promise.all(chunks.map(async (chunk) => {
-      const afterBlob = isCanvasEmpty(chunk.canvas) ? null : await canvasToBlob(chunk.canvas);
+      const afterBlob = isCanvasEmpty(chunk.previewCanvas) ? null : await canvasToBlob(chunk.previewCanvas);
       return {
         key: chunk.key,
         before: chunk.beforeBlob,
@@ -430,9 +440,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const layerId = ensureDefaultBackgroundLayer();
       beginBackgroundStroke(layerId);
       const startPoint = toMapPoint(e.clientX, e.clientY);
+      const toolState = getDrawingToolSnapshot();
       const activeDrawingStroke: ActiveDrawingStroke = {
         layerId,
-        toolState: getDrawingToolSnapshot(),
+        toolState,
+        maskToolState: {
+          ...toolState,
+          opacity: 1,
+        },
         lastPoint: startPoint,
         chunks: new Map<string, StrokeChunkState>(),
       };
