@@ -1506,6 +1506,34 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
     });
 
+    it('updates connection color and stroke style from the connection editor', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
+      await user.selectOptions(screen.getByLabelText(/connection stroke style/i), 'dotted');
+
+      const updatedConnection = useEditorStore.getState().doc!.connections[conn.id];
+      expect(updatedConnection.strokeColorIndex).toBe(4);
+      expect(updatedConnection.strokeStyle).toBe('dotted');
+
+      const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
+      expect(connectionLine).toHaveStyle({
+        stroke: '#166534',
+        strokeDasharray: '2 4',
+      });
+    });
+
     it('shift-clicking a connection expands the mixed selection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };

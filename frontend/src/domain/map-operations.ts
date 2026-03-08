@@ -362,6 +362,32 @@ export function setRoomStyle(
   });
 }
 
+/** Return a new document with the connection's visual styling updated. */
+export function setConnectionStyle(
+  doc: MapDocument,
+  connectionId: string,
+  style: {
+    strokeColorIndex?: number;
+    strokeStyle?: RoomStrokeStyle;
+  },
+): MapDocument {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    throw new Error(`Connection "${connectionId}" not found.`);
+  }
+
+  return touch({
+    ...doc,
+    connections: {
+      ...doc.connections,
+      [connectionId]: {
+        ...connection,
+        ...style,
+      },
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  describeItem                                                       */
 /* ------------------------------------------------------------------ */

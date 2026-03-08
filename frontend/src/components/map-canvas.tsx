@@ -115,6 +115,7 @@ function ConnectionEditorOverlay({
   onClose,
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
+  const setConnectionStyle = useEditorStore((s) => s.setConnectionStyle);
 
   if (!connection) {
     return null;
@@ -147,6 +148,34 @@ function ConnectionEditorOverlay({
           <p className="connection-editor-meta" data-testid="connection-editor-id">
             {connection.id}
           </p>
+          <div className="room-editor-field">
+            <span className="room-editor-label">Stroke color</span>
+            <ColorChipGroup
+              label="Connection stroke color"
+              options={ROOM_STROKE_PALETTE}
+              selectedIndex={connection.strokeColorIndex}
+              onSelect={(strokeColorIndex) => setConnectionStyle(connection.id, { strokeColorIndex })}
+              testIdPrefix="connection-stroke-color-chip"
+            />
+          </div>
+          <div className="room-editor-field">
+            <label className="room-editor-label" htmlFor="connection-editor-stroke-style-input">
+              Stroke style
+            </label>
+            <select
+              id="connection-editor-stroke-style-input"
+              className="room-editor-input"
+              aria-label="Connection stroke style"
+              value={connection.strokeStyle}
+              onChange={(e) => setConnectionStyle(connection.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
+            >
+              {ROOM_STROKE_STYLES.map((strokeStyle) => (
+                <option key={strokeStyle} value={strokeStyle}>
+                  {strokeStyle}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -983,10 +1012,11 @@ function applyDragOffset(room: Room, roomDrag: { roomIds: readonly string[]; dx:
   };
 }
 
-function ConnectionLines({ rooms, connections, onOpenConnectionEditor }: {
+function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
   onOpenConnectionEditor: (connectionId: string) => void;
+  theme: ThemeMode;
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
@@ -1034,8 +1064,9 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor }: {
           points={pointsToSvgString(points)}
           fill="none"
           style={{
-            stroke: '#6366f1',
+            stroke: getRoomStrokeColor(conn.strokeColorIndex, theme),
             strokeWidth: isSelected ? 6 : 2,
+            strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
             pointerEvents: 'none',
           }}
         />
@@ -1092,7 +1123,7 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor }: {
                   key={`${conn.id}-arrow-${index}`}
                   data-testid={`connection-arrow-${conn.id}-${index}`}
                   points={pointsToSvgString(arrowPoints)}
-                  fill="#6366f1"
+                  fill={getRoomStrokeColor(conn.strokeColorIndex, theme)}
                 />
               ))}
             </g>
@@ -1109,7 +1140,7 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor }: {
                 key={`${conn.id}-arrow-${index}`}
                 data-testid={`connection-arrow-${conn.id}-${index}`}
                 points={pointsToSvgString(arrowPoints)}
-                fill="#6366f1"
+                fill={getRoomStrokeColor(conn.strokeColorIndex, theme)}
               />
             ))}
           </g>
@@ -1559,6 +1590,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
               rooms={doc.rooms}
               connections={doc.connections}
               onOpenConnectionEditor={openConnectionEditor}
+              theme={theme}
             />
           )}
 

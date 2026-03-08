@@ -60,6 +60,12 @@ describe('createConnection', () => {
     expect(conn.isBidirectional).toBe(false);
   });
 
+  it('starts with default styling', () => {
+    const conn = createConnection('room-a', 'room-b');
+    expect(conn.strokeColorIndex).toBe(0);
+    expect(conn.strokeStyle).toBe('solid');
+  });
+
   it('can be created as bidirectional', () => {
     const conn = createConnection('room-a', 'room-b', true);
     expect(conn.isBidirectional).toBe(true);

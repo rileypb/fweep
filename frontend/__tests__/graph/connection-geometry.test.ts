@@ -200,10 +200,8 @@ describe('computeConnectionPath', () => {
     const srcRoom = roomAt('A', 0, 200, { north: connId });
     const tgtRoom = roomAt('B', 0, 0, { south: connId });
     const conn: ReturnType<typeof createConnection> = {
+      ...createConnection(srcRoom.id, tgtRoom.id, true),
       id: connId,
-      sourceRoomId: srcRoom.id,
-      targetRoomId: tgtRoom.id,
-      isBidirectional: true,
     };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
@@ -225,7 +223,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { up: connId });
     const tgtRoom = roomAt('B', 0, 0, { down: connId });
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: true };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, true), id: connId };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 
@@ -239,7 +237,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { east: connId });
     const tgtRoom = roomAt('B', 200, 200); // no binding for this connection
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 
@@ -253,7 +251,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { north: connId });
     const tgtRoom = roomAt('B', 0, 0, { east: connId });
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 
@@ -265,7 +263,7 @@ describe('computeConnectionPath', () => {
   it('uses distinct source and target directions for a bidirectional self-connection', () => {
     const connId = 'conn-1';
     const room = roomAt('A', 80, 200, { north: connId, east: connId });
-    const conn = { id: connId, sourceRoomId: room.id, targetRoomId: room.id, isBidirectional: true };
+    const conn = { ...createConnection(room.id, room.id, true), id: connId };
 
     const points = computeConnectionPath(room, room, conn, 20);
 
@@ -281,7 +279,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('Long Source', 100, 200, { north: connId });
     const tgtRoom = roomAt('Target', 100, 0, { south: connId });
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: true };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, true), id: connId };
 
     const points = computeConnectionPath(
       srcRoom,
@@ -300,7 +298,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = { ...roomAt('Oval', 0, 200, { northeast: connId }), shape: 'oval' as const };
     const tgtRoom = roomAt('Target', 200, 0);
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 
@@ -320,7 +318,7 @@ describe('computeConnectionPath', () => {
     const connId = 'conn-1';
     const srcRoom = { ...roomAt('Octagon', 0, 200, { northeast: connId }), shape: 'octagon' as const };
     const tgtRoom = roomAt('Target', 200, 0);
-    const conn = { id: connId, sourceRoomId: srcRoom.id, targetRoomId: tgtRoom.id, isBidirectional: false };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 

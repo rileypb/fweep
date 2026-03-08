@@ -230,10 +230,8 @@ describe('validateMap', () => {
   it('reports an error when a connection references a missing source room', () => {
     const d = validMap();
     const badConn: Connection = {
+      ...createConnection('missing-room', Object.keys(d.rooms)[0], false),
       id: 'bad-conn',
-      sourceRoomId: 'missing-room',
-      targetRoomId: Object.keys(d.rooms)[0],
-      isBidirectional: false,
     };
     const broken: MapDocument = {
       ...d,
@@ -246,10 +244,8 @@ describe('validateMap', () => {
   it('reports an error when a connection references a missing target room', () => {
     const d = validMap();
     const badConn: Connection = {
+      ...createConnection(Object.keys(d.rooms)[0], 'missing-room', false),
       id: 'bad-conn',
-      sourceRoomId: Object.keys(d.rooms)[0],
-      targetRoomId: 'missing-room',
-      isBidirectional: false,
     };
     const broken: MapDocument = {
       ...d,

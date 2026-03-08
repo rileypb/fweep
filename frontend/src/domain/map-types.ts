@@ -47,6 +47,8 @@ export interface Connection {
   readonly sourceRoomId: string;
   readonly targetRoomId: string;
   readonly isBidirectional: boolean;
+  readonly strokeColorIndex: number;
+  readonly strokeStyle: RoomStrokeStyle;
 }
 
 /* ---- Item ---- */
@@ -122,6 +124,8 @@ export function createConnection(
     sourceRoomId,
     targetRoomId,
     isBidirectional,
+    strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
+    strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
   };
 }
 

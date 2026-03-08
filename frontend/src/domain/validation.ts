@@ -285,7 +285,13 @@ function parseRoomShape(value: unknown, issues: ValidationIssue[], roomId: strin
   return value as Room['shape'];
 }
 
-function parseStrokeStyle(value: unknown, issues: ValidationIssue[], roomId: string): Room['strokeStyle'] {
+function parseStrokeStyle(
+  value: unknown,
+  issues: ValidationIssue[],
+  entityType: EntityType,
+  entityId: string,
+  path: string,
+): Room['strokeStyle'] {
   if (value === undefined) {
     return DEFAULT_ROOM_STROKE_STYLE;
   }
@@ -293,10 +299,10 @@ function parseStrokeStyle(value: unknown, issues: ValidationIssue[], roomId: str
     pushIssue(
       issues,
       'error',
-      'room',
-      roomId,
-      `rooms.${roomId}.strokeStyle`,
-      `rooms.${roomId}.strokeStyle is invalid.`,
+      entityType,
+      entityId,
+      path,
+      `${path} is invalid.`,
     );
     return DEFAULT_ROOM_STROKE_STYLE;
   }
@@ -363,7 +369,7 @@ function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]):
       findRoomStrokeColorIndexByLegacyColor,
       isValidRoomStrokeColorIndex,
     ),
-    strokeStyle: parseStrokeStyle(room.strokeStyle, issues, entryKey),
+    strokeStyle: parseStrokeStyle(room.strokeStyle, issues, 'room', entryKey, `rooms.${entryKey}.strokeStyle`),
   };
 }
 
@@ -411,7 +417,29 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     );
   }
 
-  return { id, sourceRoomId, targetRoomId, isBidirectional };
+  return {
+    id,
+    sourceRoomId,
+    targetRoomId,
+    isBidirectional,
+    strokeColorIndex: parseColorIndex(
+      connection.strokeColorIndex,
+      connection.strokeColor,
+      issues,
+      `connections.${entryKey}.strokeColorIndex`,
+      entryKey,
+      DEFAULT_ROOM_STROKE_COLOR_INDEX,
+      findRoomStrokeColorIndexByLegacyColor,
+      isValidRoomStrokeColorIndex,
+    ),
+    strokeStyle: parseStrokeStyle(
+      connection.strokeStyle,
+      issues,
+      'connection',
+      entryKey,
+      `connections.${entryKey}.strokeStyle`,
+    ),
+  };
 }
 
 function parseItem(entryKey: string, value: unknown, issues: ValidationIssue[]): Item | null {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { createEmptyMap, createRoom, CURRENT_SCHEMA_VERSION } from '../../src/domain/map-types';
+import { createEmptyMap, createRoom, createConnection, CURRENT_SCHEMA_VERSION } from '../../src/domain/map-types';
 
 describe('createEmptyMap', () => {
   it('creates a map with the given name', () => {
@@ -42,5 +42,14 @@ describe('createRoom', () => {
     expect(room.fillColorIndex).toBe(0);
     expect(room.strokeColorIndex).toBe(0);
     expect(room.strokeStyle).toBe('solid');
+  });
+});
+
+describe('createConnection', () => {
+  it('initialises default connection styling', () => {
+    const connection = createConnection('room-a', 'room-b');
+
+    expect(connection.strokeColorIndex).toBe(0);
+    expect(connection.strokeStyle).toBe('solid');
   });
 });

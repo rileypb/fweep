@@ -11,6 +11,7 @@ import {
   describeRoom as domainDescribeRoom,
   setRoomShape as domainSetRoomShape,
   setRoomStyle as domainSetRoomStyle,
+  setConnectionStyle as domainSetConnectionStyle,
   setRoomPositions as domainSetRoomPositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
@@ -118,6 +119,15 @@ export interface EditorState {
     roomId: string,
     style: {
       fillColorIndex?: number;
+      strokeColorIndex?: number;
+      strokeStyle?: RoomStrokeStyle;
+    },
+  ) => void;
+
+  /** Update an existing connection's visual styling. */
+  setConnectionStyle: (
+    connectionId: string,
+    style: {
       strokeColorIndex?: number;
       strokeStyle?: RoomStrokeStyle;
     },
@@ -366,6 +376,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set room style: no document is loaded.');
     }
     const updatedDoc = domainSetRoomStyle(doc, roomId, style);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setConnectionStyle: (connectionId, style) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set connection style: no document is loaded.');
+    }
+    const updatedDoc = domainSetConnectionStyle(doc, connectionId, style);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 

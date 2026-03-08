@@ -116,6 +116,48 @@ describe('map-store', () => {
       expect(loaded?.rooms[roomId].strokeStyle).toBe('solid');
     });
 
+    it('hydrates missing connection style fields from older saved maps', async () => {
+      const doc = createEmptyMap('Legacy Connection Styles');
+      const sourceRoomId = crypto.randomUUID();
+      const targetRoomId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [sourceRoomId]: {
+            id: sourceRoomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: { east: connectionId },
+            isDark: false,
+          },
+          [targetRoomId]: {
+            id: targetRoomId,
+            name: 'Hallway',
+            description: '',
+            position: { x: 160, y: 0 },
+            directions: { west: connectionId },
+            isDark: false,
+          },
+        },
+        connections: {
+          [connectionId]: {
+            id: connectionId,
+            sourceRoomId,
+            targetRoomId,
+            isBidirectional: true,
+          },
+        },
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await saveMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.connections[connectionId].strokeColorIndex).toBe(0);
+      expect(loaded?.connections[connectionId].strokeStyle).toBe('solid');
+    });
+
     it('maps legacy direct room colors to palette indices when loading saved maps', async () => {
       const doc = createEmptyMap('Legacy Colors');
       const roomId = crypto.randomUUID();

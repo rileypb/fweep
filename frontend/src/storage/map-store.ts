@@ -84,14 +84,45 @@ function normalizeRoom(
   };
 }
 
+function normalizeConnection(
+  connection: MapDocument['connections'][string] | (
+    Omit<MapDocument['connections'][string], 'strokeColorIndex' | 'strokeStyle'> & {
+      strokeColorIndex?: number;
+      strokeColor?: string;
+      strokeStyle?: Room['strokeStyle'];
+    }
+  ),
+): MapDocument['connections'][string] {
+  const legacyConnection = connection as typeof connection & { strokeColor?: string };
+  const { strokeColor: _legacyStrokeColor, ...restConnection } = legacyConnection;
+  const strokeColorIndex = isValidRoomStrokeColorIndex(connection.strokeColorIndex)
+    ? connection.strokeColorIndex
+    : typeof legacyConnection.strokeColor === 'string'
+      ? findRoomStrokeColorIndexByLegacyColor(legacyConnection.strokeColor) ?? DEFAULT_ROOM_STROKE_COLOR_INDEX
+      : DEFAULT_ROOM_STROKE_COLOR_INDEX;
+  const strokeStyle = connection.strokeStyle && ROOM_STROKE_STYLES.includes(connection.strokeStyle)
+    ? connection.strokeStyle
+    : DEFAULT_ROOM_STROKE_STYLE;
+
+  return {
+    ...restConnection,
+    strokeColorIndex,
+    strokeStyle,
+  };
+}
+
 function normalizeMapDocument(doc: MapDocument): MapDocument {
   const rooms = Object.fromEntries(
     Object.entries(doc.rooms).map(([roomId, room]) => [roomId, normalizeRoom(room)]),
+  );
+  const connections = Object.fromEntries(
+    Object.entries(doc.connections).map(([connectionId, connection]) => [connectionId, normalizeConnection(connection)]),
   );
 
   return {
     ...doc,
     rooms,
+    connections,
   };
 }
 
