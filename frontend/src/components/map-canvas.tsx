@@ -25,14 +25,14 @@ import {
   pointsToSvgString,
   ROOM_HEIGHT,
   ROOM_CORNER_RADIUS,
-  ROOM_WIDTH,
 } from '../graph/connection-geometry';
+import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { normalizeDirection } from '../domain/directions';
+import { MapMinimap } from './map-minimap';
+import { useMapViewport, type PanOffset } from './use-map-viewport';
 
 const AUTO_PAN_ANIMATION_MS = 320;
 const ROOM_VISIBILITY_PADDING = 24;
-const ROOM_TEXT_CHAR_WIDTH = 6.78;
-const ROOM_HORIZONTAL_PADDING = 24;
 const HANDLE_RADIUS = 5;
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -43,11 +43,6 @@ const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
 const CONNECTION_PADLOCK_WIDTH = 12;
 const CONNECTION_PADLOCK_HEIGHT = 16;
-
-interface PanOffset {
-  x: number;
-  y: number;
-}
 
 interface SelectionBox {
   readonly startX: number;
@@ -451,10 +446,6 @@ interface DirectionHandlesProps {
   roomHeight: number;
   roomShape: RoomShape;
   onHandleMouseDown?: (direction: string, e: React.MouseEvent) => void;
-}
-
-function getRoomNodeWidth(name: string): number {
-  return Math.max(ROOM_WIDTH, Math.round((name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
 }
 
 function getRoomScreenGeometry(room: Room, panOffset: PanOffset, canvasRect: DOMRect | null): RoomScreenGeometry {
@@ -1543,12 +1534,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [showGrid, setShowGrid] = useState(initialShowGrid);
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
-  const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
+  const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const setSelection = useEditorStore((s) => s.setSelection);
@@ -1557,54 +1548,28 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const panOffsetRef = useRef<PanOffset>({ x: 0, y: 0 });
   const autoPanTimeoutRef = useRef<number | null>(null);
   const suppressCanvasClickRef = useRef(false);
-  const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
   const theme = useDocumentTheme();
+  const {
+    canvasRef,
+    canvasRect,
+    effectiveCanvasRect,
+    panOffset,
+    panOffsetRef,
+    setPanOffset,
+    panBy,
+    centerOnMapPoint,
+    toMapPoint,
+  } = useMapViewport();
 
   const rooms = doc ? Object.values(doc.rooms) : [];
-
-  useEffect(() => {
-    panOffsetRef.current = panOffset;
-  }, [panOffset]);
-
-  useEffect(() => {
-    if (!canvasRef.current) {
-      return;
-    }
-
-    const updateCanvasRect = () => {
-      if (canvasRef.current) {
-        setCanvasRect(canvasRef.current.getBoundingClientRect());
-      }
-    };
-
-    updateCanvasRect();
-    window.addEventListener('resize', updateCanvasRect);
-
-    return () => {
-      window.removeEventListener('resize', updateCanvasRect);
-    };
-  }, []);
 
   useEffect(() => () => {
     if (autoPanTimeoutRef.current !== null) {
       window.clearTimeout(autoPanTimeoutRef.current);
     }
   }, []);
-
-  const toMapPoint = useCallback((clientX: number, clientY: number): PanOffset => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    const left = rect?.left ?? 0;
-    const top = rect?.top ?? 0;
-
-    return {
-      x: clientX - left - panOffset.x,
-      y: clientY - top - panOffset.y,
-    };
-  }, [panOffset.x, panOffset.y]);
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorId(null);
@@ -1917,7 +1882,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   ]
     .filter(Boolean)
     .join(' ');
-  const effectiveCanvasRect = canvasRect ?? canvasRef.current?.getBoundingClientRect() ?? null;
 
   return (
     <div
@@ -1957,6 +1921,21 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             </svg>
           </button>
         </header>
+
+        {doc && rooms.length > 0 && (
+          <MapMinimap
+            rooms={doc.rooms}
+            connections={doc.connections}
+            selectedRoomIds={selectedRoomIds}
+            selectedConnectionIds={selectedConnectionIds}
+            panOffset={panOffset}
+            canvasRect={effectiveCanvasRect}
+            theme={theme}
+            disabled={roomEditorId !== null || connectionEditorId !== null}
+            onPanToMapPoint={centerOnMapPoint}
+            onPanBy={panBy}
+          />
+        )}
 
         <div
           className={`map-canvas-content${isAutoPanning ? ' map-canvas-content--animated' : ''}`}

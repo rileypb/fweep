@@ -454,6 +454,109 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.map-minimap {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  z-index: 12;
+  width: min(180px, calc(100vw - 2rem));
+  padding: 0.4rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  outline: none;
+}
+
+.map-minimap:focus-visible {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.55), 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+:root[data-theme='dark'] .map-minimap {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(17, 24, 39, 0.72);
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.45);
+}
+
+.map-minimap--disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.map-minimap__svg {
+  width: 100%;
+  height: auto;
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.map-minimap__frame {
+  fill: rgba(241, 245, 249, 0.7);
+  stroke: rgba(15, 23, 42, 0.16);
+}
+
+:root[data-theme='dark'] .map-minimap__frame {
+  fill: rgba(15, 23, 42, 0.72);
+  stroke: rgba(148, 163, 184, 0.22);
+}
+
+.map-minimap__connection {
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.map-minimap__connection--selected {
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
+.map-minimap__room path {
+  fill: rgba(148, 163, 184, 0.28);
+  stroke: rgba(15, 23, 42, 0.42);
+  stroke-width: 1.2;
+}
+
+:root[data-theme='dark'] .map-minimap__room path {
+  fill: rgba(71, 85, 105, 0.32);
+  stroke: rgba(226, 232, 240, 0.4);
+}
+
+.map-minimap__room--selected path {
+  fill: rgba(245, 158, 11, 0.32);
+  stroke: #f59e0b;
+  stroke-width: 1.8;
+}
+
+.map-minimap__viewport {
+  fill: rgba(59, 130, 246, 0.08);
+  stroke: #2563eb;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.map-minimap__viewport:active {
+  cursor: grabbing;
+}
+
+.map-minimap__hint {
+  padding: 0 0.2rem 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.58;
+  user-select: none;
+}
+
+@media (max-width: 700px) {
+  .map-minimap {
+    width: min(144px, calc(100vw - 2rem));
+  }
+}
+
 /* ---- Room nodes ---- */
 
 .room-node {

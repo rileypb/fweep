@@ -31,6 +31,25 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).toBeInTheDocument();
   });
 
+  it('hides the minimap when the document has no rooms', () => {
+    const doc = createEmptyMap('Test');
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.queryByTestId('map-minimap')).not.toBeInTheDocument();
+  });
+
+  it('shows the minimap when the document has rooms', () => {
+    const doc = createEmptyMap('Test');
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
+  });
+
   it('displays the map name', () => {
     render(<MapCanvas mapName="My Adventure" />);
     expect(screen.getByText('My Adventure')).toBeInTheDocument();
@@ -101,6 +120,87 @@ describe('MapCanvas', () => {
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
       expect(rooms[0].position).toEqual({ x: 40, y: 80 });
+    });
+
+    it('clicking the minimap recenters the map content', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 300, y: 200 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      const minimap = screen.getByTestId('map-minimap-svg');
+
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+      jest.spyOn(minimap, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 180,
+        bottom: 140,
+        width: 180,
+        height: 140,
+        toJSON: () => ({}),
+      });
+
+      fireEvent.click(minimap, { clientX: 90, clientY: 70 });
+
+      expect(content.style.transform).not.toBe('translate(0px, 0px)');
+    });
+
+    it('dragging the minimap viewport pans the map content', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 300, y: 200 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      const minimap = screen.getByTestId('map-minimap-svg');
+      const viewport = screen.getByTestId('map-minimap-viewport');
+
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+      jest.spyOn(minimap, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 180,
+        bottom: 140,
+        width: 180,
+        height: 140,
+        toJSON: () => ({}),
+      });
+
+      fireEvent.mouseDown(viewport, { clientX: 60, clientY: 60 });
+      fireEvent.mouseMove(document, { clientX: 90, clientY: 60 });
+      fireEvent.mouseUp(document, { clientX: 90, clientY: 60 });
+
+      expect(content.style.transform).not.toBe('translate(0px, 0px)');
     });
 
     it('clicking the map background clears the room selection', () => {
