@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { getChunkCoverageForPoint, getToolStampRadius } from '../../src/components/map-background-raster';
+import { getChunkCoverageForPoint, getToolStampRadius, usesHardEdgeStamp } from '../../src/components/map-background-raster';
 import type { DrawingToolState } from '../../src/state/editor-store';
 
 describe('map-background-raster', () => {
@@ -36,5 +36,15 @@ describe('map-background-raster', () => {
     };
 
     expect(getToolStampRadius(toolState)).toBe(9);
+  });
+
+  it('uses a hard-edge stamp for eraser strokes when softness is zero', () => {
+    expect(usesHardEdgeStamp({
+      tool: 'eraser',
+      colorRgbHex: '#000000',
+      opacity: 1,
+      size: 12,
+      softness: 0,
+    })).toBe(true);
   });
 });

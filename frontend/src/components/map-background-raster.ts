@@ -94,6 +94,11 @@ export function getToolStampRadius(toolState: DrawingToolState): number {
   return Math.max(toolState.size / 2, 0.5);
 }
 
+export function usesHardEdgeStamp(toolState: DrawingToolState): boolean {
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser';
+  return isBrushLike && toolState.softness <= 0;
+}
+
 export function getChunkCoverageForPoint(point: MapPixelPoint, radius: number): ChunkCoordinates[] {
   const minChunkX = Math.floor((point.x - radius) / BACKGROUND_LAYER_CHUNK_SIZE);
   const maxChunkX = Math.floor((point.x + radius) / BACKGROUND_LAYER_CHUNK_SIZE);
@@ -195,8 +200,21 @@ export function drawStrokeSegment(
   context.imageSmoothingEnabled = false;
   const points = getInterpolatedLinePoints(startPoint, endPoint);
   const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser';
+  const usesHardEdgeBrushStamp = usesHardEdgeStamp(toolState);
 
   for (const point of points) {
+    if (usesHardEdgeBrushStamp) {
+      drawHardStamp(
+        context,
+        point,
+        toolState.size,
+        toolState.colorRgbHex,
+        toolState.opacity,
+        toolState.tool === 'eraser',
+      );
+      continue;
+    }
+
     if (isBrushLike) {
       drawSoftStamp(
         context,
