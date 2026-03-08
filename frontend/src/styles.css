@@ -539,7 +539,7 @@ body {
 .map-canvas-header {
   position: absolute;
   top: 0.75rem;
-  left: 7rem;
+  left: 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -548,7 +548,7 @@ body {
 
 .map-drawing-toolbar {
   position: absolute;
-  top: 0.75rem;
+  top: 3.75rem;
   left: 0.75rem;
   z-index: 14;
   display: flex;

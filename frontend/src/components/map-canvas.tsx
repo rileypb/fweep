@@ -100,6 +100,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
+  const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
   const ensureDefaultBackgroundLayer = useEditorStore((s) => s.ensureDefaultBackgroundLayer);
   const beginBackgroundStroke = useEditorStore((s) => s.beginBackgroundStroke);
   const cancelBackgroundStroke = useEditorStore((s) => s.cancelBackgroundStroke);
@@ -579,6 +580,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
+      return;
+    }
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       const { selectedConnectionIds: currentSelectedConnectionIds } = useEditorStore.getState();
       if (selectedRoomIds.length === 0 && currentSelectedConnectionIds.length === 0) {
@@ -617,7 +624,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, setCanvasInteractionMode, undo]);
 
   const classes = [
     'map-canvas',

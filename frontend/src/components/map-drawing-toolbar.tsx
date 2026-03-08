@@ -26,6 +26,27 @@ function GraphGlyph(): React.JSX.Element {
   );
 }
 
+function PencilGlyph(): React.JSX.Element {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20l3.8-.9L18.9 8a1.7 1.7 0 0 0 0-2.4l-.5-.5a1.7 1.7 0 0 0-2.4 0L4.9 16.2 4 20Z" />
+      <path d="m13.5 6.5 4 4" />
+      <path d="M4 20l3.2-3.2" />
+    </svg>
+  );
+}
+
+function BrushGlyph(): React.JSX.Element {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m10.8 11.5 7.9-7.9c.8-.8 2.1-.8 2.9 0 .8.8.8 2.1 0 2.9l-7.9 7.9" />
+      <path d="m8.8 13.5 2-2 4.1 4.1-2 2" />
+      <path d="M3.2 20.8c1.5-1 1.8-2.1 1.8-3.1 0-2.2 1.5-4 3.6-4h.3l4 4v.3c0 2.1-1.8 3.6-4 3.6-1.1 0-2.1.4-3.1 1.2 0 0 .6-1.2-.3-2-.9-.9-2.3-.3-2.3-.3Z" />
+      <path d="M18.8 5.2a.9.9 0 1 0 1.8 0 .9.9 0 0 0-1.8 0Z" />
+    </svg>
+  );
+}
+
 function PaletteGlyph(): React.JSX.Element {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
@@ -36,6 +57,28 @@ function PaletteGlyph(): React.JSX.Element {
       <circle cx="10.6" cy="8.4" r="0.8" fill="currentColor" stroke="none" />
     </svg>
   );
+}
+
+function EraserGlyph(): React.JSX.Element {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <g transform="rotate(-45 12 12)">
+        <rect x="6" y="4" width="12" height="16" rx="2.8" fill="#f8fafc" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M6 13h12v4.2A2.8 2.8 0 0 1 15.2 20H8.8A2.8 2.8 0 0 1 6 17.2V13Z" fill="#111827" />
+        <path d="M6 13h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </g>
+    </svg>
+  );
+}
+
+function ToolGlyph({ tool }: { tool: DrawingTool }): React.JSX.Element {
+  if (tool === 'pencil') {
+    return <PencilGlyph />;
+  }
+  if (tool === 'brush') {
+    return <BrushGlyph />;
+  }
+  return <EraserGlyph />;
 }
 
 export function MapDrawingToolbar(): React.JSX.Element {
@@ -74,12 +117,14 @@ export function MapDrawingToolbar(): React.JSX.Element {
           <button
             key={tool}
             type="button"
-            className={`map-drawing-tool-button${drawingToolState.tool === tool ? ' map-drawing-tool-button--active' : ''}`}
+            className={`map-drawing-tool-button map-drawing-tool-button--icon${drawingToolState.tool === tool ? ' map-drawing-tool-button--active' : ''}`}
             onClick={() => setDrawingTool(tool)}
             aria-pressed={drawingToolState.tool === tool}
+            aria-label={label}
+            title={label}
             disabled={drawingControlsDisabled}
           >
-            {label}
+            <ToolGlyph tool={tool} />
           </button>
         ))}
       </div>

@@ -451,6 +451,33 @@ describe('MapCanvas', () => {
 
       expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Kitchen');
     });
+
+    it('toggles drawing mode with the D key', () => {
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.keyDown(canvas, { key: 'd' });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+
+      fireEvent.keyDown(canvas, { key: 'd' });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+    });
+
+    it('does not toggle drawing mode with D while editing a room field', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByText('Kitchen'));
+      const nameInput = screen.getByLabelText('Room name');
+      nameInput.focus();
+
+      fireEvent.keyDown(nameInput, { key: 'd' });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+    });
   });
 
   /* ---- Room rendering ---- */
