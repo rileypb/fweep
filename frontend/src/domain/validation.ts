@@ -1,5 +1,6 @@
 import {
   CURRENT_SCHEMA_VERSION,
+  type ConnectionAnnotation,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
@@ -309,6 +310,77 @@ function parseStrokeStyle(
   return value as Room['strokeStyle'];
 }
 
+function parseConnectionAnnotation(
+  value: unknown,
+  issues: ValidationIssue[],
+  connectionId: string,
+): ConnectionAnnotation | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const annotation = asRecord(
+    value,
+    issues,
+    `connections.${connectionId}.annotation`,
+    'connection',
+    connectionId,
+  );
+  if (!annotation) {
+    return null;
+  }
+
+  const kind = requireString(
+    annotation.kind,
+    issues,
+    `connections.${connectionId}.annotation.kind`,
+    'connection',
+    connectionId,
+  );
+  if (kind === null) {
+    return null;
+  }
+
+  const textValue = annotation.text;
+  if (textValue !== undefined && typeof textValue !== 'string') {
+    pushIssue(
+      issues,
+      'error',
+      'connection',
+      connectionId,
+      `connections.${connectionId}.annotation.text`,
+      `connections.${connectionId}.annotation.text must be a string.`,
+    );
+    return { kind };
+  }
+
+  if (kind === 'text') {
+    if (typeof textValue !== 'string' || textValue.trim().length === 0) {
+      pushIssue(
+        issues,
+        'error',
+        'connection',
+        connectionId,
+        `connections.${connectionId}.annotation.text`,
+        'Text annotations must include non-empty annotation text.',
+      );
+      return { kind };
+    }
+
+    validateLength(
+      textValue,
+      MAX_ENTITY_NAME_LENGTH,
+      issues,
+      `connections.${connectionId}.annotation.text`,
+      'connection',
+      connectionId,
+      'Connection annotation text',
+    );
+  }
+
+  return textValue === undefined ? { kind } : { kind, text: textValue };
+}
+
 function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]): Room | null {
   const room = asRecord(value, issues, `rooms.${entryKey}`, 'room', entryKey);
   if (!room) {
@@ -422,6 +494,7 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     sourceRoomId,
     targetRoomId,
     isBidirectional,
+    annotation: parseConnectionAnnotation(connection.annotation, issues, entryKey),
     strokeColorIndex: parseColorIndex(
       connection.strokeColorIndex,
       connection.strokeColor,

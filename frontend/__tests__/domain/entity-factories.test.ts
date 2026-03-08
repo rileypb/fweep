@@ -62,6 +62,7 @@ describe('createConnection', () => {
 
   it('starts with default styling', () => {
     const conn = createConnection('room-a', 'room-b');
+    expect(conn.annotation).toBeNull();
     expect(conn.strokeColorIndex).toBe(0);
     expect(conn.strokeStyle).toBe('solid');
   });

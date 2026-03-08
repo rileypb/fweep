@@ -46,9 +46,10 @@ describe('createRoom', () => {
 });
 
 describe('createConnection', () => {
-  it('initialises default connection styling', () => {
+  it('initialises default connection styling and annotation', () => {
     const connection = createConnection('room-a', 'room-b');
 
+    expect(connection.annotation).toBeNull();
     expect(connection.strokeColorIndex).toBe(0);
     expect(connection.strokeStyle).toBe('solid');
   });

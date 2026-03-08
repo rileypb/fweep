@@ -25,6 +25,13 @@ export type RoomShape = (typeof ROOM_SHAPES)[number];
 export const ROOM_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const;
 export type RoomStrokeStyle = (typeof ROOM_STROKE_STYLES)[number];
 export const DEFAULT_ROOM_STROKE_STYLE: RoomStrokeStyle = 'solid';
+export const CONNECTION_ANNOTATION_KINDS = ['up', 'down', 'in', 'out', 'door', 'locked door', 'text'] as const;
+export type KnownConnectionAnnotationKind = (typeof CONNECTION_ANNOTATION_KINDS)[number];
+
+export interface ConnectionAnnotation {
+  readonly kind: string;
+  readonly text?: string;
+}
 
 export interface Room {
   readonly id: string;
@@ -47,6 +54,7 @@ export interface Connection {
   readonly sourceRoomId: string;
   readonly targetRoomId: string;
   readonly isBidirectional: boolean;
+  readonly annotation: ConnectionAnnotation | null;
   readonly strokeColorIndex: number;
   readonly strokeStyle: RoomStrokeStyle;
 }
@@ -124,6 +132,7 @@ export function createConnection(
     sourceRoomId,
     targetRoomId,
     isBidirectional,
+    annotation: null,
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
   };

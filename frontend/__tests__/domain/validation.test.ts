@@ -218,6 +218,41 @@ describe('parseUntrustedMapDocument', () => {
 
     expect(() => parseUntrustedMapDocument(doc)).toThrow(MapValidationError);
   });
+
+  it('accepts a structured connection annotation', () => {
+    const doc = validMap();
+    const connectionId = Object.keys(doc.connections)[0];
+    const annotated = {
+      ...doc,
+      connections: {
+        ...doc.connections,
+        [connectionId]: {
+          ...doc.connections[connectionId],
+          annotation: { kind: 'door' },
+        },
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(annotated);
+    expect(parsed.connections[connectionId].annotation).toEqual({ kind: 'door' });
+  });
+
+  it('rejects text annotations without text', () => {
+    const doc = validMap();
+    const connectionId = Object.keys(doc.connections)[0];
+    const annotated = {
+      ...doc,
+      connections: {
+        ...doc.connections,
+        [connectionId]: {
+          ...doc.connections[connectionId],
+          annotation: { kind: 'text' },
+        },
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(annotated)).toThrow(MapValidationError);
+  });
 });
 
 describe('validateMap', () => {

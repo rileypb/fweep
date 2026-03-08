@@ -893,6 +893,8 @@ describe('MapCanvas', () => {
       await user.click(screen.getByTestId('room-editor-overlay').querySelector('.room-editor-backdrop') as HTMLElement);
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });
   });
 
@@ -1484,7 +1486,6 @@ describe('MapCanvas', () => {
 
       expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
       expect(screen.getByTestId('connection-editor-dialog')).toBeInTheDocument();
-      expect(screen.getByTestId('connection-editor-id')).toHaveTextContent(conn.id);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
@@ -1504,6 +1505,46 @@ describe('MapCanvas', () => {
       fireEvent.click(screen.getByRole('button', { name: /close connection editor/i }));
 
       expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('closes the connection editor on Escape', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('closes the connection editor and clears selection when clicking the backdrop', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.click(screen.getByTestId('connection-editor-overlay').querySelector('.connection-editor-backdrop') as HTMLElement);
+
+      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });
 
     it('updates connection color and stroke style from the connection editor', async () => {

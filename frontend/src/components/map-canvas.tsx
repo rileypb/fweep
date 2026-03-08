@@ -61,11 +61,13 @@ interface RoomEditorOverlayProps {
   canvasRect: DOMRect | null;
   theme: ThemeMode;
   onClose: () => void;
+  onBackdropClose: () => void;
 }
 
 interface ConnectionEditorOverlayProps {
   connectionId: string;
   onClose: () => void;
+  onBackdropClose: () => void;
 }
 
 interface ColorChipGroupProps {
@@ -113,9 +115,24 @@ function ColorChipGroup({
 function ConnectionEditorOverlay({
   connectionId,
   onClose,
+  onBackdropClose,
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
   const setConnectionStyle = useEditorStore((s) => s.setConnectionStyle);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   if (!connection) {
     return null;
@@ -126,7 +143,7 @@ function ConnectionEditorOverlay({
       <div
         className="connection-editor-backdrop"
         aria-hidden="true"
-        onClick={onClose}
+        onClick={onBackdropClose}
       />
       <div
         className="connection-editor-panel"
@@ -144,10 +161,6 @@ function ConnectionEditorOverlay({
           ×
         </button>
         <div className="connection-editor-content">
-          <p className="connection-editor-title">Connection</p>
-          <p className="connection-editor-meta" data-testid="connection-editor-id">
-            {connection.id}
-          </p>
           <div className="room-editor-field">
             <span className="room-editor-label">Stroke color</span>
             <ColorChipGroup
@@ -182,7 +195,14 @@ function ConnectionEditorOverlay({
   );
 }
 
-function RoomEditorOverlay({ roomId, panOffset, canvasRect, theme, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
+function RoomEditorOverlay({
+  roomId,
+  panOffset,
+  canvasRect,
+  theme,
+  onClose,
+  onBackdropClose,
+}: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const describeRoom = useEditorStore((s) => s.describeRoom);
@@ -229,7 +249,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, theme, onClose }: Ro
       <div
         className="room-editor-backdrop"
         aria-hidden="true"
-        onClick={onClose}
+        onClick={onBackdropClose}
       />
       <div
         className="room-node room-editor-room-node"
@@ -1260,6 +1280,16 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     });
   }, []);
 
+  const closeRoomEditorFromBackdrop = useCallback(() => {
+    clearSelection();
+    closeRoomEditor();
+  }, [clearSelection, closeRoomEditor]);
+
+  const closeConnectionEditorFromBackdrop = useCallback(() => {
+    clearSelection();
+    closeConnectionEditor();
+  }, [clearSelection, closeConnectionEditor]);
+
   const startAutoPanAnimation = useCallback(() => {
     setIsAutoPanning(true);
 
@@ -1623,12 +1653,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           canvasRect={effectiveCanvasRect}
           theme={theme}
           onClose={closeRoomEditor}
+          onBackdropClose={closeRoomEditorFromBackdrop}
         />
       )}
       {connectionEditorId && (
         <ConnectionEditorOverlay
           connectionId={connectionEditorId}
           onClose={closeConnectionEditor}
+          onBackdropClose={closeConnectionEditorFromBackdrop}
         />
       )}
     </div>

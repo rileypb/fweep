@@ -86,7 +86,8 @@ function normalizeRoom(
 
 function normalizeConnection(
   connection: MapDocument['connections'][string] | (
-    Omit<MapDocument['connections'][string], 'strokeColorIndex' | 'strokeStyle'> & {
+    Omit<MapDocument['connections'][string], 'annotation' | 'strokeColorIndex' | 'strokeStyle'> & {
+      annotation?: MapDocument['connections'][string]['annotation'];
       strokeColorIndex?: number;
       strokeColor?: string;
       strokeStyle?: Room['strokeStyle'];
@@ -95,6 +96,17 @@ function normalizeConnection(
 ): MapDocument['connections'][string] {
   const legacyConnection = connection as typeof connection & { strokeColor?: string };
   const { strokeColor: _legacyStrokeColor, ...restConnection } = legacyConnection;
+  const annotation = (
+    legacyConnection.annotation
+    && typeof legacyConnection.annotation === 'object'
+    && typeof legacyConnection.annotation.kind === 'string'
+    && (
+      legacyConnection.annotation.text === undefined
+      || typeof legacyConnection.annotation.text === 'string'
+    )
+  )
+    ? legacyConnection.annotation
+    : null;
   const strokeColorIndex = isValidRoomStrokeColorIndex(connection.strokeColorIndex)
     ? connection.strokeColorIndex
     : typeof legacyConnection.strokeColor === 'string'
@@ -106,6 +118,7 @@ function normalizeConnection(
 
   return {
     ...restConnection,
+    annotation,
     strokeColorIndex,
     strokeStyle,
   };
