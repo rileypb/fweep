@@ -1,11 +1,16 @@
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MapMinimap } from '../../src/components/map-minimap';
-import { createConnection, createRoom } from '../../src/domain/map-types';
+import { createBackgroundLayer, createConnection, createEmptyBackground, createRoom } from '../../src/domain/map-types';
+import { saveBackgroundChunks } from '../../src/storage/map-store';
 
 describe('MapMinimap', () => {
   beforeEach(() => {
     document.documentElement.setAttribute('data-theme', 'light');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   function mockSvgRect(element: Element): void {
@@ -28,6 +33,8 @@ describe('MapMinimap', () => {
 
     const { container } = render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{}}
         connections={{}}
         selectedRoomIds={[]}
@@ -50,6 +57,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen, [hallway.id]: hallway }}
         connections={{ [connection.id]: connection }}
         selectedRoomIds={[kitchen.id]}
@@ -76,6 +85,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{
           [rectangle.id]: rectangle,
           [diamond.id]: diamond,
@@ -105,6 +116,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{ [invalidConnection.id]: invalidConnection }}
         selectedRoomIds={[]}
@@ -126,6 +139,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -152,6 +167,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -182,6 +199,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -215,6 +234,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -252,6 +273,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -281,6 +304,8 @@ describe('MapMinimap', () => {
 
     render(
       <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
         selectedRoomIds={[]}
@@ -303,5 +328,105 @@ describe('MapMinimap', () => {
     fireEvent.mouseUp(document, { clientX: 90, clientY: 60 });
 
     expect(onPanBy).not.toHaveBeenCalled();
+  });
+
+  it('renders the active background layer in the minimap', async () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const backgroundLayer = createBackgroundLayer('Background');
+    await saveBackgroundChunks([{
+      mapId: 'map-1',
+      layerId: backgroundLayer.id,
+      chunkX: 0,
+      chunkY: 0,
+      blob: new Blob(['chunk'], { type: 'image/png' }),
+    }]);
+    if (!('createObjectURL' in URL)) {
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: () => 'blob:test-minimap',
+      });
+    } else {
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: () => 'blob:test-minimap',
+      });
+    }
+    if (!('revokeObjectURL' in URL)) {
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        configurable: true,
+        value: () => {},
+      });
+    } else {
+      Object.defineProperty(URL, 'revokeObjectURL', {
+        configurable: true,
+        value: () => {},
+      });
+    }
+
+    render(
+      <MapMinimap
+        mapId="map-1"
+        background={{
+          layers: { [backgroundLayer.id]: backgroundLayer },
+          activeLayerId: backgroundLayer.id,
+        }}
+        rooms={{ [kitchen.id]: kitchen }}
+        connections={{}}
+        selectedRoomIds={[]}
+        selectedConnectionIds={[]}
+        panOffset={{ x: 0, y: 0 }}
+        canvasRect={{ width: 300, height: 200 }}
+        theme="light"
+        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
+        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('map-minimap-background-chunk')).toBeInTheDocument();
+    });
+  });
+
+  it('renders for draw-only maps when background chunks exist', async () => {
+    const backgroundLayer = createBackgroundLayer('Background');
+    await saveBackgroundChunks([{
+      mapId: 'map-draw-only',
+      layerId: backgroundLayer.id,
+      chunkX: 2,
+      chunkY: 1,
+      blob: new Blob(['chunk'], { type: 'image/png' }),
+    }]);
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: () => 'blob:test-minimap-draw-only',
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: () => {},
+    });
+
+    render(
+      <MapMinimap
+        mapId="map-draw-only"
+        background={{
+          layers: { [backgroundLayer.id]: backgroundLayer },
+          activeLayerId: backgroundLayer.id,
+        }}
+        rooms={{}}
+        connections={{}}
+        selectedRoomIds={[]}
+        selectedConnectionIds={[]}
+        panOffset={{ x: 0, y: 0 }}
+        canvasRect={{ width: 300, height: 200 }}
+        theme="light"
+        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
+        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
+      expect(screen.getByTestId('map-minimap-background-chunk')).toBeInTheDocument();
+    });
   });
 });

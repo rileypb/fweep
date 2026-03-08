@@ -73,6 +73,18 @@ function isCanvasChromeTarget(target: Element | null): boolean {
   return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-canvas-header, .map-drawing-toolbar'));
 }
 
+function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
+  return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z';
+}
+
+function isRedoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; key: string }): boolean {
+  return (
+    (event.ctrlKey || event.metaKey)
+    && !event.altKey
+    && ((event.key.toLowerCase() === 'z' && event.shiftKey) || (event.key.toLowerCase() === 'y' && !event.shiftKey))
+  );
+}
+
 export interface MapCanvasProps {
   mapName: string;
   showGrid?: boolean;
@@ -137,6 +149,44 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       window.clearTimeout(persistPanTimeoutRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const handleWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (isRedoShortcut(event)) {
+        event.preventDefault();
+        void redo();
+        return;
+      }
+
+      if (isUndoShortcut(event)) {
+        event.preventDefault();
+        void undo();
+        return;
+      }
+
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
+      }
+    };
+
+    window.addEventListener('keydown', handleWindowKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleWindowKeyDown);
+    };
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, redo, roomEditorId, setCanvasInteractionMode, undo]);
 
   useEffect(() => {
     if (!doc) {
@@ -566,20 +616,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
-    const isUndoShortcut = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'z';
-    const isRedoShortcut = (
-      (e.ctrlKey || e.metaKey)
-      && !e.altKey
-      && ((e.key.toLowerCase() === 'z' && e.shiftKey) || (e.key.toLowerCase() === 'y' && !e.shiftKey))
-    );
-
-    if (isRedoShortcut) {
+    if (isRedoShortcut(e)) {
       e.preventDefault();
       redo();
       return;
     }
 
-    if (isUndoShortcut) {
+    if (isUndoShortcut(e)) {
       e.preventDefault();
       undo();
       return;
@@ -678,8 +721,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           </button>
         </header>
 
-        {doc && rooms.length > 0 && (
+        {doc && (rooms.length > 0 || doc.background.activeLayerId !== null) && (
           <MapMinimap
+            mapId={doc.metadata.id}
+            background={doc.background}
+            backgroundRevision={backgroundRevision}
             rooms={doc.rooms}
             connections={doc.connections}
             selectedRoomIds={selectedRoomIds}

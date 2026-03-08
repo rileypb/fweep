@@ -477,6 +477,32 @@ export async function listBackgroundChunksInBounds(
   });
 }
 
+export async function listBackgroundChunksForLayer(
+  mapId: string,
+  layerId: string,
+): Promise<BackgroundChunkRecord[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const index = store.index(BACKGROUND_CHUNK_MAP_INDEX);
+    const request = index.openCursor(IDBKeyRange.only(mapId));
+    const matches: BackgroundChunkRecord[] = [];
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(matches.filter((chunk) => chunk.layerId === layerId));
+        return;
+      }
+
+      matches.push(cursor.value as BackgroundChunkRecord);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function importMapFromFile(file: File): Promise<MapDocument> {
   if (file.size > MAX_IMPORT_FILE_BYTES) {
     throw new Error(`Map file is too large to import. Maximum size is ${formatMegabytes(MAX_IMPORT_FILE_BYTES)}.`);

@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef } from 'react';
-import type { Connection, Room, RoomShape } from '../domain/map-types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BACKGROUND_LAYER_CHUNK_SIZE, type BackgroundDocument, type Connection, type Room, type RoomShape } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import type { PanOffset } from './use-map-viewport';
 import {
@@ -10,7 +10,10 @@ import {
   getMinimapConnectionPoints,
   getMinimapRoomRect,
   getMinimapViewportRect,
+  mergeWorldBounds,
+  toMinimapPoint,
 } from '../graph/minimap-geometry';
+import { listBackgroundChunksForLayer, type BackgroundChunkRecord } from '../storage/map-store';
 
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 140;
@@ -22,6 +25,9 @@ interface CanvasRectLike {
 }
 
 export interface MapMinimapProps {
+  readonly mapId: string;
+  readonly background: BackgroundDocument;
+  readonly backgroundRevision?: number;
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly selectedRoomIds: readonly string[];
@@ -32,6 +38,10 @@ export interface MapMinimapProps {
   readonly disabled?: boolean;
   readonly onPanToMapPoint: (point: { x: number; y: number }) => void;
   readonly onPanBy: (delta: PanOffset) => void;
+}
+
+interface MinimapBackgroundChunk extends BackgroundChunkRecord {
+  readonly objectUrl: string;
 }
 
 function getMinimapShapePath(shape: RoomShape, width: number, height: number): string {
@@ -75,6 +85,9 @@ function getMinimapShapePath(shape: RoomShape, width: number, height: number): s
 }
 
 export function MapMinimap({
+  mapId,
+  background,
+  backgroundRevision = 0,
   rooms,
   connections,
   selectedRoomIds,
@@ -87,7 +100,60 @@ export function MapMinimap({
   onPanBy,
 }: MapMinimapProps): React.JSX.Element | null {
   const roomEntries = useMemo(() => Object.values(rooms), [rooms]);
-  const worldBounds = useMemo(() => computeWorldBounds(roomEntries), [roomEntries]);
+  const [backgroundChunks, setBackgroundChunks] = useState<readonly MinimapBackgroundChunk[]>([]);
+  const activeBackgroundLayerId = background.activeLayerId;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadChunks(): Promise<void> {
+      if (!activeBackgroundLayerId) {
+        setBackgroundChunks((currentChunks) => {
+          currentChunks.forEach((chunk) => URL.revokeObjectURL(chunk.objectUrl));
+          return [];
+        });
+        return;
+      }
+
+      const chunks = await listBackgroundChunksForLayer(mapId, activeBackgroundLayerId);
+      if (cancelled) {
+        return;
+      }
+
+      setBackgroundChunks((currentChunks) => {
+        currentChunks.forEach((chunk) => URL.revokeObjectURL(chunk.objectUrl));
+        return chunks.map((chunk) => ({
+          ...chunk,
+          objectUrl: URL.createObjectURL(chunk.blob),
+        }));
+      });
+    }
+
+    void loadChunks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBackgroundLayerId, backgroundRevision, mapId]);
+
+  useEffect(() => () => {
+    backgroundChunks.forEach((chunk) => URL.revokeObjectURL(chunk.objectUrl));
+  }, [backgroundChunks]);
+
+  const worldBounds = useMemo(() => {
+    if (roomEntries.length > 0) {
+      return computeWorldBounds(roomEntries);
+    }
+
+    const backgroundBounds = backgroundChunks.map((chunk) => ({
+      left: chunk.chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
+      top: chunk.chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
+      right: (chunk.chunkX + 1) * BACKGROUND_LAYER_CHUNK_SIZE,
+      bottom: (chunk.chunkY + 1) * BACKGROUND_LAYER_CHUNK_SIZE,
+    }));
+
+    return mergeWorldBounds(backgroundBounds);
+  }, [backgroundChunks, roomEntries]);
   const transform = useMemo(
     () => worldBounds
       ? createMinimapTransform(worldBounds, { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT })
@@ -200,6 +266,30 @@ export function MapMinimap({
         }}
       >
         <rect className="map-minimap__frame" x="0.5" y="0.5" width={MINIMAP_WIDTH - 1} height={MINIMAP_HEIGHT - 1} rx="12" />
+        {backgroundChunks.map((chunk) => {
+          const topLeft = toMinimapPoint({
+            x: chunk.chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
+            y: chunk.chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
+          }, transform);
+          const bottomRight = toMinimapPoint({
+            x: (chunk.chunkX + 1) * BACKGROUND_LAYER_CHUNK_SIZE,
+            y: (chunk.chunkY + 1) * BACKGROUND_LAYER_CHUNK_SIZE,
+          }, transform);
+
+          return (
+            <image
+              key={chunk.key}
+              className="map-minimap__background"
+              data-testid="map-minimap-background-chunk"
+              href={chunk.objectUrl}
+              x={topLeft.x}
+              y={topLeft.y}
+              width={Math.max(bottomRight.x - topLeft.x, 1)}
+              height={Math.max(bottomRight.y - topLeft.y, 1)}
+              preserveAspectRatio="none"
+            />
+          );
+        })}
         {Object.values(connections).map((connection) => {
           const points = getMinimapConnectionPoints(rooms, connection, transform);
           if (points.length === 0) {

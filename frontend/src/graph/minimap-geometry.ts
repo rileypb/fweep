@@ -23,6 +23,13 @@ export interface WorldBounds {
   readonly height: number;
 }
 
+export interface RectBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 export interface MinimapTransform {
   readonly scale: number;
   readonly offsetX: number;
@@ -83,6 +90,36 @@ export function computeWorldBounds(rooms: readonly Room[], padding: number = 32)
     minTop = Math.min(minTop, bounds.top);
     maxRight = Math.max(maxRight, bounds.left + bounds.width);
     maxBottom = Math.max(maxBottom, bounds.top + bounds.height);
+  }
+
+  const baseWidth = Math.max(maxRight - minLeft, ROOM_WIDTH);
+  const baseHeight = Math.max(maxBottom - minTop, ROOM_HEIGHT);
+
+  return {
+    left: minLeft - padding,
+    top: minTop - padding,
+    right: maxRight + padding,
+    bottom: maxBottom + padding,
+    width: baseWidth + (padding * 2),
+    height: baseHeight + (padding * 2),
+  };
+}
+
+export function mergeWorldBounds(bounds: readonly RectBounds[], padding: number = 32): WorldBounds | null {
+  if (bounds.length === 0) {
+    return null;
+  }
+
+  let minLeft = Number.POSITIVE_INFINITY;
+  let minTop = Number.POSITIVE_INFINITY;
+  let maxRight = Number.NEGATIVE_INFINITY;
+  let maxBottom = Number.NEGATIVE_INFINITY;
+
+  for (const bound of bounds) {
+    minLeft = Math.min(minLeft, bound.left);
+    minTop = Math.min(minTop, bound.top);
+    maxRight = Math.max(maxRight, bound.right);
+    maxBottom = Math.max(maxBottom, bound.bottom);
   }
 
   const baseWidth = Math.max(maxRight - minLeft, ROOM_WIDTH);

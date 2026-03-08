@@ -463,6 +463,16 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
     });
 
+    it('toggles drawing mode with D even when the canvas is not focused', () => {
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.keyDown(window, { key: 'd' });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+
+      fireEvent.keyDown(window, { key: 'd' });
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+    });
+
     it('does not toggle drawing mode with D while editing a room field', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
@@ -477,6 +487,20 @@ describe('MapCanvas', () => {
 
       fireEvent.keyDown(nameInput, { key: 'd' });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+    });
+
+    it('undoes and redoes from window shortcuts when focus is elsewhere', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.keyDown(window, { key: 'z', metaKey: true });
+      expect(useEditorStore.getState().doc?.rooms[roomId]).toBeUndefined();
+
+      fireEvent.keyDown(window, { key: 'y', metaKey: true });
+      expect(useEditorStore.getState().doc?.rooms[roomId]).toBeDefined();
     });
   });
 
