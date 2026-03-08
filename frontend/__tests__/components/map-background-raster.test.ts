@@ -115,11 +115,12 @@ describe('map-background-raster', () => {
 
   it('applies eraser preview composites with destination-out compositing', () => {
     const compositeModes: string[] = [];
+    const drawImageMock = jest.fn<(...args: unknown[]) => void>(() => {
+      compositeModes.push(context.globalCompositeOperation);
+    });
     const context = {
       clearRect: jest.fn<(x: number, y: number, width: number, height: number) => void>(),
-      drawImage: jest.fn<(image: CanvasImageSource, dx: number, dy: number) => void>(() => {
-        compositeModes.push(context.globalCompositeOperation);
-      }),
+      drawImage: drawImageMock,
       globalAlpha: 1,
       globalCompositeOperation: 'source-over',
     } as unknown as CanvasRenderingContext2D;
@@ -139,8 +140,8 @@ describe('map-background-raster', () => {
       softness: 0,
     });
 
-    expect(context.drawImage).toHaveBeenNthCalledWith(1, baseCanvas, 0, 0);
-    expect(context.drawImage).toHaveBeenNthCalledWith(2, strokeCanvas, 0, 0);
+    expect(drawImageMock.mock.calls[0]).toEqual([baseCanvas, 0, 0]);
+    expect(drawImageMock.mock.calls[1]).toEqual([strokeCanvas, 0, 0]);
     expect(compositeModes).toEqual(['source-over', 'destination-out']);
     expect(context.globalCompositeOperation).toBe('source-over');
     expect(context.globalAlpha).toBe(1);
