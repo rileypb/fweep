@@ -5,13 +5,27 @@ import {
   type BackgroundChunkRecord,
 } from '../storage/map-store';
 
-interface VisibleChunk extends BackgroundChunkRecord {
+interface VisibleChunk {
+  readonly key: string;
+  readonly chunkX: number;
+  readonly chunkY: number;
+  readonly left: number;
+  readonly top: number;
+  readonly blob?: Blob;
+}
+
+interface StoredVisibleChunk extends BackgroundChunkRecord {
   readonly left: number;
   readonly top: number;
 }
 
 export interface MapCanvasBackgroundHandle {
-  redrawChunk: (chunkKey: string, sourceCanvas: HTMLCanvasElement) => void;
+  redrawChunk: (
+    chunkKey: string,
+    chunkX: number,
+    chunkY: number,
+    sourceCanvas: HTMLCanvasElement,
+  ) => void;
   reloadVisibleChunks: () => Promise<void>;
 }
 
@@ -53,7 +67,7 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
     };
   }, [canvasRect, panOffset.x, panOffset.y]);
 
-  const paintChunkBlobIntoCanvas = useCallback(async (chunk: VisibleChunk) => {
+  const paintChunkBlobIntoCanvas = useCallback(async (chunk: StoredVisibleChunk) => {
     const canvas = canvasRefs.current[chunk.key];
     if (!canvas) {
       return;
@@ -93,20 +107,39 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
   }, [activeLayer, mapId, visibleBounds]);
 
   useImperativeHandle(ref, () => ({
-    redrawChunk: (chunkKey, sourceCanvas) => {
-      const targetCanvas = canvasRefs.current[chunkKey];
-      if (!targetCanvas) {
-        return;
-      }
+    redrawChunk: (chunkKey, chunkX, chunkY, sourceCanvas) => {
+      setVisibleChunks((currentChunks) => {
+        if (currentChunks.some((chunk) => chunk.key === chunkKey)) {
+          return currentChunks;
+        }
 
-      const context = targetCanvas.getContext('2d');
-      if (!context) {
-        return;
-      }
+        return [
+          ...currentChunks,
+          {
+            key: chunkKey,
+            chunkX,
+            chunkY,
+            left: chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
+            top: chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
+          },
+        ];
+      });
 
-      context.imageSmoothingEnabled = false;
-      context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-      context.drawImage(sourceCanvas, 0, 0);
+      requestAnimationFrame(() => {
+        const targetCanvas = canvasRefs.current[chunkKey];
+        if (!targetCanvas) {
+          return;
+        }
+
+        const context = targetCanvas.getContext('2d');
+        if (!context) {
+          return;
+        }
+
+        context.imageSmoothingEnabled = false;
+        context.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+        context.drawImage(sourceCanvas, 0, 0);
+      });
     },
     reloadVisibleChunks,
   }), [reloadVisibleChunks]);
@@ -117,7 +150,9 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
 
   useEffect(() => {
     visibleChunks.forEach((chunk) => {
-      void paintChunkBlobIntoCanvas(chunk);
+      if (chunk.blob) {
+        void paintChunkBlobIntoCanvas(chunk as StoredVisibleChunk);
+      }
     });
   }, [paintChunkBlobIntoCanvas, visibleChunks]);
 

@@ -90,6 +90,26 @@ export function getLocalChunkPoint(point: MapPixelPoint, coordinates: ChunkCoord
   };
 }
 
+export function getToolStampRadius(toolState: DrawingToolState): number {
+  return Math.max(toolState.size / 2, 0.5);
+}
+
+export function getChunkCoverageForPoint(point: MapPixelPoint, radius: number): ChunkCoordinates[] {
+  const minChunkX = Math.floor((point.x - radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const maxChunkX = Math.floor((point.x + radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const minChunkY = Math.floor((point.y - radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const maxChunkY = Math.floor((point.y + radius) / BACKGROUND_LAYER_CHUNK_SIZE);
+  const chunks: ChunkCoordinates[] = [];
+
+  for (let chunkY = minChunkY; chunkY <= maxChunkY; chunkY += 1) {
+    for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX += 1) {
+      chunks.push({ chunkX, chunkY });
+    }
+  }
+
+  return chunks;
+}
+
 export function getInterpolatedLinePoints(start: MapPixelPoint, end: MapPixelPoint): MapPixelPoint[] {
   const deltaX = end.x - start.x;
   const deltaY = end.y - start.y;

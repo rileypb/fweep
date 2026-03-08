@@ -312,7 +312,7 @@ function parseBackground(value: unknown, issues: ValidationIssue[]): BackgroundD
   }
 
   const layersRecord = asRecord(background.layers ?? {}, issues, 'background.layers', 'map', 'root');
-  const activeLayerId = background.activeLayerId === undefined
+  const activeLayerId = background.activeLayerId === undefined || background.activeLayerId === null
     ? null
     : requireString(background.activeLayerId, issues, 'background.activeLayerId', 'map', 'root');
   const layers = Object.fromEntries(

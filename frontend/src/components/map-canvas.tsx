@@ -27,9 +27,11 @@ import {
   canvasToBlob,
   createRasterCanvas,
   drawStrokeSegment,
+  getChunkCoverageForPoint,
   getChunkCoordinatesForPoint,
   getInterpolatedLinePoints,
   getLocalChunkPoint,
+  getToolStampRadius,
   isCanvasEmpty,
   normalizeHexColor,
   supportsRasterCanvas,
@@ -250,14 +252,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
   const getOrCreateStrokeChunk = useCallback(async (
-    mapPoint: MapPixelPoint,
+    coordinates: { chunkX: number; chunkY: number },
     layerId: string,
   ): Promise<StrokeChunkState> => {
     if (!doc) {
       throw new Error('Cannot draw without a loaded document.');
     }
 
-    const coordinates = getChunkCoordinatesForPoint(mapPoint);
     const key = getBackgroundChunkKey({
       mapId: doc.metadata.id,
       layerId,
@@ -295,18 +296,22 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     const touchedKeys = new Set<string>();
     const points = getInterpolatedLinePoints(startPoint, endPoint);
+    const radius = getToolStampRadius(currentStroke.toolState);
 
     for (const point of points) {
-      const chunk = await getOrCreateStrokeChunk(point, currentStroke.layerId);
-      const localPoint = getLocalChunkPoint(point, chunk);
-      drawStrokeSegment(chunk.canvas, currentStroke.toolState, localPoint, localPoint);
-      touchedKeys.add(chunk.key);
+      const coveredChunks = getChunkCoverageForPoint(point, radius);
+      for (const coveredChunk of coveredChunks) {
+        const chunk = await getOrCreateStrokeChunk(coveredChunk, currentStroke.layerId);
+        const localPoint = getLocalChunkPoint(point, chunk);
+        drawStrokeSegment(chunk.canvas, currentStroke.toolState, localPoint, localPoint);
+        touchedKeys.add(chunk.key);
+      }
     }
 
     touchedKeys.forEach((chunkKey) => {
       const chunk = currentStroke.chunks.get(chunkKey);
       if (chunk) {
-        backgroundRef.current?.redrawChunk(chunkKey, chunk.canvas);
+        backgroundRef.current?.redrawChunk(chunkKey, chunk.chunkX, chunk.chunkY, chunk.canvas);
       }
     });
   }, [getOrCreateStrokeChunk]);

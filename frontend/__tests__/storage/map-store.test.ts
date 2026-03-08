@@ -36,7 +36,7 @@ function makeFile(content: string, name: string, sizeOverride?: number): File {
 
 async function putRawStoredMap(rawValue: unknown): Promise<void> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
