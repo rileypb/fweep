@@ -41,6 +41,8 @@ const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
+const CONNECTION_PADLOCK_WIDTH = 12;
+const CONNECTION_PADLOCK_HEIGHT = 16;
 
 interface PanOffset {
   x: number;
@@ -1243,8 +1245,10 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
         ? 'in'
         : annotationKind;
     const rendersDoorAnnotation = annotationKind === 'door';
+    const rendersLockedDoorAnnotation = annotationKind === 'locked door';
     const annotationSegment = rendersDirectionalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
     const doorSegment = rendersDoorAnnotation ? getLongestSegment(points) : null;
+    const lockedDoorSegment = rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
     const annotationGeometry = annotationSegment
       ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
       : null;
@@ -1252,6 +1256,7 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
       ? getSelfAnnotationPosition(points)
       : null;
     const doorCenter = doorSegment ? getSegmentCenter(doorSegment) : null;
+    const lockedDoorCenter = lockedDoorSegment ? getSegmentCenter(lockedDoorSegment) : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
 
     return (
@@ -1364,6 +1369,47 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
               fill={connectionStroke}
               stroke={connectionStroke}
               strokeWidth="1.5"
+            />
+          </g>
+        )}
+        {lockedDoorCenter && (
+          <g
+            data-testid={`connection-annotation-padlock-${conn.id}`}
+            className="connection-annotation-padlock"
+            transform={`translate(${lockedDoorCenter.x - (CONNECTION_PADLOCK_WIDTH / 2)} ${lockedDoorCenter.y - (CONNECTION_PADLOCK_HEIGHT / 2)})`}
+            pointerEvents="none"
+          >
+            <path
+              d="M3 7 V5.5 C3 2.8 5 1 6 1 C7 1 9 2.8 9 5.5 V7"
+              fill="none"
+              stroke={connectionStroke}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <rect
+              x="2"
+              y="7"
+              width="8"
+              height="8"
+              rx="1.5"
+              fill={connectionStroke}
+              stroke={connectionStroke}
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="6"
+              cy="10.5"
+              r="1"
+              fill={theme === 'dark' ? '#111827' : '#ffffff'}
+            />
+            <line
+              x1="6"
+              y1="11.5"
+              x2="6"
+              y2="13"
+              stroke={theme === 'dark' ? '#111827' : '#ffffff'}
+              strokeWidth="1"
+              strokeLinecap="round"
             />
           </g>
         )}

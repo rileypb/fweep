@@ -1862,6 +1862,39 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();
     });
 
+    it('renders a locked door annotation as a centered padlock glyph on the main segment', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'locked door' as const } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const padlockGlyph = screen.getByTestId(`connection-annotation-padlock-${conn.id}`);
+      const shackle = padlockGlyph.querySelector('path');
+      const body = padlockGlyph.querySelector('rect');
+      const keyhole = padlockGlyph.querySelector('circle');
+      const keyStem = padlockGlyph.querySelector('line');
+
+      expect(padlockGlyph.getAttribute('transform')).toBe('translate(114 110)');
+      expect(shackle?.getAttribute('d')).toBe('M3 7 V5.5 C3 2.8 5 1 6 1 C7 1 9 2.8 9 5.5 V7');
+      expect(body?.getAttribute('x')).toBe('2');
+      expect(body?.getAttribute('y')).toBe('7');
+      expect(body?.getAttribute('width')).toBe('8');
+      expect(body?.getAttribute('height')).toBe('8');
+      expect(keyhole?.getAttribute('cx')).toBe('6');
+      expect(keyhole?.getAttribute('cy')).toBe('10.5');
+      expect(keyStem?.getAttribute('x1')).toBe('6');
+      expect(keyStem?.getAttribute('y2')).toBe('13');
+      expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();
+    });
+
     it('renders two arrowhead polygons for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
