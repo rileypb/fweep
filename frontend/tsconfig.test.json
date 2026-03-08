@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
-    "types": []
+    "types": ["jest", "node"]
   },
-  "include": ["src", "__tests__"]
+  "include": ["src", "__tests__", "__tests__/setup.ts"]
 }

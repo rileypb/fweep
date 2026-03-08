@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "__tests__", "__tests__/setup.ts"]
 }
