@@ -1186,6 +1186,16 @@ function getAnnotationGeometry(
   };
 }
 
+function normalizeReadableTextRotation(rotationDegrees: number): number {
+  if (rotationDegrees > 90) {
+    return rotationDegrees - 180;
+  }
+  if (rotationDegrees <= -90) {
+    return rotationDegrees + 180;
+  }
+  return rotationDegrees;
+}
+
 function getSelfAnnotationPosition(points: readonly VectorPoint[]): VectorPoint | null {
   if (points.length === 0) {
     return null;
@@ -1235,22 +1245,28 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
     const annotationKind = conn.annotation?.kind;
+    const annotationText = annotationKind === 'text' ? conn.annotation?.text?.trim() ?? '' : '';
     const rendersDirectionalAnnotation = annotationKind === 'up'
       || annotationKind === 'down'
       || annotationKind === 'in'
       || annotationKind === 'out';
+    const rendersTextAnnotation = annotationKind === 'text' && annotationText.length > 0;
     const annotationLabel = annotationKind === 'up' || annotationKind === 'down'
       ? 'up'
       : annotationKind === 'in' || annotationKind === 'out'
         ? 'in'
-        : annotationKind;
+        : annotationText;
     const rendersDoorAnnotation = annotationKind === 'door';
     const rendersLockedDoorAnnotation = annotationKind === 'locked door';
     const annotationSegment = rendersDirectionalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
+    const textAnnotationSegment = rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
     const annotationGeometry = annotationSegment
       ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
+      : null;
+    const textAnnotationGeometry = textAnnotationSegment
+      ? getAnnotationGeometry(textAnnotationSegment, false)
       : null;
     const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
       ? getSelfAnnotationPosition(points)
@@ -1344,6 +1360,19 @@ function ConnectionLines({ rooms, connections, onOpenConnectionEditor, theme }: 
               {annotationLabel}
             </text>
           </>
+        )}
+        {textAnnotationGeometry && (
+          <text
+            data-testid={`connection-annotation-text-${conn.id}`}
+            className="connection-annotation-text"
+            x={textAnnotationGeometry.textPosition.x}
+            y={textAnnotationGeometry.textPosition.y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            transform={`rotate(${normalizeReadableTextRotation(textAnnotationGeometry.rotationDegrees)} ${textAnnotationGeometry.textPosition.x} ${textAnnotationGeometry.textPosition.y})`}
+          >
+            {annotationLabel}
+          </text>
         )}
         {selfAnnotationPosition && (
           <text

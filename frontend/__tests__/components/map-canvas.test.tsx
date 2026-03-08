@@ -1838,6 +1838,45 @@ describe('MapCanvas', () => {
       expect(annotationText.getAttribute('transform')).toBeNull();
     });
 
+    it('renders free text annotations parallel to the connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'text', text: 'stairs' } };
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+
+      expect(annotationText).toHaveTextContent('stairs');
+      expect(annotationText.getAttribute('transform')).toBe('rotate(90 140 118)');
+      expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
+    });
+
+    it('keeps free text annotations readable on reversed connections', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 240, y: 80 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 0, y: 80 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'text', text: 'gate' } };
+      d = addConnection(d, conn, 'west', 'east');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
+      const rotation = Number((annotationText.getAttribute('transform') ?? '').match(/^rotate\(([-\d.]+)/)?.[1]);
+
+      expect(annotationText).toHaveTextContent('gate');
+      expect(rotation).toBeCloseTo(0, 5);
+    });
+
     it('renders a door annotation as a centered arched door glyph on the main segment', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
