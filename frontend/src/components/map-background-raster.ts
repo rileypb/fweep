@@ -102,7 +102,7 @@ export function getToolStampRadius(toolState: DrawingToolState): number {
 }
 
 export function usesHardEdgeStamp(toolState: DrawingToolState): boolean {
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle' || toolState.tool === 'ellipse';
   return isBrushLike && toolState.softness <= 0;
 }
 
@@ -192,6 +192,10 @@ export function constrainRectangleToSquare(start: MapPixelPoint, end: MapPixelPo
   };
 }
 
+export function constrainEllipseToCircle(start: MapPixelPoint, end: MapPixelPoint): MapPixelPoint {
+  return constrainRectangleToSquare(start, end);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -277,7 +281,7 @@ export function drawStrokeSegment(
 
   context.imageSmoothingEnabled = false;
   const points = getInterpolatedLinePoints(startPoint, endPoint);
-  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle';
+  const isBrushLike = toolState.tool === 'brush' || toolState.tool === 'eraser' || toolState.tool === 'line' || toolState.tool === 'rectangle' || toolState.tool === 'ellipse';
   const usesHardEdgeBrushStamp = usesHardEdgeStamp(toolState);
 
   for (const point of points) {
@@ -330,6 +334,34 @@ export function drawRectangleStroke(
   drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.top }, { x: bounds.right, y: bounds.bottom });
   drawStrokeSegment(canvas, toolState, { x: bounds.right, y: bounds.bottom }, { x: bounds.left, y: bounds.bottom });
   drawStrokeSegment(canvas, toolState, { x: bounds.left, y: bounds.bottom }, { x: bounds.left, y: bounds.top });
+}
+
+export function drawEllipseStroke(
+  canvas: HTMLCanvasElement,
+  toolState: DrawingToolState,
+  startPoint: MapPixelPoint,
+  endPoint: MapPixelPoint,
+): void {
+  const bounds = getBoundsFromPoints(startPoint, endPoint);
+  const centerX = (bounds.left + bounds.right) / 2;
+  const centerY = (bounds.top + bounds.bottom) / 2;
+  const radiusX = Math.max((bounds.right - bounds.left) / 2, 0.5);
+  const radiusY = Math.max((bounds.bottom - bounds.top) / 2, 0.5);
+  const circumference = Math.PI * (3 * (radiusX + radiusY) - Math.sqrt(((3 * radiusX) + radiusY) * (radiusX + (3 * radiusY))));
+  const steps = Math.max(Math.ceil(circumference), 12);
+  let previousPoint: MapPixelPoint | null = null;
+
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = (index / steps) * Math.PI * 2;
+    const point: MapPixelPoint = {
+      x: Math.round(centerX + (Math.cos(angle) * radiusX)),
+      y: Math.round(centerY + (Math.sin(angle) * radiusY)),
+    };
+    if (previousPoint) {
+      drawStrokeSegment(canvas, toolState, previousPoint, point);
+    }
+    previousPoint = point;
+  }
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

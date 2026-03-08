@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import {
   compositeStrokePreview,
   constrainLineToCompassDirection,
+  constrainEllipseToCircle,
   constrainRectangleToSquare,
   drawStrokeSegment,
   getChunkCoverageForPoint,
@@ -85,6 +86,13 @@ describe('map-background-raster', () => {
       { x: 10, y: 10 },
       { x: 28, y: 20 },
     )).toEqual({ x: 28, y: 28 });
+  });
+
+  it('constrains an ellipse drag to a circle when shift is held', () => {
+    expect(constrainEllipseToCircle(
+      { x: 10, y: 10 },
+      { x: 22, y: 35 },
+    )).toEqual({ x: 35, y: 35 });
   });
 
   it('draws eraser stroke masks with source-over compositing', () => {

@@ -59,7 +59,7 @@ export interface HistoryOptions {
   readonly historyMergeKey?: string;
 }
 
-export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'line' | 'rectangle';
+export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'line' | 'rectangle' | 'ellipse';
 export type CanvasInteractionMode = 'map' | 'draw';
 
 export interface DrawingToolState {

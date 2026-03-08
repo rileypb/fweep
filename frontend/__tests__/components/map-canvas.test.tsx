@@ -107,6 +107,16 @@ describe('MapCanvas', () => {
     expect(useEditorStore.getState().drawingToolState.tool).toBe('rectangle');
   });
 
+  it('selects the ellipse tool from the drawing toolbar', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Ellipse' }));
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(useEditorStore.getState().drawingToolState.tool).toBe('ellipse');
+  });
+
   it('switches into draw mode when changing drawing settings', () => {
     render(<MapCanvas mapName="Test" />);
 
