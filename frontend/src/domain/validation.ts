@@ -1,9 +1,12 @@
 import {
+  BACKGROUND_LAYER_CHUNK_SIZE,
   CURRENT_SCHEMA_VERSION,
   type ConnectionAnnotation,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
+  type BackgroundDocument,
+  type BackgroundLayer,
   type Connection,
   type Item,
   type MapDocument,
@@ -241,6 +244,91 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     },
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
+  };
+}
+
+function parseBackgroundLayer(
+  layerId: string,
+  value: unknown,
+  issues: ValidationIssue[],
+): BackgroundLayer | null {
+  const layer = asRecord(value, issues, `background.layers.${layerId}`, 'map', 'root');
+  if (!layer) {
+    return null;
+  }
+
+  const id = requireString(layer.id, issues, `background.layers.${layerId}.id`, 'map', 'root');
+  const name = requireString(layer.name, issues, `background.layers.${layerId}.name`, 'map', 'root');
+  const visible = requireBoolean(layer.visible, issues, `background.layers.${layerId}.visible`, 'map', 'root');
+  const opacity = requireFiniteNumber(layer.opacity, issues, `background.layers.${layerId}.opacity`, 'map', 'root');
+  const pixelSize = requireFiniteNumber(layer.pixelSize, issues, `background.layers.${layerId}.pixelSize`, 'map', 'root');
+  const chunkSize = requireFiniteNumber(layer.chunkSize, issues, `background.layers.${layerId}.chunkSize`, 'map', 'root');
+
+  if (id === null || name === null || visible === null || opacity === null || pixelSize === null || chunkSize === null) {
+    return null;
+  }
+
+  if (opacity < 0 || opacity > 1) {
+    pushIssue(issues, 'error', 'map', 'root', `background.layers.${layerId}.opacity`, 'Layer opacity must be between 0 and 1.');
+  }
+  if (pixelSize !== 1) {
+    pushIssue(issues, 'error', 'map', 'root', `background.layers.${layerId}.pixelSize`, 'Layer pixelSize must be 1.');
+  }
+  if (chunkSize !== BACKGROUND_LAYER_CHUNK_SIZE) {
+    pushIssue(
+      issues,
+      'error',
+      'map',
+      'root',
+      `background.layers.${layerId}.chunkSize`,
+      `Layer chunkSize must be ${BACKGROUND_LAYER_CHUNK_SIZE}.`,
+    );
+  }
+
+  return {
+    id,
+    name,
+    visible,
+    opacity,
+    pixelSize,
+    chunkSize,
+  };
+}
+
+function parseBackground(value: unknown, issues: ValidationIssue[]): BackgroundDocument {
+  if (value === undefined) {
+    return {
+      layers: {},
+      activeLayerId: null,
+    };
+  }
+
+  const background = asRecord(value, issues, 'background', 'map', 'root');
+  if (!background) {
+    return {
+      layers: {},
+      activeLayerId: null,
+    };
+  }
+
+  const layersRecord = asRecord(background.layers ?? {}, issues, 'background.layers', 'map', 'root');
+  const activeLayerId = background.activeLayerId === undefined
+    ? null
+    : requireString(background.activeLayerId, issues, 'background.activeLayerId', 'map', 'root');
+  const layers = Object.fromEntries(
+    Object.entries(layersRecord ?? {}).flatMap(([layerId, layerValue]) => {
+      const parsedLayer = parseBackgroundLayer(layerId, layerValue, issues);
+      return parsedLayer ? [[layerId, parsedLayer]] : [];
+    }),
+  );
+
+  if (activeLayerId !== null && !(activeLayerId in layers)) {
+    pushIssue(issues, 'error', 'map', 'root', 'background.activeLayerId', 'Active background layer must reference an existing layer.');
+  }
+
+  return {
+    layers,
+    activeLayerId,
   };
 }
 
@@ -783,6 +871,7 @@ export function parseUntrustedMapDocument(
 
   const metadata = parseMetadata(doc.metadata, issues);
   const view = parseMapView(doc.view, issues);
+  const background = parseBackground(doc.background, issues);
   const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
   const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
   const items = parseRecordCollection(doc.items, 'items', MAX_ITEMS, issues, parseItem);
@@ -795,6 +884,7 @@ export function parseUntrustedMapDocument(
     schemaVersion: CURRENT_SCHEMA_VERSION,
     metadata,
     view,
+    background,
     rooms,
     connections,
     items,

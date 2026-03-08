@@ -1,7 +1,9 @@
 import {
+  BACKGROUND_LAYER_CHUNK_SIZE,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
+  createEmptyBackground,
   type MapDocument,
   type MapMetadata,
   type MapView,
@@ -18,10 +20,45 @@ import {
 } from '../domain/room-color-palette';
 
 const DB_NAME = 'fweep';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'maps';
+const BACKGROUND_CHUNK_STORE_NAME = 'background-chunks';
+const BACKGROUND_CHUNK_MAP_INDEX = 'by-map-id';
 
 export const MAX_IMPORT_FILE_BYTES = 1_048_576;
+
+export interface BackgroundChunkRecord {
+  readonly key: string;
+  readonly mapId: string;
+  readonly layerId: string;
+  readonly chunkX: number;
+  readonly chunkY: number;
+  readonly width: number;
+  readonly height: number;
+  readonly blob: Blob;
+  readonly updatedAt: string;
+}
+
+export interface BackgroundChunkLocation {
+  readonly mapId: string;
+  readonly layerId: string;
+  readonly chunkX: number;
+  readonly chunkY: number;
+}
+
+export interface BackgroundChunkSaveInput extends BackgroundChunkLocation {
+  readonly blob: Blob;
+}
+
+export interface RasterChunkHistoryEntry {
+  readonly key: string;
+  readonly before: Blob | null;
+  readonly after: Blob | null;
+}
+
+export function getBackgroundChunkKey(location: BackgroundChunkLocation): string {
+  return `${location.mapId}:${location.layerId}:${location.chunkX}:${location.chunkY}`;
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -32,6 +69,10 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'metadata.id' });
       }
+      if (!db.objectStoreNames.contains(BACKGROUND_CHUNK_STORE_NAME)) {
+        const chunkStore = db.createObjectStore(BACKGROUND_CHUNK_STORE_NAME, { keyPath: 'key' });
+        chunkStore.createIndex(BACKGROUND_CHUNK_MAP_INDEX, 'mapId', { unique: false });
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
@@ -41,6 +82,31 @@ function openDb(): Promise<IDBDatabase> {
 
 function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
   return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
+}
+
+function normalizeBackground(doc: MapDocument): MapDocument['background'] {
+  const background = doc.background ?? createEmptyBackground();
+  const layers = Object.fromEntries(
+    Object.entries(background.layers ?? {}).map(([layerId, layer]) => [
+      layerId,
+      {
+        id: layer.id,
+        name: layer.name,
+        visible: layer.visible ?? true,
+        opacity: typeof layer.opacity === 'number' ? layer.opacity : 1,
+        pixelSize: typeof layer.pixelSize === 'number' ? layer.pixelSize : 1,
+        chunkSize: typeof layer.chunkSize === 'number' ? layer.chunkSize : BACKGROUND_LAYER_CHUNK_SIZE,
+      },
+    ]),
+  );
+  const activeLayerId = background.activeLayerId && background.activeLayerId in layers
+    ? background.activeLayerId
+    : null;
+
+  return {
+    layers,
+    activeLayerId,
+  };
 }
 
 function normalizeRoom(
@@ -147,6 +213,7 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
   return {
     ...doc,
     view: normalizeMapView(doc.view),
+    background: normalizeBackground(doc),
     rooms,
     connections,
   };
@@ -228,9 +295,184 @@ export async function loadMap(id: string): Promise<MapDocument | undefined> {
 export async function deleteMap(id: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const store = tx(db, 'readwrite');
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
+    const transaction = db.transaction([STORE_NAME, BACKGROUND_CHUNK_STORE_NAME], 'readwrite');
+    const mapStore = transaction.objectStore(STORE_NAME);
+    const chunkStore = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const mapRequest = mapStore.delete(id);
+    const index = chunkStore.index(BACKGROUND_CHUNK_MAP_INDEX);
+    const cursorRequest = index.openCursor(IDBKeyRange.only(id));
+
+    mapRequest.onerror = () => reject(mapRequest.error);
+    cursorRequest.onerror = () => reject(cursorRequest.error);
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function loadBackgroundChunk(
+  mapId: string,
+  layerId: string,
+  chunkX: number,
+  chunkY: number,
+): Promise<BackgroundChunkRecord | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const request = store.get(getBackgroundChunkKey({ mapId, layerId, chunkX, chunkY }));
+    request.onsuccess = () => resolve(request.result as BackgroundChunkRecord | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveBackgroundChunks(chunks: readonly BackgroundChunkSaveInput[]): Promise<void> {
+  if (chunks.length === 0) {
+    return;
+  }
+
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const now = new Date().toISOString();
+
+    chunks.forEach((chunk) => {
+      store.put({
+        key: getBackgroundChunkKey(chunk),
+        mapId: chunk.mapId,
+        layerId: chunk.layerId,
+        chunkX: chunk.chunkX,
+        chunkY: chunk.chunkY,
+        width: BACKGROUND_LAYER_CHUNK_SIZE,
+        height: BACKGROUND_LAYER_CHUNK_SIZE,
+        blob: chunk.blob,
+        updatedAt: now,
+      } satisfies BackgroundChunkRecord);
+    });
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function deleteBackgroundChunksForMap(mapId: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const index = store.index(BACKGROUND_CHUNK_MAP_INDEX);
+    const request = index.openCursor(IDBKeyRange.only(mapId));
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function deleteBackgroundChunks(keys: readonly string[]): Promise<void> {
+  if (keys.length === 0) {
+    return;
+  }
+
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    keys.forEach((key) => {
+      store.delete(key);
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function restoreBackgroundChunks(
+  mapId: string,
+  layerId: string,
+  chunks: readonly RasterChunkHistoryEntry[],
+  direction: 'undo' | 'redo',
+): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const now = new Date().toISOString();
+
+    chunks.forEach((chunk) => {
+      const [storedMapId, storedLayerId, chunkXText, chunkYText] = chunk.key.split(':');
+      const nextBlob = direction === 'undo' ? chunk.before : chunk.after;
+      if (nextBlob === null) {
+        store.delete(chunk.key);
+        return;
+      }
+
+      store.put({
+        key: chunk.key,
+        mapId: storedMapId || mapId,
+        layerId: storedLayerId || layerId,
+        chunkX: Number(chunkXText),
+        chunkY: Number(chunkYText),
+        width: BACKGROUND_LAYER_CHUNK_SIZE,
+        height: BACKGROUND_LAYER_CHUNK_SIZE,
+        blob: nextBlob,
+        updatedAt: now,
+      } satisfies BackgroundChunkRecord);
+    });
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function listBackgroundChunksInBounds(
+  mapId: string,
+  layerId: string,
+  minChunkX: number,
+  maxChunkX: number,
+  minChunkY: number,
+  maxChunkY: number,
+): Promise<BackgroundChunkRecord[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(BACKGROUND_CHUNK_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const index = store.index(BACKGROUND_CHUNK_MAP_INDEX);
+    const request = index.openCursor(IDBKeyRange.only(mapId));
+    const matches: BackgroundChunkRecord[] = [];
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(matches.filter((chunk) => (
+          chunk.layerId === layerId
+          && chunk.chunkX >= minChunkX
+          && chunk.chunkX <= maxChunkX
+          && chunk.chunkY >= minChunkY
+          && chunk.chunkY <= maxChunkY
+        )));
+        return;
+      }
+
+      matches.push(cursor.value as BackgroundChunkRecord);
+      cursor.continue();
+    };
     request.onerror = () => reject(request.error);
   });
 }

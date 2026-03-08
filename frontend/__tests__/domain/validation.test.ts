@@ -184,6 +184,46 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.rooms[roomId].strokeStyle).toBe('solid');
   });
 
+  it('hydrates missing background metadata on legacy maps', () => {
+    const doc = validMap();
+    const legacyDoc = {
+      schemaVersion: doc.schemaVersion,
+      metadata: doc.metadata,
+      view: doc.view,
+      rooms: doc.rooms,
+      connections: doc.connections,
+      items: doc.items,
+    };
+
+    const parsed = parseUntrustedMapDocument(legacyDoc);
+    expect(parsed.background).toEqual({
+      layers: {},
+      activeLayerId: null,
+    });
+  });
+
+  it('rejects malformed background layers', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      background: {
+        layers: {
+          layer1: {
+            id: 'layer1',
+            name: 'Background',
+            visible: true,
+            opacity: 2,
+            pixelSize: 1,
+            chunkSize: 256,
+          },
+        },
+        activeLayerId: 'layer1',
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
   it('maps legacy direct color values onto palette indices', () => {
     const doc = validMap();
     const roomId = Object.keys(doc.rooms)[0];

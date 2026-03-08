@@ -61,6 +61,22 @@ describe('MapCanvas', () => {
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
+  it('defaults to map interaction mode', () => {
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByRole('button', { name: 'Switch to draw mode' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('toggles into draw interaction mode from the toolbar', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
+
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(screen.getByRole('button', { name: 'Switch to map mode' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('hides the background grid when showGrid is false', () => {
     render(<MapCanvas mapName="Test" showGrid={false} />);
     const canvas = screen.getByTestId('map-canvas');

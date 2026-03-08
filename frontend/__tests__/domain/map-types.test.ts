@@ -34,6 +34,10 @@ describe('createEmptyMap', () => {
       showGrid: true,
       snapToGrid: true,
     });
+    expect(doc.background).toEqual({
+      layers: {},
+      activeLayerId: null,
+    });
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});
     expect(doc.items).toEqual({});

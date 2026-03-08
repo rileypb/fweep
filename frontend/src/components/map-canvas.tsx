@@ -20,8 +20,56 @@ import {
 } from './map-canvas-overlays';
 import { MapCanvasRoomNode } from './map-canvas-room-node';
 import { MapCanvasConnections } from './map-canvas-connections';
+import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
+import { MapDrawingToolbar } from './map-drawing-toolbar';
+import {
+  blobToCanvas,
+  canvasToBlob,
+  createRasterCanvas,
+  drawStrokeSegment,
+  getChunkCoordinatesForPoint,
+  getInterpolatedLinePoints,
+  getLocalChunkPoint,
+  isCanvasEmpty,
+  normalizeHexColor,
+  supportsRasterCanvas,
+  type MapPixelPoint,
+} from './map-background-raster';
+import {
+  deleteBackgroundChunks,
+  loadBackgroundChunk,
+  saveBackgroundChunks,
+  getBackgroundChunkKey,
+} from '../storage/map-store';
+
+interface StrokeChunkState {
+  readonly chunkX: number;
+  readonly chunkY: number;
+  readonly key: string;
+  readonly beforeBlob: Blob | null;
+  readonly canvas: HTMLCanvasElement;
+}
+
+interface ActiveDrawingStroke {
+  readonly layerId: string;
+  readonly toolState: ReturnType<typeof getDrawingToolSnapshot>;
+  lastPoint: MapPixelPoint;
+  readonly chunks: Map<string, StrokeChunkState>;
+}
 
 const AUTO_PAN_ANIMATION_MS = 320;
+
+function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['drawingToolState'] {
+  const { drawingToolState } = useEditorStore.getState();
+  return {
+    ...drawingToolState,
+    colorRgbHex: normalizeHexColor(drawingToolState.colorRgbHex),
+  };
+}
+
+function isCanvasChromeTarget(target: Element | null): boolean {
+  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-canvas-header, .map-drawing-toolbar'));
+}
 
 export interface MapCanvasProps {
   mapName: string;
@@ -45,13 +93,22 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
+  const activeStroke = useEditorStore((s) => s.activeStroke);
+  const backgroundRevision = useEditorStore((s) => s.backgroundRevision);
+  const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
+  const ensureDefaultBackgroundLayer = useEditorStore((s) => s.ensureDefaultBackgroundLayer);
+  const beginBackgroundStroke = useEditorStore((s) => s.beginBackgroundStroke);
+  const cancelBackgroundStroke = useEditorStore((s) => s.cancelBackgroundStroke);
+  const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
   const autoPanTimeoutRef = useRef<number | null>(null);
   const suppressCanvasClickRef = useRef(false);
   const persistPanTimeoutRef = useRef<number | null>(null);
+  const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
+  const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
   const theme = useDocumentTheme();
   const {
     canvasRef,
@@ -191,69 +248,238 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }));
   }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
+  const getOrCreateStrokeChunk = useCallback(async (
+    mapPoint: MapPixelPoint,
+    layerId: string,
+  ): Promise<StrokeChunkState> => {
+    if (!doc) {
+      throw new Error('Cannot draw without a loaded document.');
+    }
+
+    const coordinates = getChunkCoordinatesForPoint(mapPoint);
+    const key = getBackgroundChunkKey({
+      mapId: doc.metadata.id,
+      layerId,
+      chunkX: coordinates.chunkX,
+      chunkY: coordinates.chunkY,
+    });
+    const activeDrawingStroke = drawingStrokeRef.current;
+    if (!activeDrawingStroke) {
+      throw new Error('Cannot access stroke chunk without an active stroke.');
+    }
+
+    const existingChunk = activeDrawingStroke.chunks.get(key);
+    if (existingChunk) {
+      return existingChunk;
+    }
+
+    const storedChunk = await loadBackgroundChunk(doc.metadata.id, layerId, coordinates.chunkX, coordinates.chunkY);
+    const canvas = storedChunk ? await blobToCanvas(storedChunk.blob) : createRasterCanvas();
+    const strokeChunk: StrokeChunkState = {
+      chunkX: coordinates.chunkX,
+      chunkY: coordinates.chunkY,
+      key,
+      beforeBlob: storedChunk?.blob ?? null,
+      canvas,
+    };
+    activeDrawingStroke.chunks.set(key, strokeChunk);
+    return strokeChunk;
+  }, [doc]);
+
+  const drawStrokePoint = useCallback(async (startPoint: MapPixelPoint, endPoint: MapPixelPoint) => {
+    const currentStroke = drawingStrokeRef.current;
+    if (!currentStroke) {
+      return;
+    }
+
+    const touchedKeys = new Set<string>();
+    const points = getInterpolatedLinePoints(startPoint, endPoint);
+
+    for (const point of points) {
+      const chunk = await getOrCreateStrokeChunk(point, currentStroke.layerId);
+      const localPoint = getLocalChunkPoint(point, chunk);
+      drawStrokeSegment(chunk.canvas, currentStroke.toolState, localPoint, localPoint);
+      touchedKeys.add(chunk.key);
+    }
+
+    touchedKeys.forEach((chunkKey) => {
+      const chunk = currentStroke.chunks.get(chunkKey);
+      if (chunk) {
+        backgroundRef.current?.redrawChunk(chunkKey, chunk.canvas);
+      }
+    });
+  }, [getOrCreateStrokeChunk]);
+
+  const finishDrawingStroke = useCallback(async () => {
+    const currentStroke = drawingStrokeRef.current;
+    if (!doc || !currentStroke) {
+      cancelBackgroundStroke();
+      drawingStrokeRef.current = null;
+      return;
+    }
+
+    const chunks = Array.from(currentStroke.chunks.values());
+    const historyChunks = await Promise.all(chunks.map(async (chunk) => {
+      const afterBlob = isCanvasEmpty(chunk.canvas) ? null : await canvasToBlob(chunk.canvas);
+      return {
+        key: chunk.key,
+        before: chunk.beforeBlob,
+        after: afterBlob,
+      };
+    }));
+
+    await saveBackgroundChunks(
+      chunks.flatMap((chunk, index) => {
+        const historyChunk = historyChunks[index];
+        if (!historyChunk.after) {
+          return [];
+        }
+
+        return [{
+          mapId: doc.metadata.id,
+          layerId: currentStroke.layerId,
+          chunkX: chunk.chunkX,
+          chunkY: chunk.chunkY,
+          blob: historyChunk.after,
+        }];
+      }),
+    );
+    await deleteBackgroundChunks(historyChunks.filter((chunk) => chunk.after === null).map((chunk) => chunk.key));
+
+    commitBackgroundStroke({
+      kind: 'background-stroke',
+      mapId: doc.metadata.id,
+      layerId: currentStroke.layerId,
+      chunks: historyChunks,
+    });
+    drawingStrokeRef.current = null;
+    await backgroundRef.current?.reloadVisibleChunks();
+  }, [cancelBackgroundStroke, commitBackgroundStroke, doc]);
+
   const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 0 || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
+    if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
+      return;
+    }
+
+    const drawingEnabled = supportsRasterCanvas();
+
+    if (!e.shiftKey && doc && drawingEnabled && canvasInteractionMode === 'draw') {
+      e.preventDefault();
+      suppressCanvasClickRef.current = true;
+      const layerId = ensureDefaultBackgroundLayer();
+      beginBackgroundStroke(layerId);
+      const startPoint = toMapPoint(e.clientX, e.clientY);
+      const activeDrawingStroke: ActiveDrawingStroke = {
+        layerId,
+        toolState: getDrawingToolSnapshot(),
+        lastPoint: startPoint,
+        chunks: new Map<string, StrokeChunkState>(),
+      };
+      drawingStrokeRef.current = activeDrawingStroke;
+
+      const drawAtPoint = async (point: MapPixelPoint) => {
+        if (!drawingStrokeRef.current) {
+          return;
+        }
+        await drawStrokePoint(drawingStrokeRef.current.lastPoint, point);
+        drawingStrokeRef.current.lastPoint = point;
+      };
+
+      void drawAtPoint(startPoint);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        void drawAtPoint(toMapPoint(moveEvent.clientX, moveEvent.clientY));
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        void finishDrawingStroke();
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return;
+    }
+
+    if (e.shiftKey || !drawingEnabled || canvasInteractionMode === 'map') {
+      e.preventDefault();
+
+      const initialSelectionBox: SelectionBox = {
+        startX: e.clientX - (canvasRect?.left ?? 0),
+        startY: e.clientY - (canvasRect?.top ?? 0),
+        currentX: e.clientX - (canvasRect?.left ?? 0),
+        currentY: e.clientY - (canvasRect?.top ?? 0),
+      };
+
+      setSelectionBox(initialSelectionBox);
+
+      const updateSelection = (nextSelectionBox: SelectionBox) => {
+        setSelection(
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
+        );
+      };
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const nextSelectionBox: SelectionBox = {
+          startX: initialSelectionBox.startX,
+          startY: initialSelectionBox.startY,
+          currentX: moveEvent.clientX - (canvasRect?.left ?? 0),
+          currentY: moveEvent.clientY - (canvasRect?.top ?? 0),
+        };
+
+        setSelectionBox(nextSelectionBox);
+        updateSelection(nextSelectionBox);
+      };
+
+      const handleMouseUp = (upEvent: MouseEvent) => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+
+        const finalSelectionBox: SelectionBox = {
+          startX: initialSelectionBox.startX,
+          startY: initialSelectionBox.startY,
+          currentX: upEvent.clientX - (canvasRect?.left ?? 0),
+          currentY: upEvent.clientY - (canvasRect?.top ?? 0),
+        };
+        const bounds = getSelectionBounds(finalSelectionBox);
+
+        if (bounds.width > 0 || bounds.height > 0) {
+          suppressCanvasClickRef.current = true;
+          updateSelection(finalSelectionBox);
+        }
+
+        setSelectionBox(null);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
       return;
     }
 
     e.preventDefault();
-
-    const initialSelectionBox: SelectionBox = {
-      startX: e.clientX - (canvasRect?.left ?? 0),
-      startY: e.clientY - (canvasRect?.top ?? 0),
-      currentX: e.clientX - (canvasRect?.left ?? 0),
-      currentY: e.clientY - (canvasRect?.top ?? 0),
-    };
-
-    setSelectionBox(initialSelectionBox);
-
-    const updateSelection = (nextSelectionBox: SelectionBox) => {
-      setSelection(
-        getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
-        doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
-      );
-    };
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const nextSelectionBox: SelectionBox = {
-        startX: initialSelectionBox.startX,
-        startY: initialSelectionBox.startY,
-        currentX: moveEvent.clientX - (canvasRect?.left ?? 0),
-        currentY: moveEvent.clientY - (canvasRect?.top ?? 0),
-      };
-
-      setSelectionBox(nextSelectionBox);
-      updateSelection(nextSelectionBox);
-    };
-
-    const handleMouseUp = (upEvent: MouseEvent) => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-
-      const finalSelectionBox: SelectionBox = {
-        startX: initialSelectionBox.startX,
-        startY: initialSelectionBox.startY,
-        currentX: upEvent.clientX - (canvasRect?.left ?? 0),
-        currentY: upEvent.clientY - (canvasRect?.top ?? 0),
-      };
-      const bounds = getSelectionBounds(finalSelectionBox);
-
-      if (bounds.width > 0 || bounds.height > 0) {
-        suppressCanvasClickRef.current = true;
-        updateSelection(finalSelectionBox);
-      }
-
-      setSelectionBox(null);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [canvasRect, connectionDrag, connectionEditorId, doc, roomEditorId, rooms, setSelection, panOffsetRef]);
+  }, [
+    beginBackgroundStroke,
+    canvasInteractionMode,
+    canvasRect,
+    connectionDrag,
+    connectionEditorId,
+    doc,
+    drawStrokePoint,
+    ensureDefaultBackgroundLayer,
+    finishDrawingStroke,
+    panOffsetRef,
+    roomEditorId,
+    rooms,
+    setSelection,
+    toMapPoint,
+  ]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 1 || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
@@ -261,7 +487,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
+    if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
       return;
     }
 
@@ -296,7 +522,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [connectionDrag, connectionEditorId, roomEditorId, panOffsetRef, setPanOffset]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (roomEditorId || connectionEditorId) return;
+    if (roomEditorId || connectionEditorId || activeStroke) return;
 
     if (suppressCanvasClickRef.current) {
       suppressCanvasClickRef.current = false;
@@ -304,26 +530,26 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
+    if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
       return;
     }
 
     canvasRef.current?.focus();
     clearSelection();
-  }, [canvasRef, clearSelection, connectionEditorId, roomEditorId]);
+  }, [activeStroke, canvasRef, clearSelection, connectionEditorId, roomEditorId]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (roomEditorId || connectionEditorId) return;
+    if (roomEditorId || connectionEditorId || activeStroke) return;
 
     const target = e.target as Element | null;
-    if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
+    if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
       return;
     }
 
     const { x, y } = toMapPoint(e.clientX, e.clientY);
     const roomId = addRoomAtPosition('Room', { x, y });
     openRoomEditor(roomId);
-  }, [addRoomAtPosition, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint]);
+  }, [activeStroke, addRoomAtPosition, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint]);
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
@@ -419,6 +645,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
         data-testid="map-canvas-scene"
       >
+        <MapDrawingToolbar />
         <header className="map-canvas-header">
           <span className="map-canvas-title">{mapName}</span>
           <button
@@ -459,6 +686,16 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           data-testid="map-canvas-content"
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
+          {doc && (
+            <MapCanvasBackground
+              ref={backgroundRef}
+              mapId={doc.metadata.id}
+              background={doc.background}
+              panOffset={panOffset}
+              canvasRect={effectiveCanvasRect}
+              backgroundRevision={backgroundRevision}
+            />
+          )}
           {doc && (
             <MapCanvasConnections
               rooms={doc.rooms}

@@ -2,10 +2,14 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { createEmptyMap } from '../../src/domain/map-types';
 import {
   deleteMap,
+  getBackgroundChunkKey,
   importMapFromFile,
+  listBackgroundChunksInBounds,
   listMaps,
+  loadBackgroundChunk,
   loadMap,
   MAX_IMPORT_FILE_BYTES,
+  saveBackgroundChunks,
   saveMap,
 } from '../../src/storage/map-store';
 
@@ -243,6 +247,50 @@ describe('map-store', () => {
 
       await deleteMap(doc.metadata.id);
       expect(await loadMap(doc.metadata.id)).toBeUndefined();
+    });
+
+    it('removes background chunks associated with the map', async () => {
+      const doc = createEmptyMap('With Chunks');
+      const blob = new Blob(['chunk'], { type: 'image/png' });
+      await saveMap(doc);
+      await saveBackgroundChunks([{
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 0,
+        chunkY: 0,
+        blob,
+      }]);
+
+      await deleteMap(doc.metadata.id);
+
+      expect(await loadBackgroundChunk(doc.metadata.id, 'layer-1', 0, 0)).toBeUndefined();
+    });
+  });
+
+  describe('background chunk storage', () => {
+    it('saves and loads background chunks by coordinate', async () => {
+      const doc = createEmptyMap('Chunks');
+      await saveMap(doc);
+      const blob = new Blob(['chunk-data'], { type: 'image/png' });
+
+      await saveBackgroundChunks([{
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 1,
+        chunkY: -2,
+        blob,
+      }]);
+
+      const loaded = await loadBackgroundChunk(doc.metadata.id, 'layer-1', 1, -2);
+      expect(loaded?.key).toBe(getBackgroundChunkKey({
+        mapId: doc.metadata.id,
+        layerId: 'layer-1',
+        chunkX: 1,
+        chunkY: -2,
+      }));
+
+      const listed = await listBackgroundChunksInBounds(doc.metadata.id, 'layer-1', 0, 2, -3, 0);
+      expect(listed).toHaveLength(1);
     });
   });
 

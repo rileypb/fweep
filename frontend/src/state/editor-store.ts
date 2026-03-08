@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
-import { createRoom, createConnection } from '../domain/map-types';
+import { createBackgroundLayer, createRoom, createConnection } from '../domain/map-types';
 import {
   addRoom,
   addConnection,
@@ -18,6 +18,7 @@ import {
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
 import { computePrettifiedRoomPositions } from '../graph/prettify-layout';
+import { restoreBackgroundChunks, type RasterChunkHistoryEntry } from '../storage/map-store';
 
 /** Grid size in pixels used for snapping room positions. */
 const GRID_SIZE = 40;
@@ -58,15 +59,47 @@ export interface HistoryOptions {
   readonly historyMergeKey?: string;
 }
 
+export type DrawingTool = 'pencil' | 'brush' | 'eraser';
+export type CanvasInteractionMode = 'map' | 'draw';
+
+export interface DrawingToolState {
+  readonly tool: DrawingTool;
+  readonly colorRgbHex: string;
+  readonly opacity: number;
+  readonly size: number;
+  readonly softness: number;
+}
+
+export interface ActiveStroke {
+  readonly mapId: string;
+  readonly layerId: string;
+  readonly tool: DrawingTool;
+}
+
+export interface BackgroundStrokeHistoryEntry {
+  readonly kind: 'background-stroke';
+  readonly mapId: string;
+  readonly layerId: string;
+  readonly chunks: readonly RasterChunkHistoryEntry[];
+}
+
+export interface DocumentHistoryEntry {
+  readonly kind: 'document';
+  readonly before: MapDocument;
+  readonly after: MapDocument;
+}
+
+export type EditorHistoryEntry = DocumentHistoryEntry | BackgroundStrokeHistoryEntry;
+
 export interface EditorState {
   /** The currently loaded map document, or null when no map is open. */
   doc: MapDocument | null;
 
-  /** Prior document snapshots available for undo. */
-  pastDocs: readonly MapDocument[];
+  /** Prior editor history entries available for undo. */
+  pastEntries: readonly EditorHistoryEntry[];
 
-  /** Future document snapshots available for redo. */
-  futureDocs: readonly MapDocument[];
+  /** Future editor history entries available for redo. */
+  futureEntries: readonly EditorHistoryEntry[];
 
   /** Whether an undo operation is currently available. */
   canUndo: boolean;
@@ -97,6 +130,18 @@ export interface EditorState {
 
   /** Active room drag state, or null when not dragging a room. */
   roomDrag: RoomDrag | null;
+
+  /** Active drawing tool state. */
+  drawingToolState: DrawingToolState;
+
+  /** Whether empty-canvas primary interactions edit the map or draw on the background. */
+  canvasInteractionMode: CanvasInteractionMode;
+
+  /** Active background stroke state. */
+  activeStroke: ActiveStroke | null;
+
+  /** Monotonic revision for background redraws. */
+  backgroundRevision: number;
 
   /** Load a map document into the editor. */
   loadDocument: (doc: MapDocument) => void;
@@ -227,6 +272,36 @@ export interface EditorState {
 
   /** End the room drag and clear the state. */
   endRoomDrag: () => void;
+
+  /** Update the selected drawing tool. */
+  setDrawingTool: (tool: DrawingTool) => void;
+
+  /** Update the primary empty-canvas interaction mode. */
+  setCanvasInteractionMode: (mode: CanvasInteractionMode) => void;
+
+  /** Update the drawing color hex value. */
+  setDrawingColor: (colorRgbHex: string) => void;
+
+  /** Update tool opacity. */
+  setDrawingOpacity: (opacity: number) => void;
+
+  /** Update tool size. */
+  setDrawingSize: (size: number) => void;
+
+  /** Update tool softness. */
+  setDrawingSoftness: (softness: number) => void;
+
+  /** Ensure a default background layer exists and return its ID. */
+  ensureDefaultBackgroundLayer: () => string;
+
+  /** Begin a background stroke. */
+  beginBackgroundStroke: (layerId: string) => void;
+
+  /** Cancel the active background stroke. */
+  cancelBackgroundStroke: () => void;
+
+  /** Commit a completed background stroke to history. */
+  commitBackgroundStroke: (entry: BackgroundStrokeHistoryEntry) => void;
 }
 
 function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonly string[]): readonly string[] {
@@ -245,6 +320,35 @@ function filterConnectionSelectionForDoc(doc: MapDocument | null, selectedConnec
   return selectedConnectionIds.filter((connectionId) => connectionId in doc.connections);
 }
 
+function pushHistoryEntry(
+  currentState: EditorState,
+  entry: EditorHistoryEntry,
+  mergeKey: string | null,
+): Pick<EditorState, 'pastEntries' | 'futureEntries' | 'canUndo' | 'canRedo' | 'lastHistoryMergeKey'> {
+  const shouldMerge = mergeKey !== null && currentState.lastHistoryMergeKey === mergeKey;
+  const nextPastEntries = shouldMerge
+    ? currentState.pastEntries.slice(0, -1).concat((() => {
+      const previousEntry = currentState.pastEntries[currentState.pastEntries.length - 1];
+      if (entry.kind === 'document' && previousEntry?.kind === 'document') {
+        return {
+          kind: 'document' as const,
+          before: previousEntry.before,
+          after: entry.after,
+        };
+      }
+      return entry;
+    })())
+    : [...currentState.pastEntries, entry];
+
+  return {
+    pastEntries: nextPastEntries,
+    futureEntries: [],
+    canUndo: nextPastEntries.length > 0,
+    canRedo: false,
+    lastHistoryMergeKey: mergeKey,
+  };
+}
+
 function commitDocumentChange(
   currentState: EditorState,
   currentDoc: MapDocument,
@@ -256,16 +360,13 @@ function commitDocumentChange(
   }
 
   const mergeKey = options?.historyMergeKey ?? null;
-  const shouldMerge = mergeKey !== null && currentState.lastHistoryMergeKey === mergeKey;
-  const nextPastDocs = shouldMerge ? currentState.pastDocs : [...currentState.pastDocs, currentDoc];
-
   return {
     doc: updatedDoc,
-    pastDocs: nextPastDocs,
-    futureDocs: [],
-    canUndo: nextPastDocs.length > 0,
-    canRedo: false,
-    lastHistoryMergeKey: mergeKey,
+    ...pushHistoryEntry(
+      currentState,
+      { kind: 'document', before: currentDoc, after: updatedDoc },
+      mergeKey,
+    ),
   };
 }
 
@@ -282,8 +383,8 @@ function patchDocumentView(doc: MapDocument, state: Pick<EditorState, 'mapPanOff
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
-  pastDocs: [],
-  futureDocs: [],
+  pastEntries: [],
+  futureEntries: [],
   canUndo: false,
   canRedo: false,
   lastHistoryMergeKey: null,
@@ -294,6 +395,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   mapPanOffset: { x: 0, y: 0 },
   connectionDrag: null,
   roomDrag: null,
+  drawingToolState: {
+    tool: 'pencil',
+    colorRgbHex: '#000000',
+    opacity: 1,
+    size: 1,
+    softness: 0.5,
+  },
+  canvasInteractionMode: 'map',
+  activeStroke: null,
+  backgroundRevision: 0,
 
   loadDocument: (doc) => set({
     doc: patchDocumentView(doc, {
@@ -301,8 +412,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
     }),
-    pastDocs: [],
-    futureDocs: [],
+    pastEntries: [],
+    futureEntries: [],
     canUndo: false,
     canRedo: false,
     lastHistoryMergeKey: null,
@@ -313,12 +424,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapPanOffset: doc.view.pan,
     connectionDrag: null,
     roomDrag: null,
+    canvasInteractionMode: 'map',
+    activeStroke: null,
+    backgroundRevision: 0,
   }),
 
   unloadDocument: () => set({
     doc: null,
-    pastDocs: [],
-    futureDocs: [],
+    pastEntries: [],
+    futureEntries: [],
     canUndo: false,
     canRedo: false,
     lastHistoryMergeKey: null,
@@ -329,56 +443,101 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapPanOffset: { x: 0, y: 0 },
     connectionDrag: null,
     roomDrag: null,
+    canvasInteractionMode: 'map',
+    activeStroke: null,
+    backgroundRevision: 0,
   }),
 
-  undo: () => {
-    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionIds } = get();
-    if (!doc || pastDocs.length === 0) {
+  undo: async () => {
+    const {
+      doc,
+      pastEntries,
+      futureEntries,
+      selectedRoomIds,
+      selectedConnectionIds,
+    } = get();
+    if (!doc || pastEntries.length === 0) {
       return;
     }
 
-    const previousDoc = pastDocs[pastDocs.length - 1];
-    const nextPastDocs = pastDocs.slice(0, -1);
-    const nextFutureDocs = [doc, ...futureDocs];
-    const nextDoc = patchDocumentView(previousDoc, get());
+    const entry = pastEntries[pastEntries.length - 1];
+    const nextPastEntries = pastEntries.slice(0, -1);
+    if (entry.kind === 'document') {
+      const nextDoc = patchDocumentView(entry.before, get());
+      set({
+        doc: nextDoc,
+        pastEntries: nextPastEntries,
+        futureEntries: [entry, ...futureEntries],
+        canUndo: nextPastEntries.length > 0,
+        canRedo: true,
+        lastHistoryMergeKey: null,
+        selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
+        selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
+        connectionDrag: null,
+        roomDrag: null,
+        activeStroke: null,
+      });
+      return;
+    }
 
-    set({
-      doc: nextDoc,
-      pastDocs: nextPastDocs,
-      futureDocs: nextFutureDocs,
-      canUndo: nextPastDocs.length > 0,
+    await restoreBackgroundChunks(entry.mapId, entry.layerId, entry.chunks, 'undo');
+    set((state) => ({
+      pastEntries: nextPastEntries,
+      futureEntries: [entry, ...state.futureEntries],
+      canUndo: nextPastEntries.length > 0,
       canRedo: true,
       lastHistoryMergeKey: null,
-      selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
-      selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
-    });
+      activeStroke: null,
+      backgroundRevision: state.backgroundRevision + 1,
+    }));
   },
 
-  redo: () => {
-    const { doc, pastDocs, futureDocs, selectedRoomIds, selectedConnectionIds } = get();
-    if (!doc || futureDocs.length === 0) {
+  redo: async () => {
+    const {
+      doc,
+      pastEntries,
+      futureEntries,
+      selectedRoomIds,
+      selectedConnectionIds,
+    } = get();
+    if (!doc || futureEntries.length === 0) {
       return;
     }
 
-    const nextDoc = futureDocs[0];
-    const nextFutureDocs = futureDocs.slice(1);
-    const nextPastDocs = [...pastDocs, doc];
-    const patchedNextDoc = patchDocumentView(nextDoc, get());
+    const entry = futureEntries[0];
+    const nextFutureEntries = futureEntries.slice(1);
+    if (entry.kind === 'document') {
+      const patchedNextDoc = patchDocumentView(entry.after, get());
+      set({
+        doc: patchedNextDoc,
+        pastEntries: [...pastEntries, entry],
+        futureEntries: nextFutureEntries,
+        canUndo: true,
+        canRedo: nextFutureEntries.length > 0,
+        lastHistoryMergeKey: null,
+        selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
+        selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
+        connectionDrag: null,
+        roomDrag: null,
+        activeStroke: null,
+      });
+      return;
+    }
 
-    set({
-      doc: patchedNextDoc,
-      pastDocs: nextPastDocs,
-      futureDocs: nextFutureDocs,
+    await restoreBackgroundChunks(entry.mapId, entry.layerId, entry.chunks, 'redo');
+    set((state) => ({
+      pastEntries: [...pastEntries, entry],
+      futureEntries: nextFutureEntries,
       canUndo: true,
-      canRedo: nextFutureDocs.length > 0,
+      canRedo: nextFutureEntries.length > 0,
       lastHistoryMergeKey: null,
-      selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
-      selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
       connectionDrag: null,
       roomDrag: null,
-    });
+      activeStroke: null,
+      backgroundRevision: state.backgroundRevision + 1,
+    }));
   },
 
   addRoomAtPosition: (name, position) => {
@@ -728,5 +887,132 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   endRoomDrag: () => {
     set({ roomDrag: null, lastHistoryMergeKey: null });
+  },
+
+  setDrawingTool: (tool) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        tool,
+        size: tool === 'pencil'
+          ? Math.min(state.drawingToolState.size, 6)
+          : Math.max(state.drawingToolState.size, 1),
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setCanvasInteractionMode: (mode) => {
+    set({
+      canvasInteractionMode: mode,
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  setDrawingColor: (colorRgbHex) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        colorRgbHex,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setDrawingOpacity: (opacity) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        opacity,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setDrawingSize: (size) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        size,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setDrawingSoftness: (softness) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        softness,
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  ensureDefaultBackgroundLayer: () => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot ensure a background layer: no document is loaded.');
+    }
+
+    const activeLayerId = doc.background.activeLayerId;
+    if (activeLayerId && doc.background.layers[activeLayerId]) {
+      return activeLayerId;
+    }
+
+    const existingLayer = Object.values(doc.background.layers)[0];
+    if (existingLayer) {
+      const updatedDoc = {
+        ...doc,
+        background: {
+          ...doc.background,
+          activeLayerId: existingLayer.id,
+        },
+      };
+      set({ doc: updatedDoc, lastHistoryMergeKey: null });
+      return existingLayer.id;
+    }
+
+    const layer = createBackgroundLayer('Background');
+    const updatedDoc = {
+      ...doc,
+      background: {
+        layers: {
+          ...doc.background.layers,
+          [layer.id]: layer,
+        },
+        activeLayerId: layer.id,
+      },
+    };
+    set({ doc: updatedDoc, lastHistoryMergeKey: null });
+    return layer.id;
+  },
+
+  beginBackgroundStroke: (layerId) => {
+    const { doc, drawingToolState } = get();
+    if (!doc) {
+      throw new Error('Cannot begin a background stroke: no document is loaded.');
+    }
+
+    set({
+      activeStroke: {
+        mapId: doc.metadata.id,
+        layerId,
+        tool: drawingToolState.tool,
+      },
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  cancelBackgroundStroke: () => {
+    set({ activeStroke: null, lastHistoryMergeKey: null });
+  },
+
+  commitBackgroundStroke: (entry) => {
+    set((state) => ({
+      ...pushHistoryEntry(state, entry, null),
+      activeStroke: null,
+      backgroundRevision: state.backgroundRevision + 1,
+    }));
   },
 }));

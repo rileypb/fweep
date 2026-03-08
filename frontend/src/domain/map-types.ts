@@ -24,6 +24,24 @@ export interface MapView {
   readonly snapToGrid: boolean;
 }
 
+/* ---- Background ---- */
+
+export const BACKGROUND_LAYER_CHUNK_SIZE = 256;
+
+export interface BackgroundLayer {
+  readonly id: string;
+  readonly name: string;
+  readonly visible: boolean;
+  readonly opacity: number;
+  readonly pixelSize: number;
+  readonly chunkSize: number;
+}
+
+export interface BackgroundDocument {
+  readonly layers: Readonly<Record<string, BackgroundLayer>>;
+  readonly activeLayerId: string | null;
+}
+
 /* ---- Room ---- */
 
 export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
@@ -87,6 +105,7 @@ export interface MapDocument {
   readonly schemaVersion: number;
   readonly metadata: MapMetadata;
   readonly view: MapView;
+  readonly background: BackgroundDocument;
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly items: Readonly<Record<string, Item>>;
@@ -94,6 +113,24 @@ export interface MapDocument {
 
 /** Current schema version for new maps. */
 export const CURRENT_SCHEMA_VERSION = 1;
+
+export function createEmptyBackground(): BackgroundDocument {
+  return {
+    layers: {},
+    activeLayerId: null,
+  };
+}
+
+export function createBackgroundLayer(name: string): BackgroundLayer {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    visible: true,
+    opacity: 1,
+    pixelSize: 1,
+    chunkSize: BACKGROUND_LAYER_CHUNK_SIZE,
+  };
+}
 
 /* ---- Factory functions ---- */
 
@@ -113,6 +150,7 @@ export function createEmptyMap(name: string): MapDocument {
       showGrid: true,
       snapToGrid: true,
     },
+    background: createEmptyBackground(),
     rooms: {},
     connections: {},
     items: {},
