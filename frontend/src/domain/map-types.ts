@@ -1,3 +1,8 @@
+import {
+  DEFAULT_ROOM_FILL_COLOR_INDEX,
+  DEFAULT_ROOM_STROKE_COLOR_INDEX,
+} from './room-color-palette';
+
 /** Minimal metadata for a persisted map, used by the selection dialog and storage layer. */
 export interface MapMetadata {
   readonly id: string;
@@ -19,8 +24,6 @@ export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
 export type RoomShape = (typeof ROOM_SHAPES)[number];
 export const ROOM_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const;
 export type RoomStrokeStyle = (typeof ROOM_STROKE_STYLES)[number];
-export const DEFAULT_ROOM_FILL_COLOR = '#ffffff';
-export const DEFAULT_ROOM_STROKE_COLOR = '#6366f1';
 export const DEFAULT_ROOM_STROKE_STYLE: RoomStrokeStyle = 'solid';
 
 export interface Room {
@@ -32,8 +35,8 @@ export interface Room {
   readonly directions: Readonly<Record<string, string>>;
   readonly isDark: boolean;
   readonly shape: RoomShape;
-  readonly fillColor: string;
-  readonly strokeColor: string;
+  readonly fillColorIndex: number;
+  readonly strokeColorIndex: number;
   readonly strokeStyle: RoomStrokeStyle;
 }
 
@@ -102,8 +105,8 @@ export function createRoom(name: string): Room {
     directions: {},
     isDark: false,
     shape: 'rectangle',
-    fillColor: DEFAULT_ROOM_FILL_COLOR,
-    strokeColor: DEFAULT_ROOM_STROKE_COLOR,
+    fillColorIndex: DEFAULT_ROOM_FILL_COLOR_INDEX,
+    strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
   };
 }

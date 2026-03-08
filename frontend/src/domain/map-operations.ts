@@ -341,8 +341,8 @@ export function setRoomStyle(
   doc: MapDocument,
   roomId: string,
   style: {
-    fillColor?: string;
-    strokeColor?: string;
+    fillColorIndex?: number;
+    strokeColorIndex?: number;
     strokeStyle?: RoomStrokeStyle;
   },
 ): MapDocument {

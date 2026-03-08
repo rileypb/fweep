@@ -117,8 +117,8 @@ export interface EditorState {
   setRoomStyle: (
     roomId: string,
     style: {
-      fillColor?: string;
-      strokeColor?: string;
+      fillColorIndex?: number;
+      strokeColorIndex?: number;
       strokeStyle?: RoomStrokeStyle;
     },
   ) => void;

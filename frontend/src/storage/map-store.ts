@@ -1,6 +1,4 @@
 import {
-  DEFAULT_ROOM_FILL_COLOR,
-  DEFAULT_ROOM_STROKE_COLOR,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
@@ -9,6 +7,14 @@ import {
   type Room,
 } from '../domain/map-types';
 import { MapValidationError, parseUntrustedMapDocument } from '../domain/validation';
+import {
+  DEFAULT_ROOM_FILL_COLOR_INDEX,
+  DEFAULT_ROOM_STROKE_COLOR_INDEX,
+  findRoomFillColorIndexByLegacyColor,
+  findRoomStrokeColorIndexByLegacyColor,
+  isValidRoomFillColorIndex,
+  isValidRoomStrokeColorIndex,
+} from '../domain/room-color-palette';
 
 const DB_NAME = 'fweep';
 const DB_VERSION = 1;
@@ -38,26 +44,42 @@ function tx(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
 
 function normalizeRoom(
   room: Room | (
-    Omit<Room, 'shape' | 'fillColor' | 'strokeColor' | 'strokeStyle'> & {
+    Omit<Room, 'shape' | 'fillColorIndex' | 'strokeColorIndex' | 'strokeStyle'> & {
       shape?: Room['shape'];
-      fillColor?: Room['fillColor'];
-      strokeColor?: Room['strokeColor'];
+      fillColorIndex?: Room['fillColorIndex'];
+      strokeColorIndex?: Room['strokeColorIndex'];
+      fillColor?: string;
+      strokeColor?: string;
       strokeStyle?: Room['strokeStyle'];
     }
   ),
 ): Room {
+  const legacyRoom = room as typeof room & { fillColor?: string; strokeColor?: string };
   const shape = room.shape && ROOM_SHAPES.includes(room.shape) ? room.shape : 'rectangle';
-  const fillColor = typeof room.fillColor === 'string' ? room.fillColor : DEFAULT_ROOM_FILL_COLOR;
-  const strokeColor = typeof room.strokeColor === 'string' ? room.strokeColor : DEFAULT_ROOM_STROKE_COLOR;
+  const {
+    fillColor: _legacyFillColor,
+    strokeColor: _legacyStrokeColor,
+    ...restRoom
+  } = legacyRoom;
+  const fillColorIndex = isValidRoomFillColorIndex(room.fillColorIndex)
+    ? room.fillColorIndex
+    : typeof legacyRoom.fillColor === 'string'
+      ? findRoomFillColorIndexByLegacyColor(legacyRoom.fillColor) ?? DEFAULT_ROOM_FILL_COLOR_INDEX
+      : DEFAULT_ROOM_FILL_COLOR_INDEX;
+  const strokeColorIndex = isValidRoomStrokeColorIndex(room.strokeColorIndex)
+    ? room.strokeColorIndex
+    : typeof legacyRoom.strokeColor === 'string'
+      ? findRoomStrokeColorIndexByLegacyColor(legacyRoom.strokeColor) ?? DEFAULT_ROOM_STROKE_COLOR_INDEX
+      : DEFAULT_ROOM_STROKE_COLOR_INDEX;
   const strokeStyle = room.strokeStyle && ROOM_STROKE_STYLES.includes(room.strokeStyle)
     ? room.strokeStyle
     : DEFAULT_ROOM_STROKE_STYLE;
 
   return {
-    ...room,
+    ...restRoom,
     shape,
-    fillColor,
-    strokeColor,
+    fillColorIndex,
+    strokeColorIndex,
     strokeStyle,
   };
 }

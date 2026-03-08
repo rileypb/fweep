@@ -111,9 +111,37 @@ describe('map-store', () => {
       await saveMap(legacyDoc);
       const loaded = await loadMap(doc.metadata.id);
 
-      expect(loaded?.rooms[roomId].fillColor).toBe('#ffffff');
-      expect(loaded?.rooms[roomId].strokeColor).toBe('#6366f1');
+      expect(loaded?.rooms[roomId].fillColorIndex).toBe(0);
+      expect(loaded?.rooms[roomId].strokeColorIndex).toBe(0);
       expect(loaded?.rooms[roomId].strokeStyle).toBe('solid');
+    });
+
+    it('maps legacy direct room colors to palette indices when loading saved maps', async () => {
+      const doc = createEmptyMap('Legacy Colors');
+      const roomId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        rooms: {
+          [roomId]: {
+            id: roomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: {},
+            isDark: false,
+            shape: 'rectangle',
+            fillColor: '#ffcc00',
+            strokeColor: '#166534',
+            strokeStyle: 'solid',
+          },
+        },
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await saveMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.rooms[roomId].fillColorIndex).toBe(2);
+      expect(loaded?.rooms[roomId].strokeColorIndex).toBe(4);
     });
 
     it('rejects invalid saved maps already present in IndexedDB', async () => {

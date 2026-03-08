@@ -2,6 +2,14 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import { ROOM_SHAPES, ROOM_STROKE_STYLES, type Room, type Connection, type RoomShape, type RoomStrokeStyle } from '../domain/map-types';
 import {
+  getRoomFillColor,
+  getRoomStrokeColor,
+  ROOM_FILL_PALETTE,
+  ROOM_STROKE_PALETTE,
+  type RoomColorPaletteEntry,
+  type ThemeMode,
+} from '../domain/room-color-palette';
+import {
   computeConnectionPath,
   computeSegmentArrowheadPoints,
   computePreviewPath,
@@ -51,10 +59,53 @@ interface RoomEditorOverlayProps {
   roomId: string;
   panOffset: PanOffset;
   canvasRect: DOMRect | null;
+  theme: ThemeMode;
   onClose: () => void;
 }
 
-function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
+interface ColorChipGroupProps {
+  label: string;
+  options: readonly RoomColorPaletteEntry[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  testIdPrefix: string;
+}
+
+function ColorChipGroup({
+  label,
+  options,
+  selectedIndex,
+  onSelect,
+  testIdPrefix,
+}: ColorChipGroupProps): React.JSX.Element {
+  return (
+    <div className="room-color-chip-group" role="radiogroup" aria-label={label}>
+      {options.map((color, index) => {
+        const isSelected = index === selectedIndex;
+        return (
+          <button
+            key={`${label}-${color.label}`}
+            type="button"
+            role="radio"
+            aria-label={`${label}: ${color.label}`}
+            aria-checked={isSelected}
+            className={`room-color-chip${isSelected ? ' room-color-chip--selected' : ''}`}
+            data-testid={`${testIdPrefix}-${index}`}
+            style={{
+              '--room-chip-light': color.light,
+              '--room-chip-dark': color.dark,
+            } as React.CSSProperties}
+            onClick={() => onSelect(index)}
+          >
+            <span className="room-color-chip-swatch" aria-hidden="true" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RoomEditorOverlay({ roomId, panOffset, canvasRect, theme, onClose }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
   const renameRoom = useEditorStore((s) => s.renameRoom);
   const describeRoom = useEditorStore((s) => s.describeRoom);
@@ -119,7 +170,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
           width={roomGeometry.width}
           height={roomGeometry.height}
         >
-          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height, room)}
+          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height, room, theme)}
         </svg>
         <input
           ref={nameInputRef}
@@ -151,30 +202,24 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
         <div className="room-editor-content">
           <aside className="room-editor-sidebar">
             <div className="room-editor-field">
-              <label className="room-editor-label" htmlFor="room-editor-fill-color-input">
-                Fill color
-              </label>
-              <input
-                id="room-editor-fill-color-input"
-                className="room-editor-input room-editor-color-input"
-                type="color"
-                aria-label="Fill color"
-                value={room.fillColor}
-                onChange={(e) => setRoomStyle(room.id, { fillColor: e.target.value })}
+              <span className="room-editor-label">Fill color</span>
+              <ColorChipGroup
+                label="Fill color"
+                options={ROOM_FILL_PALETTE}
+                selectedIndex={room.fillColorIndex}
+                onSelect={(fillColorIndex) => setRoomStyle(room.id, { fillColorIndex })}
+                testIdPrefix="room-fill-color-chip"
               />
             </div>
 
             <div className="room-editor-field">
-              <label className="room-editor-label" htmlFor="room-editor-stroke-color-input">
-                Stroke color
-              </label>
-              <input
-                id="room-editor-stroke-color-input"
-                className="room-editor-input room-editor-color-input"
-                type="color"
-                aria-label="Stroke color"
-                value={room.strokeColor}
-                onChange={(e) => setRoomStyle(room.id, { strokeColor: e.target.value })}
+              <span className="room-editor-label">Stroke color</span>
+              <ColorChipGroup
+                label="Stroke color"
+                options={ROOM_STROKE_PALETTE}
+                selectedIndex={room.strokeColorIndex}
+                onSelect={(strokeColorIndex) => setRoomStyle(room.id, { strokeColorIndex })}
+                testIdPrefix="room-stroke-color-chip"
               />
             </div>
 
@@ -229,7 +274,7 @@ function RoomEditorOverlay({ roomId, panOffset, canvasRect, onClose }: RoomEdito
                     onClick={() => setRoomShape(room.id, shape)}
                   >
                     <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
-                      {renderRoomShape(shape, 44, 28, room)}
+                      {renderRoomShape(shape, 44, 28, room, theme)}
                     </svg>
                     <span>{shape}</span>
                   </button>
@@ -566,11 +611,42 @@ function getRoomStrokeDasharray(strokeStyle: RoomStrokeStyle): string | undefine
   return undefined;
 }
 
-function renderRoomShape(shape: RoomShape, width: number, height: number, roomStyle?: Pick<Room, 'fillColor' | 'strokeColor' | 'strokeStyle'>): React.JSX.Element {
+function getDocumentTheme(): ThemeMode {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function useDocumentTheme(): ThemeMode {
+  const [theme, setTheme] = useState<ThemeMode>(getDocumentTheme);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setTheme(getDocumentTheme());
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return theme;
+}
+
+function renderRoomShape(
+  shape: RoomShape,
+  width: number,
+  height: number,
+  roomStyle?: Pick<Room, 'fillColorIndex' | 'strokeColorIndex' | 'strokeStyle'>,
+  theme: ThemeMode = 'light',
+): React.JSX.Element {
   const shapeStyleProps = roomStyle ? {
     style: {
-      fill: roomStyle.fillColor,
-      stroke: roomStyle.strokeColor,
+      fill: getRoomFillColor(roomStyle.fillColorIndex, theme),
+      stroke: getRoomStrokeColor(roomStyle.strokeColorIndex, theme),
       strokeDasharray: getRoomStrokeDasharray(roomStyle.strokeStyle),
     },
   } : undefined;
@@ -657,13 +733,14 @@ function DirectionHandles({ roomWidth, roomHeight, roomShape, onHandleMouseDown 
 
 interface RoomNodeProps {
   room: Room;
+  theme: ThemeMode;
   isSelected: boolean;
   isRoomEditorOpen: boolean;
   onOpenRoomEditor: (roomId: string) => void;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
-function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
+function RoomNode({ room, theme, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapPoint }: RoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
   const moveRooms = useEditorStore((s) => s.moveRooms);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
@@ -819,7 +896,7 @@ function RoomNode({ room, isSelected, isRoomEditorOpen, onOpenRoomEditor, toMapP
             ry={12}
           />
         )}
-        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT, room)}
+        {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT, room, theme)}
         <text
           className="room-node-name"
           x={roomWidth / 2}
@@ -1039,6 +1116,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const autoPanTimeoutRef = useRef<number | null>(null);
   const suppressCanvasClickRef = useRef(false);
   const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
+  const theme = useDocumentTheme();
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -1416,6 +1494,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             <RoomNode
               key={room.id}
               room={room}
+              theme={theme}
               isSelected={selectedRoomIds.includes(room.id)}
               isRoomEditorOpen={roomEditorId !== null}
               onOpenRoomEditor={openRoomEditor}
@@ -1438,6 +1517,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           roomId={roomEditorId}
           panOffset={panOffset}
           canvasRect={effectiveCanvasRect}
+          theme={theme}
           onClose={closeRoomEditor}
         />
       )}

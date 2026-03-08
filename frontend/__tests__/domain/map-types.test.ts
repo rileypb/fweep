@@ -39,8 +39,8 @@ describe('createRoom', () => {
   it('initialises default room styling', () => {
     const room = createRoom('Kitchen');
 
-    expect(room.fillColor).toBe('#ffffff');
-    expect(room.strokeColor).toBe('#6366f1');
+    expect(room.fillColorIndex).toBe(0);
+    expect(room.strokeColorIndex).toBe(0);
     expect(room.strokeStyle).toBe('solid');
   });
 });

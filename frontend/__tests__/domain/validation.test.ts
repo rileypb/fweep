@@ -100,7 +100,7 @@ describe('parseUntrustedMapDocument', () => {
         ...doc.rooms,
         [roomId]: {
           ...doc.rooms[roomId],
-          fillColor: 'red',
+          fillColorIndex: 99,
         },
       },
     };
@@ -179,9 +179,32 @@ describe('parseUntrustedMapDocument', () => {
     const parsed = parseUntrustedMapDocument(legacyDoc);
 
     expect(parsed.rooms[roomId].shape).toBe('rectangle');
-    expect(parsed.rooms[roomId].fillColor).toBe('#ffffff');
-    expect(parsed.rooms[roomId].strokeColor).toBe('#6366f1');
+    expect(parsed.rooms[roomId].fillColorIndex).toBe(0);
+    expect(parsed.rooms[roomId].strokeColorIndex).toBe(0);
     expect(parsed.rooms[roomId].strokeStyle).toBe('solid');
+  });
+
+  it('maps legacy direct color values onto palette indices', () => {
+    const doc = validMap();
+    const roomId = Object.keys(doc.rooms)[0];
+    const legacyDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [roomId]: {
+          ...doc.rooms[roomId],
+          fillColor: '#ffcc00',
+          strokeColor: '#166534',
+          fillColorIndex: undefined,
+          strokeColorIndex: undefined,
+        },
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(legacyDoc);
+
+    expect(parsed.rooms[roomId].fillColorIndex).toBe(2);
+    expect(parsed.rooms[roomId].strokeColorIndex).toBe(4);
   });
 
   it('rejects overlong map names', () => {

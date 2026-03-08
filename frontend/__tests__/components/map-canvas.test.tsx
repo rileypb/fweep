@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -19,6 +19,7 @@ describe('MapCanvas', () => {
 
   beforeEach(() => {
     resetStore();
+    document.documentElement.setAttribute('data-theme', 'light');
   });
 
   afterEach(() => {
@@ -810,24 +811,42 @@ describe('MapCanvas', () => {
 
       await user.dblClick(roomNode);
 
-      const fillColorInput = screen.getByLabelText('Fill color');
-      const strokeColorInput = screen.getByLabelText('Stroke color');
+      const fillColorChip = screen.getByTestId('room-fill-color-chip-2');
+      const strokeColorChip = screen.getByTestId('room-stroke-color-chip-4');
       const strokeStyleInput = screen.getByLabelText('Stroke style');
 
-      fireEvent.change(fillColorInput, { target: { value: '#ffcc00' } });
-      fireEvent.change(strokeColorInput, { target: { value: '#14532d' } });
+      await user.click(fillColorChip);
+      await user.click(strokeColorChip);
       await user.selectOptions(strokeStyleInput, 'dashed');
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
-      expect(room.fillColor).toBe('#ffcc00');
-      expect(room.strokeColor).toBe('#14532d');
+      expect(room.fillColorIndex).toBe(2);
+      expect(room.strokeColorIndex).toBe(4);
       expect(room.strokeStyle).toBe('dashed');
 
       const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
       const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
 
-      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#14532d', strokeDasharray: '8 5' });
-      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#14532d', strokeDasharray: '8 5' });
+      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
+      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
+    });
+
+    it('re-resolves indexed room colors when the theme changes', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      await user.click(screen.getByTestId('room-fill-color-chip-2'));
+      await user.click(screen.getByTestId('room-stroke-color-chip-4'));
+
+      const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
+      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534' });
+
+      document.documentElement.setAttribute('data-theme', 'dark');
+
+      await waitFor(() => {
+        expect(canvasShape).toHaveStyle({ fill: '#854d0e', stroke: '#86efac' });
+      });
     });
 
     it('pressing Enter in the room name field moves focus to the description field', async () => {

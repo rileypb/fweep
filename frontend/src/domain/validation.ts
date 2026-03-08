@@ -1,7 +1,5 @@
 import {
   CURRENT_SCHEMA_VERSION,
-  DEFAULT_ROOM_FILL_COLOR,
-  DEFAULT_ROOM_STROKE_COLOR,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
@@ -12,6 +10,14 @@ import {
   type Position,
   type Room,
 } from './map-types';
+import {
+  DEFAULT_ROOM_FILL_COLOR_INDEX,
+  DEFAULT_ROOM_STROKE_COLOR_INDEX,
+  findRoomFillColorIndexByLegacyColor,
+  findRoomStrokeColorIndexByLegacyColor,
+  isValidRoomFillColorIndex,
+  isValidRoomStrokeColorIndex,
+} from './room-color-palette';
 
 export type ValidationSeverity = 'error' | 'warning';
 export type EntityType = 'map' | 'metadata' | 'room' | 'connection' | 'item';
@@ -27,8 +33,6 @@ export const MAX_ROOMS = 5_000;
 export const MAX_CONNECTIONS = 10_000;
 export const MAX_ITEMS = 10_000;
 export const MAX_DIRECTIONS_PER_ROOM = 64;
-
-const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 export interface ValidationIssue {
   readonly severity: ValidationSeverity;
@@ -233,20 +237,40 @@ function parseDirections(value: unknown, issues: ValidationIssue[], roomId: stri
   return Object.fromEntries(normalizedEntries);
 }
 
-function parseColor(
+function parseColorIndex(
   value: unknown,
+  legacyValue: unknown,
   issues: ValidationIssue[],
   path: string,
   roomId: string,
-  fallback: string,
-): string {
+  fallback: number,
+  findLegacyIndex: (color: string) => number | null,
+  isValidIndex: (index: unknown) => index is number,
+): number {
   if (value === undefined) {
+    if (legacyValue === undefined) {
+      return fallback;
+    }
+
+    if (typeof legacyValue !== 'string') {
+      pushIssue(issues, 'error', 'room', roomId, path, `${path} must be a palette index.`);
+      return fallback;
+    }
+
+    const legacyIndex = findLegacyIndex(legacyValue);
+    if (legacyIndex === null) {
+      pushIssue(issues, 'error', 'room', roomId, path, `${path} must be a valid palette index.`);
+      return fallback;
+    }
+
+    return legacyIndex;
+  }
+
+  if (!isValidIndex(value)) {
+    pushIssue(issues, 'error', 'room', roomId, path, `${path} must be a valid palette index.`);
     return fallback;
   }
-  if (typeof value !== 'string' || !HEX_COLOR_PATTERN.test(value)) {
-    pushIssue(issues, 'error', 'room', roomId, path, `${path} must be a hex color like #RRGGBB.`);
-    return fallback;
-  }
+
   return value;
 }
 
@@ -319,8 +343,26 @@ function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]):
     directions,
     isDark,
     shape: parseRoomShape(room.shape, issues, entryKey),
-    fillColor: parseColor(room.fillColor, issues, `rooms.${entryKey}.fillColor`, entryKey, DEFAULT_ROOM_FILL_COLOR),
-    strokeColor: parseColor(room.strokeColor, issues, `rooms.${entryKey}.strokeColor`, entryKey, DEFAULT_ROOM_STROKE_COLOR),
+    fillColorIndex: parseColorIndex(
+      room.fillColorIndex,
+      room.fillColor,
+      issues,
+      `rooms.${entryKey}.fillColorIndex`,
+      entryKey,
+      DEFAULT_ROOM_FILL_COLOR_INDEX,
+      findRoomFillColorIndexByLegacyColor,
+      isValidRoomFillColorIndex,
+    ),
+    strokeColorIndex: parseColorIndex(
+      room.strokeColorIndex,
+      room.strokeColor,
+      issues,
+      `rooms.${entryKey}.strokeColorIndex`,
+      entryKey,
+      DEFAULT_ROOM_STROKE_COLOR_INDEX,
+      findRoomStrokeColorIndexByLegacyColor,
+      isValidRoomStrokeColorIndex,
+    ),
     strokeStyle: parseStrokeStyle(room.strokeStyle, issues, entryKey),
   };
 }
