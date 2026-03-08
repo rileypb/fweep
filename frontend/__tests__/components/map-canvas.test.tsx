@@ -96,7 +96,7 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 180, clientY: 140 });
       fireEvent.mouseUp(document, { clientX: 180, clientY: 140 });
 
-      fireEvent.click(canvas, { shiftKey: true, clientX: 120, clientY: 120 });
+      fireEvent.doubleClick(canvas, { clientX: 120, clientY: 120 });
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
@@ -898,17 +898,17 @@ describe('MapCanvas', () => {
     });
   });
 
-  /* ---- Shift+click to create room ---- */
+  /* ---- Double-click to create room ---- */
 
-  describe('Shift+click to create room', () => {
-    it('creates a room named Room on Shift+click', () => {
+  describe('double-click to create room', () => {
+    it('creates a room named Room on background double-click', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 200, clientY: 300 });
+      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
 
       // A room should have been created
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
@@ -917,14 +917,14 @@ describe('MapCanvas', () => {
       expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Room');
     });
 
-    it('does not create a room on normal click (no Shift)', () => {
+    it('does not create a room on a single background click', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: false, clientX: 200, clientY: 300 });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
 
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
       expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
@@ -937,7 +937,7 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 55, clientY: 85 });
+      fireEvent.doubleClick(canvas, { clientX: 55, clientY: 85 });
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms[0].position).toEqual({ x: 40, y: 80 });
@@ -964,7 +964,7 @@ describe('MapCanvas', () => {
         toJSON: () => ({}),
       });
 
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
+      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
 
       expect(content.style.transform).toBe('translate(290px, 80px)');
       expect(content).toHaveClass('map-canvas-content--animated');
@@ -978,7 +978,7 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
+      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
@@ -1056,7 +1056,7 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { shiftKey: true, clientX: 100, clientY: 100 });
+      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);
@@ -1128,7 +1128,7 @@ describe('MapCanvas', () => {
       expect(room.position).toEqual({ x: 80, y: 120 });
     });
 
-    it('does not fire Shift+click room creation during drag', () => {
+    it('does not fire background double-click room creation during drag', () => {
       setupDraggableRoom(80, 120);
       const roomNode = screen.getByTestId('room-node');
 

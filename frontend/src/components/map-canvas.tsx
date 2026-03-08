@@ -1472,18 +1472,25 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       }
 
       canvasRef.current?.focus();
+      clearSelection();
+    },
+    [clearSelection, connectionEditorId, roomEditorId],
+  );
 
-      if (!e.shiftKey) {
-        clearSelection();
+  const handleCanvasDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (roomEditorId || connectionEditorId) return;
+
+      const target = e.target as Element | null;
+      if (target?.closest('[data-room-id], [data-connection-id], .map-canvas-header')) {
         return;
       }
 
       const { x, y } = toMapPoint(e.clientX, e.clientY);
-
       const roomId = addRoomAtPosition('Room', { x, y });
       openRoomEditor(roomId);
     },
-    [addRoomAtPosition, clearSelection, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint],
+    [addRoomAtPosition, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint],
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1582,6 +1589,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
         handleCanvasMouseDown(e);
       }}
       onClick={handleCanvasClick}
+      onDoubleClick={handleCanvasDoubleClick}
       onKeyDown={handleCanvasKeyDown}
       tabIndex={-1}
       style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
