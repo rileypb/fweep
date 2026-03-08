@@ -81,6 +81,36 @@ describe('useMapRouter', () => {
     expect(loadMap).toHaveBeenCalledWith('missing-after-popstate');
   });
 
+  it('surfaces a route error when popstate loading rejects', async () => {
+    const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>()
+      .mockRejectedValue('non-error rejection');
+    render(<RouterHarness loadMap={loadMap} />);
+
+    navigateTo('#/map/rejected-after-popstate');
+    fireEvent.popState(window);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('route-error')).toHaveTextContent('This map could not be opened.');
+    });
+    expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
+    expect(window.location.hash).toBe('#/');
+  });
+
+  it('loads a map when browser navigation moves to a valid hash route', async () => {
+    const routedDoc = createEmptyMap('From Popstate');
+    const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>()
+      .mockResolvedValue(routedDoc);
+    render(<RouterHarness loadMap={loadMap} />);
+
+    navigateTo(`#/map/${routedDoc.metadata.id}`);
+    fireEvent.popState(window);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('active-map-name')).toHaveTextContent('From Popstate');
+    });
+    expect(screen.getByTestId('route-error')).toHaveTextContent('none');
+  });
+
   it('exposes a route error when an invalid saved map is loaded', async () => {
     navigateTo('#/map/invalid-saved');
     const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>()

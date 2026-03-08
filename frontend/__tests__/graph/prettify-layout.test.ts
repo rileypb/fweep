@@ -122,4 +122,52 @@ describe('computePrettifiedRoomPositions', () => {
 
     expect(uniquePositions.size).toBe(4);
   });
+
+  it('ignores unsupported directions when deriving layout constraints', () => {
+    let doc = createEmptyMap('Unsupported Direction');
+    const roomA = { ...createRoom('A'), position: { x: 0, y: 0 } };
+    const roomB = { ...createRoom('B'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, roomA), roomB);
+
+    const connection = createConnection(roomA.id, roomB.id, true);
+    doc = addConnection(doc, connection, 'portal', 'portal');
+
+    const positions = computePrettifiedRoomPositions(doc);
+
+    expect(positions[roomA.id].x).not.toBe(positions[roomB.id].x);
+    expectSnappedToGrid(getRoomCenterX(roomA, positions[roomA.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
+    expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
+  });
+
+  it('falls back for disconnected rooms and separates overlapping preferred positions', () => {
+    let doc = createEmptyMap('Disconnected');
+    const roomA = { ...createRoom('A'), position: { x: 0, y: 0 } };
+    const roomB = { ...createRoom('B'), position: { x: 0, y: 0 } };
+    const roomC = { ...createRoom('C'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(addRoom(doc, roomA), roomB), roomC);
+
+    const positions = computePrettifiedRoomPositions(doc);
+    const uniquePositions = new Set(
+      Object.values(positions).map((position) => `${position.x},${position.y}`),
+    );
+
+    expect(uniquePositions.size).toBe(3);
+    expect(positions[roomA.id]).not.toEqual(positions[roomB.id]);
+    expect(positions[roomB.id]).not.toEqual(positions[roomC.id]);
+  });
+
+  it('ignores self-referential direction constraints during layout', () => {
+    let doc = createEmptyMap('Self Constraint');
+    const room = { ...createRoom('Solo'), position: { x: 80, y: 120 } };
+    doc = addRoom(doc, room);
+    doc = addConnection(doc, createConnection(room.id, room.id, true), 'north', 'south');
+
+    const positions = computePrettifiedRoomPositions(doc);
+
+    expect(Object.keys(positions)).toEqual([room.id]);
+    expectSnappedToGrid(getRoomCenterX(room, positions[room.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[room.id].y));
+  });
 });

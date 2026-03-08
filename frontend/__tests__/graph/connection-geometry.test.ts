@@ -70,6 +70,21 @@ describe('getHandleOffset', () => {
     expect(offset?.x).toBeCloseTo(74, 2);
     expect(offset?.y).toBeCloseTo(5, 2);
   });
+
+  it('uses sampled ellipse perimeter points for oval cardinal handles', () => {
+    const north = getHandleOffset('north', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
+    const east = getHandleOffset('east', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
+
+    expect(north?.x).toBeCloseTo(40, 1);
+    expect(north?.y).toBeCloseTo(0, 1);
+    expect(east?.x).toBeCloseTo(80, 1);
+    expect(east?.y).toBeCloseTo(18, 1);
+  });
+
+  it('returns undefined for unsupported directions on non-rectangular rooms', () => {
+    expect(getHandleOffset('up', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval')).toBeUndefined();
+    expect(getHandleOffset('portal', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'octagon')).toBeUndefined();
+  });
 });
 
 describe('getHandlePosition', () => {
@@ -191,6 +206,11 @@ describe('findRoomDirectionForConnection', () => {
   it('returns undefined when the room has no directions', () => {
     const room = roomAt('A', 0, 0);
     expect(findRoomDirectionForConnection(room, 'conn-1')).toBeUndefined();
+  });
+
+  it('normalizes shorthand non-compass aliases to compass handles', () => {
+    const room = roomAt('A', 0, 0, { ne: 'conn-1' });
+    expect(findRoomDirectionForConnection(room, 'conn-1')).toBe('northeast');
   });
 });
 
@@ -326,6 +346,36 @@ describe('computeConnectionPath', () => {
     expect(points[1].y - points[0].y).toBeLessThan(-12);
     expect(Math.abs((points[1].x - points[0].x) - -(points[1].y - points[0].y))).toBeGreaterThan(1);
   });
+
+  it('uses sampled oval perimeter handles for cardinal bidirectional paths', () => {
+    const connId = 'conn-oval-cardinal';
+    const srcRoom = { ...roomAt('Oval A', 0, 200, { north: connId }), shape: 'oval' as const };
+    const tgtRoom = { ...roomAt('Oval B', 0, 0, { south: connId }), shape: 'oval' as const };
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, true), id: connId };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    expect(points[0].x).toBeCloseTo(40, 1);
+    expect(points[0].y).toBeCloseTo(200, 1);
+    expect(points[1].x).toBeCloseTo(40, 1);
+    expect(points[1].y).toBeLessThan(points[0].y);
+    expect(points[3].x).toBeCloseTo(40, 1);
+    expect(points[3].y).toBeCloseTo(36, 1);
+  });
+
+  it('falls back to the room center when an unsupported direction is normalized into no visual handle', () => {
+    const connId = 'conn-weird';
+    const srcRoom = roomAt('A', 0, 200, { portal: connId });
+    const tgtRoom = roomAt('B', 200, 200);
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    expect(points).toEqual([
+      getRoomCenter(srcRoom.position),
+      getRoomCenter(tgtRoom.position),
+    ]);
+  });
 });
 
 describe('computePreviewPath', () => {
@@ -348,6 +398,15 @@ describe('computePreviewPath', () => {
     expect(points).toHaveLength(2);
     expect(points[0]).toEqual(getRoomCenter(room.position));
     expect(points[1]).toEqual({ x: 40, y: 50 });
+  });
+
+  it('uses shape-aware stub vectors for octagon diagonal previews', () => {
+    const room = { ...roomAt('Octagon', 0, 200), shape: 'octagon' as const };
+    const points = computePreviewPath(room, 'northeast', 200, 0, 20);
+
+    expect(points).toHaveLength(3);
+    expect(points[1].x).toBeGreaterThan(points[0].x);
+    expect(points[1].y).toBeLessThan(points[0].y);
   });
 });
 
@@ -378,6 +437,27 @@ describe('computeSegmentArrowheadPoints', () => {
 
   it('returns an empty array when no non-zero segment exists', () => {
     expect(computeSegmentArrowheadPoints([{ x: 1, y: 1 }, { x: 1, y: 1 }])).toEqual([]);
+  });
+
+  it('uses the last non-zero segment when the polyline ends with repeated points', () => {
+    const arrows = computeSegmentArrowheadPoints([
+      { x: 0, y: 0 },
+      { x: 30, y: 0 },
+      { x: 30, y: 0 },
+    ], 12, 10);
+
+    expect(arrows).toEqual([
+      [
+        { x: 16, y: 0 },
+        { x: 4, y: 5 },
+        { x: 4, y: -5 },
+      ],
+      [
+        { x: 26, y: 0 },
+        { x: 14, y: 5 },
+        { x: 14, y: -5 },
+      ],
+    ]);
   });
 });
 
