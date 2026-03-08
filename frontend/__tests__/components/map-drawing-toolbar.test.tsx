@@ -32,6 +32,7 @@ describe('MapDrawingToolbar', () => {
     expect(screen.queryByLabelText('Drawing tool size')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Drawing tool softness')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Bucket fill tolerance')).toBeInTheDocument();
+    expect(screen.getByLabelText('Obey map')).toBeInTheDocument();
     expect(useEditorStore.getState().drawingToolState.tool).toBe('bucket');
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
   });
@@ -105,6 +106,17 @@ describe('MapDrawingToolbar', () => {
     fireEvent.change(screen.getByLabelText('Bucket fill tolerance'), { target: { value: '48' } });
 
     expect(useEditorStore.getState().drawingToolState.bucketTolerance).toBe(48);
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+  });
+
+  it('updates the obey map checkbox for bucket fill', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Bucket fill' }));
+    await user.click(screen.getByLabelText('Obey map'));
+
+    expect(useEditorStore.getState().drawingToolState.bucketObeyMap).toBe(true);
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
   });
 

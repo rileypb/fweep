@@ -9,6 +9,7 @@ import {
   constrainRectangleToSquare,
   createSizedCanvas,
   drawBucketFill,
+  drawMapObstacleMask,
   createRasterCanvas,
   drawEllipseStroke,
   drawRectangleStroke,
@@ -26,6 +27,7 @@ import {
   supportsRasterCanvas,
   usesHardEdgeStamp,
 } from '../../src/components/map-background-raster';
+import { createConnection, createRoom } from '../../src/domain/map-types';
 import type { DrawingToolState } from '../../src/state/editor-store';
 
 interface MockGradient {
@@ -41,10 +43,20 @@ interface MockCanvasContext {
   drawImage: jest.Mock<(...args: unknown[]) => void>;
   getImageData: jest.Mock<(x: number, y: number, width: number, height: number) => ImageData>;
   beginPath: jest.Mock<() => void>;
+  moveTo: jest.Mock<(x: number, y: number) => void>;
+  lineTo: jest.Mock<(x: number, y: number) => void>;
+  closePath: jest.Mock<() => void>;
+  quadraticCurveTo: jest.Mock<(cpx: number, cpy: number, x: number, y: number) => void>;
   rect: jest.Mock<(x: number, y: number, width: number, height: number) => void>;
   ellipse: jest.Mock<(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number) => void>;
   arc: jest.Mock<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>;
   fill: jest.Mock<() => void>;
+  stroke: jest.Mock<() => void>;
+  lineWidth?: number;
+  strokeStyle?: string;
+  lineCap?: CanvasLineCap;
+  lineJoin?: CanvasLineJoin;
+  setLineDash: jest.Mock<(segments: number[]) => void>;
   createRadialGradient: jest.Mock<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>;
   createImageData: jest.Mock<(width: number, height: number) => ImageData>;
   putImageData: jest.Mock<(imageData: ImageData, dx: number, dy: number) => void>;
@@ -69,10 +81,16 @@ function createMockContext(alphaValues: number[] = []): MockCanvasContext {
       colorSpace: 'srgb',
     } as ImageData)),
     beginPath: jest.fn<() => void>(),
+    moveTo: jest.fn<(x: number, y: number) => void>(),
+    lineTo: jest.fn<(x: number, y: number) => void>(),
+    closePath: jest.fn<() => void>(),
+    quadraticCurveTo: jest.fn<(cpx: number, cpy: number, x: number, y: number) => void>(),
     rect: jest.fn<(x: number, y: number, width: number, height: number) => void>(),
     ellipse: jest.fn<(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number) => void>(),
     arc: jest.fn<(x: number, y: number, radius: number, startAngle: number, endAngle: number) => void>(),
     fill: jest.fn<() => void>(),
+    stroke: jest.fn<() => void>(),
+    setLineDash: jest.fn<(segments: number[]) => void>(),
     createRadialGradient: jest.fn<(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number) => MockGradient>(() => gradient),
     createImageData: jest.fn<(width: number, height: number) => ImageData>((width: number, height: number) => ({
       data: new Uint8ClampedArray(width * height * 4),
@@ -272,6 +290,7 @@ describe('map-background-raster', () => {
       softness: 0.5,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     };
 
     expect(getToolStampRadius(toolState)).toBe(9);
@@ -287,6 +306,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'line',
@@ -297,6 +317,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     })).toBe(true);
     expect(usesHardEdgeStamp({
       tool: 'ellipse',
@@ -307,6 +328,7 @@ describe('map-background-raster', () => {
       softness: 0.25,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     })).toBe(false);
     expect(usesHardEdgeStamp({
       tool: 'pencil',
@@ -317,6 +339,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     })).toBe(false);
   });
 
@@ -355,6 +378,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     });
 
     expect(drawImageMock.mock.calls[0]).toEqual([baseCanvas, 0, 0]);
@@ -374,6 +398,7 @@ describe('map-background-raster', () => {
       softness: 0.5,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     })).not.toThrow();
   });
 
@@ -390,6 +415,7 @@ describe('map-background-raster', () => {
       softness: 0.5,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     }, { x: 0, y: 0 }, { x: 0, y: 0 });
 
     expect(context.createRadialGradient).toHaveBeenCalled();
@@ -411,6 +437,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     }, { x: 32, y: 32 }, { x: 32, y: 32 });
 
     expect(context.fillStyle).toBe('rgba(0, 0, 0, 1)');
@@ -433,6 +460,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
 
     expect(() => drawStrokeSegment(createMockCanvas(null), {
@@ -444,6 +472,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     }, { x: 0, y: 0 }, { x: 1, y: 1 })).not.toThrow();
   });
 
@@ -459,6 +488,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: false,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     };
 
     drawRectangleStroke(canvas, toolState, { x: 10, y: 12 }, { x: 20, y: 18 });
@@ -485,6 +515,7 @@ describe('map-background-raster', () => {
       softness: 0,
       shapeFilled: true,
       bucketTolerance: 0,
+      bucketObeyMap: false,
     };
 
     drawRectangleStroke(canvas, rectangleTool, { x: 10, y: 12 }, { x: 20, y: 18 });
@@ -564,6 +595,78 @@ describe('map-background-raster', () => {
     expect(drawBucketFill(sourceCanvas, targetCanvas, { x: -1, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
     expect(drawBucketFill(sourceCanvas, targetCanvas, { x: 0, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
     expect(drawBucketFill(createMockCanvas(null), targetCanvas, { x: 0, y: 0 }, '#000000', BUCKET_FILL_MAX_RADIUS, 0)).toBe(false);
+  });
+
+  it('respects obstacle pixels during bucket fill', () => {
+    const width = 3;
+    const height = 1;
+    const sourceContext = createMockContext();
+    const targetContext = createMockContext();
+    const obstacleContext = createMockContext();
+    sourceContext.getImageData.mockReturnValue({
+      data: Uint8ClampedArray.from([
+        100, 100, 100, 255,
+        100, 100, 100, 255,
+        100, 100, 100, 255,
+      ]),
+      width,
+      height,
+      colorSpace: 'srgb',
+    } as ImageData);
+    obstacleContext.getImageData.mockReturnValue({
+      data: Uint8ClampedArray.from([
+        0, 0, 0, 0,
+        0, 0, 0, 255,
+        0, 0, 0, 0,
+      ]),
+      width,
+      height,
+      colorSpace: 'srgb',
+    } as ImageData);
+
+    const sourceCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => sourceContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+    const targetCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => targetContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+    const obstacleCanvas = {
+      width,
+      height,
+      getContext: jest.fn<() => CanvasRenderingContext2D | null>(() => obstacleContext as unknown as CanvasRenderingContext2D),
+    } as unknown as HTMLCanvasElement;
+
+    expect(drawBucketFill(sourceCanvas, targetCanvas, { x: 0, y: 0 }, '#336699', BUCKET_FILL_MAX_RADIUS, 0, obstacleCanvas)).toBe(true);
+    const imageData = targetContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(imageData.data.slice(0, 12))).toEqual([
+      51, 102, 153, 255,
+      0, 0, 0, 0,
+      0, 0, 0, 0,
+    ]);
+  });
+
+  it('draws room bodies and continuous connection barriers into the map obstacle mask', () => {
+    const context = createMockContext();
+    const canvas = createMockCanvas(context as unknown as CanvasRenderingContext2D);
+    const roomA = { ...createRoom('Alpha'), id: 'room-a', position: { x: 10, y: 20 }, shape: 'oval' as const };
+    const roomB = { ...createRoom('Beta'), id: 'room-b', position: { x: 120, y: 20 }, shape: 'diamond' as const, directions: { west: 'conn-1' } };
+    const connection = { ...createConnection(roomA.id, roomB.id, true), id: 'conn-1', strokeStyle: 'dashed' as const };
+    const roomAWithDirections = { ...roomA, directions: { east: connection.id } };
+
+    drawMapObstacleMask(
+      canvas,
+      { [roomA.id]: roomAWithDirections, [roomB.id]: roomB },
+      { [connection.id]: connection },
+      { x: 0, y: 0 },
+    );
+
+    expect(context.fill).toHaveBeenCalled();
+    expect(context.stroke).toHaveBeenCalled();
+    expect(context.setLineDash).toHaveBeenCalledWith([]);
   });
 
   it('bucket fill tolerance expands across near-matching pixels', () => {

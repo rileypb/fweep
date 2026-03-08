@@ -201,6 +201,7 @@ describe('useEditorStore', () => {
         softness: 0.25,
         shapeFilled: true,
         bucketTolerance: 0,
+        bucketObeyMap: false,
       });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
     });
@@ -211,6 +212,11 @@ describe('useEditorStore', () => {
 
       useEditorStore.getState().setBucketTolerance(-20);
       expect(useEditorStore.getState().drawingToolState.bucketTolerance).toBe(0);
+    });
+
+    it('updates bucket obey map', () => {
+      useEditorStore.getState().setBucketObeyMap(true);
+      expect(useEditorStore.getState().drawingToolState.bucketObeyMap).toBe(true);
     });
   });
 

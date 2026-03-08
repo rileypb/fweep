@@ -31,6 +31,7 @@ import {
   constrainEllipseToCircle,
   constrainRectangleToSquare,
   createSizedCanvas,
+  drawMapObstacleMask,
   drawBucketFill,
   createRasterCanvas,
   drawEllipseStroke,
@@ -489,6 +490,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
       (maxChunkY - minChunkY + 1) * 256,
     );
     const combinedFillCanvas = createSizedCanvas(combinedBaseCanvas.width, combinedBaseCanvas.height);
+    const obstacleCanvas = currentStroke.toolState.bucketObeyMap
+      ? createSizedCanvas(combinedBaseCanvas.width, combinedBaseCanvas.height)
+      : undefined;
     const combinedBaseContext = combinedBaseCanvas.getContext('2d');
 
     if (!combinedBaseContext) {
@@ -504,6 +508,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
       );
     }
 
+    if (obstacleCanvas && doc) {
+      drawMapObstacleMask(obstacleCanvas, doc.rooms, doc.connections, {
+        x: minChunkX * 256,
+        y: minChunkY * 256,
+      });
+    }
+
     const changed = drawBucketFill(
       combinedBaseCanvas,
       combinedFillCanvas,
@@ -514,6 +525,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
       currentStroke.toolState.colorRgbHex,
       BUCKET_FILL_MAX_RADIUS,
       currentStroke.toolState.bucketTolerance,
+      obstacleCanvas,
     );
 
     if (!changed) {

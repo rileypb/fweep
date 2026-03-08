@@ -1,5 +1,16 @@
-import { BACKGROUND_LAYER_CHUNK_SIZE } from '../domain/map-types';
+import {
+  BACKGROUND_LAYER_CHUNK_SIZE,
+  type Connection,
+  type Room,
+  type RoomStrokeStyle,
+} from '../domain/map-types';
 import type { DrawingToolState } from '../state/editor-store';
+import {
+  computeConnectionPath,
+  ROOM_CORNER_RADIUS,
+  ROOM_HEIGHT,
+} from '../graph/connection-geometry';
+import { getRoomNodeWidth } from '../graph/minimap-geometry';
 
 export interface ChunkCoordinates {
   readonly chunkX: number;
@@ -24,6 +35,7 @@ export interface ChunkLoadResult extends ChunkCoordinates {
 }
 
 export const BUCKET_FILL_MAX_RADIUS = 512;
+const OBSTACLE_CONNECTION_WIDTH = 4;
 
 export function supportsRasterCanvas(): boolean {
   return !window.navigator.userAgent.toLowerCase().includes('jsdom');
@@ -41,6 +53,127 @@ export function createSizedCanvas(width: number, height: number): HTMLCanvasElem
   canvas.width = width;
   canvas.height = height;
   return canvas;
+}
+
+function drawRoomObstaclePath(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  offsetX: number,
+  offsetY: number,
+): void {
+  const left = room.position.x - offsetX;
+  const top = room.position.y - offsetY;
+  const width = getRoomNodeWidth(room.name);
+  const height = ROOM_HEIGHT;
+
+  context.beginPath();
+  if (room.shape === 'diamond') {
+    context.moveTo(left + (width / 2), top);
+    context.lineTo(left + width, top + (height / 2));
+    context.lineTo(left + (width / 2), top + height);
+    context.lineTo(left, top + (height / 2));
+    context.closePath();
+    return;
+  }
+
+  if (room.shape === 'oval') {
+    context.ellipse(
+      left + (width / 2),
+      top + (height / 2),
+      width / 2,
+      height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    return;
+  }
+
+  if (room.shape === 'octagon') {
+    const insetX = Math.min(12, width * 0.18);
+    const insetY = Math.min(10, height * 0.28);
+    context.moveTo(left + insetX, top);
+    context.lineTo(left + width - insetX, top);
+    context.lineTo(left + width, top + insetY);
+    context.lineTo(left + width, top + height - insetY);
+    context.lineTo(left + width - insetX, top + height);
+    context.lineTo(left + insetX, top + height);
+    context.lineTo(left, top + height - insetY);
+    context.lineTo(left, top + insetY);
+    context.closePath();
+    return;
+  }
+
+  const radius = Math.min(ROOM_CORNER_RADIUS, width / 2, height / 2);
+  context.moveTo(left + radius, top);
+  context.lineTo(left + width - radius, top);
+  context.quadraticCurveTo(left + width, top, left + width, top + radius);
+  context.lineTo(left + width, top + height - radius);
+  context.quadraticCurveTo(left + width, top + height, left + width - radius, top + height);
+  context.lineTo(left + radius, top + height);
+  context.quadraticCurveTo(left, top + height, left, top + height - radius);
+  context.lineTo(left, top + radius);
+  context.quadraticCurveTo(left, top, left + radius, top);
+  context.closePath();
+}
+
+export function drawMapObstacleMask(
+  canvas: HTMLCanvasElement,
+  rooms: Readonly<Record<string, Room>>,
+  connections: Readonly<Record<string, Connection>>,
+  offset: MapPixelPoint,
+): void {
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return;
+  }
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#000000';
+  context.strokeStyle = '#000000';
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+
+  Object.values(rooms).forEach((room) => {
+    drawRoomObstaclePath(context, room, offset.x, offset.y);
+    context.fill();
+  });
+
+  Object.values(connections).forEach((connection) => {
+    const sourceRoom = rooms[connection.sourceRoomId];
+    const targetRoom = rooms[connection.targetRoomId];
+    if (!sourceRoom || !targetRoom) {
+      return;
+    }
+
+    const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
+    const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+    const points = computeConnectionPath(
+      sourceRoom,
+      targetRoom,
+      connection,
+      undefined,
+      sourceDimensions,
+      targetDimensions,
+    );
+
+    if (points.length < 2) {
+      return;
+    }
+
+    context.beginPath();
+    context.moveTo(points[0].x - offset.x, points[0].y - offset.y);
+    for (let index = 1; index < points.length; index += 1) {
+      context.lineTo(points[index].x - offset.x, points[index].y - offset.y);
+    }
+    context.lineWidth = OBSTACLE_CONNECTION_WIDTH;
+    // Obey-map fill treats every rendered connection as a continuous barrier,
+    // even when the visible stroke style is dashed or dotted.
+    context.setLineDash([]);
+    context.stroke();
+  });
+
+  context.setLineDash([]);
 }
 
 export async function blobToCanvas(blob: Blob): Promise<HTMLCanvasElement> {
@@ -422,9 +555,11 @@ export function drawBucketFill(
   colorRgbHex: string,
   maxRadius: number = BUCKET_FILL_MAX_RADIUS,
   tolerance: number = 0,
+  obstacleCanvas?: HTMLCanvasElement,
 ): boolean {
   const sourceContext = sourceCanvas.getContext('2d');
   const targetContext = targetCanvas.getContext('2d');
+  const obstacleContext = obstacleCanvas?.getContext('2d') ?? null;
   if (!sourceContext || !targetContext) {
     return false;
   }
@@ -444,9 +579,13 @@ export function drawBucketFill(
   const targetImage = targetContext.createImageData(sourceCanvas.width, sourceCanvas.height);
   const sourceData = sourceImage.data;
   const targetData = targetImage.data;
+  const obstacleData = obstacleContext?.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height).data;
   const width = sourceCanvas.width;
   const height = sourceCanvas.height;
   const startIndex = ((startY * width) + startX) * 4;
+  if (obstacleData && obstacleData[startIndex + 3] !== 0) {
+    return false;
+  }
   const targetRed = sourceData[startIndex];
   const targetGreen = sourceData[startIndex + 1];
   const targetBlue = sourceData[startIndex + 2];
@@ -489,6 +628,9 @@ export function drawBucketFill(
     visited[pixelIndex] = 1;
 
     const offset = pixelIndex * 4;
+    if (obstacleData && obstacleData[offset + 3] !== 0) {
+      continue;
+    }
     if (
       Math.abs(sourceData[offset] - targetRed) > clampedTolerance
       || Math.abs(sourceData[offset + 1] - targetGreen) > clampedTolerance

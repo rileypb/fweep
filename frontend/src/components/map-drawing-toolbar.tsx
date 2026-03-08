@@ -149,6 +149,7 @@ export function MapDrawingToolbar(): React.JSX.Element {
   const setDrawingSoftness = useEditorStore((state) => state.setDrawingSoftness);
   const setShapeFilled = useEditorStore((state) => state.setShapeFilled);
   const setBucketTolerance = useEditorStore((state) => state.setBucketTolerance);
+  const setBucketObeyMap = useEditorStore((state) => state.setBucketObeyMap);
   const showsSize = drawingToolState.tool !== 'bucket';
   const maxSize = drawingToolState.tool === 'pencil' ? 6 : 64;
   const showsSoftness = drawingToolState.tool !== 'pencil' && drawingToolState.tool !== 'bucket';
@@ -308,20 +309,35 @@ export function MapDrawingToolbar(): React.JSX.Element {
       )}
 
       {showsBucketTolerance && (
-        <label className="map-drawing-toolbar-field">
-          <span>Tolerance</span>
-          <input
-            type="range"
-            min={0}
-            max={255}
-            value={drawingToolState.bucketTolerance}
-            onChange={(event) => {
-              setBucketTolerance(Number(event.target.value));
-              activateDrawMode();
-            }}
-            aria-label="Bucket fill tolerance"
-          />
-        </label>
+        <>
+          <label className="map-drawing-toolbar-field">
+            <span>Tolerance</span>
+            <input
+              type="range"
+              min={0}
+              max={255}
+              value={drawingToolState.bucketTolerance}
+              onChange={(event) => {
+                setBucketTolerance(Number(event.target.value));
+                activateDrawMode();
+              }}
+              aria-label="Bucket fill tolerance"
+            />
+          </label>
+
+          <label className="map-drawing-toolbar-field">
+            <span>Obey Map</span>
+            <input
+              type="checkbox"
+              checked={drawingToolState.bucketObeyMap}
+              onChange={(event) => {
+                setBucketObeyMap(event.target.checked);
+                activateDrawMode();
+              }}
+              aria-label="Obey map"
+            />
+          </label>
+        </>
       )}
 
       {showsShapeFill && (

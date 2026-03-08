@@ -71,6 +71,7 @@ export interface DrawingToolState {
   readonly softness: number;
   readonly shapeFilled: boolean;
   readonly bucketTolerance: number;
+  readonly bucketObeyMap: boolean;
 }
 
 export interface ActiveStroke {
@@ -303,6 +304,9 @@ export interface EditorState {
   /** Update bucket fill tolerance. */
   setBucketTolerance: (bucketTolerance: number) => void;
 
+  /** Update whether bucket fill treats rooms and connections as obstacles. */
+  setBucketObeyMap: (bucketObeyMap: boolean) => void;
+
   /** Ensure a default background layer exists and return its ID. */
   ensureDefaultBackgroundLayer: () => string;
 
@@ -416,6 +420,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     softness: 0.5,
     shapeFilled: false,
     bucketTolerance: 0,
+    bucketObeyMap: false,
   },
   canvasInteractionMode: 'map',
   activeStroke: null,
@@ -989,6 +994,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       drawingToolState: {
         ...state.drawingToolState,
         bucketTolerance: Math.max(0, Math.min(255, Math.round(bucketTolerance))),
+      },
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setBucketObeyMap: (bucketObeyMap) => {
+    set((state) => ({
+      drawingToolState: {
+        ...state.drawingToolState,
+        bucketObeyMap,
       },
       lastHistoryMergeKey: null,
     }));
