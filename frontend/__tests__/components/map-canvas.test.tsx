@@ -1468,6 +1468,44 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
+    it('double-clicking a connection opens the connection editor', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+
+      expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
+      expect(screen.getByTestId('connection-editor-dialog')).toBeInTheDocument();
+      expect(screen.getByTestId('connection-editor-id')).toHaveTextContent(conn.id);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
+    });
+
+    it('closes the connection editor from the close button', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      fireEvent.click(screen.getByRole('button', { name: /close connection editor/i }));
+
+      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+    });
+
     it('shift-clicking a connection expands the mixed selection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };

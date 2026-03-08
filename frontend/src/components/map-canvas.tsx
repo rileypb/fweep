@@ -63,6 +63,11 @@ interface RoomEditorOverlayProps {
   onClose: () => void;
 }
 
+interface ConnectionEditorOverlayProps {
+  connectionId: string;
+  onClose: () => void;
+}
+
 interface ColorChipGroupProps {
   label: string;
   options: readonly RoomColorPaletteEntry[];
@@ -101,6 +106,49 @@ function ColorChipGroup({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function ConnectionEditorOverlay({
+  connectionId,
+  onClose,
+}: ConnectionEditorOverlayProps): React.JSX.Element | null {
+  const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
+
+  if (!connection) {
+    return null;
+  }
+
+  return (
+    <div className="connection-editor-overlay" data-testid="connection-editor-overlay">
+      <div
+        className="connection-editor-backdrop"
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <div
+        className="connection-editor-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Connection editor"
+        data-testid="connection-editor-dialog"
+      >
+        <button
+          className="connection-editor-close"
+          type="button"
+          aria-label="Close connection editor"
+          onClick={onClose}
+        >
+          ×
+        </button>
+        <div className="connection-editor-content">
+          <p className="connection-editor-title">Connection</p>
+          <p className="connection-editor-meta" data-testid="connection-editor-id">
+            {connection.id}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -935,9 +983,10 @@ function applyDragOffset(room: Room, roomDrag: { roomIds: readonly string[]; dx:
   };
 }
 
-function ConnectionLines({ rooms, connections }: {
+function ConnectionLines({ rooms, connections, onOpenConnectionEditor }: {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
+  onOpenConnectionEditor: (connectionId: string) => void;
 }): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
@@ -972,6 +1021,11 @@ function ConnectionLines({ rooms, connections }: {
             } else {
               selectConnection(conn.id);
             }
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            selectConnection(conn.id);
+            onOpenConnectionEditor(conn.id);
           }}
         />
         <polyline
@@ -1097,6 +1151,7 @@ function ConnectionLines({ rooms, connections }: {
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
   const [showGrid, setShowGrid] = useState(initialShowGrid);
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
+  const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
@@ -1167,6 +1222,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     });
   }, []);
 
+  const closeConnectionEditor = useCallback(() => {
+    setConnectionEditorId(null);
+    requestAnimationFrame(() => {
+      canvasRef.current?.focus();
+    });
+  }, []);
+
   const startAutoPanAnimation = useCallback(() => {
     setIsAutoPanning(true);
 
@@ -1205,9 +1267,15 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [startAutoPanAnimation]);
 
   const openRoomEditor = useCallback((roomId: string) => {
+    setConnectionEditorId(null);
     panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
+
+  const openConnectionEditor = useCallback((connectionId: string) => {
+    setRoomEditorId(null);
+    setConnectionEditorId(connectionId);
+  }, []);
 
   const panRoomIntoView = useCallback((room: Room) => {
     const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
@@ -1225,7 +1293,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [canvasRect, startAutoPanAnimation]);
 
   const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 0 || e.shiftKey || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1286,10 +1354,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [canvasRect, connectionDrag, doc, roomEditorId, rooms, setSelection]);
+  }, [canvasRect, connectionDrag, connectionEditorId, doc, roomEditorId, rooms, setSelection]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 1 || roomEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 1 || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1326,11 +1394,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [connectionDrag, roomEditorId]);
+  }, [connectionDrag, connectionEditorId, roomEditorId]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (roomEditorId) return;
+      if (roomEditorId || connectionEditorId) return;
 
       if (suppressCanvasClickRef.current) {
         suppressCanvasClickRef.current = false;
@@ -1354,11 +1422,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const roomId = addRoomAtPosition('Room', { x, y });
       openRoomEditor(roomId);
     },
-    [addRoomAtPosition, clearSelection, openRoomEditor, roomEditorId, toMapPoint],
+    [addRoomAtPosition, clearSelection, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint],
   );
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (roomEditorId !== null || connectionDrag !== null) {
+    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1431,7 +1499,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [connectionDrag, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
+  }, [connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, undo]);
 
   const classes = [
     'map-canvas',
@@ -1458,7 +1526,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
     >
       <div
-        className={`map-canvas-scene${roomEditorId ? ' map-canvas-scene--editor-open' : ''}`}
+        className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
         data-testid="map-canvas-scene"
       >
         <header className="map-canvas-header">
@@ -1487,7 +1555,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
           {doc && (
-            <ConnectionLines rooms={doc.rooms} connections={doc.connections} />
+            <ConnectionLines
+              rooms={doc.rooms}
+              connections={doc.connections}
+              onOpenConnectionEditor={openConnectionEditor}
+            />
           )}
 
           {rooms.map((room) => (
@@ -1519,6 +1591,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           canvasRect={effectiveCanvasRect}
           theme={theme}
           onClose={closeRoomEditor}
+        />
+      )}
+      {connectionEditorId && (
+        <ConnectionEditorOverlay
+          connectionId={connectionEditorId}
+          onClose={closeConnectionEditor}
         />
       )}
     </div>
