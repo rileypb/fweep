@@ -50,21 +50,6 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
   });
 
-  it('displays the map name', () => {
-    render(<MapCanvas mapName="My Adventure" />);
-    expect(screen.getByText('My Adventure')).toBeInTheDocument();
-  });
-
-  it('calls the back handler from the header button', async () => {
-    const user = userEvent.setup();
-    const onBack = jest.fn<() => void>();
-
-    render(<MapCanvas mapName="My Adventure" onBack={onBack} />);
-    await user.click(screen.getByRole('button', { name: 'Back to maps' }));
-
-    expect(onBack).toHaveBeenCalledTimes(1);
-  });
-
   it('shows the background grid by default', () => {
     render(<MapCanvas mapName="Test" />);
     const canvas = screen.getByTestId('map-canvas');
@@ -153,39 +138,39 @@ describe('MapCanvas', () => {
     expect(canvas).not.toHaveClass('map-canvas--grid');
   });
 
-    it('provides a button to toggle the grid on and off', async () => {
-      const user = userEvent.setup();
-      useEditorStore.getState().loadDocument(createEmptyMap('Test'));
-      render(<MapCanvas mapName="Test" />);
-
-      const canvas = screen.getByTestId('map-canvas');
-    expect(canvas).toHaveClass('map-canvas--grid');
-
-    const toggleBtn = screen.getByRole('button', { name: /toggle grid/i });
-      await user.click(toggleBtn);
-
-      expect(canvas).not.toHaveClass('map-canvas--grid');
-      expect(useEditorStore.getState().doc?.view.showGrid).toBe(false);
-
-      await user.click(toggleBtn);
-      expect(canvas).toHaveClass('map-canvas--grid');
-      expect(useEditorStore.getState().doc?.view.showGrid).toBe(true);
-    });
-
-  it('provides a button to toggle bezier connections on and off', async () => {
-    const user = userEvent.setup();
+  it('updates grid visibility in editor state', () => {
     useEditorStore.getState().loadDocument(createEmptyMap('Test'));
     render(<MapCanvas mapName="Test" />);
 
-    const toggleBtn = screen.getByRole('button', { name: /toggle bezier connections/i });
-    expect(toggleBtn).toHaveAttribute('aria-pressed', 'false');
+    const canvas = screen.getByTestId('map-canvas');
+    expect(canvas).toHaveClass('map-canvas--grid');
 
-    await user.click(toggleBtn);
-    expect(toggleBtn).toHaveAttribute('aria-pressed', 'true');
+    act(() => {
+      useEditorStore.getState().toggleShowGrid();
+    });
+    expect(canvas).not.toHaveClass('map-canvas--grid');
+    expect(useEditorStore.getState().doc?.view.showGrid).toBe(false);
+
+    act(() => {
+      useEditorStore.getState().toggleShowGrid();
+    });
+    expect(canvas).toHaveClass('map-canvas--grid');
+    expect(useEditorStore.getState().doc?.view.showGrid).toBe(true);
+  });
+
+  it('updates bezier connection mode in editor state', () => {
+    useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+    render(<MapCanvas mapName="Test" />);
+
+    expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(false);
+    act(() => {
+      useEditorStore.getState().toggleUseBezierConnections();
+    });
     expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(true);
 
-    await user.click(toggleBtn);
-    expect(toggleBtn).toHaveAttribute('aria-pressed', 'false');
+    act(() => {
+      useEditorStore.getState().toggleUseBezierConnections();
+    });
     expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(false);
   });
 
@@ -1541,11 +1526,11 @@ describe('MapCanvas', () => {
     });
 
     it('shows an SVG preview path during connection drag when bezier mode is enabled', async () => {
-      const user = userEvent.setup();
       setupTwoRooms();
+      act(() => {
+        useEditorStore.getState().toggleUseBezierConnections();
+      });
       render(<MapCanvas mapName="Test" />);
-
-      await user.click(screen.getByRole('button', { name: /toggle bezier connections/i }));
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -1751,7 +1736,6 @@ describe('MapCanvas', () => {
     });
 
     it('renders a path for an existing bidirectional connection when bezier mode is enabled', async () => {
-      const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -1759,11 +1743,16 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       d = addConnection(d, conn, 'north', 'south');
+      d = {
+        ...d,
+        view: {
+          ...d.view,
+          useBezierConnections: true,
+        },
+      };
       useEditorStore.getState().loadDocument(d);
 
       render(<MapCanvas mapName="Test" />);
-
-      await user.click(screen.getByRole('button', { name: /toggle bezier connections/i }));
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.tagName.toLowerCase()).toBe('path');

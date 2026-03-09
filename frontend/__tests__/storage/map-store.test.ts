@@ -169,6 +169,7 @@ describe('map-store', () => {
         pan: { x: 0, y: 0 },
         showGrid: true,
         snapToGrid: true,
+        useBezierConnections: false,
       });
     });
 

@@ -19,15 +19,15 @@ beforeEach(() => {
 });
 
 describe('URL routing', () => {
-  it('renders snap and theme controls', () => {
+  it('renders selection-screen controls', () => {
     render(<App />);
 
     expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /prettify layout/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /undo/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /redo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();
   });
 
   it('opens and closes the help dialog', async () => {
@@ -73,6 +73,9 @@ describe('URL routing', () => {
     render(<App />);
 
     expect(await screen.findByText(/routed map/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /prettify layout/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /undo/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /redo/i })).toBeInTheDocument();
     // Should NOT show the selection dialog
     expect(screen.queryByRole('dialog', { name: /choose a map/i })).not.toBeInTheDocument();
   });
