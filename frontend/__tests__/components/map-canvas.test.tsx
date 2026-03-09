@@ -431,6 +431,34 @@ describe('MapCanvas', () => {
       fireEvent.mouseUp(document, { clientX: 320, clientY: 170, button: 0 });
     });
 
+    it('selects sticky notes live as they enter the marquee selection region', () => {
+      const nearNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
+      const farNote = { ...createStickyNote('Remember cellar'), position: { x: 320, y: 120 } };
+      useEditorStore.getState().loadDocument({
+        ...createEmptyMap('Test'),
+        stickyNotes: {
+          [nearNote.id]: nearNote,
+          [farNote.id]: farNote,
+        },
+      });
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+
+      fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 220, clientY: 180 });
+
+      expect(screen.getByTestId('sticky-note-selection-outline')).toBeInTheDocument();
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([nearNote.id]);
+
+      fireEvent.mouseMove(document, { clientX: 520, clientY: 200 });
+
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([nearNote.id, farNote.id]);
+
+      fireEvent.mouseUp(document, { clientX: 520, clientY: 200, button: 0 });
+    });
+
     it('captures connections in marquee selection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };

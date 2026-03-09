@@ -4,6 +4,7 @@ import {
   type Room,
   type RoomShape,
   type RoomStrokeStyle,
+  type StickyNote,
 } from '../domain/map-types';
 import {
   getRoomFillColor,
@@ -15,6 +16,7 @@ import {
   ROOM_CORNER_RADIUS,
   ROOM_HEIGHT,
 } from '../graph/connection-geometry';
+import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import {
   getRoomShapePath,
   getRoomShapePolygonVertices,
@@ -99,6 +101,31 @@ export function getRoomsWithinSelectionBox(
         && roomBottom >= bounds.top;
     })
     .map((room) => room.id);
+}
+
+export function getStickyNotesWithinSelectionBox(
+  stickyNotes: readonly StickyNote[],
+  panOffset: PanOffset,
+  _canvasRect: DOMRect | null,
+  selectionBox: SelectionBox,
+): string[] {
+  const bounds = getSelectionBounds(selectionBox);
+  const boxRight = bounds.left + bounds.width;
+  const boxBottom = bounds.top + bounds.height;
+
+  return stickyNotes
+    .filter((stickyNote) => {
+      const noteLeft = stickyNote.position.x + panOffset.x;
+      const noteTop = stickyNote.position.y + panOffset.y;
+      const noteRight = noteLeft + STICKY_NOTE_WIDTH;
+      const noteBottom = noteTop + getStickyNoteHeight(stickyNote.text);
+
+      return noteLeft <= boxRight
+        && noteRight >= bounds.left
+        && noteTop <= boxBottom
+        && noteBottom >= bounds.top;
+    })
+    .map((stickyNote) => stickyNote.id);
 }
 
 function isPointWithinBounds(

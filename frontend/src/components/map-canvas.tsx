@@ -8,6 +8,7 @@ import {
   getConnectionsWithinSelectionBox,
   getPanDeltaToRevealRoom,
   getRoomScreenGeometry,
+  getStickyNotesWithinSelectionBox,
   getRoomsWithinSelectionBox,
   getSelectionBounds,
   isEditableTarget,
@@ -783,7 +784,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const updateSelection = (nextSelectionBox: SelectionBox) => {
         setSelection(
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
-          [],
+          getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox),
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
           [],
         );
@@ -844,6 +845,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     panOffsetRef,
     roomEditorId,
     rooms,
+    stickyNotes,
     setSelection,
     toMapPoint,
     updateExportRegion,

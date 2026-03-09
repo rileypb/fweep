@@ -5,6 +5,7 @@ import {
   getConnectionsWithinSelectionBox,
   getPanDeltaToRevealRoom,
   getRoomScreenGeometry,
+  getStickyNotesWithinSelectionBox,
   getRoomsWithinSelectionBox,
   getRoomStrokeDasharray,
   getSelectionBounds,
@@ -12,7 +13,7 @@ import {
   renderRoomShape,
   useDocumentTheme,
 } from '../../src/components/map-canvas-helpers';
-import { createConnection, createRoom } from '../../src/domain/map-types';
+import { createConnection, createRoom, createStickyNote } from '../../src/domain/map-types';
 
 function makeRect(width: number, height: number): DOMRect {
   return {
@@ -76,6 +77,18 @@ describe('map-canvas-helpers', () => {
       { x: 0, y: 0 },
       { startX: 20, startY: 20, currentX: 260, currentY: 120 },
     )).toEqual([]);
+  });
+
+  it('finds sticky notes within the marquee selection box', () => {
+    const nearNote = { ...createStickyNote('Check desk'), position: { x: 40, y: 40 } };
+    const farNote = { ...createStickyNote('Remember cellar'), position: { x: 320, y: 40 } };
+
+    expect(getStickyNotesWithinSelectionBox(
+      [nearNote, farNote],
+      { x: 0, y: 0 },
+      makeRect(600, 400),
+      { startX: 20, startY: 20, currentX: 260, currentY: 120 },
+    )).toEqual([nearNote.id]);
   });
 
   it('finds the nearest room in an arrow-key direction', () => {
