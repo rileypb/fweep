@@ -536,6 +536,15 @@ body {
   z-index: 15;
 }
 
+.map-canvas-export-region {
+  position: absolute;
+  border: 1px solid #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.4);
+  pointer-events: none;
+  z-index: 16;
+}
+
 .map-canvas-header {
   position: absolute;
   top: 0.75rem;
@@ -544,6 +553,163 @@ body {
   align-items: center;
   gap: 0.5rem;
   z-index: 10;
+}
+
+.export-png-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: grid;
+  place-items: center;
+}
+
+.export-png-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.export-png-panel {
+  position: relative;
+  z-index: 1;
+  width: min(26rem, calc(100vw - 2rem));
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.82);
+  color: #111827;
+  box-shadow: 6px 6px 6px rgba(15, 23, 42, 0.22);
+}
+
+:root[data-theme='dark'] .export-png-panel {
+  background: rgba(15, 23, 42, 0.84);
+  color: #f3f4f6;
+  border-color: rgba(129, 140, 248, 0.28);
+  box-shadow: 6px 6px 6px rgba(0, 0, 0, 0.42);
+}
+
+.export-png-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.export-png-close:hover,
+.export-png-close:focus-visible {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.export-png-content {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.25rem;
+}
+
+.export-png-heading {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.export-png-field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.export-png-field select,
+.export-png-field input[type='number'] {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: inherit;
+}
+
+:root[data-theme='dark'] .export-png-field select,
+:root[data-theme='dark'] .export-png-field input[type='number'] {
+  border-color: rgba(226, 232, 240, 0.16);
+}
+
+.export-png-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.export-png-help {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.export-png-region-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.export-png-summary {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.5rem;
+  background: rgba(99, 102, 241, 0.08);
+  font-size: 0.86rem;
+}
+
+:root[data-theme='dark'] .export-png-summary {
+  background: rgba(129, 140, 248, 0.12);
+}
+
+.export-png-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.88rem;
+}
+
+:root[data-theme='dark'] .export-png-error {
+  color: #fca5a5;
+}
+
+.export-png-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.export-png-secondary,
+.export-png-primary {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.export-png-secondary {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: transparent;
+  color: inherit;
+}
+
+.export-png-primary {
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.export-png-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .map-drawing-toolbar {

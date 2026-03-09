@@ -22,6 +22,7 @@ import { MapCanvasRoomNode } from './map-canvas-room-node';
 import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
 import { MapDrawingToolbar } from './map-drawing-toolbar';
+import { ExportPngDialog } from './export-png-dialog';
 import {
   BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
@@ -49,6 +50,7 @@ import {
   supportsRasterCanvas,
   type MapPixelPoint,
 } from './map-background-raster';
+import type { ExportScope } from '../export/export-types';
 import {
   deleteBackgroundChunks,
   loadBackgroundChunk,
@@ -111,6 +113,10 @@ export interface MapCanvasProps {
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }: MapCanvasProps): React.JSX.Element {
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isPickingExportRegion, setIsPickingExportRegion] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>('entire-map');
+  const [preferredExportScope, setPreferredExportScope] = useState<ExportScope | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
@@ -120,6 +126,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const setSelection = useEditorStore((s) => s.setSelection);
+  const exportRegionDraft = useEditorStore((s) => s.exportRegionDraft);
+  const exportRegion = useEditorStore((s) => s.exportRegion);
+  const beginExportRegion = useEditorStore((s) => s.beginExportRegion);
+  const updateExportRegion = useEditorStore((s) => s.updateExportRegion);
+  const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
+  const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
   const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
   const removeSelectedConnections = useEditorStore((s) => s.removeSelectedConnections);
   const undo = useEditorStore((s) => s.undo);
@@ -618,6 +630,31 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
       return;
     }
 
+    if (isPickingExportRegion && exportScope === 'region') {
+      e.preventDefault();
+      suppressCanvasClickRef.current = true;
+      const startPoint = toMapPoint(e.clientX, e.clientY);
+      beginExportRegion(startPoint);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        updateExportRegion(toMapPoint(moveEvent.clientX, moveEvent.clientY));
+      };
+
+      const handleMouseUp = (upEvent: MouseEvent) => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        updateExportRegion(toMapPoint(upEvent.clientX, upEvent.clientY));
+        commitExportRegion();
+        setIsPickingExportRegion(false);
+        setPreferredExportScope('region');
+        setIsExportDialogOpen(true);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return;
+    }
+
     const drawingEnabled = supportsRasterCanvas();
     const drawingTool = useEditorStore.getState().drawingToolState.tool;
     const isShiftShapeDraw = canvasInteractionMode === 'draw' && (drawingTool === 'line' || drawingTool === 'rectangle' || drawingTool === 'ellipse');
@@ -767,8 +804,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
     e.preventDefault();
   }, [
     beginBackgroundStroke,
+    beginExportRegion,
     canvasInteractionMode,
     canvasRect,
+    commitExportRegion,
     connectionDrag,
     connectionEditorId,
     doc,
@@ -776,11 +815,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
     applyBucketFill,
     ensureDefaultBackgroundLayer,
     finishDrawingStroke,
+    isPickingExportRegion,
     panOffsetRef,
     roomEditorId,
     rooms,
     setSelection,
     toMapPoint,
+    updateExportRegion,
+    exportScope,
   ]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -980,6 +1022,23 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
           <button
             className="map-canvas-grid-toggle"
             type="button"
+            aria-label="Export PNG"
+            title="Export PNG"
+            onClick={() => {
+              clearExportRegion();
+              setPreferredExportScope(null);
+              setIsExportDialogOpen(true);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <path d="M8 2.5v7" strokeLinecap="round" />
+              <path d="M5.5 7 8 9.5 10.5 7" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="2.5" y="10.5" width="11" height="3" rx="1" />
+            </svg>
+          </button>
+          <button
+            className="map-canvas-grid-toggle"
+            type="button"
             aria-label="Toggle bezier connections"
             title="Toggle bezier connections"
             aria-pressed={useBezierConnections}
@@ -1055,7 +1114,59 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
             style={getSelectionBounds(selectionBox)}
           />
         )}
+        {(isExportDialogOpen || isPickingExportRegion) && exportScope === 'region' && (exportRegionDraft || exportRegion) && (
+          <div
+            className="map-canvas-export-region"
+            data-testid="map-canvas-export-region"
+            style={(() => {
+              const region = exportRegionDraft
+                ? {
+                  left: Math.min(exportRegionDraft.start.x, exportRegionDraft.current.x),
+                  top: Math.min(exportRegionDraft.start.y, exportRegionDraft.current.y),
+                  right: Math.max(exportRegionDraft.start.x, exportRegionDraft.current.x),
+                  bottom: Math.max(exportRegionDraft.start.y, exportRegionDraft.current.y),
+                }
+                : exportRegion;
+
+              if (!region) {
+                return undefined;
+              }
+
+              return {
+                left: `${region.left + panOffset.x}px`,
+                top: `${region.top + panOffset.y}px`,
+                width: `${region.right - region.left}px`,
+                height: `${region.bottom - region.top}px`,
+              };
+            })()}
+          />
+        )}
       </div>
+
+      <ExportPngDialog
+        isOpen={isExportDialogOpen}
+        mapName={mapName}
+        onClose={() => {
+          clearExportRegion();
+          setIsPickingExportRegion(false);
+          setIsExportDialogOpen(false);
+          setExportScope('entire-map');
+          setPreferredExportScope(null);
+        }}
+        canvasViewportSize={{
+          width: effectiveCanvasRect?.width ?? 0,
+          height: effectiveCanvasRect?.height ?? 0,
+        }}
+        panOffset={{ x: panOffset.x, y: panOffset.y }}
+        onScopeChange={setExportScope}
+        onRequestRegionSelection={() => {
+          clearExportRegion();
+          setIsExportDialogOpen(false);
+          setIsPickingExportRegion(true);
+          setPreferredExportScope('region');
+        }}
+        preferredInitialScope={preferredExportScope}
+      />
 
       {roomEditorId && (
         <RoomEditorOverlay

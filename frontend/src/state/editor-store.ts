@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
 import { createBackgroundLayer, createRoom, createConnection } from '../domain/map-types';
+import type { ExportRegion } from '../export/export-types';
 import {
   addRoom,
   addConnection,
@@ -95,6 +96,11 @@ export interface DocumentHistoryEntry {
 
 export type EditorHistoryEntry = DocumentHistoryEntry | BackgroundStrokeHistoryEntry;
 
+export interface ExportRegionDraft {
+  readonly start: Position;
+  readonly current: Position;
+}
+
 export interface EditorState {
   /** The currently loaded map document, or null when no map is open. */
   doc: MapDocument | null;
@@ -137,6 +143,12 @@ export interface EditorState {
 
   /** Active room drag state, or null when not dragging a room. */
   roomDrag: RoomDrag | null;
+
+  /** Draft region currently being dragged for export. */
+  exportRegionDraft: ExportRegionDraft | null;
+
+  /** Committed export region in map-space coordinates. */
+  exportRegion: ExportRegion | null;
 
   /** Active drawing tool state. */
   drawingToolState: DrawingToolState;
@@ -283,6 +295,18 @@ export interface EditorState {
   /** End the room drag and clear the state. */
   endRoomDrag: () => void;
 
+  /** Begin a drag-defined export region. */
+  beginExportRegion: (start: Position) => void;
+
+  /** Update the current export-region drag endpoint. */
+  updateExportRegion: (current: Position) => void;
+
+  /** Commit the current draft export region. */
+  commitExportRegion: () => void;
+
+  /** Clear any draft or committed export region. */
+  clearExportRegion: () => void;
+
   /** Update the selected drawing tool. */
   setDrawingTool: (tool: DrawingTool) => void;
 
@@ -422,6 +446,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   mapPanOffset: { x: 0, y: 0 },
   connectionDrag: null,
   roomDrag: null,
+  exportRegionDraft: null,
+  exportRegion: null,
   drawingToolState: {
     tool: 'pencil',
     colorRgbHex: '#000000',
@@ -457,6 +483,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapPanOffset: doc.view.pan,
     connectionDrag: null,
     roomDrag: null,
+    exportRegionDraft: null,
+    exportRegion: null,
     canvasInteractionMode: 'map',
     activeStroke: null,
     backgroundRevision: 0,
@@ -477,6 +505,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapPanOffset: { x: 0, y: 0 },
     connectionDrag: null,
     roomDrag: null,
+    exportRegionDraft: null,
+    exportRegion: null,
     canvasInteractionMode: 'map',
     activeStroke: null,
     backgroundRevision: 0,
@@ -509,6 +539,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
         connectionDrag: null,
         roomDrag: null,
+        exportRegionDraft: null,
         activeStroke: null,
       });
       return;
@@ -523,6 +554,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       roomDrag: null,
+      exportRegionDraft: null,
       activeStroke: null,
       backgroundRevision: state.backgroundRevision + 1,
     }));
@@ -555,6 +587,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
         connectionDrag: null,
         roomDrag: null,
+        exportRegionDraft: null,
         activeStroke: null,
       });
       return;
@@ -569,6 +602,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       roomDrag: null,
+      exportRegionDraft: null,
       activeStroke: null,
       backgroundRevision: state.backgroundRevision + 1,
     }));
@@ -942,6 +976,59 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   endRoomDrag: () => {
     set({ roomDrag: null, lastHistoryMergeKey: null });
+  },
+
+  beginExportRegion: (start) => {
+    set({
+      exportRegionDraft: {
+        start,
+        current: start,
+      },
+      exportRegion: null,
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  updateExportRegion: (current) => {
+    set((state) => (
+      state.exportRegionDraft
+        ? {
+          exportRegionDraft: {
+            ...state.exportRegionDraft,
+            current,
+          },
+          lastHistoryMergeKey: null,
+        }
+        : {}
+    ));
+  },
+
+  commitExportRegion: () => {
+    set((state) => {
+      if (!state.exportRegionDraft) {
+        return {};
+      }
+
+      const { start, current } = state.exportRegionDraft;
+      return {
+        exportRegionDraft: null,
+        exportRegion: {
+          left: Math.min(start.x, current.x),
+          top: Math.min(start.y, current.y),
+          right: Math.max(start.x, current.x),
+          bottom: Math.max(start.y, current.y),
+        },
+        lastHistoryMergeKey: null,
+      };
+    });
+  },
+
+  clearExportRegion: () => {
+    set({
+      exportRegionDraft: null,
+      exportRegion: null,
+      lastHistoryMergeKey: null,
+    });
   },
 
   setDrawingTool: (tool) => {
