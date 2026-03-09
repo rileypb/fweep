@@ -5,8 +5,15 @@ import { addRoom } from '../../src/domain/map-operations';
 import { createEmptyMap, createRoom } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 
-const mockRenderExportCanvas = jest.fn<typeof import('../../src/export/export-render').renderExportCanvas>();
-const mockExportPngToDownload = jest.fn<typeof import('../../src/export/export-png').exportPngToDownload>();
+type RenderExportCanvasFn = (input: import('../../src/export/export-types').ExportRenderInput) => Promise<HTMLCanvasElement>;
+type ExportPngToDownloadFn = (args: {
+  readonly mapName: string;
+  readonly scope: import('../../src/export/export-types').ExportScope;
+  readonly canvas: HTMLCanvasElement;
+}) => Promise<void>;
+
+const mockRenderExportCanvas = jest.fn<RenderExportCanvasFn>();
+const mockExportPngToDownload = jest.fn<ExportPngToDownloadFn>();
 
 await jest.unstable_mockModule('../../src/export/export-render', () => ({
   renderExportCanvas: mockRenderExportCanvas,
@@ -138,11 +145,12 @@ describe('ExportPngDialog actions', () => {
 
     await waitFor(() => {
       expect(mockRenderExportCanvas).toHaveBeenCalledTimes(1);
-      expect(mockExportPngToDownload).toHaveBeenCalledWith({
-        mapName: 'Export Test',
-        scope: 'selection',
-        canvas: fakeCanvas,
-      });
+    });
+    expect(mockExportPngToDownload).toHaveBeenCalledTimes(1);
+    expect(mockExportPngToDownload.mock.calls[0]?.[0]).toEqual({
+      mapName: 'Export Test',
+      scope: 'selection',
+      canvas: fakeCanvas,
     });
     expect(onClose).toHaveBeenCalledTimes(1);
   });

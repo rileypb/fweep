@@ -4,20 +4,27 @@ import type { ReactNode } from 'react';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 
+type AsyncVoid = () => Promise<void>;
+type BlobToCanvasFn = (blob: Blob) => Promise<HTMLCanvasElement>;
+type CanvasToBlobFn = (canvas: HTMLCanvasElement) => Promise<Blob>;
+type LoadBackgroundChunkFn = (key: string) => Promise<Blob | null>;
+type SaveBackgroundChunksFn = (inputs: readonly unknown[]) => Promise<void>;
+type DeleteBackgroundChunksFn = (keys: readonly string[]) => Promise<void>;
+
 const mockRedrawChunk = jest.fn();
 const mockClearLivePreviewChunks = jest.fn();
-const mockReloadVisibleChunks = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
-const mockBlobToCanvas = jest.fn();
-const mockCanvasToBlob = jest.fn();
+const mockReloadVisibleChunks = jest.fn<AsyncVoid>().mockResolvedValue(undefined);
+const mockBlobToCanvas = jest.fn<BlobToCanvasFn>();
+const mockCanvasToBlob = jest.fn<CanvasToBlobFn>();
 const mockCompositeStrokePreview = jest.fn();
 const mockDrawStrokeSegment = jest.fn();
 const mockDrawRectangleStroke = jest.fn();
 const mockDrawEllipseStroke = jest.fn();
 const mockDrawBucketFill = jest.fn();
 const mockDrawMapObstacleMask = jest.fn();
-const mockLoadBackgroundChunk = jest.fn();
-const mockSaveBackgroundChunks = jest.fn();
-const mockDeleteBackgroundChunks = jest.fn();
+const mockLoadBackgroundChunk = jest.fn<LoadBackgroundChunkFn>();
+const mockSaveBackgroundChunks = jest.fn<SaveBackgroundChunksFn>();
+const mockDeleteBackgroundChunks = jest.fn<DeleteBackgroundChunksFn>();
 
 function createCanvasContext() {
   return {

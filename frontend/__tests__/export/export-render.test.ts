@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
 import type { ExportRenderInput } from '../../src/export/export-types';
+import type { BackgroundChunkRecord } from '../../src/storage/map-store';
 
 const mockValidateExportBounds = jest.fn<typeof import('../../src/export/export-bounds').validateExportBounds>();
 const mockBlobToCanvas = jest.fn<typeof import('../../src/components/map-background-raster').blobToCanvas>();
@@ -196,7 +197,7 @@ describe('renderExportCanvas', () => {
       if (style === 'dotted') {
         return '1 2';
       }
-      return null;
+      return undefined;
     });
     mockGetRoomNodeWidth.mockImplementation((name) => Math.max(80, name.length * 10));
     mockComputeConnectionPath.mockImplementation((sourceRoom, targetRoom) => [
@@ -241,7 +242,17 @@ describe('renderExportCanvas', () => {
       tangent: { x: 10, y: 0 },
     });
     mockListBackgroundChunksInBounds.mockResolvedValue([
-      { chunkX: 0, chunkY: 0, blob: new Blob(['chunk']) },
+      {
+        key: 'map-1:layer-1:0:0',
+        mapId: 'map-1',
+        layerId: 'layer-1',
+        chunkX: 0,
+        chunkY: 0,
+        width: 256,
+        height: 256,
+        blob: new Blob(['chunk']),
+        updatedAt: '2026-03-09T00:00:00.000Z',
+      } satisfies BackgroundChunkRecord,
     ]);
   });
 
