@@ -91,6 +91,32 @@ describe('MapCanvasBackground', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('does not emit an act warning when an active layer has no stored chunks', async () => {
+    const layer = { ...createBackgroundLayer('Background'), id: 'layer-empty' };
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <MapCanvasBackground
+        mapId="map-empty"
+        background={{
+          layers: { [layer.id]: layer },
+          activeLayerId: layer.id,
+        }}
+        panOffset={{ x: 0, y: 0 }}
+        canvasRect={makeRect(300, 200)}
+        backgroundRevision={0}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.queryAllByTestId('map-canvas-background-chunk')).toHaveLength(0);
+    });
+
+    expect(
+      consoleErrorSpy.mock.calls.some((call) => String(call[0]).includes('not wrapped in act')),
+    ).toBe(false);
+  });
+
   it('loads visible stored chunks and paints them into canvases', async () => {
     const layer = { ...createBackgroundLayer('Background'), id: 'layer-1' };
     const chunkBlob = new Blob(['chunk'], { type: 'image/png' });
@@ -147,6 +173,10 @@ describe('MapCanvasBackground', () => {
       />,
     );
 
+    await act(async () => {
+      await ref.current?.reloadVisibleChunks();
+    });
+
     act(() => {
       ref.current?.redrawChunk(chunkKey, 1, 2, sourceCanvas);
     });
@@ -179,6 +209,10 @@ describe('MapCanvasBackground', () => {
       />,
     );
 
+    await act(async () => {
+      await ref.current?.reloadVisibleChunks();
+    });
+
     act(() => {
       ref.current?.redrawChunk(chunkKey, 1, 2, document.createElement('canvas'));
     });
@@ -210,6 +244,10 @@ describe('MapCanvasBackground', () => {
         backgroundRevision={0}
       />,
     );
+
+    await act(async () => {
+      await ref.current?.reloadVisibleChunks();
+    });
 
     act(() => {
       ref.current?.redrawChunk(chunkKey, 1, 2, document.createElement('canvas'));

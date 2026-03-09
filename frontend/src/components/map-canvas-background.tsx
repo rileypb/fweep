@@ -93,7 +93,7 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
 
   const reloadVisibleChunks = useCallback(async () => {
     if (!activeLayer || !visibleBounds) {
-      setVisibleChunks([]);
+      setVisibleChunks((currentChunks) => (currentChunks.length === 0 ? currentChunks : []));
       return;
     }
 
@@ -113,6 +113,11 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
       }));
       const loadedChunkKeys = new Set(loadedChunks.map((chunk) => chunk.key));
       const previewOnlyChunks = currentChunks.filter((chunk) => !('blob' in chunk) && !loadedChunkKeys.has(chunk.key));
+
+      if (loadedChunks.length === 0 && previewOnlyChunks.length === 0 && currentChunks.length === 0) {
+        return currentChunks;
+      }
+
       return [...loadedChunks, ...previewOnlyChunks];
     });
   }, [activeLayer, mapId, visibleBounds]);
