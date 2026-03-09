@@ -39,23 +39,25 @@ describe('MapDrawingToolbar', () => {
 
   it('shows and updates the fill toggle for rectangle and ellipse tools', async () => {
     const user = userEvent.setup();
-    const { container } = render(<MapDrawingToolbar />);
+    useEditorStore.getState().setDrawingFillColor('#ff0000');
+    render(<MapDrawingToolbar />);
 
     expect(screen.queryByLabelText('Fill shape')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Rectangle' }));
     const fillToggle = screen.getByLabelText('Fill shape') as HTMLInputElement;
     expect(fillToggle.checked).toBe(false);
-    expect(screen.getByLabelText('Fill color')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fill color swatch' })).toBeInTheDocument();
     expect(screen.getByLabelText('Fill color hex')).toBeInTheDocument();
 
     await user.click(fillToggle);
     expect(useEditorStore.getState().drawingToolState.shapeFilled).toBe(true);
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
 
-    const fillColorInput = container.querySelectorAll('input[type="color"]')[1] as HTMLInputElement;
-    fireEvent.change(fillColorInput, { target: { value: '#884422' } });
-    expect(useEditorStore.getState().drawingToolState.fillColorRgbHex).toBe('#884422');
+    await user.click(screen.getByRole('button', { name: 'Fill color swatch' }));
+    const fillHueSlider = screen.getByLabelText('Fill color hue') as HTMLInputElement;
+    fireEvent.change(fillHueSlider, { target: { value: '30' } });
+    expect(useEditorStore.getState().drawingToolState.fillColorRgbHex).toBe('#ff8000');
 
     const fillHexInput = screen.getByLabelText('Fill color hex');
     await user.clear(fillHexInput);
@@ -69,11 +71,13 @@ describe('MapDrawingToolbar', () => {
 
   it('updates color inputs and activates draw mode', async () => {
     const user = userEvent.setup();
-    const { container } = render(<MapDrawingToolbar />);
+    useEditorStore.getState().setDrawingColor('#ff0000');
+    render(<MapDrawingToolbar />);
 
-    const colorInput = container.querySelector('input[type="color"]') as HTMLInputElement;
-    fireEvent.change(colorInput, { target: { value: '#336699' } });
-    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#336699');
+    await user.click(screen.getByRole('button', { name: 'Stroke' }));
+    const colorHueSlider = screen.getByLabelText('Stroke color picker hue') as HTMLInputElement;
+    fireEvent.change(colorHueSlider, { target: { value: '210' } });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#0080ff');
     expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
 
     const hexInput = screen.getByLabelText('Drawing color hex');
@@ -82,6 +86,23 @@ describe('MapDrawingToolbar', () => {
     fireEvent.blur(hexInput);
 
     expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#aabbcc');
+  });
+
+  it('toggles the stroke color picker when the swatch is clicked repeatedly', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    const swatchButton = screen.getByRole('button', { name: 'Stroke' });
+    expect(swatchButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Stroke color picker')).not.toBeInTheDocument();
+
+    await user.click(swatchButton);
+    expect(swatchButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Stroke color picker')).toBeInTheDocument();
+
+    await user.click(swatchButton);
+    expect(swatchButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByLabelText('Stroke color picker')).not.toBeInTheDocument();
   });
 
   it('updates opacity and softness sliders', async () => {

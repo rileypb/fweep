@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef, useState } from 'react';
 import { normalizeHexColor } from './map-background-raster';
 import { useEditorStore, type CanvasInteractionMode, type DrawingTool } from '../state/editor-store';
 
@@ -13,6 +14,230 @@ const TOOL_LABELS: readonly { readonly tool: DrawingTool; readonly label: string
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+type RgbColor = {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+};
+
+type HsvColor = {
+  readonly hue: number;
+  readonly saturation: number;
+  readonly value: number;
+};
+
+function parseHexColor(hex: string): RgbColor {
+  const normalized = normalizeHexColor(hex);
+  return {
+    red: Number.parseInt(normalized.slice(1, 3), 16),
+    green: Number.parseInt(normalized.slice(3, 5), 16),
+    blue: Number.parseInt(normalized.slice(5, 7), 16),
+  };
+}
+
+function toHexChannel(channel: number): string {
+  return clamp(Math.round(channel), 0, 255).toString(16).padStart(2, '0');
+}
+
+function rgbToHex({ red, green, blue }: RgbColor): string {
+  return `#${toHexChannel(red)}${toHexChannel(green)}${toHexChannel(blue)}`;
+}
+
+function rgbToHsv({ red, green, blue }: RgbColor): HsvColor {
+  const normalizedRed = red / 255;
+  const normalizedGreen = green / 255;
+  const normalizedBlue = blue / 255;
+  const maxChannel = Math.max(normalizedRed, normalizedGreen, normalizedBlue);
+  const minChannel = Math.min(normalizedRed, normalizedGreen, normalizedBlue);
+  const delta = maxChannel - minChannel;
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (maxChannel === normalizedRed) {
+      hue = 60 * (((normalizedGreen - normalizedBlue) / delta) % 6);
+    } else if (maxChannel === normalizedGreen) {
+      hue = 60 * (((normalizedBlue - normalizedRed) / delta) + 2);
+    } else {
+      hue = 60 * (((normalizedRed - normalizedGreen) / delta) + 4);
+    }
+  }
+
+  return {
+    hue: hue < 0 ? hue + 360 : hue,
+    saturation: maxChannel === 0 ? 0 : delta / maxChannel,
+    value: maxChannel,
+  };
+}
+
+function hsvToRgb({ hue, saturation, value }: HsvColor): RgbColor {
+  const safeHue = ((hue % 360) + 360) % 360;
+  const chroma = value * saturation;
+  const secondComponent = chroma * (1 - Math.abs(((safeHue / 60) % 2) - 1));
+  const match = value - chroma;
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (safeHue < 60) {
+    red = chroma;
+    green = secondComponent;
+  } else if (safeHue < 120) {
+    red = secondComponent;
+    green = chroma;
+  } else if (safeHue < 180) {
+    green = chroma;
+    blue = secondComponent;
+  } else if (safeHue < 240) {
+    green = secondComponent;
+    blue = chroma;
+  } else if (safeHue < 300) {
+    red = secondComponent;
+    blue = chroma;
+  } else {
+    red = chroma;
+    blue = secondComponent;
+  }
+
+  return {
+    red: (red + match) * 255,
+    green: (green + match) * 255,
+    blue: (blue + match) * 255,
+  };
+}
+
+function hexToHsv(hex: string): HsvColor {
+  return rgbToHsv(parseHexColor(hex));
+}
+
+function hsvToHex(color: HsvColor): string {
+  return rgbToHex(hsvToRgb(color));
+}
+
+type ColorPickerFieldProps = {
+  label: string;
+  value: string;
+  onChange: (nextValue: string) => void;
+  inputAriaLabel: string;
+  buttonAriaLabel: string;
+};
+
+function ColorPickerField({
+  label,
+  value,
+  onChange,
+  inputAriaLabel,
+  buttonAriaLabel,
+}: ColorPickerFieldProps): React.JSX.Element {
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const colorPickerId = useId();
+  const fieldRef = useRef<HTMLDivElement | null>(null);
+  const currentColor = hexToHsv(value);
+  const hueColor = `hsl(${currentColor.hue}deg 100% 50%)`;
+
+  useEffect(() => {
+    if (!isPickerOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (fieldRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setIsPickerOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setIsPickerOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPickerOpen]);
+
+  const updateSaturationValue = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return;
+    }
+
+    const saturation = clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
+    const nextValue = clamp(1 - ((event.clientY - bounds.top) / bounds.height), 0, 1);
+    onChange(hsvToHex({ hue: currentColor.hue, saturation, value: nextValue }));
+  };
+
+  return (
+    <div ref={fieldRef} className="map-drawing-toolbar-field map-drawing-toolbar-field--color">
+      <span>{label}</span>
+      <button
+        type="button"
+        className="map-drawing-color-swatch"
+        aria-label={buttonAriaLabel}
+        aria-controls={colorPickerId}
+        aria-expanded={isPickerOpen}
+        onClick={() => setIsPickerOpen((currentValue) => !currentValue)}
+        style={{ '--swatch-color': normalizeHexColor(value) } as React.CSSProperties}
+      />
+      {isPickerOpen && (
+        <div id={colorPickerId} className="map-drawing-color-picker-popover" aria-label={inputAriaLabel}>
+          <div
+            className="map-drawing-color-surface"
+            aria-label={`${inputAriaLabel} surface`}
+            onPointerDown={updateSaturationValue}
+            onPointerMove={(event) => {
+              if ((event.buttons & 1) === 0) {
+                return;
+              }
+              updateSaturationValue(event);
+            }}
+            style={{ '--hue-color': hueColor } as React.CSSProperties}
+          >
+            <span
+              className="map-drawing-color-surface-thumb"
+              aria-hidden="true"
+              style={{
+                left: `${currentColor.saturation * 100}%`,
+                top: `${(1 - currentColor.value) * 100}%`,
+              }}
+            />
+          </div>
+          <div className="map-drawing-color-picker-controls">
+            <span
+              className="map-drawing-color-picker-preview"
+              aria-hidden="true"
+              style={{ '--swatch-color': normalizeHexColor(value) } as React.CSSProperties}
+            />
+            <input
+              className="map-drawing-color-hue-slider"
+              type="range"
+              min={0}
+              max={360}
+              value={Math.round(currentColor.hue)}
+              onChange={(event) => {
+                onChange(
+                  hsvToHex({
+                    hue: Number(event.target.value),
+                    saturation: currentColor.saturation,
+                    value: currentColor.value,
+                  }),
+                );
+              }}
+              aria-label={`${inputAriaLabel} hue`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function GraphGlyph(): React.JSX.Element {
@@ -196,17 +421,16 @@ export function MapDrawingToolbar(): React.JSX.Element {
         ))}
       </div>
 
-      <label className="map-drawing-toolbar-field">
-        <span>Stroke</span>
-        <input
-          type="color"
-          value={normalizeHexColor(drawingToolState.colorRgbHex)}
-          onChange={(event) => {
-            setDrawingColor(event.target.value);
-            activateDrawMode();
-          }}
-        />
-      </label>
+      <ColorPickerField
+        label="Stroke"
+        value={drawingToolState.colorRgbHex}
+        buttonAriaLabel="Stroke"
+        inputAriaLabel="Stroke color picker"
+        onChange={(nextValue) => {
+          setDrawingColor(nextValue);
+          activateDrawMode();
+        }}
+      />
 
       <label className="map-drawing-toolbar-field">
         <span>Stroke hex</span>
@@ -227,18 +451,16 @@ export function MapDrawingToolbar(): React.JSX.Element {
 
       {showsShapeFill && (
         <>
-          <label className="map-drawing-toolbar-field">
-            <span>Fill color</span>
-            <input
-              type="color"
-              value={normalizeHexColor(drawingToolState.fillColorRgbHex)}
-              onChange={(event) => {
-                setDrawingFillColor(event.target.value);
-                activateDrawMode();
-              }}
-              aria-label="Fill color"
-            />
-          </label>
+          <ColorPickerField
+            label="Fill color"
+            value={drawingToolState.fillColorRgbHex}
+            buttonAriaLabel="Fill color swatch"
+            inputAriaLabel="Fill color"
+            onChange={(nextValue) => {
+              setDrawingFillColor(nextValue);
+              activateDrawMode();
+            }}
+          />
 
           <label className="map-drawing-toolbar-field">
             <span>Fill hex</span>

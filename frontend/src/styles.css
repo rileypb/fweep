@@ -609,6 +609,10 @@ body {
   font-size: 0.72rem;
 }
 
+.map-drawing-toolbar-field--color {
+  position: relative;
+}
+
 .map-drawing-toolbar-field input[type='text'] {
   width: 100%;
   padding: 0.25rem 0.35rem;
@@ -622,12 +626,79 @@ body {
   border-color: rgba(226, 232, 240, 0.15);
 }
 
-.map-drawing-toolbar-field input[type='color'] {
+.map-drawing-color-swatch {
   width: 100%;
   height: 2rem;
   padding: 0;
   border: none;
-  background: transparent;
+  border-radius: 0.35rem;
+  background: var(--swatch-color);
+  cursor: pointer;
+}
+
+.map-drawing-color-picker-popover {
+  position: absolute;
+  top: 1.35rem;
+  left: calc(100% + 0.4rem);
+  z-index: 10;
+  display: grid;
+  gap: 0.5rem;
+  min-width: 10rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+:root[data-theme='dark'] .map-drawing-color-picker-popover {
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.38);
+}
+
+.map-drawing-color-surface {
+  position: relative;
+  width: 10rem;
+  height: 8rem;
+  border-radius: 0.4rem;
+  background-image:
+    linear-gradient(to top, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0)),
+    linear-gradient(to right, rgba(255, 255, 255, 1), var(--hue-color));
+  cursor: crosshair;
+}
+
+.map-drawing-color-surface-thumb {
+  position: absolute;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45);
+  transform: translate(-50%, -50%);
+}
+
+.map-drawing-color-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-drawing-color-picker-preview {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: var(--swatch-color);
+}
+
+:root[data-theme='dark'] .map-drawing-color-picker-preview {
+  border-color: rgba(226, 232, 240, 0.16);
+}
+
+.map-drawing-color-hue-slider {
+  flex: 1 1 auto;
+  margin: 0;
+  accent-color: #2563eb;
 }
 
 .map-drawing-toolbar-field input[type='range'] {
