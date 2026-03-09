@@ -1,5 +1,10 @@
 import type { Connection, Room } from '../domain/map-types';
-import { computeConnectionPath, ROOM_HEIGHT, ROOM_WIDTH } from './connection-geometry';
+import {
+  computeConnectionPath,
+  getRoomPerimeterPointToward,
+  ROOM_HEIGHT,
+  ROOM_WIDTH,
+} from './connection-geometry';
 
 const ROOM_TEXT_CHAR_WIDTH = 6.78;
 const ROOM_HORIZONTAL_PADDING = 24;
@@ -203,8 +208,22 @@ export function getMinimapConnectionPoints(
   const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
   const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
 
-  return computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions)
-    .map((point) => toMinimapPoint(point, transform));
+  const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
+
+  if (!connection.isBidirectional && connection.sourceRoomId !== connection.targetRoomId && points.length >= 2) {
+    const penultimatePoint = points[points.length - 2];
+    const targetPerimeterPoint = getRoomPerimeterPointToward(
+      targetRoom.position,
+      penultimatePoint,
+      targetDimensions,
+      targetRoom.shape,
+    );
+    const minimapPoints = points.slice(0, -1).concat(targetPerimeterPoint);
+
+    return minimapPoints.map((point) => toMinimapPoint(point, transform));
+  }
+
+  return points.map((point) => toMinimapPoint(point, transform));
 }
 
 export function getMinimapViewportRect(

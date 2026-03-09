@@ -77,6 +77,35 @@ describe('MapMinimap', () => {
     expect(document.querySelectorAll('.map-minimap__connection')).toHaveLength(1);
   });
 
+  it('trims one-way minimap connections to the target room perimeter', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    const connection = createConnection(kitchen.id, hallway.id, false);
+
+    render(
+      <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
+        rooms={{ [kitchen.id]: kitchen, [hallway.id]: hallway }}
+        connections={{ [connection.id]: connection }}
+        selectedRoomIds={[]}
+        selectedConnectionIds={[]}
+        panOffset={{ x: 0, y: 0 }}
+        canvasRect={{ width: 300, height: 200 }}
+        theme="light"
+        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
+        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
+      />,
+    );
+
+    const connectionLine = document.querySelector('.map-minimap__connection');
+    expect(connectionLine).not.toBeNull();
+    const points = (connectionLine?.getAttribute('points') ?? '').trim().split(/\s+/);
+    const lastPoint = points[points.length - 1];
+
+    expect(lastPoint).not.toBe('141.4,70');
+  });
+
   it('renders different room-shape silhouettes', () => {
     const rectangle = { ...createRoom('Rectangle'), position: { x: 0, y: 0 }, shape: 'rectangle' as const };
     const diamond = { ...createRoom('Diamond'), position: { x: 140, y: 0 }, shape: 'diamond' as const };

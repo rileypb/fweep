@@ -277,6 +277,46 @@ function intersectRayWithPolygon(center: Point, vector: Point, vertices: Point[]
   return closestPoint;
 }
 
+function getRoomPerimeterOffsetTowardVector(
+  vector: Point,
+  roomDimensions: RoomDimensions,
+  roomShape: RoomShape,
+): Point | undefined {
+  const center = { x: roomDimensions.width / 2, y: roomDimensions.height / 2 };
+  const normalizedVector = normalizeVector(vector);
+  if (!normalizedVector) {
+    return undefined;
+  }
+
+  if (roomShape === 'diamond') {
+    return intersectRayWithPolygon(center, normalizedVector, [
+      { x: center.x, y: 0 },
+      { x: roomDimensions.width, y: center.y },
+      { x: center.x, y: roomDimensions.height },
+      { x: 0, y: center.y },
+    ]);
+  }
+
+  if (roomShape === 'oval') {
+    return intersectRayWithEllipse(center, normalizedVector, roomDimensions);
+  }
+
+  if (roomShape === 'octagon') {
+    return intersectRayWithPolygon(center, normalizedVector, getOctagonVertices(roomDimensions));
+  }
+
+  const halfWidth = roomDimensions.width / 2;
+  const halfHeight = roomDimensions.height / 2;
+  const tx = normalizedVector.x === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(normalizedVector.x);
+  const ty = normalizedVector.y === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(normalizedVector.y);
+  const scale = Math.min(tx, ty);
+
+  return {
+    x: center.x + (normalizedVector.x * scale),
+    y: center.y + (normalizedVector.y * scale),
+  };
+}
+
 function getShapeHandleOffset(
   direction: string,
   roomDimensions: RoomDimensions,
@@ -442,6 +482,32 @@ export function getRoomCenter(
   return {
     x: roomPosition.x + roomDimensions.width / 2,
     y: roomPosition.y + roomDimensions.height / 2,
+  };
+}
+
+export function getRoomPerimeterPointToward(
+  roomPosition: Point,
+  towardPoint: Point,
+  roomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
+  roomShape: RoomShape = 'rectangle',
+): Point {
+  const center = getRoomCenter(roomPosition, roomDimensions);
+  const offset = getRoomPerimeterOffsetTowardVector(
+    {
+      x: towardPoint.x - center.x,
+      y: towardPoint.y - center.y,
+    },
+    roomDimensions,
+    roomShape,
+  );
+
+  if (!offset) {
+    return center;
+  }
+
+  return {
+    x: roomPosition.x + offset.x,
+    y: roomPosition.y + offset.y,
   };
 }
 
