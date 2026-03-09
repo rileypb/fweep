@@ -11,6 +11,7 @@ import {
   ROOM_HEIGHT,
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { traceRoomShapePath } from '../graph/room-shape-geometry';
 
 export interface ChunkCoordinates {
   readonly chunkX: number;
@@ -67,54 +68,7 @@ function drawRoomObstaclePath(
   const height = ROOM_HEIGHT;
 
   context.beginPath();
-  if (room.shape === 'diamond') {
-    context.moveTo(left + (width / 2), top);
-    context.lineTo(left + width, top + (height / 2));
-    context.lineTo(left + (width / 2), top + height);
-    context.lineTo(left, top + (height / 2));
-    context.closePath();
-    return;
-  }
-
-  if (room.shape === 'oval') {
-    context.ellipse(
-      left + (width / 2),
-      top + (height / 2),
-      width / 2,
-      height / 2,
-      0,
-      0,
-      Math.PI * 2,
-    );
-    return;
-  }
-
-  if (room.shape === 'octagon') {
-    const insetX = Math.min(12, width * 0.18);
-    const insetY = Math.min(10, height * 0.28);
-    context.moveTo(left + insetX, top);
-    context.lineTo(left + width - insetX, top);
-    context.lineTo(left + width, top + insetY);
-    context.lineTo(left + width, top + height - insetY);
-    context.lineTo(left + width - insetX, top + height);
-    context.lineTo(left + insetX, top + height);
-    context.lineTo(left, top + height - insetY);
-    context.lineTo(left, top + insetY);
-    context.closePath();
-    return;
-  }
-
-  const radius = Math.min(ROOM_CORNER_RADIUS, width / 2, height / 2);
-  context.moveTo(left + radius, top);
-  context.lineTo(left + width - radius, top);
-  context.quadraticCurveTo(left + width, top, left + width, top + radius);
-  context.lineTo(left + width, top + height - radius);
-  context.quadraticCurveTo(left + width, top + height, left + width - radius, top + height);
-  context.lineTo(left + radius, top + height);
-  context.quadraticCurveTo(left, top + height, left, top + height - radius);
-  context.lineTo(left, top + radius);
-  context.quadraticCurveTo(left, top, left + radius, top);
-  context.closePath();
+  traceRoomShapePath(context, room.shape, left, top, width, height, ROOM_CORNER_RADIUS);
 }
 
 export function drawMapObstacleMask(

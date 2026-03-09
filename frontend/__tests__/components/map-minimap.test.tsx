@@ -111,6 +111,10 @@ describe('MapMinimap', () => {
     const diamond = { ...createRoom('Diamond'), position: { x: 140, y: 0 }, shape: 'diamond' as const };
     const oval = { ...createRoom('Oval'), position: { x: 280, y: 0 }, shape: 'oval' as const };
     const octagon = { ...createRoom('Octagon'), position: { x: 420, y: 0 }, shape: 'octagon' as const };
+    const pentagon = { ...createRoom('Pentagon'), position: { x: 560, y: 0 }, shape: 'pentagon' as const };
+    const hexagon = { ...createRoom('Hexagon'), position: { x: 700, y: 0 }, shape: 'hexagon' as const };
+    const house = { ...createRoom('House'), position: { x: 840, y: 0 }, shape: 'house' as const };
+    const box = { ...createRoom('Box'), position: { x: 980, y: 0 }, shape: 'box' as const };
 
     render(
       <MapMinimap
@@ -121,6 +125,10 @@ describe('MapMinimap', () => {
           [diamond.id]: diamond,
           [oval.id]: oval,
           [octagon.id]: octagon,
+          [pentagon.id]: pentagon,
+          [hexagon.id]: hexagon,
+          [house.id]: house,
+          [box.id]: box,
         }}
         connections={{}}
         selectedRoomIds={[]}
@@ -134,9 +142,12 @@ describe('MapMinimap', () => {
     );
 
     const paths = Array.from(document.querySelectorAll('.map-minimap__room path')).map((path) => path.getAttribute('d'));
+    expect(paths).toHaveLength(8);
     expect(paths.some((d) => d?.includes('Q'))).toBe(true);
     expect(paths.some((d) => d?.includes('A'))).toBe(true);
     expect(paths.some((d) => d?.includes(`L ${0}`))).toBe(true);
+    expect(paths.some((d) => (d?.match(/L/g) ?? []).length >= 5)).toBe(true);
+    expect(paths.some((d) => (d?.match(/L/g) ?? []).length >= 6)).toBe(true);
   });
 
   it('skips connections whose rooms are missing', () => {

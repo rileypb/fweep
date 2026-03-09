@@ -77,6 +77,22 @@ describe('getHandleOffset', () => {
     expect(offset?.y).toBeCloseTo(5, 2);
   });
 
+  it('supports pentagon, hexagon, house, and box handles', () => {
+    const pentagonNorth = getHandleOffset('north', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'pentagon');
+    const hexagonEast = getHandleOffset('east', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'hexagon');
+    const houseNorth = getHandleOffset('north', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'house');
+    const boxEast = getHandleOffset('east', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'box');
+
+    expect(pentagonNorth?.x).toBeCloseTo(ROOM_WIDTH / 2, 1);
+    expect(pentagonNorth?.y).toBeCloseTo(0, 1);
+    expect(hexagonEast?.x).toBeCloseTo(ROOM_WIDTH, 1);
+    expect(hexagonEast?.y).toBeCloseTo(ROOM_HEIGHT / 2, 1);
+    expect(houseNorth?.x).toBeCloseTo(ROOM_WIDTH / 2, 1);
+    expect(houseNorth?.y).toBeCloseTo(0, 1);
+    expect(boxEast?.x).toBeGreaterThan(ROOM_WIDTH - 8);
+    expect(boxEast?.y).toBeGreaterThan(ROOM_HEIGHT / 3);
+  });
+
   it('uses sampled ellipse perimeter points for oval cardinal handles', () => {
     const north = getHandleOffset('north', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
     const east = getHandleOffset('east', { width: ROOM_WIDTH, height: ROOM_HEIGHT }, 'oval');
@@ -179,6 +195,25 @@ describe('getRoomPerimeterPointToward', () => {
     expect(point.y).toBeGreaterThan(218);
     expect(point.x).toBeLessThanOrEqual(180);
     expect(point.y).toBeLessThanOrEqual(236);
+  });
+
+  it('supports house and box room perimeters', () => {
+    const housePoint = getRoomPerimeterPointToward(
+      { x: 100, y: 200 },
+      { x: 140, y: 120 },
+      { width: ROOM_WIDTH, height: ROOM_HEIGHT },
+      'house',
+    );
+    const boxPoint = getRoomPerimeterPointToward(
+      { x: 100, y: 200 },
+      { x: 240, y: 218 },
+      { width: ROOM_WIDTH, height: ROOM_HEIGHT },
+      'box',
+    );
+
+    expect(housePoint.y).toBeLessThanOrEqual(200);
+    expect(boxPoint.x).toBeGreaterThan(170);
+    expect(boxPoint.y).toBeGreaterThanOrEqual(208);
   });
 });
 

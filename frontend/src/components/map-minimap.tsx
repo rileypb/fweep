@@ -13,6 +13,7 @@ import {
   mergeWorldBounds,
   toMinimapPoint,
 } from '../graph/minimap-geometry';
+import { getRoomShapePath } from '../graph/room-shape-geometry';
 import { listBackgroundChunksForLayer, type BackgroundChunkRecord } from '../storage/map-store';
 
 const MINIMAP_WIDTH = 180;
@@ -45,43 +46,7 @@ interface MinimapBackgroundChunk extends BackgroundChunkRecord {
 }
 
 function getMinimapShapePath(shape: RoomShape, width: number, height: number): string {
-  if (shape === 'diamond') {
-    return `M ${width / 2} 0 L ${width} ${height / 2} L ${width / 2} ${height} L 0 ${height / 2} Z`;
-  }
-
-  if (shape === 'oval') {
-    return `M ${width / 2} 0 A ${width / 2} ${height / 2} 0 1 1 ${width / 2} ${height} A ${width / 2} ${height / 2} 0 1 1 ${width / 2} 0`;
-  }
-
-  if (shape === 'octagon') {
-    const insetX = Math.min(12, width * 0.18);
-    const insetY = Math.min(10, height * 0.28);
-    return [
-      `M ${insetX} 0`,
-      `L ${width - insetX} 0`,
-      `L ${width} ${insetY}`,
-      `L ${width} ${height - insetY}`,
-      `L ${width - insetX} ${height}`,
-      `L ${insetX} ${height}`,
-      `L 0 ${height - insetY}`,
-      `L 0 ${insetY}`,
-      'Z',
-    ].join(' ');
-  }
-
-  const radius = Math.min(8, width / 5, height / 5);
-  return [
-    `M ${radius} 0`,
-    `L ${width - radius} 0`,
-    `Q ${width} 0 ${width} ${radius}`,
-    `L ${width} ${height - radius}`,
-    `Q ${width} ${height} ${width - radius} ${height}`,
-    `L ${radius} ${height}`,
-    `Q 0 ${height} 0 ${height - radius}`,
-    `L 0 ${radius}`,
-    `Q 0 0 ${radius} 0`,
-    'Z',
-  ].join(' ');
+  return getRoomShapePath(shape, width, height, 8);
 }
 
 export function MapMinimap({

@@ -229,6 +229,19 @@ describe('map-canvas-helpers', () => {
     rerender(<svg>{renderRoomShape('octagon', 100, 60, roomStyle, 'light')}</svg>);
     expect(container.querySelector('polygon')).toBeInTheDocument();
 
+    rerender(<svg>{renderRoomShape('pentagon', 100, 60, roomStyle, 'light')}</svg>);
+    expect(container.querySelector('polygon')).toBeInTheDocument();
+
+    rerender(<svg>{renderRoomShape('hexagon', 100, 60, roomStyle, 'light')}</svg>);
+    expect(container.querySelector('polygon')).toBeInTheDocument();
+
+    rerender(<svg>{renderRoomShape('house', 100, 60, roomStyle, 'light')}</svg>);
+    expect(container.querySelector('polygon')).toBeInTheDocument();
+
+    rerender(<svg>{renderRoomShape('box', 100, 60, roomStyle, 'light')}</svg>);
+    expect(container.querySelector('path')).toBeInTheDocument();
+    expect(container.querySelectorAll('line')).toHaveLength(0);
+
     rerender(<svg>{renderRoomShape('rectangle', 100, 60, roomStyle, 'light')}</svg>);
     const rect = container.querySelector('rect');
     expect(rect).toBeInTheDocument();

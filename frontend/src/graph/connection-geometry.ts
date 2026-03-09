@@ -1,5 +1,6 @@
 import type { Room, Connection, RoomShape } from '../domain/map-types';
 import { normalizeDirection } from '../domain/directions';
+import { getRoomShapePolygonVertices } from './room-shape-geometry';
 
 /* ---- Constants ---- */
 
@@ -93,22 +94,6 @@ const HANDLE_DIRECTION_ORDER = [
   'west',
   'northwest',
 ] as const;
-
-function getOctagonVertices(roomDimensions: RoomDimensions): Point[] {
-  const insetX = Math.min(12, roomDimensions.width * 0.18);
-  const insetY = Math.min(10, roomDimensions.height * 0.28);
-
-  return [
-    { x: insetX, y: 0 },
-    { x: roomDimensions.width - insetX, y: 0 },
-    { x: roomDimensions.width, y: insetY },
-    { x: roomDimensions.width, y: roomDimensions.height - insetY },
-    { x: roomDimensions.width - insetX, y: roomDimensions.height },
-    { x: insetX, y: roomDimensions.height },
-    { x: 0, y: roomDimensions.height - insetY },
-    { x: 0, y: insetY },
-  ];
-}
 
 function getPolygonEdgeCenters(vertices: Point[]): Point[] {
   return vertices.map((start, index) => {
@@ -301,8 +286,9 @@ function getRoomPerimeterOffsetTowardVector(
     return intersectRayWithEllipse(center, normalizedVector, roomDimensions);
   }
 
-  if (roomShape === 'octagon') {
-    return intersectRayWithPolygon(center, normalizedVector, getOctagonVertices(roomDimensions));
+  const polygonVertices = getRoomShapePolygonVertices(roomShape, roomDimensions.width, roomDimensions.height);
+  if (polygonVertices) {
+    return intersectRayWithPolygon(center, normalizedVector, polygonVertices);
   }
 
   const halfWidth = roomDimensions.width / 2;
@@ -360,7 +346,22 @@ function getShapeHandleOffset(
   }
 
   if (roomShape === 'octagon') {
-    return getPolygonEdgeCenters(getOctagonVertices(roomDimensions))[directionIndex];
+    return getPolygonEdgeCenters(
+      getRoomShapePolygonVertices(roomShape, roomDimensions.width, roomDimensions.height)!,
+    )[directionIndex];
+  }
+
+  if (roomShape === 'pentagon' || roomShape === 'hexagon' || roomShape === 'house' || roomShape === 'box') {
+    const directionPoint = getDirectionPoint(direction);
+    if (!directionPoint) {
+      return undefined;
+    }
+
+    return intersectRayWithPolygon(
+      center,
+      directionPoint,
+      getRoomShapePolygonVertices(roomShape, roomDimensions.width, roomDimensions.height)!,
+    );
   }
 
   return undefined;
@@ -391,7 +392,16 @@ function getShapeStubVector(
   }
 
   if (roomShape === 'octagon') {
-    return getPolygonEdgeOutwardNormals(getOctagonVertices(roomDimensions))[directionIndex];
+    return getPolygonEdgeOutwardNormals(
+      getRoomShapePolygonVertices(roomShape, roomDimensions.width, roomDimensions.height)!,
+    )[directionIndex];
+  }
+
+  if (roomShape === 'pentagon' || roomShape === 'hexagon' || roomShape === 'house' || roomShape === 'box') {
+    return normalizeVector({
+      x: handleOffset.x - (roomDimensions.width / 2),
+      y: handleOffset.y - (roomDimensions.height / 2),
+    });
   }
 
   return undefined;

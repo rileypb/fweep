@@ -45,7 +45,7 @@ export interface BackgroundDocument {
 
 /* ---- Room ---- */
 
-export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon'] as const;
+export const ROOM_SHAPES = ['rectangle', 'diamond', 'oval', 'octagon', 'pentagon', 'hexagon', 'house', 'box'] as const;
 export type RoomShape = (typeof ROOM_SHAPES)[number];
 export const ROOM_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const;
 export type RoomStrokeStyle = (typeof ROOM_STROKE_STYLES)[number];

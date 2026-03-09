@@ -13,6 +13,7 @@ import {
   type Point,
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
 import { validateExportBounds } from './export-bounds';
@@ -56,48 +57,7 @@ function drawRoomShape(context: CanvasRenderingContext2D, room: Room, theme: Exp
   const top = room.position.y;
 
   context.beginPath();
-
-  if (room.shape === 'diamond') {
-    context.moveTo(left + (width / 2), top);
-    context.lineTo(left + width, top + (ROOM_HEIGHT / 2));
-    context.lineTo(left + (width / 2), top + ROOM_HEIGHT);
-    context.lineTo(left, top + (ROOM_HEIGHT / 2));
-    context.closePath();
-  } else if (room.shape === 'oval') {
-    context.ellipse(
-      left + (width / 2),
-      top + (ROOM_HEIGHT / 2),
-      width / 2,
-      ROOM_HEIGHT / 2,
-      0,
-      0,
-      Math.PI * 2,
-    );
-  } else if (room.shape === 'octagon') {
-    const insetX = Math.min(12, width * 0.18);
-    const insetY = Math.min(10, ROOM_HEIGHT * 0.28);
-    context.moveTo(left + insetX, top);
-    context.lineTo(left + width - insetX, top);
-    context.lineTo(left + width, top + insetY);
-    context.lineTo(left + width, top + ROOM_HEIGHT - insetY);
-    context.lineTo(left + width - insetX, top + ROOM_HEIGHT);
-    context.lineTo(left + insetX, top + ROOM_HEIGHT);
-    context.lineTo(left, top + ROOM_HEIGHT - insetY);
-    context.lineTo(left, top + insetY);
-    context.closePath();
-  } else {
-    const radius = Math.min(ROOM_CORNER_RADIUS, width / 2, ROOM_HEIGHT / 2);
-    context.moveTo(left + radius, top);
-    context.lineTo(left + width - radius, top);
-    context.quadraticCurveTo(left + width, top, left + width, top + radius);
-    context.lineTo(left + width, top + ROOM_HEIGHT - radius);
-    context.quadraticCurveTo(left + width, top + ROOM_HEIGHT, left + width - radius, top + ROOM_HEIGHT);
-    context.lineTo(left + radius, top + ROOM_HEIGHT);
-    context.quadraticCurveTo(left, top + ROOM_HEIGHT, left, top + ROOM_HEIGHT - radius);
-    context.lineTo(left, top + radius);
-    context.quadraticCurveTo(left, top, left + radius, top);
-    context.closePath();
-  }
+  traceRoomShapePath(context, room.shape, left, top, width, ROOM_HEIGHT, ROOM_CORNER_RADIUS);
 
   context.fillStyle = getRoomFillColor(room.fillColorIndex, theme);
   context.strokeStyle = getRoomStrokeColor(room.strokeColorIndex, theme);

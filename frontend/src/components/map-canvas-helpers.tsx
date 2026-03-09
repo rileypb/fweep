@@ -15,6 +15,10 @@ import {
   ROOM_CORNER_RADIUS,
   ROOM_HEIGHT,
 } from '../graph/connection-geometry';
+import {
+  getRoomShapePath,
+  getRoomShapePolygonVertices,
+} from '../graph/room-shape-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import type { PanOffset } from './use-map-viewport';
 
@@ -314,21 +318,6 @@ export function isEditableTarget(target: EventTarget | null): boolean {
     || target instanceof HTMLSelectElement;
 }
 
-function getOctagonPoints(width: number, height: number): string {
-  const insetX = Math.min(12, width * 0.18);
-  const insetY = Math.min(10, height * 0.28);
-  return [
-    `${insetX},0`,
-    `${width - insetX},0`,
-    `${width},${insetY}`,
-    `${width},${height - insetY}`,
-    `${width - insetX},${height}`,
-    `${insetX},${height}`,
-    `0,${height - insetY}`,
-    `0,${insetY}`,
-  ].join(' ');
-}
-
 export function getRoomStrokeDasharray(strokeStyle: RoomStrokeStyle): string | undefined {
   if (strokeStyle === 'dashed') {
     return '8 5';
@@ -381,16 +370,6 @@ export function renderRoomShape(
     },
   } : undefined;
 
-  if (shape === 'diamond') {
-    return (
-      <polygon
-        className="room-node-shape"
-        points={`${width / 2},0 ${width},${height / 2} ${width / 2},${height} 0,${height / 2}`}
-        {...shapeStyleProps}
-      />
-    );
-  }
-
   if (shape === 'oval') {
     return (
       <ellipse
@@ -404,11 +383,26 @@ export function renderRoomShape(
     );
   }
 
-  if (shape === 'octagon') {
+  const vertices = getRoomShapePolygonVertices(shape, width, height);
+  if (vertices && shape !== 'box') {
+    const pointString = vertices.map((point) => `${point.x},${point.y}`).join(' ');
+
     return (
-      <polygon
+      <>
+        <polygon
+          className="room-node-shape"
+          points={pointString}
+          {...shapeStyleProps}
+        />
+      </>
+    );
+  }
+
+  if (shape === 'box') {
+    return (
+      <path
         className="room-node-shape"
-        points={getOctagonPoints(width, height)}
+        d={getRoomShapePath(shape, width, height, ROOM_CORNER_RADIUS)}
         {...shapeStyleProps}
       />
     );
