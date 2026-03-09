@@ -16,13 +16,19 @@ function autoResizeTextarea(textarea: HTMLTextAreaElement | null): void {
 export interface MapCanvasStickyNoteProps {
   readonly stickyNote: StickyNote;
   readonly isSelected: boolean;
+  readonly isEditing: boolean;
   readonly toMapPoint: (clientX: number, clientY: number) => PanOffset;
+  readonly onOpenEditor: (stickyNoteId: string) => void;
+  readonly onCloseEditor: () => void;
 }
 
 export function MapCanvasStickyNote({
   stickyNote,
   isSelected,
+  isEditing,
   toMapPoint,
+  onOpenEditor,
+  onCloseEditor,
 }: MapCanvasStickyNoteProps): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const setStickyNoteText = useEditorStore((s) => s.setStickyNoteText);
@@ -44,129 +50,179 @@ export function MapCanvasStickyNote({
   const visualY = stickyNote.position.y + (isDragging ? stickyNoteDrag.dy : 0);
 
   useEffect(() => {
-    if (isSelected && textareaRef.current) {
+    if (isEditing && textareaRef.current) {
       textareaRef.current.focus();
       autoResizeTextarea(textareaRef.current);
     }
-  }, [isSelected, stickyNote.text]);
+  }, [isEditing, stickyNote.text]);
 
   return (
     <div
-      className={`sticky-note${isSelected ? ' sticky-note--selected' : ''}${isDragging ? ' sticky-note--dragging' : ''}`}
-      data-testid="sticky-note"
-      data-sticky-note-id={stickyNote.id}
+      className={`sticky-note-wrapper${isDragging ? ' sticky-note-wrapper--dragging' : ''}`}
       style={{
         width: `${STICKY_NOTE_WIDTH}px`,
         minHeight: `${height}px`,
         transform: `translate(${visualX}px, ${visualY}px)`,
       }}
-      onMouseDown={(event) => {
-        if (event.button !== 0) {
-          return;
-        }
+    >
+      {isSelected && (
+        <svg
+          className="sticky-note-selection-outline"
+          data-testid="sticky-note-selection-outline"
+          width={STICKY_NOTE_WIDTH + 8}
+          height={height + 8}
+          style={{
+            position: 'absolute',
+            left: '-4px',
+            top: '-4px',
+            overflow: 'visible',
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}
+        >
+          <rect
+            className="room-selection-outline"
+            x={0}
+            y={0}
+            width={STICKY_NOTE_WIDTH + 8}
+            height={height + 8}
+            rx={12}
+            ry={12}
+          />
+        </svg>
+      )}
+      <div
+        className="sticky-note"
+        data-testid="sticky-note"
+        data-sticky-note-id={stickyNote.id}
+        style={{
+          width: `${STICKY_NOTE_WIDTH}px`,
+          minHeight: `${height}px`,
+          zIndex: 1,
+        }}
+        onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
 
-        event.preventDefault();
-        event.stopPropagation();
+          event.preventDefault();
+          event.stopPropagation();
 
-        if (event.altKey) {
-          const startPoint = toMapPoint(event.clientX, event.clientY);
-          startStickyNoteLinkDrag(stickyNote.id, startPoint.x, startPoint.y);
+          if (event.altKey) {
+            const startPoint = toMapPoint(event.clientX, event.clientY);
+            startStickyNoteLinkDrag(stickyNote.id, startPoint.x, startPoint.y);
+
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+              updateStickyNoteLinkDrag(cursorPoint.x, cursorPoint.y);
+            };
+
+            const handleMouseUp = (upEvent: MouseEvent) => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+
+              const roomEl = (upEvent.target as Element | null)?.closest?.('[data-room-id]') as HTMLElement | null;
+              if (roomEl) {
+                completeStickyNoteLinkDrag(roomEl.getAttribute('data-room-id')!);
+              } else {
+                cancelStickyNoteLinkDrag();
+              }
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            return;
+          }
+
+          if (event.shiftKey) {
+            addStickyNoteToSelection(stickyNote.id);
+          } else {
+            selectStickyNote(stickyNote.id);
+          }
+
+          const startX = event.clientX;
+          const startY = event.clientY;
+          const draggedStickyNoteIds = isSelected
+            ? useEditorStore.getState().selectedStickyNoteIds
+            : [stickyNote.id];
+
+          startStickyNoteDrag(stickyNote.id);
 
           const handleMouseMove = (moveEvent: MouseEvent) => {
-            const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
-            updateStickyNoteLinkDrag(cursorPoint.x, cursorPoint.y);
+            updateStickyNoteDrag(moveEvent.clientX - startX, moveEvent.clientY - startY);
           };
 
           const handleMouseUp = (upEvent: MouseEvent) => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
 
-            const roomEl = (upEvent.target as Element | null)?.closest?.('[data-room-id]') as HTMLElement | null;
-            if (roomEl) {
-              completeStickyNoteLinkDrag(roomEl.getAttribute('data-room-id')!);
+            const dx = upEvent.clientX - startX;
+            const dy = upEvent.clientY - startY;
+            endStickyNoteDrag();
+
+            if (dx !== 0 || dy !== 0) {
+              const nextPositions = Object.fromEntries(
+                draggedStickyNoteIds.flatMap((draggedStickyNoteId) => {
+                  const draggedStickyNote = useEditorStore.getState().doc?.stickyNotes[draggedStickyNoteId];
+                  if (!draggedStickyNote) {
+                    return [];
+                  }
+
+                  return [[draggedStickyNoteId, {
+                    x: draggedStickyNote.position.x + dx,
+                    y: draggedStickyNote.position.y + dy,
+                  }]];
+                }),
+              );
+              moveStickyNotes(nextPositions);
+            } else if (upEvent.shiftKey) {
+              addStickyNoteToSelection(stickyNote.id);
             } else {
-              cancelStickyNoteLinkDrag();
+              selectStickyNote(stickyNote.id);
             }
           };
 
           document.addEventListener('mousemove', handleMouseMove);
           document.addEventListener('mouseup', handleMouseUp);
-          return;
-        }
-
-        if (event.shiftKey) {
-          addStickyNoteToSelection(stickyNote.id);
-        } else {
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
           selectStickyNote(stickyNote.id);
-        }
-
-        const startX = event.clientX;
-        const startY = event.clientY;
-        const draggedStickyNoteIds = isSelected
-          ? useEditorStore.getState().selectedStickyNoteIds
-          : [stickyNote.id];
-
-        startStickyNoteDrag(stickyNote.id);
-
-        const handleMouseMove = (moveEvent: MouseEvent) => {
-          updateStickyNoteDrag(moveEvent.clientX - startX, moveEvent.clientY - startY);
-        };
-
-        const handleMouseUp = (upEvent: MouseEvent) => {
-          document.removeEventListener('mousemove', handleMouseMove);
-          document.removeEventListener('mouseup', handleMouseUp);
-
-          const dx = upEvent.clientX - startX;
-          const dy = upEvent.clientY - startY;
-          endStickyNoteDrag();
-
-          if (dx !== 0 || dy !== 0) {
-            const nextPositions = Object.fromEntries(
-              draggedStickyNoteIds.flatMap((draggedStickyNoteId) => {
-                const draggedStickyNote = useEditorStore.getState().doc?.stickyNotes[draggedStickyNoteId];
-                if (!draggedStickyNote) {
-                  return [];
-                }
-
-                return [[draggedStickyNoteId, {
-                  x: draggedStickyNote.position.x + dx,
-                  y: draggedStickyNote.position.y + dy,
-                }]];
-              }),
-            );
-            moveStickyNotes(nextPositions);
-          } else if (upEvent.shiftKey) {
-            addStickyNoteToSelection(stickyNote.id);
-          } else {
-            selectStickyNote(stickyNote.id);
-          }
-        };
-
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
-      }}
-    >
-      <div className="sticky-note-corner" aria-hidden="true" />
-      {isSelected ? (
-        <textarea
-          ref={textareaRef}
-          className="sticky-note-textarea"
-          data-testid="sticky-note-textarea"
-          aria-label="Sticky note text"
-          value={stickyNote.text}
-          onChange={(event) => {
-            setStickyNoteText(stickyNote.id, event.target.value, { historyMergeKey: `sticky-note:${stickyNote.id}:text` });
-            autoResizeTextarea(event.currentTarget);
-          }}
-          onMouseDown={(event) => {
-            event.stopPropagation();
-          }}
-        />
-      ) : (
-        <div className="sticky-note-text" data-testid="sticky-note-text">
-          {stickyNote.text || 'Note'}
-        </div>
-      )}
+          onOpenEditor(stickyNote.id);
+        }}
+      >
+        <div className="sticky-note-corner" aria-hidden="true" />
+        {isEditing ? (
+          <textarea
+            ref={textareaRef}
+            className="sticky-note-textarea"
+            data-testid="sticky-note-textarea"
+            aria-label="Sticky note text"
+            value={stickyNote.text}
+            onChange={(event) => {
+              setStickyNoteText(stickyNote.id, event.target.value, { historyMergeKey: `sticky-note:${stickyNote.id}:text` });
+              autoResizeTextarea(event.currentTarget);
+            }}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                onCloseEditor();
+              }
+            }}
+            onBlur={() => {
+              onCloseEditor();
+            }}
+          />
+        ) : (
+          <div className="sticky-note-text" data-testid="sticky-note-text">
+            {stickyNote.text || 'Note'}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -117,6 +117,7 @@ export interface MapCanvasProps {
 export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
+  const [stickyNoteEditorId, setStickyNoteEditorId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isPickingExportRegion, setIsPickingExportRegion] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('entire-map');
@@ -177,6 +178,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
   const rooms = doc ? Object.values(doc.rooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
+
+  useEffect(() => {
+    if (stickyNoteEditorId !== null && !selectedStickyNoteIds.includes(stickyNoteEditorId)) {
+      setStickyNoteEditorId(null);
+    }
+  }, [selectedStickyNoteIds, stickyNoteEditorId]);
 
   useEffect(() => () => {
     if (autoPanTimeoutRef.current !== null) {
@@ -313,14 +320,26 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   }, [canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
   const openRoomEditor = useCallback((roomId: string) => {
+    setStickyNoteEditorId(null);
     setConnectionEditorId(null);
     panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
 
   const openConnectionEditor = useCallback((connectionId: string) => {
+    setStickyNoteEditorId(null);
     setRoomEditorId(null);
     setConnectionEditorId(connectionId);
+  }, []);
+
+  const openStickyNoteEditor = useCallback((stickyNoteId: string) => {
+    setRoomEditorId(null);
+    setConnectionEditorId(null);
+    setStickyNoteEditorId(stickyNoteId);
+  }, []);
+
+  const closeStickyNoteEditor = useCallback(() => {
+    setStickyNoteEditorId(null);
   }, []);
 
   const panRoomIntoView = useCallback((room: Room) => {
@@ -887,12 +906,14 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const { x, y } = toMapPoint(e.clientX, e.clientY);
       const stickyNoteId = addStickyNoteAtPosition('', { x, y });
       useEditorStore.getState().selectStickyNote(stickyNoteId);
+      setStickyNoteEditorId(null);
       return;
     }
 
+    closeStickyNoteEditor();
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, connectionEditorId, doc, roomEditorId, toMapPoint]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, roomEditorId, toMapPoint]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (roomEditorId || connectionEditorId || activeStroke) return;
@@ -1051,7 +1072,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
               key={stickyNote.id}
               stickyNote={stickyNote}
               isSelected={selectedStickyNoteIds.includes(stickyNote.id)}
+              isEditing={stickyNoteEditorId === stickyNote.id}
               toMapPoint={toMapPoint}
+              onOpenEditor={openStickyNoteEditor}
+              onCloseEditor={closeStickyNoteEditor}
             />
           ))}
 

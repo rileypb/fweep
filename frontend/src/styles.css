@@ -1073,9 +1073,14 @@ body {
   pointer-events: none;
 }
 
-.sticky-note {
+.sticky-note-wrapper {
   position: absolute;
   z-index: 4;
+  overflow: visible;
+}
+
+.sticky-note {
+  position: relative;
   box-sizing: border-box;
   padding: 16px 18px 16px 16px;
   background: #f1e67d;
@@ -1084,11 +1089,6 @@ body {
   box-shadow: 0 10px 22px rgba(108, 93, 18, 0.16);
   overflow: hidden;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
-}
-
-.sticky-note--selected {
-  outline: 2px solid #f59e0b;
-  outline-offset: 2px;
 }
 
 .sticky-note-corner {

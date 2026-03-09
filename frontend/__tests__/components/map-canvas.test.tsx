@@ -1263,7 +1263,7 @@ describe('MapCanvas', () => {
   });
 
   describe('sticky notes', () => {
-    it('creates a sticky note on shift-click and opens inline editing', () => {
+    it('creates a sticky note on shift-click without entering edit mode', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -1274,7 +1274,30 @@ describe('MapCanvas', () => {
 
       const stickyNotes = Object.values(useEditorStore.getState().doc!.stickyNotes);
       expect(stickyNotes).toHaveLength(1);
+      expect(screen.queryByTestId('sticky-note-textarea')).not.toBeInTheDocument();
+    });
+
+    it('opens sticky note editing on double-click', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300, shiftKey: true });
+
+      await user.dblClick(screen.getByTestId('sticky-note'));
+
       expect(screen.getByTestId('sticky-note-textarea')).toBeInTheDocument();
+    });
+
+    it('shows the room-style selection outline around a selected sticky note', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300, shiftKey: true });
+
+      expect(screen.getByTestId('sticky-note-selection-outline')).toBeInTheDocument();
     });
 
     it('creates a sticky-note link when alt-dragging from a note to a room', () => {
@@ -1310,6 +1333,7 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
 
+      await user.dblClick(screen.getByTestId('sticky-note'));
       const noteElement = screen.getByTestId('sticky-note');
       const initialMinHeight = noteElement.style.minHeight;
       await user.type(screen.getByTestId('sticky-note-textarea'), '\nA second line of text that should make the note taller.');
