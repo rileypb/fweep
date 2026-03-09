@@ -6,7 +6,15 @@ import { loadMap } from '../storage/map-store';
 function mapIdFromHash(hash: string): string | null {
   const normalizedHash = hash.startsWith('#') ? hash.slice(1) : hash;
   const match = /^\/map\/([^/]+)$/.exec(normalizedHash);
-  return match ? match[1] : null;
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
 }
 
 function currentHashRoute(): string {
@@ -128,7 +136,7 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
   const openMap = useCallback((doc: MapDocument) => {
     setActiveMap(doc);
     setRouteError(null);
-    pushHashRoute(`#/map/${doc.metadata.id}`);
+    pushHashRoute(`#/map/${encodeURIComponent(doc.metadata.id)}`);
   }, []);
 
   const closeMap = useCallback(() => {

@@ -138,4 +138,43 @@ describe('useMapRouter', () => {
     expect(screen.getByTestId('active-map-name')).toHaveTextContent('none');
     expect(window.location.hash).toBe('#/');
   });
+
+  it('encodes map ids when pushing a route', async () => {
+    const user = userEvent.setup();
+
+    function EncodedIdHarness(): React.JSX.Element {
+      const { openMap } = useMapRouter();
+      const testDoc = {
+        ...createEmptyMap('Encoded Id Map'),
+        metadata: {
+          ...createEmptyMap('Encoded Id Map').metadata,
+          id: 'map id?#&%',
+        },
+      };
+
+      return (
+        <button type="button" onClick={() => openMap(testDoc)}>
+          Open encoded
+        </button>
+      );
+    }
+
+    render(<EncodedIdHarness />);
+    await user.click(screen.getByRole('button', { name: 'Open encoded' }));
+
+    expect(window.location.hash).toBe('#/map/map%20id%3F%23%26%25');
+  });
+
+  it('decodes encoded route ids before loading maps', async () => {
+    navigateTo('#/map/map%20id%3F%23%26%25');
+    const loadMap = jest.fn<(id: string) => Promise<MapDocument | undefined>>()
+      .mockResolvedValue(undefined);
+
+    render(<RouterHarness loadMap={loadMap} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading-state')).toHaveTextContent('idle');
+    });
+    expect(loadMap).toHaveBeenCalledWith('map id?#&%');
+  });
 });
