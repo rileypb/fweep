@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapCanvas } from './components/map-canvas';
-import { PrettifyButton } from './components/prettify-button';
-import { RedoButton } from './components/redo-button';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
-import { UndoButton } from './components/undo-button';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
@@ -113,6 +110,10 @@ export function App(): React.JSX.Element {
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const storeDoc = useEditorStore((s) => s.doc);
+  const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
+  const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
+  const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
+  const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
@@ -160,10 +161,65 @@ export function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <h1 className="app-title">fweep</h1>
-      <div className="app-controls">
-        <UndoButton />
-        <RedoButton />
-        <PrettifyButton />
+      <div className="app-controls app-controls--settings">
+        {activeMap !== null && (
+          <button
+            type="button"
+            className="app-control-button app-control-button--plain"
+            aria-label="Back to maps"
+            title="Back to maps"
+            onClick={closeMap}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5.5 8H13" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+        {activeMap !== null && (
+          <div
+            className="app-control-chip app-control-chip--plain"
+            aria-label={`Map name: ${activeMap.metadata.name}`}
+          >
+            {activeMap.metadata.name}
+          </div>
+        )}
+        {activeMap !== null && (
+          <button
+            type="button"
+            className="app-control-button"
+            aria-label="Toggle grid"
+            title="Toggle grid"
+            aria-pressed={showGridEnabled}
+            onClick={toggleShowGrid}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <line x1="0" y1="4" x2="16" y2="4" />
+              <line x1="0" y1="8" x2="16" y2="8" />
+              <line x1="0" y1="12" x2="16" y2="12" />
+              <line x1="4" y1="0" x2="4" y2="16" />
+              <line x1="8" y1="0" x2="8" y2="16" />
+              <line x1="12" y1="0" x2="12" y2="16" />
+            </svg>
+          </button>
+        )}
+        {activeMap !== null && (
+          <button
+            type="button"
+            className="app-control-button"
+            aria-label="Toggle polyline connections"
+            title="Toggle polyline connections"
+            aria-pressed={!useBezierConnectionsEnabled}
+            onClick={toggleUseBezierConnections}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="M2 12h4L10 4h4" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="2" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="10" cy="4" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="4" r="1.2" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        )}
         <SnapToggle />
         <ThemeToggle />
         <button

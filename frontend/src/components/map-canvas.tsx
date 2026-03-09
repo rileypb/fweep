@@ -23,6 +23,9 @@ import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
 import { MapDrawingToolbar } from './map-drawing-toolbar';
 import { ExportPngDialog } from './export-png-dialog';
+import { PrettifyButton } from './prettify-button';
+import { RedoButton } from './redo-button';
+import { UndoButton } from './undo-button';
 import {
   BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
@@ -89,7 +92,7 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
-  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-canvas-header, .map-drawing-toolbar'));
+  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-drawing-toolbar'));
 }
 
 function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
@@ -110,7 +113,7 @@ export interface MapCanvasProps {
   onBack?: () => void;
 }
 
-export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }: MapCanvasProps): React.JSX.Element {
+export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -141,9 +144,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
   const backgroundRevision = useEditorStore((s) => s.backgroundRevision);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
-  const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
-  const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
-  const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
@@ -170,7 +170,6 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
   } = useMapViewport({ initialPanOffset: persistedPanOffset });
 
   const showGrid = doc ? showGridEnabled : initialShowGrid;
-  const useBezierConnections = doc ? useBezierConnectionsEnabled : false;
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -984,74 +983,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
       tabIndex={-1}
       style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
     >
-      <div
-        className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
-        data-testid="map-canvas-scene"
-      >
-        <MapDrawingToolbar />
-        <header className="map-canvas-header">
-          <button
-            className="map-canvas-back-button"
-            type="button"
-            aria-label="Back to maps"
-            title="Back to maps"
-            onClick={onBack}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-              <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M5.5 8H13" strokeLinecap="round" />
-            </svg>
-          </button>
-          <span className="map-canvas-title">{mapName}</span>
-          <button
-            className="map-canvas-grid-toggle"
-            type="button"
-            aria-label="Toggle grid"
-            title="Toggle grid"
-            onClick={toggleShowGrid}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <line x1="0" y1="4" x2="16" y2="4" />
-              <line x1="0" y1="8" x2="16" y2="8" />
-              <line x1="0" y1="12" x2="16" y2="12" />
-              <line x1="4" y1="0" x2="4" y2="16" />
-              <line x1="8" y1="0" x2="8" y2="16" />
-              <line x1="12" y1="0" x2="12" y2="16" />
-            </svg>
-          </button>
-          <button
-            className="map-canvas-grid-toggle"
-            type="button"
-            aria-label="Export PNG"
-            title="Export PNG"
-            onClick={() => {
-              clearExportRegion();
-              setPreferredExportScope(null);
-              setIsExportDialogOpen(true);
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <path d="M8 2.5v7" strokeLinecap="round" />
-              <path d="M5.5 7 8 9.5 10.5 7" strokeLinecap="round" strokeLinejoin="round" />
-              <rect x="2.5" y="10.5" width="11" height="3" rx="1" />
-            </svg>
-          </button>
-          <button
-            className="map-canvas-grid-toggle"
-            type="button"
-            aria-label="Toggle bezier connections"
-            title="Toggle bezier connections"
-            aria-pressed={useBezierConnections}
-            onClick={toggleUseBezierConnections}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <path d="M2 12C2 8 5 8 7 8C10 8 10 4 14 4" strokeLinecap="round" />
-              <circle cx="2" cy="12" r="1.2" fill="currentColor" stroke="none" />
-              <circle cx="14" cy="4" r="1.2" fill="currentColor" stroke="none" />
-            </svg>
-          </button>
-        </header>
-
+        <div
+          className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
+          data-testid="map-canvas-scene"
+        >
+          <MapDrawingToolbar />
         {doc && (rooms.length > 0 || doc.background.activeLayerId !== null) && (
           <MapMinimap
             mapId={doc.metadata.id}
@@ -1141,6 +1077,28 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
             })()}
           />
         )}
+        <div className="map-canvas-actions">
+          <UndoButton />
+          <RedoButton />
+          <PrettifyButton />
+          <button
+            className="app-control-button"
+            type="button"
+            aria-label="Export PNG"
+            title="Export PNG"
+            onClick={() => {
+              clearExportRegion();
+              setPreferredExportScope(null);
+              setIsExportDialogOpen(true);
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <path d="M8 2.5v7" strokeLinecap="round" />
+              <path d="M5.5 7 8 9.5 10.5 7" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="2.5" y="10.5" width="11" height="3" rx="1" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <ExportPngDialog
