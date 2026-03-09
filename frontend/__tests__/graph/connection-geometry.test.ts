@@ -3,10 +3,16 @@ import {
   getHandleOffset,
   getHandlePosition,
   getRoomCenter,
+  getRoomPerimeterPointToward,
   getStubEndpoint,
   findRoomDirectionForConnection,
   computeConnectionPath,
   computeSegmentArrowheadPoints,
+  createConnectionRenderGeometry,
+  connectionGeometryToSvgPath,
+  getConnectionGeometryLength,
+  sampleConnectionGeometryAtFraction,
+  computeGeometryArrowheadPoints,
   computePreviewPath,
   pointsToSvgString,
   ROOM_WIDTH,
@@ -145,6 +151,34 @@ describe('getRoomCenter', () => {
       x: 100 + ROOM_WIDTH / 2,
       y: 200 + ROOM_HEIGHT / 2,
     });
+  });
+});
+
+describe('getRoomPerimeterPointToward', () => {
+  it('returns the rectangle perimeter point in the direction of the target point', () => {
+    expect(
+      getRoomPerimeterPointToward({ x: 100, y: 200 }, { x: 500, y: 218 }),
+    ).toEqual({ x: 180, y: 218 });
+  });
+
+  it('returns the room center when the target point is the center', () => {
+    const center = getRoomCenter({ x: 100, y: 200 });
+
+    expect(getRoomPerimeterPointToward({ x: 100, y: 200 }, center)).toEqual(center);
+  });
+
+  it('supports non-rectangular room shapes', () => {
+    const point = getRoomPerimeterPointToward(
+      { x: 100, y: 200 },
+      { x: 500, y: 500 },
+      { width: ROOM_WIDTH, height: ROOM_HEIGHT },
+      'diamond',
+    );
+
+    expect(point.x).toBeGreaterThan(140);
+    expect(point.y).toBeGreaterThan(218);
+    expect(point.x).toBeLessThanOrEqual(180);
+    expect(point.y).toBeLessThanOrEqual(236);
   });
 });
 
@@ -465,5 +499,245 @@ describe('pointsToSvgString', () => {
   it('converts points to SVG polyline format', () => {
     const pts = [{ x: 10, y: 20 }, { x: 30, y: 40 }, { x: 50, y: 60 }];
     expect(pointsToSvgString(pts)).toBe('10,20 30,40 50,60');
+  });
+});
+
+describe('createConnectionRenderGeometry', () => {
+  const polylinePoints = [
+    { x: 0, y: 0 },
+    { x: 10, y: 10 },
+    { x: 20, y: 0 },
+    { x: 30, y: 10 },
+  ] as const;
+
+  it('returns a polyline when bezier connections are disabled', () => {
+    expect(createConnectionRenderGeometry(polylinePoints, true, false, false)).toEqual({
+      kind: 'polyline',
+      points: polylinePoints,
+    });
+  });
+
+  it('returns a polyline for self-connections even when bezier connections are enabled', () => {
+    expect(createConnectionRenderGeometry(polylinePoints, true, true, true)).toEqual({
+      kind: 'polyline',
+      points: polylinePoints,
+    });
+  });
+
+  it('returns a cubic geometry for bidirectional paths with four points', () => {
+    expect(createConnectionRenderGeometry(polylinePoints, true, true, false)).toEqual({
+      kind: 'cubic',
+      start: polylinePoints[0],
+      control1: polylinePoints[1],
+      control2: polylinePoints[2],
+      end: polylinePoints[3],
+    });
+  });
+
+  it('returns a quadratic geometry for one-way paths with at least three points', () => {
+    expect(
+      createConnectionRenderGeometry(polylinePoints.slice(0, 3), false, true, false),
+    ).toEqual({
+      kind: 'quadratic',
+      start: polylinePoints[0],
+      control: polylinePoints[1],
+      end: polylinePoints[2],
+    });
+  });
+
+  it('falls back to a polyline when there are too few points for a curve', () => {
+    expect(
+      createConnectionRenderGeometry(polylinePoints.slice(0, 2), false, true, false),
+    ).toEqual({
+      kind: 'polyline',
+      points: polylinePoints.slice(0, 2),
+    });
+  });
+});
+
+describe('connectionGeometryToSvgPath', () => {
+  it('returns an empty string for an empty polyline', () => {
+    expect(connectionGeometryToSvgPath({ kind: 'polyline', points: [] })).toBe('');
+  });
+
+  it('serializes a polyline path', () => {
+    expect(
+      connectionGeometryToSvgPath({
+        kind: 'polyline',
+        points: [{ x: 1, y: 2 }, { x: 3, y: 4 }, { x: 5, y: 6 }],
+      }),
+    ).toBe('M 1 2 L 3 4 L 5 6');
+  });
+
+  it('serializes a quadratic path', () => {
+    expect(
+      connectionGeometryToSvgPath({
+        kind: 'quadratic',
+        start: { x: 1, y: 2 },
+        control: { x: 3, y: 4 },
+        end: { x: 5, y: 6 },
+      }),
+    ).toBe('M 1 2 Q 3 4 5 6');
+  });
+
+  it('serializes a cubic path', () => {
+    expect(
+      connectionGeometryToSvgPath({
+        kind: 'cubic',
+        start: { x: 1, y: 2 },
+        control1: { x: 3, y: 4 },
+        control2: { x: 5, y: 6 },
+        end: { x: 7, y: 8 },
+      }),
+    ).toBe('M 1 2 C 3 4 5 6 7 8');
+  });
+});
+
+describe('getConnectionGeometryLength', () => {
+  it('returns the total length of a polyline', () => {
+    expect(
+      getConnectionGeometryLength({
+        kind: 'polyline',
+        points: [{ x: 0, y: 0 }, { x: 3, y: 4 }, { x: 6, y: 8 }],
+      }),
+    ).toBeCloseTo(10, 5);
+  });
+
+  it('returns a positive sampled length for a quadratic curve', () => {
+    expect(
+      getConnectionGeometryLength({
+        kind: 'quadratic',
+        start: { x: 0, y: 0 },
+        control: { x: 10, y: 10 },
+        end: { x: 20, y: 0 },
+      }),
+    ).toBeGreaterThan(20);
+  });
+});
+
+describe('sampleConnectionGeometryAtFraction', () => {
+  it('returns null for an empty polyline', () => {
+    expect(sampleConnectionGeometryAtFraction({ kind: 'polyline', points: [] }, 0.5)).toBeNull();
+  });
+
+  it('returns the sole point for a one-point polyline', () => {
+    expect(
+      sampleConnectionGeometryAtFraction({ kind: 'polyline', points: [{ x: 4, y: 5 }] }, 0.5),
+    ).toEqual({
+      point: { x: 4, y: 5 },
+      tangent: { x: 1, y: 0 },
+    });
+  });
+
+  it('skips zero-length polyline segments and samples the remaining segment', () => {
+    expect(
+      sampleConnectionGeometryAtFraction({
+        kind: 'polyline',
+        points: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }],
+      }, 0.5),
+    ).toEqual({
+      point: { x: 5, y: 0 },
+      tangent: { x: 10, y: 0 },
+    });
+  });
+
+  it('returns the last point and tangent when sampling beyond the final non-zero segment', () => {
+    expect(
+      sampleConnectionGeometryAtFraction({
+        kind: 'polyline',
+        points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 0 }],
+      }, 1),
+    ).toEqual({
+      point: { x: 10, y: 0 },
+      tangent: { x: 10, y: 0 },
+    });
+  });
+
+  it('clamps curve fractions and samples quadratic geometry', () => {
+    const sample = sampleConnectionGeometryAtFraction({
+      kind: 'quadratic',
+      start: { x: 0, y: 0 },
+      control: { x: 10, y: 10 },
+      end: { x: 20, y: 0 },
+    }, 2);
+
+    expect(sample?.point.x).toBeCloseTo(20, 3);
+    expect(sample?.point.y).toBeCloseTo(0, 3);
+    expect(sample?.tangent.x).toBeGreaterThan(0);
+  });
+
+  it('samples cubic geometry', () => {
+    const sample = sampleConnectionGeometryAtFraction({
+      kind: 'cubic',
+      start: { x: 0, y: 0 },
+      control1: { x: 0, y: 10 },
+      control2: { x: 10, y: 10 },
+      end: { x: 10, y: 0 },
+    }, 0.5);
+
+    expect(sample).not.toBeNull();
+    expect(sample!.point.x).toBeGreaterThan(3);
+    expect(sample!.point.x).toBeLessThan(7);
+    expect(sample!.point.y).toBeGreaterThan(5);
+  });
+});
+
+describe('computeGeometryArrowheadPoints', () => {
+  it('delegates polyline geometry to segment arrowhead generation', () => {
+    expect(
+      computeGeometryArrowheadPoints({
+        kind: 'polyline',
+        points: [{ x: 0, y: 0 }, { x: 30, y: 0 }],
+      }, 12, 10),
+    ).toEqual([
+      [
+        { x: 16, y: 0 },
+        { x: 4, y: 5 },
+        { x: 4, y: -5 },
+      ],
+      [
+        { x: 26, y: 0 },
+        { x: 14, y: 5 },
+        { x: 14, y: -5 },
+      ],
+    ]);
+  });
+
+  it('returns no arrowheads for a zero-length quadratic tangent', () => {
+    expect(
+      computeGeometryArrowheadPoints({
+        kind: 'quadratic',
+        start: { x: 0, y: 0 },
+        control: { x: 0, y: 0 },
+        end: { x: 0, y: 0 },
+      }),
+    ).toEqual([]);
+  });
+
+  it('returns two arrowheads for quadratic geometry', () => {
+    const arrows = computeGeometryArrowheadPoints({
+      kind: 'quadratic',
+      start: { x: 0, y: 0 },
+      control: { x: 10, y: 10 },
+      end: { x: 20, y: 0 },
+    });
+
+    expect(arrows).toHaveLength(2);
+    expect(arrows[0]).toHaveLength(3);
+    expect(arrows[1]).toHaveLength(3);
+  });
+
+  it('returns two arrowheads for cubic geometry', () => {
+    const arrows = computeGeometryArrowheadPoints({
+      kind: 'cubic',
+      start: { x: 0, y: 0 },
+      control1: { x: 0, y: 10 },
+      control2: { x: 10, y: 10 },
+      end: { x: 10, y: 0 },
+    });
+
+    expect(arrows).toHaveLength(2);
+    expect(arrows[0][0].y).toBeGreaterThan(0);
+    expect(arrows[1][0].x).toBeGreaterThan(arrows[0][0].x);
   });
 });
