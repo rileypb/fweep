@@ -173,6 +173,15 @@ export function ConnectionEditorOverlay({
             </div>
             <fieldset className="connection-annotation-group">
               <legend className="room-editor-label">Annotation</legend>
+              <label className="connection-annotation-option">
+                <input
+                  type="radio"
+                  name={`connection-annotation-${connection.id}`}
+                  checked={selectedAnnotationKind === null}
+                  onChange={() => setConnectionAnnotation(connection.id, null)}
+                />
+                <span>none</span>
+              </label>
               {presetAnnotationKinds.map((kind) => (
                 <label key={kind} className="connection-annotation-option">
                   <input

@@ -1865,6 +1865,10 @@ describe('MapCanvas', () => {
         text: 'secret passage',
       });
       expect(screen.getByLabelText('Text')).toBeChecked();
+
+      await user.click(screen.getByLabelText('none'));
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toBeNull();
+      expect(screen.getByLabelText('none')).toBeChecked();
     });
 
     it('updates connection start and end labels from the connection editor', async () => {
