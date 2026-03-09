@@ -447,9 +447,32 @@ describe('map-store', () => {
 
       const imported = await importMapFromFile(file);
       expect(imported.metadata.name).toBe('Imported');
+      expect(imported.metadata.id).not.toBe(doc.metadata.id);
 
       const loaded = await loadMap(imported.metadata.id);
       expect(loaded).toEqual(imported);
+    });
+
+    it('does not overwrite an existing saved map when an imported file reuses its id', async () => {
+      const existing = createEmptyMap('Existing');
+      await saveMap(existing);
+
+      const importedDoc = {
+        ...createEmptyMap('Imported Copy'),
+        metadata: {
+          ...createEmptyMap('Imported Copy').metadata,
+          id: existing.metadata.id,
+          name: 'Imported Copy',
+        },
+      };
+      const file = makeFile(JSON.stringify(importedDoc), 'colliding-map.json');
+
+      const imported = await importMapFromFile(file);
+
+      expect(imported.metadata.id).not.toBe(existing.metadata.id);
+      expect(imported.metadata.name).toBe('Imported Copy');
+      expect(await loadMap(existing.metadata.id)).toEqual(existing);
+      expect(await loadMap(imported.metadata.id)).toEqual(imported);
     });
 
     it('hydrates missing room shapes when importing an older map file', async () => {

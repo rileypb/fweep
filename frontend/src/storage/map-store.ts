@@ -224,6 +224,20 @@ function formatMegabytes(byteCount: number): string {
   return `${Math.round(byteCount / (1024 * 1024))} MB`;
 }
 
+function createImportedMapDocument(doc: MapDocument): MapDocument {
+  const now = new Date().toISOString();
+
+  return {
+    ...doc,
+    metadata: {
+      ...doc.metadata,
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    },
+  };
+}
+
 function toUserMessage(err: unknown, fallback: string): string {
   if (err instanceof MapValidationError) {
     return err.message;
@@ -524,6 +538,7 @@ export async function importMapFromFile(file: File): Promise<MapDocument> {
     throw new Error(toUserMessage(err, 'File does not contain a valid fweep map.'));
   }
 
-  await saveMap(doc);
-  return doc;
+  const importedDoc = createImportedMapDocument(doc);
+  await saveMap(importedDoc);
+  return importedDoc;
 }
