@@ -1073,6 +1073,56 @@ body {
   pointer-events: none;
 }
 
+.sticky-note {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  padding: 16px 18px 16px 16px;
+  background: #ece06f;
+  color: #4c4312;
+  border: 1px solid rgba(120, 105, 18, 0.34);
+  box-shadow: 0 10px 22px rgba(108, 93, 18, 0.16);
+  overflow: hidden;
+}
+
+.sticky-note--selected {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+.sticky-note-corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, rgba(196, 176, 54, 0.32) 0%, rgba(196, 176, 54, 0.32) 50%, rgba(252, 247, 171, 0.96) 50%, rgba(252, 247, 171, 0.96) 100%);
+}
+
+.sticky-note-text,
+.sticky-note-textarea {
+  font: 500 15px/1.35 Georgia, serif;
+  color: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sticky-note-textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+.sticky-note-link,
+.sticky-note-link-preview {
+  pointer-events: none;
+}
+
 /* ---- Direction handles ---- */
 
 .direction-handle {

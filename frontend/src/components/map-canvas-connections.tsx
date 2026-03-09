@@ -2,6 +2,8 @@ import { useEditorStore } from '../state/editor-store';
 import {
   type Connection,
   type Room,
+  type StickyNote,
+  type StickyNoteLink,
 } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import {
@@ -18,6 +20,7 @@ import {
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { getRoomStrokeDasharray } from './map-canvas-helpers';
+import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -287,6 +290,8 @@ function getStubLabelGeometry(
 export interface MapCanvasConnectionsProps {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
+  stickyNotes: Readonly<Record<string, StickyNote>>;
+  stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
   onOpenConnectionEditor: (connectionId: string) => void;
   theme: ThemeMode;
 }
@@ -294,16 +299,21 @@ export interface MapCanvasConnectionsProps {
 export function MapCanvasConnections({
   rooms,
   connections,
+  stickyNotes,
+  stickyNoteLinks,
   onOpenConnectionEditor,
   theme,
 }: MapCanvasConnectionsProps): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
+  const stickyNoteLinkDrag = useEditorStore((s) => s.stickyNoteLinkDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
+  const stickyNoteDrag = useEditorStore((s) => s.stickyNoteDrag);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const selectConnection = useEditorStore((s) => s.selectConnection);
   const addConnectionToSelection = useEditorStore((s) => s.addConnectionToSelection);
   const entries = Object.values(connections);
+  const stickyNoteLinkEntries = Object.values(stickyNoteLinks);
 
   const renderConnectionLine = (
     conn: Connection,
@@ -632,6 +642,18 @@ export function MapCanvasConnections({
     );
   };
 
+  const getStickyNoteWithDrag = (stickyNote: StickyNote): StickyNote => (
+    stickyNoteDrag && stickyNoteDrag.stickyNoteIds.includes(stickyNote.id)
+      ? {
+        ...stickyNote,
+        position: {
+          x: stickyNote.position.x + stickyNoteDrag.dx,
+          y: stickyNote.position.y + stickyNoteDrag.dy,
+        },
+      }
+      : stickyNote
+  );
+
   return (
     <>
       <svg
@@ -680,6 +702,37 @@ export function MapCanvasConnections({
           );
         })}
 
+        {stickyNoteLinkEntries.map((stickyNoteLink) => {
+          const rawStickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
+          const rawRoom = rooms[stickyNoteLink.roomId];
+          if (!rawStickyNote || !rawRoom) {
+            return null;
+          }
+
+          const stickyNote = getStickyNoteWithDrag(rawStickyNote);
+          const room = applyDragOffset(rawRoom, roomDrag);
+          const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+          const roomCenter = {
+            x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+            y: room.position.y + (ROOM_HEIGHT / 2),
+          };
+
+          return (
+            <line
+              key={stickyNoteLink.id}
+              data-testid={`sticky-note-link-${stickyNoteLink.id}`}
+              className="sticky-note-link"
+              x1={stickyNoteCenter.x}
+              y1={stickyNoteCenter.y}
+              x2={roomCenter.x}
+              y2={roomCenter.y}
+              stroke="#8a8156"
+              strokeWidth="2"
+              strokeDasharray="5 4"
+            />
+          );
+        })}
+
         {connectionDrag && (() => {
           const srcRoom = rooms[connectionDrag.sourceRoomId];
           if (!srcRoom) return null;
@@ -721,6 +774,30 @@ export function MapCanvasConnections({
               strokeWidth="2"
               strokeDasharray="6 4"
               opacity="0.6"
+            />
+          );
+        })()}
+
+        {stickyNoteLinkDrag && (() => {
+          const rawStickyNote = stickyNotes[stickyNoteLinkDrag.sourceStickyNoteId];
+          if (!rawStickyNote) {
+            return null;
+          }
+
+          const stickyNote = getStickyNoteWithDrag(rawStickyNote);
+          const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+          return (
+            <line
+              data-testid="sticky-note-link-preview"
+              className="sticky-note-link-preview"
+              x1={stickyNoteCenter.x}
+              y1={stickyNoteCenter.y}
+              x2={stickyNoteLinkDrag.cursorX}
+              y2={stickyNoteLinkDrag.cursorY}
+              stroke="#8a8156"
+              strokeWidth="2"
+              strokeDasharray="5 4"
+              opacity="0.7"
             />
           );
         })()}

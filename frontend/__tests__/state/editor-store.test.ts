@@ -150,6 +150,17 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('addStickyNoteAtPosition', () => {
+    it('adds a sticky note at the given position and returns its ID', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const stickyNoteId = useEditorStore.getState().addStickyNoteAtPosition('Check the desk.', { x: 120, y: 200 });
+
+      const stickyNote = useEditorStore.getState().doc!.stickyNotes[stickyNoteId];
+      expect(stickyNote.text).toBe('Check the desk.');
+      expect(stickyNote.position).toEqual({ x: 120, y: 200 });
+    });
+  });
+
   describe('map view persistence', () => {
     it('toggleSnapToGrid updates the stored map view', () => {
       useEditorStore.getState().loadDocument(testDoc);
@@ -251,6 +262,17 @@ describe('useEditorStore', () => {
 
     it('throws when no document is loaded', () => {
       expect(() => useEditorStore.getState().describeRoom('r1', 'X')).toThrow();
+    });
+  });
+
+  describe('setStickyNoteText', () => {
+    it('updates the sticky note text in the document', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const stickyNoteId = useEditorStore.getState().addStickyNoteAtPosition('', { x: 0, y: 0 });
+
+      useEditorStore.getState().setStickyNoteText(stickyNoteId, 'The trapdoor is under the rug.');
+
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNoteId].text).toBe('The trapdoor is under the rug.');
     });
   });
 
@@ -373,7 +395,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().selectRoom('r1');
       useEditorStore.getState().addConnectionToSelection('c1');
 
-      useEditorStore.getState().setSelection(['r2'], ['c2', 'c3']);
+      useEditorStore.getState().setSelection(['r2'], [], ['c2', 'c3']);
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['r2']);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual(['c2', 'c3']);
@@ -412,11 +434,11 @@ describe('useEditorStore', () => {
     });
 
     it('clears connection and mixed selections', () => {
-      useEditorStore.getState().setSelection(['r1'], ['c1']);
+      useEditorStore.getState().setSelection(['r1'], [], ['c1']);
       useEditorStore.getState().clearConnectionSelection();
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
 
-      useEditorStore.getState().setSelection(['r1'], ['c1']);
+      useEditorStore.getState().setSelection(['r1'], [], ['c1']);
       useEditorStore.getState().clearSelection();
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);

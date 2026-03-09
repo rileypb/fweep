@@ -19,6 +19,7 @@ import {
   RoomEditorOverlay,
 } from './map-canvas-overlays';
 import { MapCanvasRoomNode } from './map-canvas-room-node';
+import { MapCanvasStickyNote } from './map-canvas-sticky-note';
 import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
 import { MapDrawingToolbar } from './map-drawing-toolbar';
@@ -92,7 +93,7 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
-  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-drawing-toolbar, .map-canvas-actions'));
+  return Boolean(target?.closest('[data-room-id], [data-sticky-note-id], [data-connection-id], .map-drawing-toolbar, .map-canvas-actions'));
 }
 
 function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
@@ -125,9 +126,11 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
+  const selectedStickyNoteIds = useEditorStore((s) => s.selectedStickyNoteIds);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
+  const addStickyNoteAtPosition = useEditorStore((s) => s.addStickyNoteAtPosition);
   const setSelection = useEditorStore((s) => s.setSelection);
   const exportRegionDraft = useEditorStore((s) => s.exportRegionDraft);
   const exportRegion = useEditorStore((s) => s.exportRegion);
@@ -136,6 +139,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
   const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
   const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
+  const removeSelectedStickyNotes = useEditorStore((s) => s.removeSelectedStickyNotes);
   const removeSelectedConnections = useEditorStore((s) => s.removeSelectedConnections);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -172,6 +176,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const showGrid = doc ? showGridEnabled : initialShowGrid;
 
   const rooms = doc ? Object.values(doc.rooms) : [];
+  const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
 
   useEffect(() => () => {
     if (autoPanTimeoutRef.current !== null) {
@@ -759,6 +764,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       const updateSelection = (nextSelectionBox: SelectionBox) => {
         setSelection(
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
+          [],
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
         );
       };
@@ -877,9 +883,16 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    if (e.shiftKey && doc) {
+      const { x, y } = toMapPoint(e.clientX, e.clientY);
+      const stickyNoteId = addStickyNoteAtPosition('', { x, y });
+      useEditorStore.getState().selectStickyNote(stickyNoteId);
+      return;
+    }
+
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, canvasRef, clearSelection, connectionEditorId, roomEditorId]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, connectionEditorId, doc, roomEditorId, toMapPoint]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (roomEditorId || connectionEditorId || activeStroke) return;
@@ -923,12 +936,13 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
       const { selectedConnectionIds: currentSelectedConnectionIds } = useEditorStore.getState();
-      if (selectedRoomIds.length === 0 && currentSelectedConnectionIds.length === 0) {
+      if (selectedRoomIds.length === 0 && selectedStickyNoteIds.length === 0 && currentSelectedConnectionIds.length === 0) {
         return;
       }
 
       e.preventDefault();
       removeSelectedRooms();
+      removeSelectedStickyNotes();
       removeSelectedConnections();
       return;
     }
@@ -959,7 +973,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, roomEditorId, rooms, selectedRoomIds, setCanvasInteractionMode, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, removeSelectedStickyNotes, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, undo]);
 
   const classes = [
     'map-canvas',
@@ -988,7 +1002,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           data-testid="map-canvas-scene"
         >
           <MapDrawingToolbar />
-        {doc && (rooms.length > 0 || doc.background.activeLayerId !== null) && (
+        {doc && (rooms.length > 0 || stickyNotes.length > 0 || doc.background.activeLayerId !== null) && (
           <MapMinimap
             mapId={doc.metadata.id}
             background={doc.background}
@@ -1025,10 +1039,21 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             <MapCanvasConnections
               rooms={doc.rooms}
               connections={doc.connections}
+              stickyNotes={doc.stickyNotes}
+              stickyNoteLinks={doc.stickyNoteLinks}
               onOpenConnectionEditor={openConnectionEditor}
               theme={theme}
             />
           )}
+
+          {stickyNotes.map((stickyNote) => (
+            <MapCanvasStickyNote
+              key={stickyNote.id}
+              stickyNote={stickyNote}
+              isSelected={selectedStickyNoteIds.includes(stickyNote.id)}
+              toMapPoint={toMapPoint}
+            />
+          ))}
 
           {rooms.map((room) => (
             <MapCanvasRoomNode

@@ -217,6 +217,8 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
     background: normalizeBackground(doc),
     rooms,
     connections,
+    stickyNotes: doc.stickyNotes ?? {},
+    stickyNoteLinks: doc.stickyNoteLinks ?? {},
   };
 }
 

@@ -7,6 +7,8 @@ import type {
   Room,
   RoomShape,
   RoomStrokeStyle,
+  StickyNote,
+  StickyNoteLink,
 } from './map-types';
 
 /* ------------------------------------------------------------------ */
@@ -50,6 +52,17 @@ export function addRoom(doc: MapDocument, room: Room): MapDocument {
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [room.id]: room },
+  });
+}
+
+export function addStickyNote(doc: MapDocument, stickyNote: StickyNote): MapDocument {
+  if (doc.stickyNotes[stickyNote.id]) {
+    throw new Error(`Sticky note with ID "${stickyNote.id}" already exists.`);
+  }
+
+  return touch({
+    ...doc,
+    stickyNotes: { ...doc.stickyNotes, [stickyNote.id]: stickyNote },
   });
 }
 
@@ -141,6 +154,28 @@ export function addConnection(
   return touch({ ...doc, rooms, connections });
 }
 
+export function addStickyNoteLink(doc: MapDocument, stickyNoteLink: StickyNoteLink): MapDocument {
+  if (!doc.stickyNotes[stickyNoteLink.stickyNoteId]) {
+    throw new Error(`Sticky note "${stickyNoteLink.stickyNoteId}" not found.`);
+  }
+
+  if (!doc.rooms[stickyNoteLink.roomId]) {
+    throw new Error(`Room "${stickyNoteLink.roomId}" not found.`);
+  }
+
+  const duplicate = Object.values(doc.stickyNoteLinks).some((link) => (
+    link.stickyNoteId === stickyNoteLink.stickyNoteId && link.roomId === stickyNoteLink.roomId
+  ));
+  if (duplicate) {
+    return doc;
+  }
+
+  return touch({
+    ...doc,
+    stickyNoteLinks: { ...doc.stickyNoteLinks, [stickyNoteLink.id]: stickyNoteLink },
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  addItem                                                            */
 /* ------------------------------------------------------------------ */
@@ -207,10 +242,15 @@ export function deleteRoom(doc: MapDocument, roomId: string): MapDocument {
     }
   }
 
+  const remainingStickyNoteLinks = Object.fromEntries(
+    Object.entries(doc.stickyNoteLinks).filter(([, link]) => link.roomId !== roomId),
+  );
+
   return touch({
     ...doc,
     rooms: cleanedRooms,
     connections: remainingConnections,
+    stickyNoteLinks: remainingStickyNoteLinks,
     items: remainingItems,
   });
 }
@@ -243,6 +283,35 @@ export function deleteConnection(doc: MapDocument, connectionId: string): MapDoc
     ...doc,
     rooms: cleanedRooms,
     connections: remainingConnections,
+  });
+}
+
+export function deleteStickyNote(doc: MapDocument, stickyNoteId: string): MapDocument {
+  if (!doc.stickyNotes[stickyNoteId]) {
+    throw new Error(`Sticky note "${stickyNoteId}" not found.`);
+  }
+
+  const { [stickyNoteId]: _removedStickyNote, ...remainingStickyNotes } = doc.stickyNotes;
+  const remainingStickyNoteLinks = Object.fromEntries(
+    Object.entries(doc.stickyNoteLinks).filter(([, link]) => link.stickyNoteId !== stickyNoteId),
+  );
+
+  return touch({
+    ...doc,
+    stickyNotes: remainingStickyNotes,
+    stickyNoteLinks: remainingStickyNoteLinks,
+  });
+}
+
+export function deleteStickyNoteLink(doc: MapDocument, stickyNoteLinkId: string): MapDocument {
+  if (!doc.stickyNoteLinks[stickyNoteLinkId]) {
+    throw new Error(`Sticky note link "${stickyNoteLinkId}" not found.`);
+  }
+
+  const { [stickyNoteLinkId]: _removedStickyNoteLink, ...remainingStickyNoteLinks } = doc.stickyNoteLinks;
+  return touch({
+    ...doc,
+    stickyNoteLinks: remainingStickyNoteLinks,
   });
 }
 
@@ -292,6 +361,42 @@ export function moveRoom(doc: MapDocument, roomId: string, position: Position): 
   });
 }
 
+export function moveStickyNote(doc: MapDocument, stickyNoteId: string, position: Position): MapDocument {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  if (!stickyNote) {
+    throw new Error(`Sticky note "${stickyNoteId}" not found.`);
+  }
+
+  return touch({
+    ...doc,
+    stickyNotes: { ...doc.stickyNotes, [stickyNoteId]: { ...stickyNote, position } },
+  });
+}
+
+export function setStickyNotePositions(
+  doc: MapDocument,
+  positions: Readonly<Record<string, Position>>,
+): MapDocument {
+  let changed = false;
+  const stickyNotes = { ...doc.stickyNotes };
+
+  for (const [stickyNoteId, position] of Object.entries(positions)) {
+    const stickyNote = stickyNotes[stickyNoteId];
+    if (!stickyNote) {
+      throw new Error(`Sticky note "${stickyNoteId}" not found.`);
+    }
+
+    if (stickyNote.position.x === position.x && stickyNote.position.y === position.y) {
+      continue;
+    }
+
+    stickyNotes[stickyNoteId] = { ...stickyNote, position };
+    changed = true;
+  }
+
+  return changed ? touch({ ...doc, stickyNotes }) : doc;
+}
+
 /** Return a new document with multiple room positions updated at once. */
 export function setRoomPositions(
   doc: MapDocument,
@@ -330,6 +435,18 @@ export function describeRoom(doc: MapDocument, roomId: string, description: stri
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [roomId]: { ...room, description } },
+  });
+}
+
+export function setStickyNoteText(doc: MapDocument, stickyNoteId: string, text: string): MapDocument {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  if (!stickyNote) {
+    throw new Error(`Sticky note "${stickyNoteId}" not found.`);
+  }
+
+  return touch({
+    ...doc,
+    stickyNotes: { ...doc.stickyNotes, [stickyNoteId]: { ...stickyNote, text } },
   });
 }
 

@@ -72,6 +72,20 @@ export interface Room {
   readonly strokeStyle: RoomStrokeStyle;
 }
 
+/* ---- Sticky Note ---- */
+
+export interface StickyNote {
+  readonly id: string;
+  readonly text: string;
+  readonly position: Position;
+}
+
+export interface StickyNoteLink {
+  readonly id: string;
+  readonly stickyNoteId: string;
+  readonly roomId: string;
+}
+
 /* ---- Connection ---- */
 
 export interface Connection {
@@ -109,6 +123,8 @@ export interface MapDocument {
   readonly background: BackgroundDocument;
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
+  readonly stickyNotes: Readonly<Record<string, StickyNote>>;
+  readonly stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
   readonly items: Readonly<Record<string, Item>>;
 }
 
@@ -155,6 +171,8 @@ export function createEmptyMap(name: string): MapDocument {
     background: createEmptyBackground(),
     rooms: {},
     connections: {},
+    stickyNotes: {},
+    stickyNoteLinks: {},
     items: {},
   };
 }
@@ -191,6 +209,24 @@ export function createConnection(
     endLabel: '',
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
+  };
+}
+
+/** Create a new sticky note. */
+export function createStickyNote(text: string = ''): StickyNote {
+  return {
+    id: crypto.randomUUID(),
+    text,
+    position: { x: 0, y: 0 },
+  };
+}
+
+/** Create a new sticky-note-to-room annotation link. */
+export function createStickyNoteLink(stickyNoteId: string, roomId: string): StickyNoteLink {
+  return {
+    id: crypto.randomUUID(),
+    stickyNoteId,
+    roomId,
   };
 }
 

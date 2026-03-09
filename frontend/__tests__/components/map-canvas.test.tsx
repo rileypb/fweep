@@ -3,7 +3,7 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
-import { createEmptyMap } from '../../src/domain/map-types';
+import { createEmptyMap, createStickyNote } from '../../src/domain/map-types';
 import { addRoom, addConnection } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
@@ -1259,6 +1259,62 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(1);
+    });
+  });
+
+  describe('sticky notes', () => {
+    it('creates a sticky note on shift-click and opens inline editing', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.click(canvas, { clientX: 200, clientY: 300, shiftKey: true });
+
+      const stickyNotes = Object.values(useEditorStore.getState().doc!.stickyNotes);
+      expect(stickyNotes).toHaveLength(1);
+      expect(screen.getByTestId('sticky-note-textarea')).toBeInTheDocument();
+    });
+
+    it('creates a sticky-note link when alt-dragging from a note to a room', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120, shiftKey: true });
+
+      const stickyNote = screen.getByTestId('sticky-note');
+      const roomNode = screen.getByTestId('room-node');
+
+      fireEvent.mouseDown(stickyNote, { clientX: 100, clientY: 140, button: 0, altKey: true });
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 140 });
+      expect(screen.getByTestId('sticky-note-link-preview')).toBeInTheDocument();
+      fireEvent.mouseUp(roomNode, { clientX: 260, clientY: 140, button: 0 });
+
+      expect(Object.values(useEditorStore.getState().doc!.stickyNoteLinks)).toHaveLength(1);
+      expect(screen.getByTestId(/^sticky-note-link-/)).toBeInTheDocument();
+    });
+
+    it('grows vertically as note text grows', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const stickyNote = { ...createStickyNote('Short'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument({
+        ...doc,
+        stickyNotes: { [stickyNote.id]: stickyNote },
+      });
+      useEditorStore.getState().selectStickyNote(stickyNote.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const noteElement = screen.getByTestId('sticky-note');
+      const initialMinHeight = noteElement.style.minHeight;
+      await user.type(screen.getByTestId('sticky-note-textarea'), '\nA second line of text that should make the note taller.');
+
+      expect(noteElement.style.minHeight).not.toBe(initialMinHeight);
     });
   });
 

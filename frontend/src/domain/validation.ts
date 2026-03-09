@@ -14,6 +14,8 @@ import {
   type MapView,
   type Position,
   type Room,
+  type StickyNote,
+  type StickyNoteLink,
 } from './map-types';
 import {
   DEFAULT_ROOM_FILL_COLOR_INDEX,
@@ -25,7 +27,7 @@ import {
 } from './room-color-palette';
 
 export type ValidationSeverity = 'error' | 'warning';
-export type EntityType = 'map' | 'metadata' | 'room' | 'connection' | 'item';
+export type EntityType = 'map' | 'metadata' | 'room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
 export type MapValidationErrorCode =
   | 'invalid-map-document'
   | 'unsupported-schema-version'
@@ -37,6 +39,8 @@ export const MAX_DESCRIPTION_LENGTH = 10_000;
 export const MAX_ROOMS = 5_000;
 export const MAX_CONNECTIONS = 10_000;
 export const MAX_ITEMS = 10_000;
+export const MAX_STICKY_NOTES = 10_000;
+export const MAX_STICKY_NOTE_LINKS = 10_000;
 export const MAX_DIRECTIONS_PER_ROOM = 64;
 
 export interface ValidationIssue {
@@ -735,9 +739,74 @@ function parseItem(entryKey: string, value: unknown, issues: ValidationIssue[]):
   };
 }
 
+function parseStickyNote(entryKey: string, value: unknown, issues: ValidationIssue[]): StickyNote | null {
+  const stickyNote = asRecord(value, issues, `stickyNotes.${entryKey}`, 'sticky-note', entryKey);
+  if (!stickyNote) {
+    return null;
+  }
+
+  const id = requireString(stickyNote.id, issues, `stickyNotes.${entryKey}.id`, 'sticky-note', entryKey);
+  const text = requireString(stickyNote.text, issues, `stickyNotes.${entryKey}.text`, 'sticky-note', entryKey);
+  const position = parsePosition(stickyNote.position, issues, entryKey);
+
+  if (id === null || text === null || position === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(issues, 'error', 'sticky-note', entryKey, `stickyNotes.${entryKey}.id`, 'Sticky note id must match its record key.');
+  }
+
+  validateLength(text, MAX_DESCRIPTION_LENGTH, issues, `stickyNotes.${entryKey}.text`, 'sticky-note', entryKey, 'Sticky note text');
+
+  return {
+    id,
+    text,
+    position,
+  };
+}
+
+function parseStickyNoteLink(entryKey: string, value: unknown, issues: ValidationIssue[]): StickyNoteLink | null {
+  const stickyNoteLink = asRecord(value, issues, `stickyNoteLinks.${entryKey}`, 'sticky-note-link', entryKey);
+  if (!stickyNoteLink) {
+    return null;
+  }
+
+  const id = requireString(stickyNoteLink.id, issues, `stickyNoteLinks.${entryKey}.id`, 'sticky-note-link', entryKey);
+  const stickyNoteId = requireString(
+    stickyNoteLink.stickyNoteId,
+    issues,
+    `stickyNoteLinks.${entryKey}.stickyNoteId`,
+    'sticky-note-link',
+    entryKey,
+  );
+  const roomId = requireString(stickyNoteLink.roomId, issues, `stickyNoteLinks.${entryKey}.roomId`, 'sticky-note-link', entryKey);
+
+  if (id === null || stickyNoteId === null || roomId === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(
+      issues,
+      'error',
+      'sticky-note-link',
+      entryKey,
+      `stickyNoteLinks.${entryKey}.id`,
+      'Sticky note link id must match its record key.',
+    );
+  }
+
+  return {
+    id,
+    stickyNoteId,
+    roomId,
+  };
+}
+
 function parseRecordCollection<T>(
   value: unknown,
-  path: 'rooms' | 'connections' | 'items',
+  path: 'rooms' | 'connections' | 'stickyNotes' | 'stickyNoteLinks' | 'items',
   maxEntries: number,
   issues: ValidationIssue[],
   parser: (entryKey: string, entryValue: unknown, parseIssues: ValidationIssue[]) => T | null,
@@ -817,6 +886,30 @@ export function validateMap(doc: MapDocument): ValidationResult {
     }
   }
 
+  for (const [stickyNoteLinkId, stickyNoteLink] of Object.entries(doc.stickyNoteLinks)) {
+    if (!doc.stickyNotes[stickyNoteLink.stickyNoteId]) {
+      pushIssue(
+        issues,
+        'error',
+        'sticky-note-link',
+        stickyNoteLinkId,
+        `stickyNoteLinks.${stickyNoteLinkId}.stickyNoteId`,
+        `Sticky note link "${stickyNoteLinkId}" references a missing sticky note "${stickyNoteLink.stickyNoteId}".`,
+      );
+    }
+
+    if (!doc.rooms[stickyNoteLink.roomId]) {
+      pushIssue(
+        issues,
+        'error',
+        'sticky-note-link',
+        stickyNoteLinkId,
+        `stickyNoteLinks.${stickyNoteLinkId}.roomId`,
+        `Sticky note link "${stickyNoteLinkId}" references a missing room "${stickyNoteLink.roomId}".`,
+      );
+    }
+  }
+
   const roomIds = Object.keys(doc.rooms);
   if (roomIds.length > 1) {
     const connectedRoomIds = new Set<string>();
@@ -880,6 +973,8 @@ export function parseUntrustedMapDocument(
   const background = parseBackground(doc.background, issues);
   const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
   const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
+  const stickyNotes = parseRecordCollection(doc.stickyNotes ?? {}, 'stickyNotes', MAX_STICKY_NOTES, issues, parseStickyNote);
+  const stickyNoteLinks = parseRecordCollection(doc.stickyNoteLinks ?? {}, 'stickyNoteLinks', MAX_STICKY_NOTE_LINKS, issues, parseStickyNoteLink);
   const items = parseRecordCollection(doc.items, 'items', MAX_ITEMS, issues, parseItem);
 
   if (!metadata || issues.some((issue) => issue.severity === 'error')) {
@@ -893,6 +988,8 @@ export function parseUntrustedMapDocument(
     background,
     rooms,
     connections,
+    stickyNotes,
+    stickyNoteLinks,
     items,
   };
 

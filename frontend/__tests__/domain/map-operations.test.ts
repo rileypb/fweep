@@ -4,17 +4,23 @@ import {
   createRoom,
   createConnection,
   createItem,
+  createStickyNote,
+  createStickyNoteLink,
 } from '../../src/domain/map-types';
 import {
   addRoom,
   addConnection,
   addItem,
+  addStickyNote,
+  addStickyNoteLink,
   deleteRoom,
   deleteConnection,
+  deleteStickyNote,
   deleteItem,
   describeRoom,
   describeItem,
   setRoomShape,
+  setStickyNoteText,
 } from '../../src/domain/map-operations';
 
 /* ------------------------------------------------------------------ */
@@ -219,6 +225,44 @@ describe('addItem', () => {
 
     expect(step2.items[i1.id]).toEqual(i1);
     expect(step2.items[i2.id]).toEqual(i2);
+  });
+});
+
+describe('sticky notes', () => {
+  it('adds sticky notes and links them to rooms', () => {
+    const doc = createEmptyMap('Test');
+    const room = createRoom('Kitchen');
+    const stickyNote = createStickyNote('Remember the lantern.');
+    const withRoom = addRoom(doc, room);
+    const withStickyNote = addStickyNote(withRoom, { ...stickyNote, position: { x: 40, y: 80 } });
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
+    const linked = addStickyNoteLink(withStickyNote, stickyNoteLink);
+
+    expect(linked.stickyNotes[stickyNote.id].text).toBe('Remember the lantern.');
+    expect(linked.stickyNoteLinks[stickyNoteLink.id]).toEqual(stickyNoteLink);
+  });
+
+  it('deletes sticky-note links when the note is deleted', () => {
+    const doc = createEmptyMap('Test');
+    const room = createRoom('Kitchen');
+    const stickyNote = createStickyNote('Remember the lantern.');
+    const withRoom = addRoom(doc, room);
+    const withStickyNote = addStickyNote(withRoom, stickyNote);
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
+    const linked = addStickyNoteLink(withStickyNote, stickyNoteLink);
+    const deleted = deleteStickyNote(linked, stickyNote.id);
+
+    expect(deleted.stickyNotes[stickyNote.id]).toBeUndefined();
+    expect(deleted.stickyNoteLinks[stickyNoteLink.id]).toBeUndefined();
+  });
+
+  it('updates sticky note text', () => {
+    const doc = createEmptyMap('Test');
+    const stickyNote = createStickyNote('');
+    const withStickyNote = addStickyNote(doc, stickyNote);
+    const updated = setStickyNoteText(withStickyNote, stickyNote.id, 'A hidden panel is here.');
+
+    expect(updated.stickyNotes[stickyNote.id].text).toBe('A hidden panel is here.');
   });
 });
 

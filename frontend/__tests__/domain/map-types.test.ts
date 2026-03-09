@@ -41,6 +41,8 @@ describe('createEmptyMap', () => {
     });
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});
+    expect(doc.stickyNotes).toEqual({});
+    expect(doc.stickyNoteLinks).toEqual({});
     expect(doc.items).toEqual({});
   });
 });
