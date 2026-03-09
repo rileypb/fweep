@@ -30,6 +30,7 @@ describe('useEditorStore', () => {
       const doc = {
         ...testDoc,
         view: {
+          ...testDoc.view,
           pan: { x: 120, y: -80 },
           showGrid: false,
           snapToGrid: false,
@@ -66,6 +67,7 @@ describe('useEditorStore', () => {
       const doc = {
         ...testDoc,
         view: {
+          ...testDoc.view,
           pan: { x: 120, y: -80 },
           showGrid: false,
           snapToGrid: false,

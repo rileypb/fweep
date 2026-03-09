@@ -22,6 +22,7 @@ export interface MapView {
   readonly pan: Position;
   readonly showGrid: boolean;
   readonly snapToGrid: boolean;
+  readonly useBezierConnections: boolean;
 }
 
 /* ---- Background ---- */
@@ -149,6 +150,7 @@ export function createEmptyMap(name: string): MapDocument {
       pan: { x: 0, y: 0 },
       showGrid: true,
       snapToGrid: true,
+      useBezierConnections: false,
     },
     background: createEmptyBackground(),
     rooms: {},

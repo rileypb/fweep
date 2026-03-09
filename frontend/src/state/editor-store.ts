@@ -126,6 +126,9 @@ export interface EditorState {
   /** Whether the current map shows the background grid. */
   showGridEnabled: boolean;
 
+  /** Whether the current map renders non-self connections as bezier curves. */
+  useBezierConnectionsEnabled: boolean;
+
   /** The persisted pan offset for the current map. */
   mapPanOffset: Position;
 
@@ -243,6 +246,9 @@ export interface EditorState {
 
   /** Toggle the background grid visibility for the current map. */
   toggleShowGrid: () => void;
+
+  /** Toggle bezier rendering for non-self connections in the current map. */
+  toggleUseBezierConnections: () => void;
 
   /** Persist the current map pan offset without adding a history entry. */
   setMapPanOffset: (position: Position) => void;
@@ -386,13 +392,17 @@ function commitDocumentChange(
   };
 }
 
-function patchDocumentView(doc: MapDocument, state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled'>): MapDocument {
+function patchDocumentView(
+  doc: MapDocument,
+  state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
+): MapDocument {
   return {
     ...doc,
     view: {
       pan: state.mapPanOffset,
       showGrid: state.showGridEnabled,
       snapToGrid: state.snapToGridEnabled,
+      useBezierConnections: state.useBezierConnectionsEnabled,
     },
   };
 }
@@ -408,6 +418,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedConnectionIds: [],
   snapToGridEnabled: true,
   showGridEnabled: true,
+  useBezierConnectionsEnabled: false,
   mapPanOffset: { x: 0, y: 0 },
   connectionDrag: null,
   roomDrag: null,
@@ -431,6 +442,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       mapPanOffset: doc.view.pan,
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
+      useBezierConnectionsEnabled: doc.view.useBezierConnections,
     }),
     pastEntries: [],
     futureEntries: [],
@@ -441,6 +453,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectedConnectionIds: [],
     snapToGridEnabled: doc.view.snapToGrid,
     showGridEnabled: doc.view.showGrid,
+    useBezierConnectionsEnabled: doc.view.useBezierConnections,
     mapPanOffset: doc.view.pan,
     connectionDrag: null,
     roomDrag: null,
@@ -460,6 +473,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectedConnectionIds: [],
     snapToGridEnabled: true,
     showGridEnabled: true,
+    useBezierConnectionsEnabled: false,
     mapPanOffset: { x: 0, y: 0 },
     connectionDrag: null,
     roomDrag: null,
@@ -771,6 +785,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         doc: nextDoc,
         showGridEnabled,
+        lastHistoryMergeKey: null,
+      };
+    });
+  },
+
+  toggleUseBezierConnections: () => {
+    set((state) => {
+      const useBezierConnectionsEnabled = !state.useBezierConnectionsEnabled;
+      const nextDoc = state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            useBezierConnections: useBezierConnectionsEnabled,
+          },
+        }
+        : state.doc;
+
+      return {
+        doc: nextDoc,
+        useBezierConnectionsEnabled,
         lastHistoryMergeKey: null,
       };
     });

@@ -215,6 +215,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       pan: { x: 0, y: 0 },
       showGrid: true,
       snapToGrid: true,
+      useBezierConnections: false,
     };
   }
 
@@ -224,6 +225,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       pan: { x: 0, y: 0 },
       showGrid: true,
       snapToGrid: true,
+      useBezierConnections: false,
     };
   }
 
@@ -236,6 +238,9 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const snapToGrid = view.snapToGrid === undefined
     ? true
     : requireBoolean(view.snapToGrid, issues, 'view.snapToGrid', 'map', 'root');
+  const useBezierConnections = view.useBezierConnections === undefined
+    ? false
+    : requireBoolean(view.useBezierConnections, issues, 'view.useBezierConnections', 'map', 'root');
 
   return {
     pan: {
@@ -244,6 +249,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     },
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
+    useBezierConnections: useBezierConnections ?? false,
   };
 }
 

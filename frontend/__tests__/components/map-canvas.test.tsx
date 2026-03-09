@@ -172,6 +172,23 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().doc?.view.showGrid).toBe(true);
     });
 
+  it('provides a button to toggle bezier connections on and off', async () => {
+    const user = userEvent.setup();
+    useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+    render(<MapCanvas mapName="Test" />);
+
+    const toggleBtn = screen.getByRole('button', { name: /toggle bezier connections/i });
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(true);
+
+    await user.click(toggleBtn);
+    expect(toggleBtn).toHaveAttribute('aria-pressed', 'false');
+    expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(false);
+  });
+
   describe('map panning', () => {
     it('pans the map when middle-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
@@ -1523,6 +1540,27 @@ describe('MapCanvas', () => {
       expect(previewLine.tagName.toLowerCase()).toBe('polyline');
     });
 
+    it('shows an SVG preview path during connection drag when bezier mode is enabled', async () => {
+      const user = userEvent.setup();
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      await user.click(screen.getByRole('button', { name: /toggle bezier connections/i }));
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 100, clientY: 50 });
+
+      const previewLine = screen.getByTestId('connection-preview-line');
+      expect(previewLine).toBeInTheDocument();
+      expect(previewLine.tagName.toLowerCase()).toBe('path');
+      expect(previewLine.getAttribute('d')).toContain('Q');
+    });
+
     it('completes a connection when releasing on a different room', () => {
       const { kitchenId, hallwayId } = setupTwoRooms();
       render(<MapCanvas mapName="Test" />);
@@ -1710,6 +1748,26 @@ describe('MapCanvas', () => {
       expect(connectionLine).toBeInTheDocument();
       expect(connectionLine.tagName.toLowerCase()).toBe('polyline');
       expect(screen.getByTestId('connection-svg-overlay')).toHaveStyle({ overflow: 'visible' });
+    });
+
+    it('renders a path for an existing bidirectional connection when bezier mode is enabled', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, kitchen);
+      d = addRoom(d, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      d = addConnection(d, conn, 'north', 'south');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.click(screen.getByRole('button', { name: /toggle bezier connections/i }));
+
+      const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
+      expect(connectionLine.tagName.toLowerCase()).toBe('path');
+      expect(connectionLine.getAttribute('d')).toContain('C');
     });
 
     it('clicking a connection selects only that connection', () => {

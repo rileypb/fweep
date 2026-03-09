@@ -129,7 +129,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
   const backgroundRevision = useEditorStore((s) => s.backgroundRevision);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
+  const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
+  const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
@@ -156,6 +158,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
   } = useMapViewport({ initialPanOffset: persistedPanOffset });
 
   const showGrid = doc ? showGridEnabled : initialShowGrid;
+  const useBezierConnections = doc ? useBezierConnectionsEnabled : false;
 
   const rooms = doc ? Object.values(doc.rooms) : [];
 
@@ -972,6 +975,20 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true, onBack }:
               <line x1="4" y1="0" x2="4" y2="16" />
               <line x1="8" y1="0" x2="8" y2="16" />
               <line x1="12" y1="0" x2="12" y2="16" />
+            </svg>
+          </button>
+          <button
+            className="map-canvas-grid-toggle"
+            type="button"
+            aria-label="Toggle bezier connections"
+            title="Toggle bezier connections"
+            aria-pressed={useBezierConnections}
+            onClick={toggleUseBezierConnections}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="M2 12C2 8 5 8 7 8C10 8 10 4 14 4" strokeLinecap="round" />
+              <circle cx="2" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              <circle cx="14" cy="4" r="1.2" fill="currentColor" stroke="none" />
             </svg>
           </button>
         </header>

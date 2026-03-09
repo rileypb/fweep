@@ -5,9 +5,14 @@ import {
 } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import {
+  type ConnectionRenderGeometry,
+  connectionGeometryToSvgPath,
   computeConnectionPath,
+  computeGeometryArrowheadPoints,
   computePreviewPath,
-  computeSegmentArrowheadPoints,
+  createConnectionRenderGeometry,
+  getConnectionGeometryLength,
+  sampleConnectionGeometryAtFraction,
   pointsToSvgString,
   ROOM_HEIGHT,
 } from '../graph/connection-geometry';
@@ -177,6 +182,79 @@ function getSegmentCenter(segment: { start: VectorPoint; end: VectorPoint }): Ve
   };
 }
 
+function getAnnotationGeometryFromRenderGeometry(
+  geometry: ConnectionRenderGeometry,
+  reverseDirection: boolean,
+): {
+  lineStart: VectorPoint;
+  lineEnd: VectorPoint;
+  arrowTip: VectorPoint;
+  arrowBaseA: VectorPoint;
+  arrowBaseB: VectorPoint;
+  textPosition: VectorPoint;
+  rotationDegrees: number;
+} | null {
+  const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
+  if (!sample) {
+    return null;
+  }
+
+  const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
+  if (tangentLength === 0) {
+    return null;
+  }
+
+  const ux = sample.tangent.x / tangentLength;
+  const uy = sample.tangent.y / tangentLength;
+  const directionX = reverseDirection ? -ux : ux;
+  const directionY = reverseDirection ? -uy : uy;
+  const normalX = -uy;
+  const normalY = ux;
+  const annotationCenterX = sample.point.x + (normalX * CONNECTION_ANNOTATION_OFFSET);
+  const annotationCenterY = sample.point.y + (normalY * CONNECTION_ANNOTATION_OFFSET);
+  const annotationLength = getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const halfLength = annotationLength / 2;
+  const lineStart = {
+    x: annotationCenterX - (directionX * halfLength),
+    y: annotationCenterY - (directionY * halfLength),
+  };
+  const lineEnd = {
+    x: annotationCenterX + (directionX * halfLength),
+    y: annotationCenterY + (directionY * halfLength),
+  };
+  const arrowTip = lineEnd;
+  const arrowBaseCenter = {
+    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+  };
+  const arrowBaseA = {
+    x: arrowBaseCenter.x + (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    y: arrowBaseCenter.y + (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+  };
+  const arrowBaseB = {
+    x: arrowBaseCenter.x - (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    y: arrowBaseCenter.y - (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+  };
+  const textPosition = {
+    x: annotationCenterX + (normalX * CONNECTION_ANNOTATION_TEXT_OFFSET),
+    y: annotationCenterY + (normalY * CONNECTION_ANNOTATION_TEXT_OFFSET),
+  };
+
+  return {
+    lineStart,
+    lineEnd,
+    arrowTip,
+    arrowBaseA,
+    arrowBaseB,
+    textPosition,
+    rotationDegrees: (Math.atan2(directionY, directionX) * 180) / Math.PI,
+  };
+}
+
+function getConnectionCenterFromGeometry(geometry: ConnectionRenderGeometry): VectorPoint | null {
+  return sampleConnectionGeometryAtFraction(geometry, 0.5)?.point ?? null;
+}
+
 function getStubLabelGeometry(
   start: VectorPoint,
   end: VectorPoint,
@@ -222,6 +300,7 @@ export function MapCanvasConnections({
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const roomDrag = useEditorStore((s) => s.roomDrag);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
+  const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const selectConnection = useEditorStore((s) => s.selectConnection);
   const addConnectionToSelection = useEditorStore((s) => s.addConnectionToSelection);
   const entries = Object.values(connections);
@@ -229,6 +308,7 @@ export function MapCanvasConnections({
   const renderConnectionLine = (
     conn: Connection,
     points: ReturnType<typeof computeConnectionPath>,
+    geometry: ConnectionRenderGeometry,
     isSelfConnection: boolean,
   ): React.JSX.Element => {
     const isSelected = selectedConnectionIds.includes(conn.id);
@@ -247,72 +327,144 @@ export function MapCanvasConnections({
         : annotationText;
     const rendersDoorAnnotation = annotationKind === 'door';
     const rendersLockedDoorAnnotation = annotationKind === 'locked door';
-    const annotationSegment = rendersDirectionalAnnotation && !isSelfConnection ? getLongestSegment(points) : null;
-    const textAnnotationSegment = rendersTextAnnotation ? getLongestSegment(points) : null;
-    const doorSegment = rendersDoorAnnotation ? getLongestSegment(points) : null;
-    const lockedDoorSegment = rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
-    const annotationGeometry = annotationSegment
-      ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
+    const annotationSegment = geometry.kind === 'polyline' && rendersDirectionalAnnotation && !isSelfConnection
+      ? getLongestSegment(points)
       : null;
-    const textAnnotationGeometry = textAnnotationSegment
-      ? getAnnotationGeometry(textAnnotationSegment, false)
-      : null;
+    const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
+    const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
+    const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
+    const annotationGeometry = geometry.kind === 'polyline'
+      ? (annotationSegment
+        ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
+        : null)
+      : rendersDirectionalAnnotation && !isSelfConnection
+        ? getAnnotationGeometryFromRenderGeometry(geometry, annotationKind === 'down' || annotationKind === 'out')
+        : null;
+    const textAnnotationGeometry = geometry.kind === 'polyline'
+      ? (textAnnotationSegment ? getAnnotationGeometry(textAnnotationSegment, false) : null)
+      : rendersTextAnnotation
+        ? getAnnotationGeometryFromRenderGeometry(geometry, false)
+        : null;
     const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
       ? getSelfAnnotationPosition(points)
       : null;
-    const doorCenter = doorSegment ? getSegmentCenter(doorSegment) : null;
-    const lockedDoorCenter = lockedDoorSegment ? getSegmentCenter(lockedDoorSegment) : null;
+    const doorCenter = geometry.kind === 'polyline'
+      ? (doorSegment ? getSegmentCenter(doorSegment) : null)
+      : rendersDoorAnnotation
+        ? getConnectionCenterFromGeometry(geometry)
+        : null;
+    const lockedDoorCenter = geometry.kind === 'polyline'
+      ? (lockedDoorSegment ? getSegmentCenter(lockedDoorSegment) : null)
+      : rendersLockedDoorAnnotation
+        ? getConnectionCenterFromGeometry(geometry)
+        : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
+    const pathData = geometry.kind === 'polyline' ? null : connectionGeometryToSvgPath(geometry);
 
     return (
       <>
-        <polyline
-          data-testid={`connection-hit-target-${conn.id}`}
-          data-connection-id={conn.id}
-          className="connection-hit-target"
-          points={pointsToSvgString(points)}
-          fill="none"
-          stroke="transparent"
-          strokeWidth="18"
-          style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (e.shiftKey) {
-              addConnectionToSelection(conn.id);
-            } else {
-              selectConnection(conn.id);
-            }
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            selectConnection(conn.id);
-            onOpenConnectionEditor(conn.id);
-          }}
-        />
-        <polyline
-          data-testid={`connection-line-${conn.id}`}
-          className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
-          points={pointsToSvgString(points)}
-          fill="none"
-          style={{
-            stroke: connectionStroke,
-            strokeWidth: isSelected ? 6 : 2,
-            strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-            pointerEvents: 'none',
-          }}
-        />
-        {isSelected && (
-          <polyline
-            data-testid={`connection-selection-inner-${conn.id}`}
-            className="connection-line connection-line--selected-inner"
-            points={pointsToSvgString(points)}
-            fill="none"
-            style={{
-              stroke: '#f59e0b',
-              strokeWidth: 2,
-              pointerEvents: 'none',
-            }}
-          />
+        {geometry.kind === 'polyline' ? (
+          <>
+            <polyline
+              data-testid={`connection-hit-target-${conn.id}`}
+              data-connection-id={conn.id}
+              className="connection-hit-target"
+              points={pointsToSvgString(points)}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="18"
+              style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.shiftKey) {
+                  addConnectionToSelection(conn.id);
+                } else {
+                  selectConnection(conn.id);
+                }
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                selectConnection(conn.id);
+                onOpenConnectionEditor(conn.id);
+              }}
+            />
+            <polyline
+              data-testid={`connection-line-${conn.id}`}
+              className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+              points={pointsToSvgString(points)}
+              fill="none"
+              style={{
+                stroke: connectionStroke,
+                strokeWidth: isSelected ? 6 : 2,
+                strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                pointerEvents: 'none',
+              }}
+            />
+            {isSelected && (
+              <polyline
+                data-testid={`connection-selection-inner-${conn.id}`}
+                className="connection-line connection-line--selected-inner"
+                points={pointsToSvgString(points)}
+                fill="none"
+                style={{
+                  stroke: '#f59e0b',
+                  strokeWidth: 2,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <path
+              data-testid={`connection-hit-target-${conn.id}`}
+              data-connection-id={conn.id}
+              className="connection-hit-target"
+              d={pathData ?? ''}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="18"
+              style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.shiftKey) {
+                  addConnectionToSelection(conn.id);
+                } else {
+                  selectConnection(conn.id);
+                }
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                selectConnection(conn.id);
+                onOpenConnectionEditor(conn.id);
+              }}
+            />
+            <path
+              data-testid={`connection-line-${conn.id}`}
+              className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+              d={pathData ?? ''}
+              fill="none"
+              style={{
+                stroke: connectionStroke,
+                strokeWidth: isSelected ? 6 : 2,
+                strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                pointerEvents: 'none',
+              }}
+            />
+            {isSelected && (
+              <path
+                data-testid={`connection-selection-inner-${conn.id}`}
+                className="connection-line connection-line--selected-inner"
+                d={pathData ?? ''}
+                fill="none"
+                style={{
+                  stroke: '#f59e0b',
+                  strokeWidth: 2,
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </>
         )}
         {annotationGeometry && (
           <>
@@ -505,11 +657,17 @@ export function MapCanvasConnections({
           const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
           const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
           const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
-          const arrowPointSets = !conn.isBidirectional ? computeSegmentArrowheadPoints(points) : [];
+          const geometry = createConnectionRenderGeometry(
+            points,
+            conn.isBidirectional,
+            useBezierConnectionsEnabled,
+            conn.sourceRoomId === conn.targetRoomId,
+          );
+          const arrowPointSets = !conn.isBidirectional ? computeGeometryArrowheadPoints(geometry) : [];
 
           return (
             <g key={conn.id}>
-              {renderConnectionLine(conn, points, conn.sourceRoomId === conn.targetRoomId)}
+              {renderConnectionLine(conn, points, geometry, conn.sourceRoomId === conn.targetRoomId)}
               {arrowPointSets.map((arrowPoints, index) => (
                 <polygon
                   key={`${conn.id}-arrow-${index}`}
@@ -535,11 +693,29 @@ export function MapCanvasConnections({
             undefined,
             srcDimensions,
           );
-          return (
+          const previewGeometry = createConnectionRenderGeometry(
+            points,
+            false,
+            useBezierConnectionsEnabled,
+            false,
+          );
+
+          return previewGeometry.kind === 'polyline' ? (
             <polyline
               data-testid="connection-preview-line"
               className="connection-preview-line"
               points={pointsToSvgString(points)}
+              fill="none"
+              stroke="#6366f1"
+              strokeWidth="2"
+              strokeDasharray="6 4"
+              opacity="0.6"
+            />
+          ) : (
+            <path
+              data-testid="connection-preview-line"
+              className="connection-preview-line"
+              d={connectionGeometryToSvgPath(previewGeometry)}
               fill="none"
               stroke="#6366f1"
               strokeWidth="2"

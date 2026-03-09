@@ -28,6 +28,25 @@ export interface Point {
   readonly y: number;
 }
 
+export type ConnectionRenderGeometry =
+  | {
+    readonly kind: 'polyline';
+    readonly points: readonly Point[];
+  }
+  | {
+    readonly kind: 'quadratic';
+    readonly start: Point;
+    readonly control: Point;
+    readonly end: Point;
+  }
+  | {
+    readonly kind: 'cubic';
+    readonly start: Point;
+    readonly control1: Point;
+    readonly control2: Point;
+    readonly end: Point;
+  };
+
 const DEFAULT_ARROW_LENGTH = 12;
 const DEFAULT_ARROW_WIDTH = 10;
 const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
@@ -659,4 +678,285 @@ export function computeSegmentArrowheadPoints(
 /** Convert an array of points to an SVG polyline `points` attribute string. */
 export function pointsToSvgString(pts: Point[]): string {
   return pts.map((p) => `${p.x},${p.y}`).join(' ');
+}
+
+export function createConnectionRenderGeometry(
+  points: readonly Point[],
+  isBidirectional: boolean,
+  useBezierConnections: boolean,
+  isSelfConnection: boolean,
+): ConnectionRenderGeometry {
+  if (!useBezierConnections || isSelfConnection) {
+    return { kind: 'polyline', points };
+  }
+
+  if (isBidirectional && points.length >= 4) {
+    return {
+      kind: 'cubic',
+      start: points[0],
+      control1: points[1],
+      control2: points[2],
+      end: points[3],
+    };
+  }
+
+  if (!isBidirectional && points.length >= 3) {
+    return {
+      kind: 'quadratic',
+      start: points[0],
+      control: points[1],
+      end: points[points.length - 1],
+    };
+  }
+
+  return { kind: 'polyline', points };
+}
+
+export function connectionGeometryToSvgPath(geometry: ConnectionRenderGeometry): string {
+  if (geometry.kind === 'polyline') {
+    if (geometry.points.length === 0) {
+      return '';
+    }
+
+    const [start, ...rest] = geometry.points;
+    return `M ${start.x} ${start.y}${rest.map((point) => ` L ${point.x} ${point.y}`).join('')}`;
+  }
+
+  if (geometry.kind === 'quadratic') {
+    return `M ${geometry.start.x} ${geometry.start.y} Q ${geometry.control.x} ${geometry.control.y} ${geometry.end.x} ${geometry.end.y}`;
+  }
+
+  return `M ${geometry.start.x} ${geometry.start.y} C ${geometry.control1.x} ${geometry.control1.y} ${geometry.control2.x} ${geometry.control2.y} ${geometry.end.x} ${geometry.end.y}`;
+}
+
+function getQuadraticPoint(start: Point, control: Point, end: Point, t: number): Point {
+  const oneMinusT = 1 - t;
+  return {
+    x: (oneMinusT * oneMinusT * start.x) + (2 * oneMinusT * t * control.x) + (t * t * end.x),
+    y: (oneMinusT * oneMinusT * start.y) + (2 * oneMinusT * t * control.y) + (t * t * end.y),
+  };
+}
+
+function getQuadraticTangent(start: Point, control: Point, end: Point, t: number): Point {
+  return {
+    x: (2 * (1 - t) * (control.x - start.x)) + (2 * t * (end.x - control.x)),
+    y: (2 * (1 - t) * (control.y - start.y)) + (2 * t * (end.y - control.y)),
+  };
+}
+
+function getCubicPoint(start: Point, control1: Point, control2: Point, end: Point, t: number): Point {
+  const oneMinusT = 1 - t;
+  return {
+    x: (oneMinusT ** 3 * start.x)
+      + (3 * oneMinusT * oneMinusT * t * control1.x)
+      + (3 * oneMinusT * t * t * control2.x)
+      + (t ** 3 * end.x),
+    y: (oneMinusT ** 3 * start.y)
+      + (3 * oneMinusT * oneMinusT * t * control1.y)
+      + (3 * oneMinusT * t * t * control2.y)
+      + (t ** 3 * end.y),
+  };
+}
+
+function getCubicTangent(start: Point, control1: Point, control2: Point, end: Point, t: number): Point {
+  const oneMinusT = 1 - t;
+  return {
+    x: (3 * oneMinusT * oneMinusT * (control1.x - start.x))
+      + (6 * oneMinusT * t * (control2.x - control1.x))
+      + (3 * t * t * (end.x - control2.x)),
+    y: (3 * oneMinusT * oneMinusT * (control1.y - start.y))
+      + (6 * oneMinusT * t * (control2.y - control1.y))
+      + (3 * t * t * (end.y - control2.y)),
+  };
+}
+
+function getCurvePointAtT(geometry: Exclude<ConnectionRenderGeometry, { kind: 'polyline' }>, t: number): Point {
+  if (geometry.kind === 'quadratic') {
+    return getQuadraticPoint(geometry.start, geometry.control, geometry.end, t);
+  }
+
+  return getCubicPoint(geometry.start, geometry.control1, geometry.control2, geometry.end, t);
+}
+
+function getCurveTangentAtT(geometry: Exclude<ConnectionRenderGeometry, { kind: 'polyline' }>, t: number): Point {
+  if (geometry.kind === 'quadratic') {
+    return getQuadraticTangent(geometry.start, geometry.control, geometry.end, t);
+  }
+
+  return getCubicTangent(geometry.start, geometry.control1, geometry.control2, geometry.end, t);
+}
+
+function getPolylineLength(points: readonly Point[]): number {
+  let total = 0;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    total += Math.hypot(points[index + 1].x - points[index].x, points[index + 1].y - points[index].y);
+  }
+  return total;
+}
+
+function getCurveLengthTable(geometry: Exclude<ConnectionRenderGeometry, { kind: 'polyline' }>, steps: number = 48): {
+  readonly ts: readonly number[];
+  readonly lengths: readonly number[];
+  readonly totalLength: number;
+} {
+  const ts: number[] = [0];
+  const lengths: number[] = [0];
+  let totalLength = 0;
+  let previous = getCurvePointAtT(geometry, 0);
+
+  for (let index = 1; index <= steps; index += 1) {
+    const t = index / steps;
+    const point = getCurvePointAtT(geometry, t);
+    totalLength += Math.hypot(point.x - previous.x, point.y - previous.y);
+    ts.push(t);
+    lengths.push(totalLength);
+    previous = point;
+  }
+
+  return { ts, lengths, totalLength };
+}
+
+function getCurveTAtArcFraction(geometry: Exclude<ConnectionRenderGeometry, { kind: 'polyline' }>, fraction: number): number {
+  const clampedFraction = Math.min(1, Math.max(0, fraction));
+  const table = getCurveLengthTable(geometry);
+  if (table.totalLength === 0) {
+    return 0;
+  }
+
+  const targetLength = table.totalLength * clampedFraction;
+
+  for (let index = 1; index < table.lengths.length; index += 1) {
+    const previousLength = table.lengths[index - 1];
+    const currentLength = table.lengths[index];
+
+    if (currentLength < targetLength) {
+      continue;
+    }
+
+    const previousT = table.ts[index - 1];
+    const currentT = table.ts[index];
+    const span = currentLength - previousLength;
+    const ratio = span === 0 ? 0 : (targetLength - previousLength) / span;
+    return previousT + ((currentT - previousT) * ratio);
+  }
+
+  return 1;
+}
+
+export function getConnectionGeometryLength(geometry: ConnectionRenderGeometry): number {
+  if (geometry.kind === 'polyline') {
+    return getPolylineLength(geometry.points);
+  }
+
+  return getCurveLengthTable(geometry).totalLength;
+}
+
+export function sampleConnectionGeometryAtFraction(
+  geometry: ConnectionRenderGeometry,
+  fraction: number,
+): { point: Point; tangent: Point } | null {
+  const clampedFraction = Math.min(1, Math.max(0, fraction));
+
+  if (geometry.kind === 'polyline') {
+    const totalLength = getPolylineLength(geometry.points);
+    if (geometry.points.length === 0) {
+      return null;
+    }
+    if (geometry.points.length === 1 || totalLength === 0) {
+      return { point: geometry.points[0], tangent: { x: 1, y: 0 } };
+    }
+
+    const targetLength = totalLength * clampedFraction;
+    let traversed = 0;
+
+    for (let index = 0; index < geometry.points.length - 1; index += 1) {
+      const start = geometry.points[index];
+      const end = geometry.points[index + 1];
+      const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+      if (segmentLength === 0) {
+        continue;
+      }
+
+      if (traversed + segmentLength >= targetLength) {
+        const segmentFraction = (targetLength - traversed) / segmentLength;
+        return {
+          point: {
+            x: start.x + ((end.x - start.x) * segmentFraction),
+            y: start.y + ((end.y - start.y) * segmentFraction),
+          },
+          tangent: {
+            x: end.x - start.x,
+            y: end.y - start.y,
+          },
+        };
+      }
+
+      traversed += segmentLength;
+    }
+
+    const start = geometry.points[geometry.points.length - 2];
+    const end = geometry.points[geometry.points.length - 1];
+    return {
+      point: end,
+      tangent: {
+        x: end.x - start.x,
+        y: end.y - start.y,
+      },
+    };
+  }
+
+  const t = getCurveTAtArcFraction(geometry, clampedFraction);
+  return {
+    point: getCurvePointAtT(geometry, t),
+    tangent: getCurveTangentAtT(geometry, t),
+  };
+}
+
+export function computeGeometryArrowheadPoints(
+  geometry: ConnectionRenderGeometry,
+  arrowLength: number = DEFAULT_ARROW_LENGTH,
+  arrowWidth: number = DEFAULT_ARROW_WIDTH,
+): Point[][] {
+  if (geometry.kind === 'polyline') {
+    return computeSegmentArrowheadPoints([...geometry.points], arrowLength, arrowWidth);
+  }
+
+  return DEFAULT_ARROW_FRACTIONS.flatMap((fraction) => {
+    const sample = sampleConnectionGeometryAtFraction(geometry, fraction);
+    if (!sample) {
+      return [];
+    }
+
+    const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
+    if (tangentLength === 0) {
+      return [];
+    }
+
+    const ux = sample.tangent.x / tangentLength;
+    const uy = sample.tangent.y / tangentLength;
+    const px = -uy;
+    const py = ux;
+    const halfArrowLength = arrowLength / 2;
+    const halfArrowWidth = arrowWidth / 2;
+    const tip = {
+      x: sample.point.x + (ux * halfArrowLength),
+      y: sample.point.y + (uy * halfArrowLength),
+    };
+    const baseCenter = {
+      x: sample.point.x - (ux * halfArrowLength),
+      y: sample.point.y - (uy * halfArrowLength),
+    };
+
+    return [[
+      tip,
+      {
+        x: baseCenter.x + (px * halfArrowWidth),
+        y: baseCenter.y + (py * halfArrowWidth),
+      },
+      {
+        x: baseCenter.x - (px * halfArrowWidth),
+        y: baseCenter.y - (py * halfArrowWidth),
+      },
+    ]];
+  });
 }
