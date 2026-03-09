@@ -3,7 +3,7 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
-import { createEmptyMap, createStickyNote } from '../../src/domain/map-types';
+import { createEmptyMap, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import { addRoom, addConnection } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
@@ -332,7 +332,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
-      useEditorStore.getState().selectRoom(room.id);
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
 
       render(<MapCanvas mapName="Test" />);
 
@@ -939,7 +941,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
-      useEditorStore.getState().selectRoom(room.id);
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
 
       render(<MapCanvas mapName="Test" />);
 
@@ -1317,8 +1321,36 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('sticky-note-link-preview')).toBeInTheDocument();
       fireEvent.mouseUp(roomNode, { clientX: 260, clientY: 140, button: 0 });
 
+      const stickyNoteLinkId = Object.keys(useEditorStore.getState().doc!.stickyNoteLinks)[0];
       expect(Object.values(useEditorStore.getState().doc!.stickyNoteLinks)).toHaveLength(1);
-      expect(screen.getByTestId(/^sticky-note-link-/)).toBeInTheDocument();
+      expect(screen.getByTestId(`sticky-note-link-${stickyNoteLinkId}`)).toBeInTheDocument();
+    });
+
+    it('shift-clicking a sticky-note link adds it to a mixed selection', () => {
+      const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
+      const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
+      let doc = addRoom(createEmptyMap('Test'), room);
+      doc = {
+        ...doc,
+        stickyNotes: { [stickyNote.id]: stickyNote },
+      };
+      const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
+      doc = {
+        ...doc,
+        stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+      };
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+      fireEvent.click(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`), { shiftKey: true });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([room.id]);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([stickyNoteLink.id]);
+      expect(screen.getByTestId(`sticky-note-link-selection-${stickyNoteLink.id}`)).toBeInTheDocument();
     });
 
     it('grows vertically as note text grows', async () => {
@@ -1339,6 +1371,28 @@ describe('MapCanvas', () => {
       await user.type(screen.getByTestId('sticky-note-textarea'), '\nA second line of text that should make the note taller.');
 
       expect(noteElement.style.minHeight).not.toBe(initialMinHeight);
+    });
+
+    it('drags other selected rooms in parallel when dragging a selected sticky note', () => {
+      const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
+      const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument({
+        ...addRoom(createEmptyMap('Test'), room),
+        stickyNotes: { [stickyNote.id]: stickyNote },
+      });
+      useEditorStore.getState().setSelection([room.id], [stickyNote.id], [], []);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const note = screen.getByTestId('sticky-note');
+
+      fireEvent.mouseDown(note, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180, button: 0 });
+
+      const nextDoc = useEditorStore.getState().doc!;
+      expect(nextDoc.stickyNotes[stickyNote.id].position).toEqual({ x: 160, y: 160 });
+      expect(nextDoc.rooms[room.id].position).toEqual({ x: 320, y: 160 });
     });
   });
 

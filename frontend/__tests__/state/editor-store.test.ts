@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { createEmptyMap, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import type { MapDocument, Position } from '../../src/domain/map-types';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { addConnection, addRoom, addStickyNote, addStickyNoteLink } from '../../src/domain/map-operations';
 import { createConnection } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 import { getBackgroundChunkKey, loadBackgroundChunk, saveBackgroundChunks } from '../../src/storage/map-store';
@@ -395,7 +395,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().selectRoom('r1');
       useEditorStore.getState().addConnectionToSelection('c1');
 
-      useEditorStore.getState().setSelection(['r2'], [], ['c2', 'c3']);
+      useEditorStore.getState().setSelection(['r2'], [], ['c2', 'c3'], []);
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['r2']);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual(['c2', 'c3']);
@@ -434,14 +434,85 @@ describe('useEditorStore', () => {
     });
 
     it('clears connection and mixed selections', () => {
-      useEditorStore.getState().setSelection(['r1'], [], ['c1']);
+      useEditorStore.getState().setSelection(['r1'], [], ['c1'], []);
       useEditorStore.getState().clearConnectionSelection();
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
 
-      useEditorStore.getState().setSelection(['r1'], [], ['c1']);
+      useEditorStore.getState().setSelection(['r1'], [], ['c1'], []);
       useEditorStore.getState().clearSelection();
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+    });
+  });
+
+  describe('sticky-note link selection', () => {
+    it('selectStickyNoteLink replaces the current selection with one sticky-note link', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addConnectionToSelection('c1');
+
+      useEditorStore.getState().selectStickyNoteLink('sl1');
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual(['sl1']);
+    });
+
+    it('addStickyNoteLinkToSelection appends without clearing other selected entities', () => {
+      useEditorStore.getState().selectRoom('r1');
+
+      useEditorStore.getState().addStickyNoteLinkToSelection('sl1');
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['r1']);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual(['sl1']);
+    });
+
+    it('removeSelectedStickyNoteLinks removes selected sticky-note links from the document', () => {
+      const room = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+      const stickyNote = { ...createStickyNote('Check desk'), position: { x: 120, y: 0 } };
+      let doc = addRoom(testDoc, room);
+      doc = addStickyNote(doc, stickyNote);
+      doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room.id));
+      const stickyNoteLinkId = Object.keys(doc.stickyNoteLinks)[0];
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().selectStickyNoteLink(stickyNoteLinkId);
+
+      useEditorStore.getState().removeSelectedStickyNoteLinks();
+
+      expect(useEditorStore.getState().doc!.stickyNoteLinks[stickyNoteLinkId]).toBeUndefined();
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+    });
+
+    it('removeSelectedEntities deletes mixed selected entities in one step', async () => {
+      const roomA = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+      const roomB = { ...createRoom('Hallway'), position: { x: 120, y: 0 } };
+      const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 0 } };
+      let doc = addRoom(testDoc, roomA);
+      doc = addRoom(doc, roomB);
+      doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
+      doc = addStickyNote(doc, stickyNote);
+      doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, roomB.id));
+      const connectionId = Object.keys(doc.connections)[0];
+      const stickyNoteLinkId = Object.keys(doc.stickyNoteLinks)[0];
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().setSelection([roomA.id], [stickyNote.id], [connectionId], [stickyNoteLinkId]);
+
+      useEditorStore.getState().removeSelectedEntities();
+
+      expect(useEditorStore.getState().doc!.rooms[roomA.id]).toBeUndefined();
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNote.id]).toBeUndefined();
+      expect(useEditorStore.getState().doc!.connections[connectionId]).toBeUndefined();
+      expect(useEditorStore.getState().doc!.stickyNoteLinks[stickyNoteLinkId]).toBeUndefined();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+
+      await useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().doc!.rooms[roomA.id]).toBeDefined();
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNote.id]).toBeDefined();
+      expect(useEditorStore.getState().doc!.connections[connectionId]).toBeDefined();
+      expect(useEditorStore.getState().doc!.stickyNoteLinks[stickyNoteLinkId]).toBeDefined();
     });
   });
 
@@ -655,15 +726,16 @@ describe('useEditorStore', () => {
   /* ---- room drag ---- */
 
   describe('room drag', () => {
-    it('starts with roomDrag as null', () => {
-      expect(useEditorStore.getState().roomDrag).toBeNull();
+    it('starts with selectionDrag as null', () => {
+      expect(useEditorStore.getState().selectionDrag).toBeNull();
     });
 
     it('startRoomDrag uses only the dragged room when it is not selected', () => {
       useEditorStore.getState().startRoomDrag('r1');
 
-      expect(useEditorStore.getState().roomDrag).toEqual({
+      expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1'],
+        stickyNoteIds: [],
         dx: 0,
         dy: 0,
       });
@@ -675,8 +747,22 @@ describe('useEditorStore', () => {
 
       useEditorStore.getState().startRoomDrag('r1');
 
-      expect(useEditorStore.getState().roomDrag).toEqual({
+      expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1', 'r2'],
+        stickyNoteIds: [],
+        dx: 0,
+        dy: 0,
+      });
+    });
+
+    it('startRoomDrag carries selected sticky notes for mixed dragging', () => {
+      useEditorStore.getState().selectRoom('r1');
+      useEditorStore.getState().addStickyNoteToSelection('s1');
+      useEditorStore.getState().startRoomDrag('r1');
+
+      expect(useEditorStore.getState().selectionDrag).toEqual({
+        roomIds: ['r1'],
+        stickyNoteIds: ['s1'],
         dx: 0,
         dy: 0,
       });
@@ -684,11 +770,11 @@ describe('useEditorStore', () => {
 
     it('updateRoomDrag updates the shared drag delta', () => {
       useEditorStore.getState().startRoomDrag('r1');
-
       useEditorStore.getState().updateRoomDrag(40, 20);
 
-      expect(useEditorStore.getState().roomDrag).toEqual({
+      expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1'],
+        stickyNoteIds: [],
         dx: 40,
         dy: 20,
       });
@@ -699,7 +785,7 @@ describe('useEditorStore', () => {
 
       useEditorStore.getState().endRoomDrag();
 
-      expect(useEditorStore.getState().roomDrag).toBeNull();
+      expect(useEditorStore.getState().selectionDrag).toBeNull();
     });
   });
 
@@ -916,8 +1002,8 @@ describe('useEditorStore', () => {
   /* ---- room drag ---- */
 
   describe('room drag', () => {
-    it('starts with roomDrag as null', () => {
-      expect(useEditorStore.getState().roomDrag).toBeNull();
+    it('starts with selectionDrag as null', () => {
+      expect(useEditorStore.getState().selectionDrag).toBeNull();
     });
 
     it('startRoomDrag sets the drag state with zero offset', () => {
@@ -925,7 +1011,7 @@ describe('useEditorStore', () => {
       const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
       useEditorStore.getState().startRoomDrag(roomId);
 
-      expect(useEditorStore.getState().roomDrag).toEqual({ roomIds: [roomId], dx: 0, dy: 0 });
+      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], stickyNoteIds: [], dx: 0, dy: 0 });
     });
 
     it('updateRoomDrag updates the offset', () => {
@@ -934,7 +1020,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startRoomDrag(roomId);
       useEditorStore.getState().updateRoomDrag(30, 40);
 
-      expect(useEditorStore.getState().roomDrag).toEqual({ roomIds: [roomId], dx: 30, dy: 40 });
+      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], stickyNoteIds: [], dx: 30, dy: 40 });
     });
 
     it('endRoomDrag clears the drag state', () => {
@@ -943,7 +1029,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startRoomDrag(roomId);
       useEditorStore.getState().endRoomDrag();
 
-      expect(useEditorStore.getState().roomDrag).toBeNull();
+      expect(useEditorStore.getState().selectionDrag).toBeNull();
     });
   });
 });

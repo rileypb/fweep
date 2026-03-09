@@ -80,12 +80,13 @@ export function MapCanvasRoomNode({
   const startRoomDrag = useEditorStore((s) => s.startRoomDrag);
   const updateRoomDrag = useEditorStore((s) => s.updateRoomDrag);
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
-  const roomDrag = useEditorStore((s) => s.roomDrag);
+  const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
+  const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
 
-  const isDragging = roomDrag !== null && roomDrag.roomIds.includes(room.id);
-  const dragOffset = isDragging ? roomDrag : null;
+  const isDragging = selectionDrag !== null && selectionDrag.roomIds.includes(room.id);
+  const dragOffset = isDragging ? selectionDrag : null;
   const visualX = dragOffset ? room.position.x + dragOffset.dx : room.position.x;
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
   const roomWidth = getRoomNodeWidth(room.name);
@@ -107,10 +108,6 @@ export function MapCanvasRoomNode({
 
       const startX = e.clientX;
       const startY = e.clientY;
-      const draggedRoomIds = isSelected
-        ? useEditorStore.getState().selectedRoomIds
-        : [room.id];
-
       startRoomDrag(room.id);
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
@@ -125,11 +122,12 @@ export function MapCanvasRoomNode({
 
         const dx = upEvent.clientX - startX;
         const dy = upEvent.clientY - startY;
+        const dragSelection = useEditorStore.getState().selectionDrag;
         endRoomDrag();
 
         if (dx !== 0 || dy !== 0) {
-          const nextPositions = Object.fromEntries(
-            draggedRoomIds.flatMap((draggedRoomId) => {
+          const nextRoomPositions = Object.fromEntries(
+            (dragSelection?.roomIds ?? []).flatMap((draggedRoomId) => {
               const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
               if (!draggedRoom) {
                 return [];
@@ -141,7 +139,22 @@ export function MapCanvasRoomNode({
               }]];
             }),
           );
-          moveRooms(nextPositions);
+          const nextStickyNotePositions = Object.fromEntries(
+            (dragSelection?.stickyNoteIds ?? []).flatMap((draggedStickyNoteId) => {
+              const draggedStickyNote = useEditorStore.getState().doc?.stickyNotes[draggedStickyNoteId];
+              if (!draggedStickyNote) {
+                return [];
+              }
+
+              return [[draggedStickyNoteId, {
+                x: draggedStickyNote.position.x + dx,
+                y: draggedStickyNote.position.y + dy,
+              }]];
+            }),
+          );
+
+          moveRooms(nextRoomPositions);
+          moveStickyNotes(nextStickyNotePositions);
         } else if (upEvent.shiftKey) {
           addRoomToSelection(room.id);
         } else {
@@ -152,7 +165,7 @@ export function MapCanvasRoomNode({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, isSelected, moveRooms, room.id, selectRoom, startRoomDrag, updateRoomDrag],
+    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveRooms, moveStickyNotes, room.id, selectRoom, startRoomDrag, updateRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(

@@ -38,16 +38,17 @@ export function MapCanvasStickyNote({
   const updateStickyNoteDrag = useEditorStore((s) => s.updateStickyNoteDrag);
   const endStickyNoteDrag = useEditorStore((s) => s.endStickyNoteDrag);
   const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
-  const stickyNoteDrag = useEditorStore((s) => s.stickyNoteDrag);
+  const moveRooms = useEditorStore((s) => s.moveRooms);
+  const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const startStickyNoteLinkDrag = useEditorStore((s) => s.startStickyNoteLinkDrag);
   const updateStickyNoteLinkDrag = useEditorStore((s) => s.updateStickyNoteLinkDrag);
   const completeStickyNoteLinkDrag = useEditorStore((s) => s.completeStickyNoteLinkDrag);
   const cancelStickyNoteLinkDrag = useEditorStore((s) => s.cancelStickyNoteLinkDrag);
 
   const height = getStickyNoteHeight(stickyNote.text);
-  const isDragging = stickyNoteDrag !== null && stickyNoteDrag.stickyNoteIds.includes(stickyNote.id);
-  const visualX = stickyNote.position.x + (isDragging ? stickyNoteDrag.dx : 0);
-  const visualY = stickyNote.position.y + (isDragging ? stickyNoteDrag.dy : 0);
+  const isDragging = selectionDrag !== null && selectionDrag.stickyNoteIds.includes(stickyNote.id);
+  const visualX = stickyNote.position.x + (isDragging ? selectionDrag.dx : 0);
+  const visualY = stickyNote.position.y + (isDragging ? selectionDrag.dy : 0);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -134,18 +135,8 @@ export function MapCanvasStickyNote({
             return;
           }
 
-          if (event.shiftKey) {
-            addStickyNoteToSelection(stickyNote.id);
-          } else {
-            selectStickyNote(stickyNote.id);
-          }
-
           const startX = event.clientX;
           const startY = event.clientY;
-          const draggedStickyNoteIds = isSelected
-            ? useEditorStore.getState().selectedStickyNoteIds
-            : [stickyNote.id];
-
           startStickyNoteDrag(stickyNote.id);
 
           const handleMouseMove = (moveEvent: MouseEvent) => {
@@ -158,11 +149,12 @@ export function MapCanvasStickyNote({
 
             const dx = upEvent.clientX - startX;
             const dy = upEvent.clientY - startY;
+            const dragSelection = useEditorStore.getState().selectionDrag;
             endStickyNoteDrag();
 
             if (dx !== 0 || dy !== 0) {
-              const nextPositions = Object.fromEntries(
-                draggedStickyNoteIds.flatMap((draggedStickyNoteId) => {
+              const nextStickyNotePositions = Object.fromEntries(
+                (dragSelection?.stickyNoteIds ?? []).flatMap((draggedStickyNoteId) => {
                   const draggedStickyNote = useEditorStore.getState().doc?.stickyNotes[draggedStickyNoteId];
                   if (!draggedStickyNote) {
                     return [];
@@ -174,7 +166,21 @@ export function MapCanvasStickyNote({
                   }]];
                 }),
               );
-              moveStickyNotes(nextPositions);
+              const nextRoomPositions = Object.fromEntries(
+                (dragSelection?.roomIds ?? []).flatMap((draggedRoomId) => {
+                  const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
+                  if (!draggedRoom) {
+                    return [];
+                  }
+
+                  return [[draggedRoomId, {
+                    x: draggedRoom.position.x + dx,
+                    y: draggedRoom.position.y + dy,
+                  }]];
+                }),
+              );
+              moveStickyNotes(nextStickyNotePositions);
+              moveRooms(nextRoomPositions);
             } else if (upEvent.shiftKey) {
               addStickyNoteToSelection(stickyNote.id);
             } else {

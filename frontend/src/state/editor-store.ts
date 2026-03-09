@@ -11,6 +11,7 @@ import {
   deleteRoom as domainDeleteRoom,
   deleteConnection as domainDeleteConnection,
   deleteStickyNote as domainDeleteStickyNote,
+  deleteStickyNoteLink as domainDeleteStickyNoteLink,
   moveRoom as domainMoveRoom,
   moveStickyNote as domainMoveStickyNote,
   describeRoom as domainDescribeRoom,
@@ -69,6 +70,13 @@ export interface RoomDrag {
 }
 
 export interface StickyNoteDrag {
+  readonly stickyNoteIds: readonly string[];
+  readonly dx: number;
+  readonly dy: number;
+}
+
+export interface SelectionDrag {
+  readonly roomIds: readonly string[];
   readonly stickyNoteIds: readonly string[];
   readonly dx: number;
   readonly dy: number;
@@ -147,6 +155,9 @@ export interface EditorState {
   /** The currently selected connection IDs. */
   selectedConnectionIds: readonly string[];
 
+  /** The currently selected sticky-note link IDs. */
+  selectedStickyNoteLinkIds: readonly string[];
+
   /** Whether room movement and placement snap to the grid. */
   snapToGridEnabled: boolean;
 
@@ -165,11 +176,8 @@ export interface EditorState {
   /** Active sticky-note link drag state, or null when not dragging. */
   stickyNoteLinkDrag: StickyNoteLinkDrag | null;
 
-  /** Active room drag state, or null when not dragging a room. */
-  roomDrag: RoomDrag | null;
-
-  /** Active sticky note drag state, or null when not dragging a sticky note. */
-  stickyNoteDrag: StickyNoteDrag | null;
+  /** Active mixed node drag state, or null when not dragging selected rooms/notes. */
+  selectionDrag: SelectionDrag | null;
 
   /** Draft region currently being dragged for export. */
   exportRegionDraft: ExportRegionDraft | null;
@@ -262,6 +270,12 @@ export interface EditorState {
   /** Delete all currently selected connections. */
   removeSelectedConnections: () => void;
 
+  /** Delete all currently selected sticky-note links. */
+  removeSelectedStickyNoteLinks: () => void;
+
+  /** Delete all currently selected entities in a single history step. */
+  removeSelectedEntities: () => void;
+
   /** Replace the current room selection with a single room. */
   selectRoom: (roomId: string) => void;
 
@@ -270,6 +284,9 @@ export interface EditorState {
 
   /** Replace the current selection with a single sticky note. */
   selectStickyNote: (stickyNoteId: string) => void;
+
+  /** Replace the current selection with a single sticky-note link. */
+  selectStickyNoteLink: (stickyNoteLinkId: string) => void;
 
   /** Add a connection to the current selection. */
   addConnectionToSelection: (connectionId: string) => void;
@@ -280,14 +297,22 @@ export interface EditorState {
   /** Add a sticky note to the current selection. */
   addStickyNoteToSelection: (stickyNoteId: string) => void;
 
+  /** Add a sticky-note link to the current selection. */
+  addStickyNoteLinkToSelection: (stickyNoteLinkId: string) => void;
+
   /** Replace the current selection with the provided room IDs. */
   setSelectedRoomIds: (roomIds: readonly string[]) => void;
 
   /** Replace the current selection with the provided sticky note IDs. */
   setSelectedStickyNoteIds: (stickyNoteIds: readonly string[]) => void;
 
-  /** Replace the current selection with the provided room and connection IDs. */
-  setSelection: (roomIds: readonly string[], stickyNoteIds: readonly string[], connectionIds: readonly string[]) => void;
+  /** Replace the current selection with the provided entity IDs. */
+  setSelection: (
+    roomIds: readonly string[],
+    stickyNoteIds: readonly string[],
+    connectionIds: readonly string[],
+    stickyNoteLinkIds: readonly string[],
+  ) => void;
 
   /** Clear the current room selection. */
   clearRoomSelection: () => void;
@@ -449,6 +474,17 @@ function filterConnectionSelectionForDoc(doc: MapDocument | null, selectedConnec
   return selectedConnectionIds.filter((connectionId) => connectionId in doc.connections);
 }
 
+function filterStickyNoteLinkSelectionForDoc(
+  doc: MapDocument | null,
+  selectedStickyNoteLinkIds: readonly string[],
+): readonly string[] {
+  if (!doc) {
+    return [];
+  }
+
+  return selectedStickyNoteLinkIds.filter((stickyNoteLinkId) => stickyNoteLinkId in doc.stickyNoteLinks);
+}
+
 function pushHistoryEntry(
   currentState: EditorState,
   entry: EditorHistoryEntry,
@@ -524,14 +560,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedRoomIds: [],
   selectedStickyNoteIds: [],
   selectedConnectionIds: [],
+  selectedStickyNoteLinkIds: [],
   snapToGridEnabled: true,
   showGridEnabled: true,
   useBezierConnectionsEnabled: false,
   mapPanOffset: { x: 0, y: 0 },
   connectionDrag: null,
   stickyNoteLinkDrag: null,
-  roomDrag: null,
-  stickyNoteDrag: null,
+  selectionDrag: null,
   exportRegionDraft: null,
   exportRegion: null,
   drawingToolState: {
@@ -564,14 +600,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectedRoomIds: [],
     selectedStickyNoteIds: [],
     selectedConnectionIds: [],
+    selectedStickyNoteLinkIds: [],
     snapToGridEnabled: doc.view.snapToGrid,
     showGridEnabled: doc.view.showGrid,
     useBezierConnectionsEnabled: doc.view.useBezierConnections,
     mapPanOffset: doc.view.pan,
     connectionDrag: null,
     stickyNoteLinkDrag: null,
-    roomDrag: null,
-    stickyNoteDrag: null,
+    selectionDrag: null,
     exportRegionDraft: null,
     exportRegion: null,
     canvasInteractionMode: 'map',
@@ -589,14 +625,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectedRoomIds: [],
     selectedStickyNoteIds: [],
     selectedConnectionIds: [],
+    selectedStickyNoteLinkIds: [],
     snapToGridEnabled: true,
     showGridEnabled: true,
     useBezierConnectionsEnabled: false,
     mapPanOffset: { x: 0, y: 0 },
     connectionDrag: null,
     stickyNoteLinkDrag: null,
-    roomDrag: null,
-    stickyNoteDrag: null,
+    selectionDrag: null,
     exportRegionDraft: null,
     exportRegion: null,
     canvasInteractionMode: 'map',
@@ -612,6 +648,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedRoomIds,
       selectedStickyNoteIds,
       selectedConnectionIds,
+      selectedStickyNoteLinkIds,
     } = get();
     if (!doc || pastEntries.length === 0) {
       return;
@@ -631,10 +668,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
         selectedStickyNoteIds: filterStickyNoteSelectionForDoc(nextDoc, selectedStickyNoteIds),
         selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
+        selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, selectedStickyNoteLinkIds),
         connectionDrag: null,
         stickyNoteLinkDrag: null,
-        roomDrag: null,
-        stickyNoteDrag: null,
+        selectionDrag: null,
         exportRegionDraft: null,
         activeStroke: null,
       });
@@ -650,8 +687,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       stickyNoteLinkDrag: null,
-      roomDrag: null,
-      stickyNoteDrag: null,
+      selectionDrag: null,
       exportRegionDraft: null,
       activeStroke: null,
       backgroundRevision: state.backgroundRevision + 1,
@@ -666,6 +702,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedRoomIds,
       selectedStickyNoteIds,
       selectedConnectionIds,
+      selectedStickyNoteLinkIds,
     } = get();
     if (!doc || futureEntries.length === 0) {
       return;
@@ -685,10 +722,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
         selectedStickyNoteIds: filterStickyNoteSelectionForDoc(patchedNextDoc, selectedStickyNoteIds),
         selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
+        selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(patchedNextDoc, selectedStickyNoteLinkIds),
         connectionDrag: null,
         stickyNoteLinkDrag: null,
-        roomDrag: null,
-        stickyNoteDrag: null,
+        selectionDrag: null,
         exportRegionDraft: null,
         activeStroke: null,
       });
@@ -704,8 +741,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       stickyNoteLinkDrag: null,
-      roomDrag: null,
-      stickyNoteDrag: null,
+      selectionDrag: null,
       exportRegionDraft: null,
       activeStroke: null,
       backgroundRevision: state.backgroundRevision + 1,
@@ -821,6 +857,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
       selectedConnectionIds: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionIds),
+      selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(updatedDoc, state.selectedStickyNoteLinkIds),
     }));
   },
 
@@ -839,6 +876,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: [],
       selectedConnectionIds: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionIds),
+      selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(updatedDoc, state.selectedStickyNoteLinkIds),
     }));
   },
 
@@ -856,6 +894,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedStickyNoteIds: [],
+      selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(updatedDoc, state.selectedStickyNoteLinkIds),
     }));
   },
 
@@ -876,16 +915,101 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
+  removeSelectedStickyNoteLinks: () => {
+    const { doc, selectedStickyNoteLinkIds } = get();
+    if (!doc) {
+      throw new Error('Cannot remove selected sticky-note links: no document is loaded.');
+    }
+
+    const updatedDoc = selectedStickyNoteLinkIds.reduce(
+      (nextDoc, stickyNoteLinkId) => domainDeleteStickyNoteLink(nextDoc, stickyNoteLinkId),
+      doc,
+    );
+
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedStickyNoteLinkIds: [],
+    }));
+  },
+
+  removeSelectedEntities: () => {
+    const {
+      doc,
+      selectedRoomIds,
+      selectedStickyNoteIds,
+      selectedConnectionIds,
+      selectedStickyNoteLinkIds,
+    } = get();
+    if (!doc) {
+      throw new Error('Cannot remove selected entities: no document is loaded.');
+    }
+
+    let updatedDoc = selectedRoomIds.reduce(
+      (nextDoc, roomId) => (nextDoc.rooms[roomId] ? domainDeleteRoom(nextDoc, roomId) : nextDoc),
+      doc,
+    );
+    updatedDoc = selectedStickyNoteIds.reduce(
+      (nextDoc, stickyNoteId) => (nextDoc.stickyNotes[stickyNoteId] ? domainDeleteStickyNote(nextDoc, stickyNoteId) : nextDoc),
+      updatedDoc,
+    );
+    updatedDoc = selectedConnectionIds.reduce(
+      (nextDoc, connectionId) => (nextDoc.connections[connectionId] ? domainDeleteConnection(nextDoc, connectionId) : nextDoc),
+      updatedDoc,
+    );
+    updatedDoc = selectedStickyNoteLinkIds.reduce(
+      (nextDoc, stickyNoteLinkId) => (
+        nextDoc.stickyNoteLinks[stickyNoteLinkId] ? domainDeleteStickyNoteLink(nextDoc, stickyNoteLinkId) : nextDoc
+      ),
+      updatedDoc,
+    );
+
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+    }));
+  },
+
   selectRoom: (roomId) => {
-    set({ selectedRoomIds: [roomId], selectedStickyNoteIds: [], selectedConnectionIds: [], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [roomId],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
   },
 
   selectConnection: (connectionId) => {
-    set({ selectedRoomIds: [], selectedStickyNoteIds: [], selectedConnectionIds: [connectionId], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connectionId],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
   },
 
   selectStickyNote: (stickyNoteId) => {
-    set({ selectedRoomIds: [], selectedStickyNoteIds: [stickyNoteId], selectedConnectionIds: [], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [stickyNoteId],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  selectStickyNoteLink: (stickyNoteLinkId) => {
+    set({
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [stickyNoteLinkId],
+      lastHistoryMergeKey: null,
+    });
   },
 
   addRoomToSelection: (roomId) => {
@@ -915,19 +1039,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
+  addStickyNoteLinkToSelection: (stickyNoteLinkId) => {
+    set((state) => ({
+      lastHistoryMergeKey: null,
+      selectedStickyNoteLinkIds: state.selectedStickyNoteLinkIds.includes(stickyNoteLinkId)
+        ? state.selectedStickyNoteLinkIds
+        : [...state.selectedStickyNoteLinkIds, stickyNoteLinkId],
+    }));
+  },
+
   setSelectedRoomIds: (roomIds) => {
-    set({ selectedRoomIds: [...roomIds], selectedStickyNoteIds: [], selectedConnectionIds: [], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [...roomIds],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
   },
 
   setSelectedStickyNoteIds: (stickyNoteIds) => {
-    set({ selectedRoomIds: [], selectedStickyNoteIds: [...stickyNoteIds], selectedConnectionIds: [], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [...stickyNoteIds],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
   },
 
-  setSelection: (roomIds, stickyNoteIds, connectionIds) => {
+  setSelection: (roomIds, stickyNoteIds, connectionIds, stickyNoteLinkIds) => {
     set({
       selectedRoomIds: [...roomIds],
       selectedStickyNoteIds: [...stickyNoteIds],
       selectedConnectionIds: [...connectionIds],
+      selectedStickyNoteLinkIds: [...stickyNoteLinkIds],
       lastHistoryMergeKey: null,
     });
   },
@@ -945,7 +1091,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearSelection: () => {
-    set({ selectedRoomIds: [], selectedStickyNoteIds: [], selectedConnectionIds: [], lastHistoryMergeKey: null });
+    set({
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
   },
 
   toggleSnapToGrid: () => {
@@ -1193,8 +1345,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startRoomDrag: (roomId) => {
     set((state) => ({
       lastHistoryMergeKey: null,
-      roomDrag: {
+      selectionDrag: {
         roomIds: state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId],
+        stickyNoteIds: state.selectedRoomIds.includes(roomId) ? state.selectedStickyNoteIds : [],
         dx: 0,
         dy: 0,
       },
@@ -1202,19 +1355,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateRoomDrag: (dx, dy) => {
-    const { roomDrag } = get();
-    if (!roomDrag) return;
-    set({ roomDrag: { ...roomDrag, dx, dy } });
+    const { selectionDrag } = get();
+    if (!selectionDrag) return;
+    set({ selectionDrag: { ...selectionDrag, dx, dy } });
   },
 
   endRoomDrag: () => {
-    set({ roomDrag: null, lastHistoryMergeKey: null });
+    set({ selectionDrag: null, lastHistoryMergeKey: null });
   },
 
   startStickyNoteDrag: (stickyNoteId) => {
     set((state) => ({
       lastHistoryMergeKey: null,
-      stickyNoteDrag: {
+      selectionDrag: {
+        roomIds: state.selectedStickyNoteIds.includes(stickyNoteId) ? state.selectedRoomIds : [],
         stickyNoteIds: state.selectedStickyNoteIds.includes(stickyNoteId) ? state.selectedStickyNoteIds : [stickyNoteId],
         dx: 0,
         dy: 0,
@@ -1223,16 +1377,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateStickyNoteDrag: (dx, dy) => {
-    const { stickyNoteDrag } = get();
-    if (!stickyNoteDrag) {
+    const { selectionDrag } = get();
+    if (!selectionDrag) {
       return;
     }
 
-    set({ stickyNoteDrag: { ...stickyNoteDrag, dx, dy } });
+    set({ selectionDrag: { ...selectionDrag, dx, dy } });
   },
 
   endStickyNoteDrag: () => {
-    set({ stickyNoteDrag: null, lastHistoryMergeKey: null });
+    set({ selectionDrag: null, lastHistoryMergeKey: null });
   },
 
   beginExportRegion: (start) => {

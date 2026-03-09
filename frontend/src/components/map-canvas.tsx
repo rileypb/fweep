@@ -93,7 +93,9 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
-  return Boolean(target?.closest('[data-room-id], [data-sticky-note-id], [data-connection-id], .map-drawing-toolbar, .map-canvas-actions'));
+  return Boolean(target?.closest(
+    '[data-room-id], [data-sticky-note-id], [data-connection-id], [data-sticky-note-link-id], .map-drawing-toolbar, .map-canvas-actions',
+  ));
 }
 
 function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
@@ -139,9 +141,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const updateExportRegion = useEditorStore((s) => s.updateExportRegion);
   const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
   const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
-  const removeSelectedRooms = useEditorStore((s) => s.removeSelectedRooms);
-  const removeSelectedStickyNotes = useEditorStore((s) => s.removeSelectedStickyNotes);
-  const removeSelectedConnections = useEditorStore((s) => s.removeSelectedConnections);
+  const removeSelectedEntities = useEditorStore((s) => s.removeSelectedEntities);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
@@ -785,6 +785,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
           [],
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
+          [],
         );
       };
 
@@ -956,15 +957,18 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      const { selectedConnectionIds: currentSelectedConnectionIds } = useEditorStore.getState();
-      if (selectedRoomIds.length === 0 && selectedStickyNoteIds.length === 0 && currentSelectedConnectionIds.length === 0) {
+      const { selectedConnectionIds: currentSelectedConnectionIds, selectedStickyNoteLinkIds: currentSelectedStickyNoteLinkIds } = useEditorStore.getState();
+      if (
+        selectedRoomIds.length === 0
+        && selectedStickyNoteIds.length === 0
+        && currentSelectedConnectionIds.length === 0
+        && currentSelectedStickyNoteLinkIds.length === 0
+      ) {
         return;
       }
 
       e.preventDefault();
-      removeSelectedRooms();
-      removeSelectedStickyNotes();
-      removeSelectedConnections();
+      removeSelectedEntities();
       return;
     }
 
@@ -994,7 +998,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedConnections, removeSelectedRooms, removeSelectedStickyNotes, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, undo]);
 
   const classes = [
     'map-canvas',
