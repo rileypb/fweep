@@ -92,7 +92,7 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
-  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-drawing-toolbar'));
+  return Boolean(target?.closest('[data-room-id], [data-connection-id], .map-drawing-toolbar, .map-canvas-actions'));
 }
 
 function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
@@ -1077,7 +1077,18 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
             })()}
           />
         )}
-        <div className="map-canvas-actions">
+        <div
+          className="map-canvas-actions"
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
           <UndoButton />
           <RedoButton />
           <PrettifyButton />

@@ -174,6 +174,20 @@ describe('MapCanvas', () => {
     expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(false);
   });
 
+  it('does not clear the current selection when clicking a bottom-right action button', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+    useEditorStore.getState().selectRoom(room.id);
+
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Export PNG' }));
+
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([room.id]);
+    expect(screen.getByRole('heading', { name: 'Export PNG' })).toBeInTheDocument();
+  });
+
   describe('map panning', () => {
     it('pans the map when middle-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
