@@ -324,6 +324,7 @@ export function MapCanvasConnections({
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const stickyNoteLinkDrag = useEditorStore((s) => s.stickyNoteLinkDrag);
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
+  const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const selectedStickyNoteLinkIds = useEditorStore((s) => s.selectedStickyNoteLinkIds);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
@@ -331,6 +332,7 @@ export function MapCanvasConnections({
   const addConnectionToSelection = useEditorStore((s) => s.addConnectionToSelection);
   const selectStickyNoteLink = useEditorStore((s) => s.selectStickyNoteLink);
   const addStickyNoteLinkToSelection = useEditorStore((s) => s.addStickyNoteLinkToSelection);
+  const interactionsDisabled = canvasInteractionMode === 'draw';
   const entries = Object.values(connections);
   const stickyNoteLinkEntries = Object.values(stickyNoteLinks);
 
@@ -402,7 +404,7 @@ export function MapCanvasConnections({
               fill="none"
               stroke="transparent"
               strokeWidth="18"
-              style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              style={{ pointerEvents: interactionsDisabled ? 'none' : 'stroke', cursor: interactionsDisabled ? 'default' : 'pointer' }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (e.shiftKey) {
@@ -453,7 +455,7 @@ export function MapCanvasConnections({
               fill="none"
               stroke="transparent"
               strokeWidth="18"
-              style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+              style={{ pointerEvents: interactionsDisabled ? 'none' : 'stroke', cursor: interactionsDisabled ? 'default' : 'pointer' }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (e.shiftKey) {
@@ -741,7 +743,7 @@ export function MapCanvasConnections({
                 y2={roomCenter.y}
                 stroke="transparent"
                 strokeWidth="18"
-                style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                style={{ pointerEvents: interactionsDisabled ? 'none' : 'stroke', cursor: interactionsDisabled ? 'default' : 'pointer' }}
                 onClick={(event) => {
                   event.stopPropagation();
                   if (event.shiftKey) {

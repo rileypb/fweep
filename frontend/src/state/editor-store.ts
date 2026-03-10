@@ -1458,6 +1458,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCanvasInteractionMode: (mode) => {
     set({
       canvasInteractionMode: mode,
+      selectedRoomIds: mode === 'draw' ? [] : get().selectedRoomIds,
+      selectedStickyNoteIds: mode === 'draw' ? [] : get().selectedStickyNoteIds,
+      selectedConnectionIds: mode === 'draw' ? [] : get().selectedConnectionIds,
+      selectedStickyNoteLinkIds: mode === 'draw' ? [] : get().selectedStickyNoteLinkIds,
       lastHistoryMergeKey: null,
     });
   },

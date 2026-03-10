@@ -84,6 +84,8 @@ export function MapCanvasRoomNode({
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
   const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
+  const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
+  const interactionsDisabled = canvasInteractionMode === 'draw';
 
   const isDragging = selectionDrag !== null && selectionDrag.roomIds.includes(room.id);
   const dragOffset = isDragging ? selectionDrag : null;
@@ -212,7 +214,10 @@ export function MapCanvasRoomNode({
       data-room-shape={room.shape}
       width={roomWidth}
       height={ROOM_HEIGHT}
-      style={{ transform: `translate(${visualX}px, ${visualY}px)` }}
+      style={{
+        transform: `translate(${visualX}px, ${visualY}px)`,
+        pointerEvents: interactionsDisabled ? 'none' : undefined,
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={handleMouseDown}
@@ -244,7 +249,7 @@ export function MapCanvasRoomNode({
       >
         {room.name}
       </text>
-      {hovered && !isDragging && !isRoomEditorOpen && (
+      {hovered && !isDragging && !isRoomEditorOpen && !interactionsDisabled && (
         <DirectionHandles
           roomWidth={roomWidth}
           roomHeight={ROOM_HEIGHT}

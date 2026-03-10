@@ -80,6 +80,76 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--map-mode');
   });
 
+  it('clears mixed selection when switching to draw mode', async () => {
+    const user = userEvent.setup();
+    const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 240 } };
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, roomB.id);
+    let doc = addRoom(createEmptyMap('Test'), roomA);
+    doc = addRoom(doc, roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
+    doc = {
+      ...doc,
+      stickyNotes: { [stickyNote.id]: stickyNote },
+      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+    };
+    const connectionId = Object.keys(doc.connections)[0];
+    useEditorStore.getState().loadDocument(doc);
+    useEditorStore.getState().setSelection([roomA.id], [stickyNote.id], [connectionId], [stickyNoteLink.id]);
+
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
+
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
+    expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+    expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+  });
+
+  it('disables room and sticky-note pointer interaction in draw mode', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
+    useEditorStore.getState().loadDocument({
+      ...addRoom(createEmptyMap('Test'), room),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+    });
+
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
+
+    expect(screen.getByTestId('room-node')).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId('sticky-note')).toHaveStyle({ pointerEvents: 'none' });
+  });
+
+  it('disables connection and sticky-note-link pointer interaction in draw mode', async () => {
+    const user = userEvent.setup();
+    const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 240 } };
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, roomB.id);
+    let doc = addRoom(createEmptyMap('Test'), roomA);
+    doc = addRoom(doc, roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
+    doc = {
+      ...doc,
+      stickyNotes: { [stickyNote.id]: stickyNote },
+      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+    };
+    const connectionId = Object.keys(doc.connections)[0];
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
+
+    expect(screen.getByTestId(`connection-hit-target-${connectionId}`)).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`)).toHaveStyle({ pointerEvents: 'none' });
+  });
+
   it('uses the pan-ready cursor when Shift is held in map mode', () => {
     render(<MapCanvas mapName="Test" />);
 

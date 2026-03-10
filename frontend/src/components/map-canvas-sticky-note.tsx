@@ -44,6 +44,8 @@ export function MapCanvasStickyNote({
   const updateStickyNoteLinkDrag = useEditorStore((s) => s.updateStickyNoteLinkDrag);
   const completeStickyNoteLinkDrag = useEditorStore((s) => s.completeStickyNoteLinkDrag);
   const cancelStickyNoteLinkDrag = useEditorStore((s) => s.cancelStickyNoteLinkDrag);
+  const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
+  const interactionsDisabled = canvasInteractionMode === 'draw';
 
   const height = getStickyNoteHeight(stickyNote.text);
   const isDragging = selectionDrag !== null && selectionDrag.stickyNoteIds.includes(stickyNote.id);
@@ -64,6 +66,7 @@ export function MapCanvasStickyNote({
         width: `${STICKY_NOTE_WIDTH}px`,
         minHeight: `${height}px`,
         transform: `translate(${visualX}px, ${visualY}px)`,
+        pointerEvents: interactionsDisabled ? 'none' : undefined,
       }}
     >
       {isSelected && (
