@@ -170,4 +170,18 @@ describe('computePrettifiedRoomPositions', () => {
     expectSnappedToGrid(getRoomCenterX(room, positions[room.id].x));
     expectSnappedToGrid(getRoomCenterY(positions[room.id].y));
   });
+
+  it('keeps locked rooms fixed while repositioning unlocked rooms', () => {
+    let doc = createEmptyMap('Locked');
+    const lockedRoom = { ...createRoom('Locked'), locked: true, position: { x: 400, y: 80 } };
+    const freeRoom = { ...createRoom('Free'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, lockedRoom), freeRoom);
+    doc = addConnection(doc, createConnection(lockedRoom.id, freeRoom.id, true), 'east', 'west');
+
+    const positions = computePrettifiedRoomPositions(doc);
+
+    expect(positions[lockedRoom.id]).toEqual(lockedRoom.position);
+    expect(positions[freeRoom.id]).not.toEqual(freeRoom.position);
+    expect(positions[freeRoom.id].x).toBeGreaterThan(positions[lockedRoom.id].x);
+  });
 });

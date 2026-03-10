@@ -4,9 +4,11 @@ import { normalizeDirection } from '../domain/directions';
 import { type Room, type RoomShape } from '../domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { renderRoomShape } from './map-canvas-helpers';
-import type { ThemeMode } from '../domain/room-color-palette';
+import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import type { PanOffset } from './use-map-viewport';
+import { PadlockGlyph } from './padlock-glyph';
 
 const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
@@ -91,7 +93,9 @@ export function MapCanvasRoomNode({
   const dragOffset = isDragging ? selectionDrag : null;
   const visualX = dragOffset ? room.position.x + dragOffset.dx : room.position.x;
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
-  const roomWidth = getRoomNodeWidth(room.name);
+  const roomWidth = getRoomNodeWidth(room);
+  const labelLayout = getRoomLabelLayout(room, roomWidth, ROOM_HEIGHT);
+  const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
   const openRoomEditor = useCallback(() => {
     onOpenRoomEditor(room.id);
@@ -242,13 +246,25 @@ export function MapCanvasRoomNode({
       {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT, room, theme)}
       <text
         className="room-node-name"
-        x={roomWidth / 2}
-        y={ROOM_HEIGHT / 2}
+        x={labelLayout.textX}
+        y={labelLayout.textY}
         dominantBaseline="middle"
         textAnchor="middle"
       >
         {room.name}
       </text>
+      {room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null && (
+        <g
+          data-testid={`room-lock-glyph-${room.id}`}
+          transform={`translate(${labelLayout.lockX} ${labelLayout.lockY})`}
+          pointerEvents="none"
+        >
+          <PadlockGlyph
+            bodyColor={roomStroke}
+            keyholeColor={theme === 'dark' ? '#111827' : '#ffffff'}
+          />
+        </g>
+      )}
       {hovered && !isDragging && !isRoomEditorOpen && !interactionsDisabled && (
         <DirectionHandles
           roomWidth={roomWidth}

@@ -66,6 +66,7 @@ export interface Room {
   /** Map from direction label (normalised) → connection ID. */
   readonly directions: Readonly<Record<string, string>>;
   readonly isDark: boolean;
+  readonly locked: boolean;
   readonly shape: RoomShape;
   readonly fillColorIndex: number;
   readonly strokeColorIndex: number;
@@ -186,6 +187,7 @@ export function createRoom(name: string): Room {
     position: { x: 0, y: 0 },
     directions: {},
     isDark: false,
+    locked: false,
     shape: 'rectangle',
     fillColorIndex: DEFAULT_ROOM_FILL_COLOR_INDEX,
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,

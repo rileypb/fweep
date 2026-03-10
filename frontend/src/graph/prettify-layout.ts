@@ -1,7 +1,5 @@
 import type { MapDocument, Position, Room } from '../domain/map-types';
-
-const ROOM_TEXT_CHAR_WIDTH = 6.78;
-const ROOM_HORIZONTAL_PADDING = 24;
+import { getRoomNodeWidth } from './room-label-geometry';
 const ROOM_HEIGHT = 36;
 const ROOM_VERTICAL_GAP = 24;
 const ROOM_HORIZONTAL_GAP = 40;
@@ -44,7 +42,7 @@ function snapCoordinate(value: number): number {
 }
 
 function estimateRoomWidth(room: Room): number {
-  return Math.max(80, Math.round((room.name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
+  return getRoomNodeWidth(room);
 }
 
 function toRoomCenter(room: Room, position: Position): Vector {
@@ -196,6 +194,55 @@ function computeSeedPositions(componentRoomIds: readonly string[], constraints: 
   return seedPositions;
 }
 
+function computeSeedCentroid(roomIds: readonly string[], seedPositions: ReadonlyMap<string, Vector>): Vector {
+  const total = roomIds.reduce(
+    (acc, roomId) => {
+      const position = seedPositions.get(roomId)!;
+      return { x: acc.x + position.x, y: acc.y + position.y };
+    },
+    { x: 0, y: 0 },
+  );
+
+  return {
+    x: total.x / roomIds.length,
+    y: total.y / roomIds.length,
+  };
+}
+
+function computeComponentSeedOffset(
+  componentRoomIds: readonly string[],
+  seedPositions: ReadonlyMap<string, Vector>,
+  doc: MapDocument,
+  lockedRoomIds: ReadonlySet<string>,
+): Vector {
+  const lockedComponentRoomIds = componentRoomIds.filter((roomId) => lockedRoomIds.has(roomId));
+  if (lockedComponentRoomIds.length > 0) {
+    const total = lockedComponentRoomIds.reduce(
+      (acc, roomId) => {
+        const actualCenter = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position);
+        const seedCenter = seedPositions.get(roomId)!;
+        return {
+          x: acc.x + (actualCenter.x - seedCenter.x),
+          y: acc.y + (actualCenter.y - seedCenter.y),
+        };
+      },
+      { x: 0, y: 0 },
+    );
+
+    return {
+      x: total.x / lockedComponentRoomIds.length,
+      y: total.y / lockedComponentRoomIds.length,
+    };
+  }
+
+  const seedCentroid = computeSeedCentroid(componentRoomIds, seedPositions);
+  const originalCentroid = computeOriginalCentroid(componentRoomIds, doc);
+  return {
+    x: originalCentroid.x - seedCentroid.x,
+    y: originalCentroid.y - seedCentroid.y,
+  };
+}
+
 function limitStep(value: number): number {
   return Math.max(-MAX_STEP, Math.min(MAX_STEP, value));
 }
@@ -204,6 +251,7 @@ function relaxComponent(
   roomIds: readonly string[],
   seedPositions: ReadonlyMap<string, Vector>,
   constraints: readonly DirectionConstraint[],
+  lockedRoomIds: ReadonlySet<string>,
 ): Map<string, Vector> {
   const positions = new Map<string, Vector>();
   for (const roomId of roomIds) {
@@ -226,11 +274,21 @@ function relaxComponent(
       const toPosition = positions.get(constraint.toRoomId)!;
       const errorX = (toPosition.x - fromPosition.x) - constraint.delta.x;
       const errorY = (toPosition.y - fromPosition.y) - constraint.delta.y;
+      const fromLocked = lockedRoomIds.has(constraint.fromRoomId);
+      const toLocked = lockedRoomIds.has(constraint.toRoomId);
 
-      forces.get(constraint.fromRoomId)!.x += errorX * SPRING_STRENGTH * 0.5;
-      forces.get(constraint.fromRoomId)!.y += errorY * SPRING_STRENGTH * 0.5;
-      forces.get(constraint.toRoomId)!.x -= errorX * SPRING_STRENGTH * 0.5;
-      forces.get(constraint.toRoomId)!.y -= errorY * SPRING_STRENGTH * 0.5;
+      if (!fromLocked && !toLocked) {
+        forces.get(constraint.fromRoomId)!.x += errorX * SPRING_STRENGTH * 0.5;
+        forces.get(constraint.fromRoomId)!.y += errorY * SPRING_STRENGTH * 0.5;
+        forces.get(constraint.toRoomId)!.x -= errorX * SPRING_STRENGTH * 0.5;
+        forces.get(constraint.toRoomId)!.y -= errorY * SPRING_STRENGTH * 0.5;
+      } else if (!fromLocked) {
+        forces.get(constraint.fromRoomId)!.x += errorX * SPRING_STRENGTH;
+        forces.get(constraint.fromRoomId)!.y += errorY * SPRING_STRENGTH;
+      } else if (!toLocked) {
+        forces.get(constraint.toRoomId)!.x -= errorX * SPRING_STRENGTH;
+        forces.get(constraint.toRoomId)!.y -= errorY * SPRING_STRENGTH;
+      }
     }
 
     for (let index = 0; index < roomIds.length; index += 1) {
@@ -246,15 +304,29 @@ function relaxComponent(
         const repulsion = REPULSION_STRENGTH / distanceSquared;
         const forceX = (dx / distance) * repulsion;
         const forceY = (dy / distance) * repulsion;
+        const roomLocked = lockedRoomIds.has(roomId);
+        const otherRoomLocked = lockedRoomIds.has(otherRoomId);
 
-        forces.get(roomId)!.x -= forceX;
-        forces.get(roomId)!.y -= forceY;
-        forces.get(otherRoomId)!.x += forceX;
-        forces.get(otherRoomId)!.y += forceY;
+        if (!roomLocked && !otherRoomLocked) {
+          forces.get(roomId)!.x -= forceX;
+          forces.get(roomId)!.y -= forceY;
+          forces.get(otherRoomId)!.x += forceX;
+          forces.get(otherRoomId)!.y += forceY;
+        } else if (!roomLocked) {
+          forces.get(roomId)!.x -= forceX;
+          forces.get(roomId)!.y -= forceY;
+        } else if (!otherRoomLocked) {
+          forces.get(otherRoomId)!.x += forceX;
+          forces.get(otherRoomId)!.y += forceY;
+        }
       }
     }
 
     for (const roomId of roomIds) {
+      if (lockedRoomIds.has(roomId)) {
+        continue;
+      }
+
       const seed = seedPositions.get(roomId)!;
       const position = positions.get(roomId)!;
       const force = forces.get(roomId)!;
@@ -267,21 +339,6 @@ function relaxComponent(
   }
 
   return positions;
-}
-
-function computeCentroid(roomIds: readonly string[], positions: ReadonlyMap<string, Vector>): Vector {
-  const total = roomIds.reduce(
-    (acc, roomId) => {
-      const position = positions.get(roomId)!;
-      return { x: acc.x + position.x, y: acc.y + position.y };
-    },
-    { x: 0, y: 0 },
-  );
-
-  return {
-    x: total.x / roomIds.length,
-    y: total.y / roomIds.length,
-  };
 }
 
 function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): Vector {
@@ -375,30 +432,44 @@ export function computePrettifiedRoomPositions(doc: MapDocument): Readonly<Recor
   if (roomIds.length === 0) {
     return {};
   }
+  const lockedRoomIds = new Set(roomIds.filter((roomId) => doc.rooms[roomId].locked));
+  const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
   const constraints = deriveDirectionConstraints(doc);
   const components = getConnectedComponents(roomIds, constraints);
   const normalizedPositions = new Map<string, Vector>();
 
   for (const componentRoomIds of components) {
-    const seedPositions = computeSeedPositions(componentRoomIds, constraints);
-    const relaxedPositions = relaxComponent(componentRoomIds, seedPositions, constraints);
-    const relaxedCentroid = computeCentroid(componentRoomIds, relaxedPositions);
-    const originalCentroid = computeOriginalCentroid(componentRoomIds, doc);
-    const offsetX = originalCentroid.x - relaxedCentroid.x;
-    const offsetY = originalCentroid.y - relaxedCentroid.y;
+    const relativeSeedPositions = computeSeedPositions(componentRoomIds, constraints);
+    const seedOffset = computeComponentSeedOffset(componentRoomIds, relativeSeedPositions, doc, lockedRoomIds);
+    const absoluteSeedPositions = new Map<string, Vector>();
 
     for (const roomId of componentRoomIds) {
-      const position = relaxedPositions.get(roomId)!;
-      normalizedPositions.set(roomId, {
-        x: position.x + offsetX,
-        y: position.y + offsetY,
+      if (lockedRoomIds.has(roomId)) {
+        absoluteSeedPositions.set(roomId, toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position));
+        continue;
+      }
+
+      const seed = relativeSeedPositions.get(roomId)!;
+      absoluteSeedPositions.set(roomId, {
+        x: seed.x + seedOffset.x,
+        y: seed.y + seedOffset.y,
       });
+    }
+
+    const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds);
+
+    for (const roomId of componentRoomIds) {
+      normalizedPositions.set(roomId, relaxedPositions.get(roomId)!);
     }
   }
 
   const placedPositions = new Map<string, Position>();
-  const orderedRoomIds = roomIds.sort((leftRoomId, rightRoomId) => {
+  for (const roomId of lockedRoomIds) {
+    placedPositions.set(roomId, doc.rooms[roomId].position);
+  }
+
+  const orderedRoomIds = unlockedRoomIds.sort((leftRoomId, rightRoomId) => {
     const leftPosition = normalizedPositions.get(leftRoomId)!;
     const rightPosition = normalizedPositions.get(rightRoomId)!;
     return (leftPosition.y - rightPosition.y) || (leftPosition.x - rightPosition.x);

@@ -64,7 +64,7 @@ function drawRoomObstaclePath(
 ): void {
   const left = room.position.x - offsetX;
   const top = room.position.y - offsetY;
-  const width = getRoomNodeWidth(room.name);
+  const width = getRoomNodeWidth(room);
   const height = ROOM_HEIGHT;
 
   context.beginPath();
@@ -100,8 +100,8 @@ export function drawMapObstacleMask(
       return;
     }
 
-    const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
-    const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+    const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
+    const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
     const points = computeConnectionPath(
       sourceRoom,
       targetRoom,

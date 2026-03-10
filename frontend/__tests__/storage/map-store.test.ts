@@ -122,6 +122,7 @@ describe('map-store', () => {
       expect(loaded?.rooms[roomId].fillColorIndex).toBe(0);
       expect(loaded?.rooms[roomId].strokeColorIndex).toBe(0);
       expect(loaded?.rooms[roomId].strokeStyle).toBe('solid');
+      expect(loaded?.rooms[roomId].locked).toBe(false);
     });
 
     it('hydrates missing connection style fields from older saved maps', async () => {

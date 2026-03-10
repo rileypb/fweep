@@ -111,7 +111,8 @@ function normalizeBackground(doc: MapDocument): MapDocument['background'] {
 
 function normalizeRoom(
   room: Room | (
-    Omit<Room, 'shape' | 'fillColorIndex' | 'strokeColorIndex' | 'strokeStyle'> & {
+    Omit<Room, 'locked' | 'shape' | 'fillColorIndex' | 'strokeColorIndex' | 'strokeStyle'> & {
+      locked?: Room['locked'];
       shape?: Room['shape'];
       fillColorIndex?: Room['fillColorIndex'];
       strokeColorIndex?: Room['strokeColorIndex'];
@@ -144,6 +145,7 @@ function normalizeRoom(
 
   return {
     ...restRoom,
+    locked: typeof room.locked === 'boolean' ? room.locked : false,
     shape,
     fillColorIndex,
     strokeColorIndex,

@@ -21,6 +21,7 @@ import {
   setConnectionAnnotation as domainSetConnectionAnnotation,
   setConnectionLabels as domainSetConnectionLabels,
   setConnectionStyle as domainSetConnectionStyle,
+  setRoomsLocked as domainSetRoomsLocked,
   setRoomPositions as domainSetRoomPositions,
   setStickyNotePositions as domainSetStickyNotePositions,
 } from '../domain/map-operations';
@@ -343,6 +344,9 @@ export interface EditorState {
 
   /** Move multiple rooms to new positions in a single history step. */
   moveRooms: (positions: Readonly<Record<string, Position>>) => void;
+
+  /** Toggle the lock state of the selected rooms in one history step. */
+  toggleSelectedRoomLocks: () => void;
 
   /** Move a sticky note to a new position (snapped to grid). */
   moveStickyNote: (stickyNoteId: string, position: Position) => void;
@@ -1206,6 +1210,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
+  toggleSelectedRoomLocks: () => {
+    const { doc, selectedRoomIds } = get();
+    if (!doc || selectedRoomIds.length === 0) {
+      return;
+    }
+
+    const selectedRooms = selectedRoomIds
+      .map((roomId) => doc.rooms[roomId])
+      .filter((room): room is NonNullable<typeof room> => Boolean(room));
+    if (selectedRooms.length === 0) {
+      return;
+    }
+
+    const nextLocked = selectedRooms.some((room) => !room.locked);
+    const updatedDoc = domainSetRoomsLocked(doc, selectedRooms.map((room) => room.id), nextLocked);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
   moveStickyNote: (stickyNoteId, position) => {
     const { doc } = get();
     if (!doc) {
@@ -1346,7 +1368,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       lastHistoryMergeKey: null,
       selectionDrag: {
-        roomIds: state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId],
+        roomIds: (state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId]).filter(
+          (selectedRoomId) => !state.doc?.rooms[selectedRoomId]?.locked,
+        ),
         stickyNoteIds: state.selectedRoomIds.includes(roomId) ? state.selectedStickyNoteIds : [],
         dx: 0,
         dy: 0,

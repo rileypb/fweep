@@ -190,6 +190,55 @@ describe('useEditorStore', () => {
     });
   });
 
+  describe('room locking', () => {
+    it('toggles selected rooms to locked when any selected room is unlocked', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 }, locked: true };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().setSelection([kitchen.id, hallway.id], [], [], []);
+
+      useEditorStore.getState().toggleSelectedRoomLocks();
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.rooms[kitchen.id].locked).toBe(true);
+      expect(updatedDoc.rooms[hallway.id].locked).toBe(true);
+    });
+
+    it('toggles selected rooms to unlocked when all selected rooms are locked', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 }, locked: true };
+      const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 }, locked: true };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().setSelection([kitchen.id, hallway.id], [], [], []);
+
+      useEditorStore.getState().toggleSelectedRoomLocks();
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.rooms[kitchen.id].locked).toBe(false);
+      expect(updatedDoc.rooms[hallway.id].locked).toBe(false);
+    });
+
+    it('ignores locked rooms during drag moves', () => {
+      const lockedRoom = { ...createRoom('Locked'), position: { x: 80, y: 120 }, locked: true };
+      const freeRoom = { ...createRoom('Free'), position: { x: 200, y: 120 } };
+      let doc = addRoom(testDoc, lockedRoom);
+      doc = addRoom(doc, freeRoom);
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().moveRooms({
+        [lockedRoom.id]: { x: 160, y: 200 },
+        [freeRoom.id]: { x: 280, y: 200 },
+      });
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.rooms[lockedRoom.id].position).toEqual({ x: 80, y: 120 });
+      expect(updatedDoc.rooms[freeRoom.id].position).toEqual({ x: 280, y: 200 });
+    });
+  });
+
   describe('drawing tool state', () => {
     it('clamps drawing size to at least one pixel', () => {
       useEditorStore.getState().setDrawingSize(0);

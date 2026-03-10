@@ -146,6 +146,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
   const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
   const removeSelectedEntities = useEditorStore((s) => s.removeSelectedEntities);
+  const toggleSelectedRoomLocks = useEditorStore((s) => s.toggleSelectedRoomLocks);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
@@ -995,6 +996,16 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       return;
     }
 
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'l') {
+      if (selectedRoomIds.length === 0) {
+        return;
+      }
+
+      e.preventDefault();
+      toggleSelectedRoomLocks();
+      return;
+    }
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       const { selectedConnectionIds: currentSelectedConnectionIds, selectedStickyNoteLinkIds: currentSelectedStickyNoteLinkIds } = useEditorStore.getState();
       if (
@@ -1037,7 +1048,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo]);
 
   const classes = [
     'map-canvas',

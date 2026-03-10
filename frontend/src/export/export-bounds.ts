@@ -58,7 +58,7 @@ function getRoomBounds(room: Room): ExportRegion {
   return {
     left: room.position.x,
     top: room.position.y,
-    right: room.position.x + getRoomNodeWidth(room.name),
+    right: room.position.x + getRoomNodeWidth(room),
     bottom: room.position.y + ROOM_HEIGHT,
   };
 }
@@ -160,8 +160,8 @@ function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRe
     return null;
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
+  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
   const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
   let bounds = createEmptyBounds();
 

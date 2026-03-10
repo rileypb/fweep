@@ -21,6 +21,8 @@ import {
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
+import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
+import { PadlockGlyph } from './padlock-glyph';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -29,9 +31,6 @@ const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
-const CONNECTION_PADLOCK_WIDTH = 12;
-const CONNECTION_PADLOCK_HEIGHT = 16;
-
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -577,40 +576,12 @@ export function MapCanvasConnections({
           <g
             data-testid={`connection-annotation-padlock-${conn.id}`}
             className="connection-annotation-padlock"
-            transform={`translate(${lockedDoorCenter.x - (CONNECTION_PADLOCK_WIDTH / 2)} ${lockedDoorCenter.y - (CONNECTION_PADLOCK_HEIGHT / 2)})`}
+            transform={`translate(${lockedDoorCenter.x - (PADLOCK_WIDTH / 2)} ${lockedDoorCenter.y - (PADLOCK_HEIGHT / 2)})`}
             pointerEvents="none"
           >
-            <path
-              d="M3 7 V5.5 C3 2.8 5 1 6 1 C7 1 9 2.8 9 5.5 V7"
-              fill="none"
-              stroke={connectionStroke}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <rect
-              x="2"
-              y="7"
-              width="8"
-              height="8"
-              rx="1.5"
-              fill={connectionStroke}
-              stroke={connectionStroke}
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="6"
-              cy="10.5"
-              r="1"
-              fill={theme === 'dark' ? '#111827' : '#ffffff'}
-            />
-            <line
-              x1="6"
-              y1="11.5"
-              x2="6"
-              y2="13"
-              stroke={theme === 'dark' ? '#111827' : '#ffffff'}
-              strokeWidth="1"
-              strokeLinecap="round"
+            <PadlockGlyph
+              bodyColor={connectionStroke}
+              keyholeColor={theme === 'dark' ? '#111827' : '#ffffff'}
             />
           </g>
         )}
@@ -689,8 +660,8 @@ export function MapCanvasConnections({
 
           const src = applyDragOffset(rawSrc, selectionDrag);
           const tgt = applyDragOffset(rawTgt, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
-          const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
+          const srcDimensions = { width: getRoomNodeWidth(src), height: ROOM_HEIGHT };
+          const tgtDimensions = { width: getRoomNodeWidth(tgt), height: ROOM_HEIGHT };
           const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
           const geometry = createConnectionRenderGeometry(
             points,
@@ -726,7 +697,7 @@ export function MapCanvasConnections({
           const room = applyDragOffset(rawRoom, selectionDrag);
           const stickyNoteCenter = getStickyNoteCenter(stickyNote);
           const roomCenter = {
-            x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+            x: room.position.x + (getRoomNodeWidth(room) / 2),
             y: room.position.y + (ROOM_HEIGHT / 2),
           };
           const isSelected = selectedStickyNoteLinkIds.includes(stickyNoteLink.id);
@@ -785,7 +756,7 @@ export function MapCanvasConnections({
           const srcRoom = rooms[connectionDrag.sourceRoomId];
           if (!srcRoom) return null;
           const adjustedSrc = applyDragOffset(srcRoom, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(adjustedSrc.name), height: ROOM_HEIGHT };
+          const srcDimensions = { width: getRoomNodeWidth(adjustedSrc), height: ROOM_HEIGHT };
           const points = computePreviewPath(
             adjustedSrc,
             connectionDrag.sourceDirection,
@@ -871,8 +842,8 @@ export function MapCanvasConnections({
 
           const src = applyDragOffset(rawSrc, selectionDrag);
           const tgt = applyDragOffset(rawTgt, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(src.name), height: ROOM_HEIGHT };
-          const tgtDimensions = { width: getRoomNodeWidth(tgt.name), height: ROOM_HEIGHT };
+          const srcDimensions = { width: getRoomNodeWidth(src), height: ROOM_HEIGHT };
+          const tgtDimensions = { width: getRoomNodeWidth(tgt), height: ROOM_HEIGHT };
           const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
 
           return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;

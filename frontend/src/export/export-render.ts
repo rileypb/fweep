@@ -13,6 +13,8 @@ import {
   type Point,
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
+import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
@@ -52,7 +54,7 @@ function setDashArray(context: CanvasRenderingContext2D, strokeStyle: Connection
 }
 
 function drawRoomShape(context: CanvasRenderingContext2D, room: Room, theme: ExportRenderInput['theme']): void {
-  const width = getRoomNodeWidth(room.name);
+  const width = getRoomNodeWidth(room);
   const left = room.position.x;
   const top = room.position.y;
 
@@ -69,12 +71,64 @@ function drawRoomShape(context: CanvasRenderingContext2D, room: Room, theme: Exp
 }
 
 function drawRoomLabel(context: CanvasRenderingContext2D, room: Room, theme: ExportRenderInput['theme']): void {
-  const width = getRoomNodeWidth(room.name);
+  const width = getRoomNodeWidth(room);
+  const labelLayout = getRoomLabelLayout(room, width, ROOM_HEIGHT);
+  const foreground = getForegroundColor(theme);
+  const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
+
+  if (room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null) {
+    const offsetX = room.position.x + labelLayout.lockX;
+    const offsetY = room.position.y + labelLayout.lockY;
+
+    context.save();
+    context.translate(offsetX, offsetY);
+    context.strokeStyle = roomStroke;
+    context.fillStyle = roomStroke;
+    context.lineWidth = 1.5;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(3, 7);
+    context.lineTo(3, 5.5);
+    context.bezierCurveTo(3, 2.8, 5, 1, 6, 1);
+    context.bezierCurveTo(7, 1, 9, 2.8, 9, 5.5);
+    context.lineTo(9, 7);
+    context.stroke();
+
+    const bodyRight = PADLOCK_BODY.x + PADLOCK_BODY.width;
+    const bodyBottom = PADLOCK_BODY.y + PADLOCK_BODY.height;
+    const bodyRadius = PADLOCK_BODY.rx;
+    context.beginPath();
+    context.moveTo(PADLOCK_BODY.x + bodyRadius, PADLOCK_BODY.y);
+    context.lineTo(bodyRight - bodyRadius, PADLOCK_BODY.y);
+    context.quadraticCurveTo(bodyRight, PADLOCK_BODY.y, bodyRight, PADLOCK_BODY.y + bodyRadius);
+    context.lineTo(bodyRight, bodyBottom - bodyRadius);
+    context.quadraticCurveTo(bodyRight, bodyBottom, bodyRight - bodyRadius, bodyBottom);
+    context.lineTo(PADLOCK_BODY.x + bodyRadius, bodyBottom);
+    context.quadraticCurveTo(PADLOCK_BODY.x, bodyBottom, PADLOCK_BODY.x, bodyBottom - bodyRadius);
+    context.lineTo(PADLOCK_BODY.x, PADLOCK_BODY.y + bodyRadius);
+    context.quadraticCurveTo(PADLOCK_BODY.x, PADLOCK_BODY.y, PADLOCK_BODY.x + bodyRadius, PADLOCK_BODY.y);
+    context.closePath();
+    context.fill();
+    context.stroke();
+
+    context.fillStyle = theme === 'dark' ? '#111827' : '#ffffff';
+    context.beginPath();
+    context.arc(PADLOCK_KEYHOLE.cx, PADLOCK_KEYHOLE.cy, PADLOCK_KEYHOLE.r, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.moveTo(PADLOCK_KEY_STEM.x1, PADLOCK_KEY_STEM.y1);
+    context.lineTo(PADLOCK_KEY_STEM.x2, PADLOCK_KEY_STEM.y2);
+    context.strokeStyle = theme === 'dark' ? '#111827' : '#ffffff';
+    context.lineWidth = 1;
+    context.stroke();
+    context.restore();
+  }
+
   context.fillStyle = getForegroundColor(theme);
   context.font = '600 13px sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(room.name, room.position.x + (width / 2), room.position.y + (ROOM_HEIGHT / 2));
+  context.fillText(room.name, room.position.x + labelLayout.textX, room.position.y + labelLayout.textY);
 }
 
 function drawConnectionGeometry(context: CanvasRenderingContext2D, geometry: ConnectionRenderGeometry): void {
@@ -119,8 +173,8 @@ function drawConnectionLine(
     return null;
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
+  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
   const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
   const geometry = createConnectionRenderGeometry(
     points,

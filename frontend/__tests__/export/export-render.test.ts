@@ -199,7 +199,10 @@ describe('renderExportCanvas', () => {
       }
       return undefined;
     });
-    mockGetRoomNodeWidth.mockImplementation((name) => Math.max(80, name.length * 10));
+    mockGetRoomNodeWidth.mockImplementation((roomOrName) => {
+      const name = typeof roomOrName === 'string' ? roomOrName : roomOrName.name;
+      return Math.max(80, name.length * 10);
+    });
     mockComputeConnectionPath.mockImplementation((sourceRoom, targetRoom) => [
       { x: sourceRoom.position.x, y: sourceRoom.position.y },
       { x: targetRoom.position.x, y: targetRoom.position.y },

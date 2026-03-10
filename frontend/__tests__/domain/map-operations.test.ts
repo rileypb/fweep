@@ -19,7 +19,11 @@ import {
   deleteItem,
   describeRoom,
   describeItem,
+  moveRoom,
+  setRoomLocked,
+  setRoomPositions,
   setRoomShape,
+  setRoomsLocked,
   setStickyNoteText,
 } from '../../src/domain/map-operations';
 
@@ -263,6 +267,53 @@ describe('sticky notes', () => {
     const updated = setStickyNoteText(withStickyNote, stickyNote.id, 'A hidden panel is here.');
 
     expect(updated.stickyNotes[stickyNote.id].text).toBe('A hidden panel is here.');
+  });
+});
+
+describe('room locking', () => {
+  it('updates a room lock state', () => {
+    const room = createRoom('Kitchen');
+    const doc = addRoom(createEmptyMap('Test'), room);
+
+    const next = setRoomLocked(doc, room.id, true);
+
+    expect(next.rooms[room.id].locked).toBe(true);
+  });
+
+  it('updates multiple room lock states at once', () => {
+    const roomA = createRoom('A');
+    const roomB = createRoom('B');
+    let doc = addRoom(createEmptyMap('Test'), roomA);
+    doc = addRoom(doc, roomB);
+
+    const next = setRoomsLocked(doc, [roomA.id, roomB.id], true);
+
+    expect(next.rooms[roomA.id].locked).toBe(true);
+    expect(next.rooms[roomB.id].locked).toBe(true);
+  });
+
+  it('does not move a locked room', () => {
+    const room = { ...createRoom('Kitchen'), locked: true, position: { x: 80, y: 120 } };
+    const doc = addRoom(createEmptyMap('Test'), room);
+
+    const next = moveRoom(doc, room.id, { x: 200, y: 240 });
+
+    expect(next.rooms[room.id].position).toEqual({ x: 80, y: 120 });
+  });
+
+  it('ignores locked rooms when moving multiple rooms', () => {
+    const lockedRoom = { ...createRoom('Locked'), locked: true, position: { x: 80, y: 120 } };
+    const freeRoom = { ...createRoom('Free'), position: { x: 200, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), lockedRoom);
+    doc = addRoom(doc, freeRoom);
+
+    const next = setRoomPositions(doc, {
+      [lockedRoom.id]: { x: 160, y: 200 },
+      [freeRoom.id]: { x: 280, y: 200 },
+    });
+
+    expect(next.rooms[lockedRoom.id].position).toEqual({ x: 80, y: 120 });
+    expect(next.rooms[freeRoom.id].position).toEqual({ x: 280, y: 200 });
   });
 });
 

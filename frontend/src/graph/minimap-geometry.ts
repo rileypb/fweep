@@ -5,9 +5,7 @@ import {
   ROOM_HEIGHT,
   ROOM_WIDTH,
 } from './connection-geometry';
-
-const ROOM_TEXT_CHAR_WIDTH = 6.78;
-const ROOM_HORIZONTAL_PADDING = 24;
+import { getRoomNodeWidth as getSharedRoomNodeWidth } from './room-label-geometry';
 
 export interface CanvasSize {
   readonly width: number;
@@ -58,15 +56,15 @@ export interface RoomBounds {
   readonly height: number;
 }
 
-export function getRoomNodeWidth(name: string): number {
-  return Math.max(ROOM_WIDTH, Math.round((name.length * ROOM_TEXT_CHAR_WIDTH) + ROOM_HORIZONTAL_PADDING));
+export function getRoomNodeWidth(room: Pick<Room, 'name' | 'locked'> | string, locked: boolean = false): number {
+  return Math.max(ROOM_WIDTH, getSharedRoomNodeWidth(room, locked));
 }
 
 export function getRoomBounds(room: Room): RoomBounds {
   return {
     left: room.position.x,
     top: room.position.y,
-    width: getRoomNodeWidth(room.name),
+    width: getRoomNodeWidth(room),
     height: ROOM_HEIGHT,
   };
 }
@@ -205,8 +203,8 @@ export function getMinimapConnectionPoints(
     return [];
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
+  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
 
   const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
 

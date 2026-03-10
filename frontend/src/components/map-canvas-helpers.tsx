@@ -54,7 +54,7 @@ export function getRoomScreenGeometry(
   panOffset: PanOffset,
   canvasRect: DOMRect | null,
 ): RoomScreenGeometry {
-  const width = getRoomNodeWidth(room.name);
+  const width = getRoomNodeWidth(room);
   const left = (canvasRect?.left ?? 0) + room.position.x + panOffset.x;
   const top = (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
 
@@ -222,8 +222,8 @@ export function getConnectionsWithinSelectionBox(
         return false;
       }
 
-      const sourceDimensions = { width: getRoomNodeWidth(sourceRoom.name), height: ROOM_HEIGHT };
-      const targetDimensions = { width: getRoomNodeWidth(targetRoom.name), height: ROOM_HEIGHT };
+      const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
+      const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
       const points = computeConnectionPath(
         sourceRoom,
         targetRoom,
@@ -260,7 +260,7 @@ export function getStickyNoteLinksWithinSelectionBox(
 
       const stickyNoteCenter = getStickyNoteCenter(stickyNote);
       const roomCenter = {
-        x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+        x: room.position.x + (getRoomNodeWidth(room) / 2),
         y: room.position.y + (ROOM_HEIGHT / 2),
       };
       const points = [
@@ -281,7 +281,7 @@ export function getStickyNoteLinksWithinSelectionBox(
 
 function getRoomCenter(room: Room): RoomCenter {
   return {
-    x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+    x: room.position.x + (getRoomNodeWidth(room) / 2),
     y: room.position.y + (ROOM_HEIGHT / 2),
   };
 }

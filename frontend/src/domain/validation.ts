@@ -550,8 +550,19 @@ function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]):
   const position = parsePosition(room.position, issues, entryKey);
   const directions = parseDirections(room.directions, issues, entryKey);
   const isDark = requireBoolean(room.isDark, issues, `rooms.${entryKey}.isDark`, 'room', entryKey);
+  const locked = room.locked === undefined
+    ? false
+    : requireBoolean(room.locked, issues, `rooms.${entryKey}.locked`, 'room', entryKey);
 
-  if (id === null || name === null || description === null || position === null || directions === null || isDark === null) {
+  if (
+    id === null
+    || name === null
+    || description === null
+    || position === null
+    || directions === null
+    || isDark === null
+    || locked === null
+  ) {
     return null;
   }
 
@@ -577,6 +588,7 @@ function parseRoom(entryKey: string, value: unknown, issues: ValidationIssue[]):
     position,
     directions,
     isDark,
+    locked,
     shape: parseRoomShape(room.shape, issues, entryKey),
     fillColorIndex: parseColorIndex(
       room.fillColorIndex,

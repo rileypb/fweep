@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
-import { addRoom, addConnection } from '../../src/domain/map-operations';
+import { addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
 
@@ -828,6 +828,16 @@ describe('MapCanvas', () => {
 
       expect(screen.getByText('Kitchen')).toBeInTheDocument();
       expect(screen.getByText('Hallway')).toBeInTheDocument();
+    });
+
+    it('renders a lock glyph to the left of a locked room name', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), locked: true, position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`room-lock-glyph-${room.id}`)).toBeInTheDocument();
     });
 
     it('renders no room nodes when document has no rooms', () => {
@@ -1807,6 +1817,72 @@ describe('MapCanvas', () => {
       expect(hallwayNode.style.transform).toBe('translate(230px, 140px)');
 
       fireEvent.mouseUp(document, { clientX: 130, clientY: 160 });
+    });
+
+    it('does not move a locked room when dragged', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), locked: true, position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].position).toEqual({ x: 80, y: 120 });
+      expect(roomNode.style.transform).toBe('translate(80px, 120px)');
+    });
+
+    it('does not preview locked rooms as moving during a mixed drag', () => {
+      const doc = createEmptyMap('Test');
+      const lockedRoom = { ...createRoom('Locked'), locked: true, position: { x: 80, y: 120 } };
+      const freeRoom = { ...createRoom('Free'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, lockedRoom);
+      updated = addRoom(updated, freeRoom);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(lockedRoom.id);
+      useEditorStore.getState().addRoomToSelection(freeRoom.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const freeRoomNode = screen.getByText('Free').closest('[data-testid="room-node"]') as HTMLElement;
+      const lockedRoomNode = screen.getByText('Locked').closest('[data-testid="room-node"]') as HTMLElement;
+
+      fireEvent.mouseDown(freeRoomNode, { clientX: 220, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 260, clientY: 180 });
+
+      expect(freeRoomNode.style.transform).toBe('translate(240px, 160px)');
+      expect(lockedRoomNode.style.transform).toBe('translate(80px, 120px)');
+
+      fireEvent.mouseUp(document, { clientX: 260, clientY: 180 });
+    });
+  });
+
+  describe('room locking', () => {
+    it('toggles the selected rooms with L and ignores non-room selections', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const stickyNote = { ...createStickyNote('todo'), position: { x: 200, y: 120 } };
+      let updated = addRoom(doc, room);
+      updated = addStickyNote(updated, stickyNote);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().setSelection([room.id], [stickyNote.id], [], []);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'l' });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].locked).toBe(true);
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNote.id].position).toEqual({ x: 200, y: 120 });
+
+      fireEvent.keyDown(canvas, { key: 'L' });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].locked).toBe(false);
     });
   });
 

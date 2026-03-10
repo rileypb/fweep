@@ -355,6 +355,9 @@ export function moveRoom(doc: MapDocument, roomId: string, position: Position): 
   if (!room) {
     throw new Error(`Room "${roomId}" not found.`);
   }
+  if (room.locked) {
+    return doc;
+  }
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [roomId]: { ...room, position } },
@@ -410,6 +413,9 @@ export function setRoomPositions(
     if (!room) {
       throw new Error(`Room "${roomId}" not found.`);
     }
+    if (room.locked) {
+      continue;
+    }
 
     if (room.position.x === position.x && room.position.y === position.y) {
       continue;
@@ -460,6 +466,46 @@ export function setRoomShape(doc: MapDocument, roomId: string, shape: RoomShape)
     ...doc,
     rooms: { ...doc.rooms, [roomId]: { ...room, shape } },
   });
+}
+
+/** Return a new document with the room's lock state updated. */
+export function setRoomLocked(doc: MapDocument, roomId: string, locked: boolean): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  if (room.locked === locked) {
+    return doc;
+  }
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [roomId]: { ...room, locked } },
+  });
+}
+
+/** Return a new document with multiple rooms' lock states updated. */
+export function setRoomsLocked(
+  doc: MapDocument,
+  roomIds: readonly string[],
+  locked: boolean,
+): MapDocument {
+  let changed = false;
+  const rooms = { ...doc.rooms };
+
+  for (const roomId of roomIds) {
+    const room = rooms[roomId];
+    if (!room) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+    if (room.locked === locked) {
+      continue;
+    }
+
+    rooms[roomId] = { ...room, locked };
+    changed = true;
+  }
+
+  return changed ? touch({ ...doc, rooms }) : doc;
 }
 
 /** Return a new document with the room's visual styling updated. */
