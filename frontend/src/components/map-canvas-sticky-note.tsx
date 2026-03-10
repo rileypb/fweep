@@ -4,13 +4,15 @@ import { useEditorStore } from '../state/editor-store';
 import { STICKY_NOTE_MIN_HEIGHT, STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import type { PanOffset } from './use-map-viewport';
 
-function autoResizeTextarea(textarea: HTMLTextAreaElement | null): void {
+const STICKY_NOTE_VERTICAL_CHROME = 34;
+
+function autoResizeTextarea(textarea: HTMLTextAreaElement | null, noteHeight: number): void {
   if (!textarea) {
     return;
   }
 
   textarea.style.height = '0px';
-  textarea.style.height = `${Math.max(STICKY_NOTE_MIN_HEIGHT - 24, textarea.scrollHeight)}px`;
+  textarea.style.height = `${Math.max(noteHeight - STICKY_NOTE_VERTICAL_CHROME, textarea.scrollHeight)}px`;
 }
 
 export interface MapCanvasStickyNoteProps {
@@ -55,9 +57,9 @@ export function MapCanvasStickyNote({
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.focus();
-      autoResizeTextarea(textareaRef.current);
+      autoResizeTextarea(textareaRef.current, height);
     }
-  }, [isEditing, stickyNote.text]);
+  }, [height, isEditing, stickyNote.text]);
 
   return (
     <div
@@ -211,7 +213,7 @@ export function MapCanvasStickyNote({
             value={stickyNote.text}
             onChange={(event) => {
               setStickyNoteText(stickyNote.id, event.target.value, { historyMergeKey: `sticky-note:${stickyNote.id}:text` });
-              autoResizeTextarea(event.currentTarget);
+              autoResizeTextarea(event.currentTarget, getStickyNoteHeight(event.target.value));
             }}
             onMouseDown={(event) => {
               event.stopPropagation();

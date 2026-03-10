@@ -1137,15 +1137,16 @@ body {
 
 .sticky-note-text,
 .sticky-note-textarea {
-  font: 500 15px/1.35 Georgia, serif;
+  font: 500 15px/20px Georgia, serif;
   color: inherit;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .sticky-note-textarea {
+  display: block;
   width: 100%;
-  min-height: 76px;
+  min-height: 0;
   padding: 0;
   border: 0;
   background: transparent;

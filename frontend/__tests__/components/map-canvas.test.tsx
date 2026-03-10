@@ -1453,10 +1453,13 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300, shiftKey: true });
+      const noteElement = screen.getByTestId('sticky-note');
+      const initialMinHeight = noteElement.style.minHeight;
 
       await user.dblClick(screen.getByTestId('sticky-note'));
 
       expect(screen.getByTestId('sticky-note-textarea')).toBeInTheDocument();
+      expect(noteElement.style.minHeight).toBe(initialMinHeight);
     });
 
     it('shows the room-style selection outline around a selected sticky note', () => {
