@@ -39,6 +39,16 @@ interface MutableHelpSection {
   blocks: HelpBlock[];
 }
 
+function renderInlineMarkdown(text: string): React.JSX.Element[] {
+  return text.split(/(`[^`]+`)/g).filter(Boolean).map((segment, index) => {
+    if (segment.startsWith('`') && segment.endsWith('`') && segment.length >= 2) {
+      return <code key={`code-${index}`} className="help-inline-code">{segment.slice(1, -1)}</code>;
+    }
+
+    return <span key={`text-${index}`}>{segment}</span>;
+  });
+}
+
 function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSection[] } {
   const lines = markdown.split(/\r?\n/);
   let title = 'Help';
@@ -293,7 +303,7 @@ export function App(): React.JSX.Element {
                     if (block.type === 'paragraph') {
                       return (
                         <p key={`${section.title}-paragraph-${index}`} className="help-body">
-                          {block.text}
+                          {renderInlineMarkdown(block.text)}
                         </p>
                       );
                     }
@@ -301,7 +311,7 @@ export function App(): React.JSX.Element {
                     if (block.type === 'subheading') {
                       return (
                         <h4 key={`${section.title}-subheading-${index}`} className="help-subheading">
-                          {block.text}
+                          {renderInlineMarkdown(block.text)}
                         </h4>
                       );
                     }
@@ -311,7 +321,7 @@ export function App(): React.JSX.Element {
                         <ul key={`${section.title}-list-${index}`} className="help-list">
                           {block.items.map((item, itemIndex) => (
                             <li key={`${section.title}-list-${index}-item-${itemIndex}`} className="help-list-item">
-                              {item}
+                              {renderInlineMarkdown(item)}
                             </li>
                           ))}
                         </ul>
