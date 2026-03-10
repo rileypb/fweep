@@ -234,6 +234,17 @@ body {
   line-height: 1.6;
 }
 
+.help-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.help-list-item + .help-list-item {
+  margin-top: 0.2rem;
+}
+
 /* ---- Map selection dialog ---- */
 
 .map-selection-backdrop {

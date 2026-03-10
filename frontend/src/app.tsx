@@ -22,7 +22,12 @@ interface HelpRuleBlock {
   readonly type: 'rule';
 }
 
-type HelpBlock = HelpParagraphBlock | HelpSubheadingBlock | HelpRuleBlock;
+interface HelpListBlock {
+  readonly type: 'list';
+  readonly items: readonly string[];
+}
+
+type HelpBlock = HelpParagraphBlock | HelpSubheadingBlock | HelpRuleBlock | HelpListBlock;
 
 interface HelpSection {
   readonly title: string;
@@ -40,6 +45,7 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
   const sections: MutableHelpSection[] = [];
   let currentSection: MutableHelpSection | null = null;
   let paragraphBuffer: string[] = [];
+  let listBuffer: string[] = [];
 
   const flushParagraph = () => {
     if (!currentSection || paragraphBuffer.length === 0) {
@@ -53,22 +59,37 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
     paragraphBuffer = [];
   };
 
+  const flushList = () => {
+    if (!currentSection || listBuffer.length === 0) {
+      return;
+    }
+
+    currentSection.blocks.push({
+      type: 'list',
+      items: [...listBuffer],
+    });
+    listBuffer = [];
+  };
+
   for (const rawLine of lines) {
     const line = rawLine.trim();
 
     if (line.length === 0) {
       flushParagraph();
+      flushList();
       continue;
     }
 
     if (line.startsWith('# ')) {
       flushParagraph();
+      flushList();
       title = line.slice(2).trim() || title;
       continue;
     }
 
     if (line.startsWith('## ')) {
       flushParagraph();
+      flushList();
       currentSection = {
         title: line.slice(3).trim(),
         blocks: [],
@@ -79,6 +100,7 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
 
     if (line.startsWith('### ')) {
       flushParagraph();
+      flushList();
       if (currentSection) {
         currentSection.blocks.push({
           type: 'subheading',
@@ -90,9 +112,16 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
 
     if (line === '---') {
       flushParagraph();
+      flushList();
       if (currentSection) {
         currentSection.blocks.push({ type: 'rule' });
       }
+      continue;
+    }
+
+    if (line.startsWith('- ')) {
+      flushParagraph();
+      listBuffer.push(line.slice(2).trim());
       continue;
     }
 
@@ -100,6 +129,7 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
   }
 
   flushParagraph();
+  flushList();
   return { title, sections };
 }
 
@@ -273,6 +303,18 @@ export function App(): React.JSX.Element {
                         <h4 key={`${section.title}-subheading-${index}`} className="help-subheading">
                           {block.text}
                         </h4>
+                      );
+                    }
+
+                    if (block.type === 'list') {
+                      return (
+                        <ul key={`${section.title}-list-${index}`} className="help-list">
+                          {block.items.map((item, itemIndex) => (
+                            <li key={`${section.title}-list-${index}-item-${itemIndex}`} className="help-list-item">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
                       );
                     }
 

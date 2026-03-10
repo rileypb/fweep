@@ -272,7 +272,7 @@ export function getStickyNoteLinksWithinSelectionBox(
           x: roomCenter.x + panOffset.x,
           y: roomCenter.y + panOffset.y,
         },
-      ] as const;
+      ];
 
       return doesPolylineIntersectBounds(points, bounds);
     })
