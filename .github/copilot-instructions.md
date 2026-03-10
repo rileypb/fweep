@@ -152,10 +152,8 @@
 
 ## UI/UX
 
--  User may edit the map in two modes: a visual interactive mode where they can drag and drop rooms and connections, and a "CLI" mode where they can issue text commands to manipulate the map (e.g., "add room Kitchen", "connect Kitchen north to Hallway").
+-  User may edit the map in two modes: a visual interactive mode where they can drag and drop rooms and connections, and a "CLI" mode where they can issue text commands to manipulate the map.
 -  In visual mode, users can click on rooms and connections to edit their properties. As much as possible, editing should be done in inputs surrounding the room/connection in the main canvas, rather than in a separate sidebar or modal, to keep the user focused on the map, and to minimize mouse movement. For example, clicking on a room could open an inline form directly below the room for editing its name and description, and clicking on a connection could open an inline form along the edge for editing its properties.
--  In CLI mode, users can issue text commands to manipulate the map. The CLI should support a rich set of commands for creating and editing rooms, connections, items, and other entities. 
--  The CLI should provide feedback on command success or failure, and support command history for easy repetition of previous commands.
 -  Favor keyboard-accessible editing flows alongside mouse interactions; core actions such as selection, moving focus, opening inline editors, confirming edits, and cancelling edits should be available without a mouse.
 -  Prefer inline editing near the relevant room or connection over context switching to distant panels, except when the amount of detail clearly requires a dedicated inspector.
 -  Keep the main canvas visually readable. Avoid cluttering the map with persistent controls; reveal advanced controls contextually on selection, focus, or hover.
@@ -185,16 +183,6 @@
 - When the user imports a map, they are prompted to select a file or choose from their Google Drive files. The selected map is then loaded and displayed in the map editor. It is also added to the list of available maps in local storage for future access.
 - App uses URL routing to track the currently open map (e.g., `/map/<map-id>`). This allows users to bookmark or share links to specific maps, and ensures that refreshing the page will reload the current map.
 
-## CLI commands
-- `room <room name>`: Create a new room with the given name.
-- `connect <source room> <direction> to <target room>`: Create a one-way connection from the source room to the target room in the specified direction.
-- `connect <room A> <direction A> to <room B> <direction B>`: Create a two-way connection between room A and room B, with the specified directions for each room.
-- `item <item name> in <room name>`: Create a new item with the given name and place it in the specified room.
-- `describe <room name> as <description>`: Set the description for the specified room.
-- `describe <item name> as <description>`: Set the description for the specified item.
-- `delete room <room name>`: Delete the specified room and all connections and items associated with it.
-- `delete connection <source room> <direction>`: Delete the connection from the source room in the specified direction.
-- `delete item <item name>`: Delete the specified item from its room.
 
 ## Validation Rules
 

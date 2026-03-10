@@ -1,0 +1,144 @@
+Formal grammar for the CLI described in `cli.md`
+
+Conventions
+
+- Matching is case-insensitive.
+- Input is normalized before parsing:
+  - leading and trailing whitespace is removed
+  - tabs are replaced with spaces
+  - runs of two or more spaces are reduced to one space
+- The grammar below is written in EBNF-style notation.
+- Some constraints are semantic rather than purely syntactic; those are listed in Notes.
+
+Grammar
+
+```ebnf
+input               ::= command ;
+
+command             ::= create-and-connect-command
+                      | connect-command
+                      | create-command
+                      | delete-command
+                      | edit-command
+                      | undo-command
+                      | redo-command ;
+
+create-command      ::= "create" wsp room-name ;
+
+delete-command      ::= "delete" wsp room-name ;
+
+edit-command        ::= "edit" wsp room-name ;
+
+undo-command        ::= "undo" ;
+
+redo-command        ::= "redo" ;
+
+create-and-connect-command
+                    ::= "create" wsp "and" wsp connect-tail ;
+
+connect-command     ::= "connect" wsp connect-tail ;
+
+connect-tail        ::= room-name wsp source-direction wsp connection-kind wsp "to" wsp room-name ;
+
+connection-kind     ::= wsp "one-way"
+                      | [ wsp target-direction ] ;
+
+source-direction    ::= direction ;
+
+target-direction    ::= direction ;
+
+direction           ::= "north"
+                      | "south"
+                      | "east"
+                      | "west"
+                      | "up"
+                      | "down"
+                      | "in"
+                      | "out"
+                      | "southwest"
+                      | "southeast"
+                      | "northwest"
+                      | "northeast" ;
+
+room-name           ::= quoted-name
+                      | unquoted-name ;
+
+quoted-name         ::= dquote quoted-char* dquote ;
+
+quoted-char         ::= escaped-dquote
+                      | escaped-backslash
+                      | non-dquote-char ;
+
+escaped-dquote      ::= "\" dquote ;
+
+escaped-backslash   ::= "\" "\" ;
+
+unquoted-name       ::= unquoted-word { wsp unquoted-word } ;
+
+unquoted-word       ::= token ;
+
+token               ::= token-char { token-char } ;
+
+token-char          ::= ? any character except whitespace and double quote ? ;
+
+non-dquote-char     ::= ? any character except double quote ? ;
+
+dquote              ::= "\"" ;
+
+wsp                 ::= " " ;
+```
+
+Semantic constraints
+
+- In a `connect-command`:
+  - if `one-way` is present, no target direction is allowed
+  - if `one-way` is absent and no target direction is supplied, the target direction defaults to the inverse of the source direction
+- In a `create-and-connect-command`:
+  - the source room is the room being created
+  - the target room must already exist, or the command fails
+- Names are case-insensitive for matching and uniqueness checks.
+- Keywords and directions are reserved when unquoted.
+
+Reserved words
+
+The following words are reserved when they appear unquoted:
+
+- `create`
+- `and`
+- `connect`
+- `delete`
+- `edit`
+- `undo`
+- `redo`
+- `to`
+- `one-way`
+- all direction words listed above
+
+Notes on ambiguous or unspecified behavior
+
+1. The grammar is not fully context-free in practice.
+   `cli.md` says that any unquoted word matching a keyword or direction must be treated as that keyword or direction. That means room-name parsing depends on the reserved-word table, not just on token shape.
+
+2. Unquoted room names cannot contain reserved words.
+   For example, a room named `west hall` or `connect room` would need to be quoted. This follows from the precedence rule in `cli.md`, but it may be surprising to users.
+
+3. Escaping rules.
+   `cli.md` allows `\"` and `\\` inside quoted names. Other escape sequences are not part of the current grammar and should be rejected unless the CLI rules are extended.
+
+4. `create and connect` forms.
+   `cli.md` specifies that `create and connect` supports the same one-way and two-way connection forms as `connect`.
+
+5. The token character set is not tightly specified.
+   This grammar allows any non-whitespace, non-quote character inside an unquoted token.
+
+6. Room-name normalization beyond whitespace.
+   `cli.md` specifies that punctuation and Unicode characters are preserved as-is, with only whitespace normalization and case-insensitive matching applied.
+
+7. Parse failure reporting is semantic, not grammatical.
+   The recommended rule is:
+   report `I didn't understand you.` only when, after normalization and tokenization, the input does not match exactly one command form.
+   This includes malformed quoting, missing required terms, missing required arguments, and unexpected extra tokens after an otherwise valid command.
+   If the input parses successfully but execution fails, the implementation should report a specific semantic error instead.
+
+8. This grammar models only the currently documented commands.
+   It does not include autocomplete, history, quick reference, or any future item/description commands.
