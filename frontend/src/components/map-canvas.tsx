@@ -129,6 +129,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
+  const [isAltKeyDown, setIsAltKeyDown] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
@@ -191,10 +192,12 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   useEffect(() => {
     const handleKeyChange = (event: KeyboardEvent) => {
       setIsShiftKeyDown(event.shiftKey);
+      setIsAltKeyDown(event.altKey);
     };
 
     const handleWindowBlur = () => {
       setIsShiftKeyDown(false);
+      setIsAltKeyDown(false);
     };
 
     window.addEventListener('keydown', handleKeyChange);
@@ -1115,6 +1118,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
               stickyNote={stickyNote}
               isSelected={selectedStickyNoteIds.includes(stickyNote.id)}
               isEditing={stickyNoteEditorId === stickyNote.id}
+              isAltKeyDown={isAltKeyDown}
               toMapPoint={toMapPoint}
               onOpenEditor={openStickyNoteEditor}
               onCloseEditor={closeStickyNoteEditor}

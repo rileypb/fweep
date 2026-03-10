@@ -19,6 +19,7 @@ export interface MapCanvasStickyNoteProps {
   readonly stickyNote: StickyNote;
   readonly isSelected: boolean;
   readonly isEditing: boolean;
+  readonly isAltKeyDown: boolean;
   readonly toMapPoint: (clientX: number, clientY: number) => PanOffset;
   readonly onOpenEditor: (stickyNoteId: string) => void;
   readonly onCloseEditor: () => void;
@@ -28,6 +29,7 @@ export function MapCanvasStickyNote({
   stickyNote,
   isSelected,
   isEditing,
+  isAltKeyDown,
   toMapPoint,
   onOpenEditor,
   onCloseEditor,
@@ -48,6 +50,7 @@ export function MapCanvasStickyNote({
   const cancelStickyNoteLinkDrag = useEditorStore((s) => s.cancelStickyNoteLinkDrag);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const interactionsDisabled = canvasInteractionMode === 'draw';
+  const noteCursor = !interactionsDisabled && !isEditing && !isAltKeyDown ? 'move' : undefined;
 
   const height = getStickyNoteHeight(stickyNote.text);
   const isDragging = selectionDrag !== null && selectionDrag.stickyNoteIds.includes(stickyNote.id);
@@ -105,6 +108,7 @@ export function MapCanvasStickyNote({
           width: `${STICKY_NOTE_WIDTH}px`,
           minHeight: `${height}px`,
           zIndex: 1,
+          cursor: noteCursor,
         }}
         onMouseDown={(event) => {
           if (event.button !== 0) {

@@ -162,6 +162,22 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--pan-ready');
   });
 
+  it('uses the move cursor over sticky notes in map mode unless Alt is held', () => {
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
+    useEditorStore.getState().loadDocument({
+      ...createEmptyMap('Test'),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+    });
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByTestId('sticky-note')).toHaveStyle({ cursor: 'move' });
+
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true });
+
+    expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ cursor: 'move' });
+  });
+
   it('toggles into draw interaction mode from the toolbar', async () => {
     const user = userEvent.setup();
     render(<MapCanvas mapName="Test" />);
