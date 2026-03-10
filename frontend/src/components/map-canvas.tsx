@@ -8,6 +8,7 @@ import {
   getConnectionsWithinSelectionBox,
   getPanDeltaToRevealRoom,
   getRoomScreenGeometry,
+  getStickyNoteLinksWithinSelectionBox,
   getStickyNotesWithinSelectionBox,
   getRoomsWithinSelectionBox,
   getSelectionBounds,
@@ -786,7 +787,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox),
           getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox),
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox) : [],
-          [],
+          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox) : [],
         );
       };
 

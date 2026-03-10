@@ -5,6 +5,7 @@ import {
   type RoomShape,
   type RoomStrokeStyle,
   type StickyNote,
+  type StickyNoteLink,
 } from '../domain/map-types';
 import {
   getRoomFillColor,
@@ -16,7 +17,7 @@ import {
   ROOM_CORNER_RADIUS,
   ROOM_HEIGHT,
 } from '../graph/connection-geometry';
-import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../graph/sticky-note-geometry';
+import { STICKY_NOTE_WIDTH, getStickyNoteCenter, getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import {
   getRoomShapePath,
   getRoomShapePolygonVertices,
@@ -238,6 +239,44 @@ export function getConnectionsWithinSelectionBox(
       return doesPolylineIntersectBounds(points, bounds);
     })
     .map((connection) => connection.id);
+}
+
+export function getStickyNoteLinksWithinSelectionBox(
+  rooms: Readonly<Record<string, Room>>,
+  stickyNotes: Readonly<Record<string, StickyNote>>,
+  stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>,
+  panOffset: PanOffset,
+  selectionBox: SelectionBox,
+): string[] {
+  const bounds = getSelectionBounds(selectionBox);
+
+  return Object.values(stickyNoteLinks)
+    .filter((stickyNoteLink) => {
+      const room = rooms[stickyNoteLink.roomId];
+      const stickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
+      if (!room || !stickyNote) {
+        return false;
+      }
+
+      const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+      const roomCenter = {
+        x: room.position.x + (getRoomNodeWidth(room.name) / 2),
+        y: room.position.y + (ROOM_HEIGHT / 2),
+      };
+      const points = [
+        {
+          x: stickyNoteCenter.x + panOffset.x,
+          y: stickyNoteCenter.y + panOffset.y,
+        },
+        {
+          x: roomCenter.x + panOffset.x,
+          y: roomCenter.y + panOffset.y,
+        },
+      ] as const;
+
+      return doesPolylineIntersectBounds(points, bounds);
+    })
+    .map((stickyNoteLink) => stickyNoteLink.id);
 }
 
 function getRoomCenter(room: Room): RoomCenter {
