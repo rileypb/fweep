@@ -685,6 +685,10 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     const isShiftShapeDraw = canvasInteractionMode === 'draw' && (drawingTool === 'line' || drawingTool === 'rectangle' || drawingTool === 'ellipse');
     const isBucketTool = drawingTool === 'bucket';
 
+    if (canvasInteractionMode === 'map' && e.shiftKey) {
+      return;
+    }
+
     if ((!e.shiftKey || isShiftShapeDraw || isBucketTool) && doc && drawingEnabled && canvasInteractionMode === 'draw') {
       e.preventDefault();
       suppressCanvasClickRef.current = true;
@@ -854,12 +858,18 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   ]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 1 || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
     const target = e.target as Element | null;
     if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
+      return;
+    }
+
+    const isShiftPan = e.button === 0 && e.shiftKey && canvasInteractionMode === 'map';
+    const isMiddlePan = e.button === 1;
+    if (!isShiftPan && !isMiddlePan) {
       return;
     }
 
@@ -877,6 +887,9 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     setIsPanning(true);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (moveEvent.clientX !== startX || moveEvent.clientY !== startY) {
+        suppressCanvasClickRef.current = true;
+      }
       setPanOffset({
         x: startPan.x + (moveEvent.clientX - startX),
         y: startPan.y + (moveEvent.clientY - startY),
@@ -891,7 +904,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [connectionDrag, connectionEditorId, roomEditorId, panOffsetRef, setPanOffset]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, roomEditorId, panOffsetRef, setPanOffset]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (roomEditorId || connectionEditorId || activeStroke) return;

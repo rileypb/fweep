@@ -189,7 +189,7 @@ describe('MapCanvas', () => {
   });
 
   describe('map panning', () => {
-    it('pans the map when middle-dragging empty canvas space', () => {
+    it('pans the map when shift-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -198,7 +198,7 @@ describe('MapCanvas', () => {
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
 
-      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 1 });
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0, shiftKey: true });
       fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
 
       expect(content.style.transform).toBe('translate(60px, 60px)');
@@ -378,6 +378,20 @@ describe('MapCanvas', () => {
 
       expect(content.style.transform).toBe('translate(0px, 0px)');
       expect(canvas).not.toHaveClass('map-canvas--panning');
+    });
+
+    it('does not create a sticky note when shift-dragging to pan', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0, shiftKey: true });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180, shiftKey: true });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180, button: 0, shiftKey: true });
+
+      expect(Object.values(useEditorStore.getState().doc!.stickyNotes)).toHaveLength(0);
     });
 
     it('draws a red selection box while dragging on the background', () => {
