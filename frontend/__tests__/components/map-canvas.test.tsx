@@ -62,6 +62,36 @@ describe('MapCanvas', () => {
     expect(screen.getByRole('button', { name: 'Switch to draw mode' })).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('uses the map-mode cursor on empty canvas by default', () => {
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--map-mode');
+    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--draw-mode');
+    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--pan-ready');
+  });
+
+  it('uses the draw-mode cursor when drawing mode is active', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
+
+    expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--draw-mode');
+    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--map-mode');
+  });
+
+  it('uses the pan-ready cursor when Shift is held in map mode', () => {
+    render(<MapCanvas mapName="Test" />);
+
+    fireEvent.keyDown(window, { key: 'Shift', shiftKey: true });
+
+    expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--pan-ready');
+
+    fireEvent.keyUp(window, { key: 'Shift', shiftKey: false });
+
+    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--pan-ready');
+  });
+
   it('toggles into draw interaction mode from the toolbar', async () => {
     const user = userEvent.setup();
     render(<MapCanvas mapName="Test" />);

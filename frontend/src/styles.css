@@ -543,6 +543,18 @@ body {
   cursor: grabbing;
 }
 
+.map-canvas--map-mode {
+  cursor: default;
+}
+
+.map-canvas--draw-mode {
+  cursor: crosshair;
+}
+
+.map-canvas--pan-ready {
+  cursor: grab;
+}
+
 :root[data-theme='dark'] .map-canvas--grid {
   --grid-color: rgba(255, 255, 255, 0.06);
 }

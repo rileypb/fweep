@@ -128,6 +128,7 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
   const [preferredExportScope, setPreferredExportScope] = useState<ExportScope | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
+  const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
@@ -186,6 +187,25 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
       setStickyNoteEditorId(null);
     }
   }, [selectedStickyNoteIds, stickyNoteEditorId]);
+
+  useEffect(() => {
+    const handleKeyChange = (event: KeyboardEvent) => {
+      setIsShiftKeyDown(event.shiftKey);
+    };
+
+    const handleWindowBlur = () => {
+      setIsShiftKeyDown(false);
+    };
+
+    window.addEventListener('keydown', handleKeyChange);
+    window.addEventListener('keyup', handleKeyChange);
+    window.addEventListener('blur', handleWindowBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyChange);
+      window.removeEventListener('keyup', handleKeyChange);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, []);
 
   useEffect(() => () => {
     if (autoPanTimeoutRef.current !== null) {
@@ -1020,6 +1040,8 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     'map-canvas',
     showGrid ? 'map-canvas--grid' : '',
     isPanning ? 'map-canvas--panning' : '',
+    canvasInteractionMode === 'draw' ? 'map-canvas--draw-mode' : 'map-canvas--map-mode',
+    canvasInteractionMode === 'map' && isShiftKeyDown && !isPanning ? 'map-canvas--pan-ready' : '',
     isAutoPanning ? 'map-canvas--grid-animated' : '',
   ].filter(Boolean).join(' ');
 
