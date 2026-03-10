@@ -232,4 +232,20 @@
 - Every connection has two ends.
 - Every note link is between a note and a room. 
    
+## Interaction Invariants
+
+- Rooms, connections, sticky notes, and sticky-note links are first-class editor entities.
+- Sticky notes and sticky-note links are explicit top-level document entities.
+- Mixed selection across entity types is supported.
+- Mixed deletion occurs in one operation and one undo step.
+- Only positioned entities move directly.
+- Rooms and sticky notes move directly; connections and sticky-note links move only through endpoint movement.
+- Dragging one selected movable entity moves all selected movable entities.
+- Sticky-note links connect sticky notes to rooms only.
+- Sticky-note links are annotations, not directional map connections.
+- Sticky notes support text and auto-grow vertically to fit it.
+- Selection must be visually explicit for every selectable entity type.
+- Marquee selection must work consistently across selectable entity types.
+- Keep interaction handling generic where practical, while keeping the domain model explicit and type-specific.
+
 
