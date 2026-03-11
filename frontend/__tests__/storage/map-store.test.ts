@@ -174,6 +174,112 @@ describe('map-store', () => {
       });
     });
 
+    it('normalizes invalid background, room, connection, and view fields from legacy saved maps', async () => {
+      const doc = createEmptyMap('Legacy Normalization');
+      const sourceRoomId = crypto.randomUUID();
+      const targetRoomId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const legacyDoc = {
+        ...doc,
+        view: {
+          pan: { x: 'left', y: null },
+          showGrid: 'yes',
+          snapToGrid: 1,
+          useBezierConnections: 'sometimes',
+        },
+        background: {
+          activeLayerId: 'missing-layer',
+          layers: {
+            'layer-1': {
+              id: 'layer-1',
+              name: 'Layer 1',
+              visible: undefined,
+              opacity: 'opaque',
+              pixelSize: null,
+              chunkSize: 'large',
+            },
+          },
+        },
+        rooms: {
+          [sourceRoomId]: {
+            id: sourceRoomId,
+            name: 'Kitchen',
+            description: '',
+            position: { x: 0, y: 0 },
+            directions: { east: connectionId },
+            isDark: false,
+            locked: 'sure',
+            shape: 'triangle',
+            fillColorIndex: -1,
+            strokeColorIndex: 999,
+            strokeStyle: 'zigzag',
+          },
+          [targetRoomId]: {
+            id: targetRoomId,
+            name: 'Hallway',
+            description: '',
+            position: { x: 160, y: 0 },
+            directions: { west: connectionId },
+            isDark: false,
+            shape: 'rectangle',
+            fillColorIndex: 0,
+            strokeColorIndex: 0,
+            strokeStyle: 'solid',
+          },
+        },
+        connections: {
+          [connectionId]: {
+            id: connectionId,
+            sourceRoomId,
+            targetRoomId,
+            isBidirectional: true,
+            annotation: { kind: 'text', text: 123 },
+            strokeColorIndex: -4,
+            strokeStyle: 'wavy',
+          },
+        },
+        stickyNotes: undefined,
+        stickyNoteLinks: undefined,
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await saveMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.background).toEqual({
+        activeLayerId: null,
+        layers: {
+          'layer-1': {
+            id: 'layer-1',
+            name: 'Layer 1',
+            visible: true,
+            opacity: 1,
+            pixelSize: 1,
+            chunkSize: 256,
+          },
+        },
+      });
+      expect(loaded?.rooms[sourceRoomId]).toMatchObject({
+        locked: false,
+        shape: 'rectangle',
+        fillColorIndex: 0,
+        strokeColorIndex: 0,
+        strokeStyle: 'solid',
+      });
+      expect(loaded?.connections[connectionId]).toMatchObject({
+        annotation: null,
+        strokeColorIndex: 0,
+        strokeStyle: 'solid',
+      });
+      expect(loaded?.view).toEqual({
+        pan: { x: 0, y: 0 },
+        showGrid: true,
+        snapToGrid: true,
+        useBezierConnections: false,
+      });
+      expect(loaded?.stickyNotes).toEqual({});
+      expect(loaded?.stickyNoteLinks).toEqual({});
+    });
+
     it('maps legacy direct room colors to palette indices when loading saved maps', async () => {
       const doc = createEmptyMap('Legacy Colors');
       const roomId = crypto.randomUUID();
@@ -274,6 +380,16 @@ describe('map-store', () => {
   });
 
   describe('background chunk storage', () => {
+    it('treats empty chunk save and delete requests as no-ops', async () => {
+      const doc = createEmptyMap('No-op Chunks');
+      await saveMap(doc);
+
+      await expect(saveBackgroundChunks([])).resolves.toBeUndefined();
+      await expect(deleteBackgroundChunks([])).resolves.toBeUndefined();
+
+      expect(await listBackgroundChunksForLayer(doc.metadata.id, 'layer-1')).toEqual([]);
+    });
+
     it('saves and loads background chunks by coordinate', async () => {
       const doc = createEmptyMap('Chunks');
       await saveMap(doc);
