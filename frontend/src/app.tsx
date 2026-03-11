@@ -4,7 +4,7 @@ import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
 import { parseCliCommand, parseCliCommandDescription } from './domain/cli-command';
-import { planCreateRoomFromCli } from './domain/cli-execution';
+import { planCreateRoomFromCli, resolveRoomByCliName } from './domain/cli-execution';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
@@ -157,6 +157,7 @@ export function App(): React.JSX.Element {
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
+  const removeRoom = useEditorStore((s) => s.removeRoom);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
@@ -234,6 +235,19 @@ export function App(): React.JSX.Element {
                 x: (window.innerWidth / 2) - plan.position.x,
                 y: (window.innerHeight / 2) - plan.position.y,
               });
+            } else if (command.kind === 'delete' && storeDoc !== null) {
+              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+              if (roomMatch.kind === 'none') {
+                console.error(`Unknown room ${command.roomName}`);
+                cliInputRef.current?.select();
+                return;
+              }
+              if (roomMatch.kind === 'multiple') {
+                console.error('Multiple rooms have that name. You must delete them manually.');
+                cliInputRef.current?.select();
+                return;
+              }
+              removeRoom(roomMatch.room.id);
             } else {
               const description = parseCliCommandDescription(cliCommand);
               if (description === null) {

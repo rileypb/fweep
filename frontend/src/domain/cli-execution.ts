@@ -8,8 +8,30 @@ export interface CreateRoomCliPlan {
   readonly position: Position;
 }
 
+export type CliRoomMatch =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'one'; readonly room: Room }
+  | { readonly kind: 'multiple'; readonly rooms: readonly Room[] };
+
 function normalizeCliName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function findRoomsByCliName(doc: MapDocument, requestedName: string): readonly Room[] {
+  const normalizedRequestedName = normalizeCliName(requestedName);
+  return Object.values(doc.rooms).filter((room) => normalizeCliName(room.name) === normalizedRequestedName);
+}
+
+export function resolveRoomByCliName(doc: MapDocument, requestedName: string): CliRoomMatch {
+  const matches = findRoomsByCliName(doc, requestedName);
+  if (matches.length === 0) {
+    return { kind: 'none' };
+  }
+  if (matches.length === 1) {
+    return { kind: 'one', room: matches[0] };
+  }
+
+  return { kind: 'multiple', rooms: matches };
 }
 
 function getExistingRoomNames(doc: MapDocument): Set<string> {

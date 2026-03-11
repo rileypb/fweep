@@ -85,6 +85,134 @@ describe('URL routing', () => {
     errorSpy.mockRestore();
   });
 
+  it('deletes a room for the delete CLI command', async () => {
+    let doc = createEmptyMap('CLI Delete Map');
+    const room = {
+      id: 'room-1',
+      name: 'Kitchen',
+      description: '',
+      position: { x: 120, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    doc = {
+      ...doc,
+      rooms: {
+        [room.id]: room,
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli delete map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'delete kitchen{enter}');
+
+    const state = useEditorStore.getState();
+    expect(Object.values(state.doc?.rooms ?? {})).toHaveLength(0);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an unknown room for delete when no matching room exists', async () => {
+    const doc = createEmptyMap('CLI Delete Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli delete error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'delete kitchen{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Unknown room kitchen');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an error for delete when multiple rooms have the same name', async () => {
+    let doc = createEmptyMap('CLI Duplicate Delete Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        'room-2': {
+          id: 'room-2',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli duplicate delete map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'delete kitchen{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Multiple rooms have that name. You must delete them manually.');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});

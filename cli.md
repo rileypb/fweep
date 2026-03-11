@@ -51,6 +51,7 @@
 - `create and connect bedroom east to living room` creates bedroom 2 (or higher) if bedroom exists.
 - Attempting to connect to an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
 - Attempting to delete an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
+- If multiple rooms match the requested name for `delete`, abort the action and print the error "Multiple rooms have that name. You must delete them manually."
 - Attempting to edit an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.

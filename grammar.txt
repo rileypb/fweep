@@ -108,6 +108,7 @@ Semantic constraints
 - In a `create-and-connect-command`:
   - the source room is the room being created
   - the target room must already exist, or the command fails
+- Commands that resolve a room by name must fail with a semantic error if zero rooms match or if more than one room matches.
 - Names are case-insensitive for matching and uniqueness checks.
 - Keywords and directions are reserved when unquoted.
 

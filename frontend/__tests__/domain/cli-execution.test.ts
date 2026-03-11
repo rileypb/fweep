@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { addRoom } from '../../src/domain/map-operations';
 import { createEmptyMap, createRoom } from '../../src/domain/map-types';
-import { planCreateRoomFromCli } from '../../src/domain/cli-execution';
+import { findRoomsByCliName, planCreateRoomFromCli, resolveRoomByCliName } from '../../src/domain/cli-execution';
 
 describe('planCreateRoomFromCli', () => {
   it('places the first room at the center of the current viewport', () => {
@@ -40,5 +40,35 @@ describe('planCreateRoomFromCli', () => {
       roomName: 'kitchen 3',
       position: { x: 160, y: 0 },
     });
+  });
+});
+
+describe('resolveRoomByCliName', () => {
+  it('matches room names case-insensitively', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'kItChEn')).toEqual({ kind: 'one', room });
+  });
+
+  it('normalizes repeated whitespace when matching', () => {
+    const room = { ...createRoom('Great Hall'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'Great   Hall')).toEqual({ kind: 'one', room });
+  });
+
+  it('returns null for an unknown room', () => {
+    const doc = createEmptyMap('Test Map');
+
+    expect(resolveRoomByCliName(doc, 'Kitchen')).toEqual({ kind: 'none' });
+  });
+
+  it('reports multiple matches when duplicate room names exist', () => {
+    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 80, y: 0 } });
+
+    const matches = findRoomsByCliName(doc, 'kitchen');
+    expect(resolveRoomByCliName(doc, 'kitchen')).toEqual({ kind: 'multiple', rooms: matches });
   });
 });
