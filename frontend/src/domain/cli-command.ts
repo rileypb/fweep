@@ -1,6 +1,6 @@
 import { normalizeDirection, oppositeDirection } from './directions';
 
-type CliCommand =
+export type CliCommand =
   | { readonly kind: 'create'; readonly roomName: string }
   | { readonly kind: 'delete'; readonly roomName: string }
   | { readonly kind: 'edit'; readonly roomName: string }
@@ -207,7 +207,7 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Ex
   };
 }
 
-function parseCliCommand(input: string): CliCommand | null {
+export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
     return null;

@@ -31,7 +31,7 @@ describe('URL routing', () => {
     expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();
   });
 
-  it('logs the parsed CLI action when the user presses Enter', async () => {
+  it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
     const user = userEvent.setup();
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -39,9 +39,44 @@ describe('URL routing', () => {
     render(<App />);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'connect Kitchen east to Hallway{enter}');
+
+    expect(logSpy).toHaveBeenCalledWith('create a two-way connection from Kitchen going east to Hallway going west');
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('creates, selects, and centers a room for the create CLI command', async () => {
+    const doc = createEmptyMap('CLI Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'create Kitchen{enter}');
 
-    expect(logSpy).toHaveBeenCalledWith('create a room called Kitchen');
+    const state = useEditorStore.getState();
+    const rooms = Object.values(state.doc?.rooms ?? {});
+
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0].name).toBe('Kitchen');
+    expect(state.selectedRoomIds).toEqual([rooms[0].id]);
+    expect(state.mapPanOffset).toEqual({
+      x: (window.innerWidth / 2) - rooms[0].position.x,
+      y: (window.innerHeight / 2) - rooms[0].position.y,
+    });
+    expect(logSpy).not.toHaveBeenCalled();
     expect(errorSpy).not.toHaveBeenCalled();
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
