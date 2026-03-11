@@ -12,18 +12,34 @@ import { PadlockGlyph } from './padlock-glyph';
 
 const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
+const VERTICAL_HANDLE_RADIUS = 4;
 
 interface DirectionHandlesProps {
   roomWidth: number;
   roomHeight: number;
   roomShape: RoomShape;
+  labelY: number;
   onHandleMouseDown?: (direction: string, e: React.MouseEvent) => void;
+}
+
+function getVerticalHandleOffset(
+  direction: 'up' | 'down',
+  roomWidth: number,
+  labelY: number,
+): { x: number; y: number } {
+  return {
+    x: roomWidth / 2,
+    y: direction === 'up'
+      ? Math.max(8, labelY - 9)
+      : Math.min(ROOM_HEIGHT - 8, labelY + 9),
+  };
 }
 
 function DirectionHandles({
   roomWidth,
   roomHeight,
   roomShape,
+  labelY,
   onHandleMouseDown,
 }: DirectionHandlesProps): React.JSX.Element {
   return (
@@ -43,6 +59,27 @@ function DirectionHandles({
             cx={handleOffset.x}
             cy={handleOffset.y}
             r={HANDLE_RADIUS}
+            onMouseDown={(e) => {
+              if (onHandleMouseDown) {
+                e.stopPropagation();
+                onHandleMouseDown(dir, e);
+              }
+            }}
+          />
+        );
+      })}
+      {(['up', 'down'] as const).map((dir) => {
+        const handleOffset = getVerticalHandleOffset(dir, roomWidth, labelY);
+
+        return (
+          <circle
+            key={dir}
+            className="direction-handle direction-handle--vertical"
+            data-testid={`direction-handle-${dir}`}
+            data-direction={dir}
+            cx={handleOffset.x}
+            cy={handleOffset.y}
+            r={VERTICAL_HANDLE_RADIUS}
             onMouseDown={(e) => {
               if (onHandleMouseDown) {
                 e.stopPropagation();
@@ -270,6 +307,7 @@ export function MapCanvasRoomNode({
           roomWidth={roomWidth}
           roomHeight={ROOM_HEIGHT}
           roomShape={room.shape}
+          labelY={labelLayout.textY}
           onHandleMouseDown={handleDirectionMouseDown}
         />
       )}

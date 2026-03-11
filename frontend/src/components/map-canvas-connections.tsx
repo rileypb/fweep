@@ -13,6 +13,7 @@ import {
   computeGeometryArrowheadPoints,
   computePreviewPath,
   createConnectionRenderGeometry,
+  findRoomDirectionForConnection,
   getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
   pointsToSvgString,
@@ -29,6 +30,8 @@ const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
 const CONNECTION_ANNOTATION_ARROWHEAD_LENGTH = 10;
 const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
+const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
 function applyDragOffset(
@@ -73,6 +76,27 @@ interface ConnectionLabelGeometry {
   readonly textAnchor: 'start' | 'middle';
 }
 
+function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
+  const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
+  const targetDirection = connection.isBidirectional
+    ? findRoomDirectionForConnection(targetRoom, connection.id)
+    : null;
+
+  const sourceIsUp = sourceDirection === 'up';
+  const targetIsUp = targetDirection === 'up';
+  if ((sourceIsUp || targetIsUp) && !(sourceIsUp && targetIsUp)) {
+    return 'up';
+  }
+
+  const sourceIsDown = sourceDirection === 'down';
+  const targetIsDown = targetDirection === 'down';
+  if ((sourceIsDown || targetIsDown) && !(sourceIsDown && targetIsDown)) {
+    return 'down';
+  }
+
+  return null;
+}
+
 function getSegmentLength(start: VectorPoint, end: VectorPoint): number {
   return Math.hypot(end.x - start.x, end.y - start.y);
 }
@@ -97,6 +121,8 @@ function getLongestSegment(points: readonly VectorPoint[]): { start: VectorPoint
 function getAnnotationGeometry(
   segment: { start: VectorPoint; end: VectorPoint },
   reverseDirection: boolean,
+  annotationLabel: string,
+  compactLength: boolean,
 ): {
   lineStart: VectorPoint;
   lineEnd: VectorPoint;
@@ -123,7 +149,15 @@ function getAnnotationGeometry(
   const centerY = (segment.start.y + segment.end.y) / 2;
   const annotationCenterX = centerX + (normalX * CONNECTION_ANNOTATION_OFFSET);
   const annotationCenterY = centerY + (normalY * CONNECTION_ANNOTATION_OFFSET);
-  const annotationLength = length * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const annotationLength = compactLength
+    ? Math.min(
+      length * CONNECTION_ANNOTATION_LENGTH_RATIO,
+      Math.max(
+        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
+        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
+      ),
+    )
+    : length * CONNECTION_ANNOTATION_LENGTH_RATIO;
   const halfLength = annotationLength / 2;
   const lineStart = {
     x: annotationCenterX - (directionX * halfLength),
@@ -204,6 +238,8 @@ function getSegmentCenter(segment: { start: VectorPoint; end: VectorPoint }): Ve
 function getAnnotationGeometryFromRenderGeometry(
   geometry: ConnectionRenderGeometry,
   reverseDirection: boolean,
+  annotationLabel: string,
+  compactLength: boolean,
 ): {
   lineStart: VectorPoint;
   lineEnd: VectorPoint;
@@ -231,7 +267,15 @@ function getAnnotationGeometryFromRenderGeometry(
   const normalY = ux;
   const annotationCenterX = sample.point.x + (normalX * CONNECTION_ANNOTATION_OFFSET);
   const annotationCenterY = sample.point.y + (normalY * CONNECTION_ANNOTATION_OFFSET);
-  const annotationLength = getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const annotationLength = compactLength
+    ? Math.min(
+      getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO,
+      Math.max(
+        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
+        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
+      ),
+    )
+    : getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO;
   const halfLength = annotationLength / 2;
   const lineStart = {
     x: annotationCenterX - (directionX * halfLength),
@@ -337,13 +381,15 @@ export function MapCanvasConnections({
 
   const renderConnectionLine = (
     conn: Connection,
+    sourceRoom: Room,
+    targetRoom: Room,
     points: ReturnType<typeof computeConnectionPath>,
     geometry: ConnectionRenderGeometry,
     isSelfConnection: boolean,
   ): React.JSX.Element => {
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
-    const annotationKind = conn.annotation?.kind;
+    const annotationKind = conn.annotation?.kind ?? getDerivedVerticalAnnotationKind(conn, sourceRoom, targetRoom);
     const annotationText = annotationKind === 'text' ? conn.annotation?.text?.trim() ?? '' : '';
     const rendersDirectionalAnnotation = annotationKind === 'up'
       || annotationKind === 'down'
@@ -351,10 +397,11 @@ export function MapCanvasConnections({
       || annotationKind === 'out';
     const rendersTextAnnotation = annotationKind === 'text' && annotationText.length > 0;
     const annotationLabel = annotationKind === 'up' || annotationKind === 'down'
-      ? 'up'
+      ? annotationKind
       : annotationKind === 'in' || annotationKind === 'out'
         ? 'in'
         : annotationText;
+    const usesCompactDirectionalArrow = annotationKind === 'up' || annotationKind === 'down';
     const rendersDoorAnnotation = annotationKind === 'door';
     const rendersLockedDoorAnnotation = annotationKind === 'locked door';
     const annotationSegment = geometry.kind === 'polyline' && rendersDirectionalAnnotation && !isSelfConnection
@@ -365,15 +412,25 @@ export function MapCanvasConnections({
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
     const annotationGeometry = geometry.kind === 'polyline'
       ? (annotationSegment
-        ? getAnnotationGeometry(annotationSegment, annotationKind === 'down' || annotationKind === 'out')
+        ? getAnnotationGeometry(
+          annotationSegment,
+          annotationKind === 'down' || annotationKind === 'out',
+          annotationLabel,
+          usesCompactDirectionalArrow,
+        )
         : null)
       : rendersDirectionalAnnotation && !isSelfConnection
-        ? getAnnotationGeometryFromRenderGeometry(geometry, annotationKind === 'down' || annotationKind === 'out')
+        ? getAnnotationGeometryFromRenderGeometry(
+          geometry,
+          annotationKind === 'down' || annotationKind === 'out',
+          annotationLabel,
+          usesCompactDirectionalArrow,
+        )
         : null;
     const textAnnotationGeometry = geometry.kind === 'polyline'
-      ? (textAnnotationSegment ? getAnnotationGeometry(textAnnotationSegment, false) : null)
+      ? (textAnnotationSegment ? getAnnotationGeometry(textAnnotationSegment, false, annotationLabel, false) : null)
       : rendersTextAnnotation
-        ? getAnnotationGeometryFromRenderGeometry(geometry, false)
+        ? getAnnotationGeometryFromRenderGeometry(geometry, false, annotationLabel, false)
         : null;
     const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
       ? getSelfAnnotationPosition(points)
@@ -673,7 +730,7 @@ export function MapCanvasConnections({
 
           return (
             <g key={conn.id}>
-              {renderConnectionLine(conn, points, geometry, conn.sourceRoomId === conn.targetRoomId)}
+              {renderConnectionLine(conn, src, tgt, points, geometry, conn.sourceRoomId === conn.targetRoomId)}
               {arrowPointSets.map((arrowPoints, index) => (
                 <polygon
                   key={`${conn.id}-arrow-${index}`}

@@ -6,6 +6,7 @@ import {
   computeConnectionPath,
   computeGeometryArrowheadPoints,
   createConnectionRenderGeometry,
+  findRoomDirectionForConnection,
   ROOM_CORNER_RADIUS,
   ROOM_HEIGHT,
   sampleConnectionGeometryAtFraction,
@@ -28,6 +29,27 @@ const LIGHT_FOREGROUND = '#111827';
 const DARK_FOREGROUND = '#f3f4f6';
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+
+function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
+  const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
+  const targetDirection = connection.isBidirectional
+    ? findRoomDirectionForConnection(targetRoom, connection.id)
+    : null;
+
+  const sourceIsUp = sourceDirection === 'up';
+  const targetIsUp = targetDirection === 'up';
+  if ((sourceIsUp || targetIsUp) && !(sourceIsUp && targetIsUp)) {
+    return 'up';
+  }
+
+  const sourceIsDown = sourceDirection === 'down';
+  const targetIsDown = targetDirection === 'down';
+  if ((sourceIsDown || targetIsDown) && !(sourceIsDown && targetIsDown)) {
+    return 'down';
+  }
+
+  return null;
+}
 
 function getBoundsSize(bounds: ExportRegion): { width: number; height: number } {
   return {
@@ -208,6 +230,8 @@ function drawConnectionLine(
 
 function drawConnectionLabels(
   context: CanvasRenderingContext2D,
+  sourceRoom: Room,
+  targetRoom: Room,
   connection: Connection,
   geometry: ConnectionRenderGeometry,
   points: readonly Point[],
@@ -242,11 +266,11 @@ function drawConnectionLabels(
     }
   }
 
-  const annotationKind = connection.annotation?.kind;
+  const annotationKind = connection.annotation?.kind ?? getDerivedVerticalAnnotationKind(connection, sourceRoom, targetRoom);
   const annotationLabel = annotationKind === 'text'
     ? connection.annotation?.text?.trim() ?? ''
     : annotationKind === 'up' || annotationKind === 'down'
-      ? 'up'
+      ? annotationKind
       : annotationKind === 'in' || annotationKind === 'out'
         ? 'in'
         : '';
@@ -404,7 +428,11 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   renderedConnectionGeometry.forEach(({ connection, result }) => {
     if (result) {
-      drawConnectionLabels(context, connection, result.geometry, result.points, input.theme);
+      const sourceRoom = input.doc.rooms[connection.sourceRoomId];
+      const targetRoom = input.doc.rooms[connection.targetRoomId];
+      if (sourceRoom && targetRoom) {
+        drawConnectionLabels(context, sourceRoom, targetRoom, connection, result.geometry, result.points, input.theme);
+      }
     }
   });
 

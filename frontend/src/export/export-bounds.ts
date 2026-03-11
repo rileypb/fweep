@@ -1,5 +1,12 @@
 import type { Connection, MapDocument, Position, Room } from '../domain/map-types';
-import { createConnectionRenderGeometry, type Point, computeConnectionPath, ROOM_HEIGHT, sampleConnectionGeometryAtFraction } from '../graph/connection-geometry';
+import {
+  createConnectionRenderGeometry,
+  type Point,
+  computeConnectionPath,
+  findRoomDirectionForConnection,
+  ROOM_HEIGHT,
+  sampleConnectionGeometryAtFraction,
+} from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import type { ExportBoundsResult, ExportRegion, ExportSettings, ExportValidationError } from './export-types';
 
@@ -8,6 +15,27 @@ const MAX_EXPORT_PIXEL_COUNT = 33_554_432;
 const APPROX_LABEL_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+
+function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
+  const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
+  const targetDirection = connection.isBidirectional
+    ? findRoomDirectionForConnection(targetRoom, connection.id)
+    : null;
+
+  const sourceIsUp = sourceDirection === 'up';
+  const targetIsUp = targetDirection === 'up';
+  if ((sourceIsUp || targetIsUp) && !(sourceIsUp && targetIsUp)) {
+    return 'up';
+  }
+
+  const sourceIsDown = sourceDirection === 'down';
+  const targetIsDown = targetDirection === 'down';
+  if ((sourceIsDown || targetIsDown) && !(sourceIsDown && targetIsDown)) {
+    return 'down';
+  }
+
+  return null;
+}
 
 function createEmptyBounds(): ExportRegion {
   return {
@@ -114,11 +142,11 @@ function getConnectionTextBounds(
   let bounds = createEmptyBounds();
   let hasText = false;
 
-  const annotationKind = connection.annotation?.kind;
+  const annotationKind = connection.annotation?.kind ?? getDerivedVerticalAnnotationKind(connection, sourceRoom, targetRoom);
   const annotationText = annotationKind === 'text'
     ? connection.annotation?.text?.trim() ?? ''
     : annotationKind === 'up' || annotationKind === 'down'
-      ? 'up'
+      ? annotationKind
       : annotationKind === 'in' || annotationKind === 'out'
         ? 'in'
         : '';

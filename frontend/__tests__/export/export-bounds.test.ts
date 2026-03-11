@@ -57,6 +57,22 @@ describe('export-bounds', () => {
     expect((result.bounds?.right ?? 0) - (result.bounds?.left ?? 0)).toBeGreaterThan(150);
   });
 
+  it('includes derived vertical annotation text in selection bounds', () => {
+    const source = { ...createRoom('A'), id: 'room-a', position: { x: 0, y: 0 } };
+    const target = { ...createRoom('B'), id: 'room-b', position: { x: 0, y: 200 } };
+    const connection = { ...createConnection(source.id, target.id, false), id: 'connection-1' };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, target);
+    doc = addConnection(doc, connection, 'down');
+
+    const result = getSelectionExportBounds(doc, [], [connection.id], 0);
+
+    expect(result.validationError).toBeNull();
+    expect(result.bounds).not.toBeNull();
+    expect((result.bounds?.right ?? 0) - (result.bounds?.left ?? 0)).toBeGreaterThan(10);
+  });
+
   it('derives viewport bounds from pan offset and viewport size', () => {
     const result = getViewportExportBounds({ width: 500, height: 300 }, { x: 120, y: -40 }, 0);
 

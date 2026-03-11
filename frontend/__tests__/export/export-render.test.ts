@@ -13,6 +13,7 @@ const mockGetRoomStrokeDasharray = jest.fn<typeof import('../../src/components/m
 const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connection-geometry').computeConnectionPath>();
 const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/graph/connection-geometry').computeGeometryArrowheadPoints>();
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
+const mockFindRoomDirectionForConnection = jest.fn<typeof import('../../src/graph/connection-geometry').findRoomDirectionForConnection>();
 const mockSampleConnectionGeometryAtFraction = jest.fn<typeof import('../../src/graph/connection-geometry').sampleConnectionGeometryAtFraction>();
 const mockGetRoomNodeWidth = jest.fn<typeof import('../../src/graph/minimap-geometry').getRoomNodeWidth>();
 const mockListBackgroundChunksInBounds = jest.fn<typeof import('../../src/storage/map-store').listBackgroundChunksInBounds>();
@@ -44,6 +45,7 @@ await jest.unstable_mockModule('../../src/graph/connection-geometry', async () =
     computeConnectionPath: mockComputeConnectionPath,
     computeGeometryArrowheadPoints: mockComputeGeometryArrowheadPoints,
     createConnectionRenderGeometry: mockCreateConnectionRenderGeometry,
+    findRoomDirectionForConnection: mockFindRoomDirectionForConnection,
     sampleConnectionGeometryAtFraction: mockSampleConnectionGeometryAtFraction,
   };
 });
@@ -247,6 +249,10 @@ describe('renderExportCanvas', () => {
     mockSampleConnectionGeometryAtFraction.mockReturnValue({
       point: { x: 20, y: 10 },
       tangent: { x: 10, y: 0 },
+    });
+    mockFindRoomDirectionForConnection.mockImplementation((room, connectionId) => {
+      const match = Object.entries(room.directions).find(([, candidateConnectionId]) => candidateConnectionId === connectionId);
+      return match?.[0];
     });
     mockListBackgroundChunksInBounds.mockResolvedValue([
       {
@@ -526,5 +532,27 @@ describe('renderExportCanvas', () => {
     await expect(renderExportCanvas(input)).resolves.toBe(canvas);
     expect(context.beginPath).toHaveBeenCalled();
     expect(context.moveTo).not.toHaveBeenCalledWith(undefined, undefined);
+  });
+
+  it('renders a down label for derived vertical direction decorations', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Ledge'), id: 'room-source', position: { x: 0, y: 0 } };
+    const target = { ...createRoom('Pit'), id: 'room-target', position: { x: 160, y: 0 } };
+    let doc = createEmptyMap('Derived Down');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, target);
+    doc = addConnection(doc, { ...createConnection(source.id, target.id, false), id: 'connection-down' }, 'down');
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [],
+      selectedConnectionIds: [],
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('down', expect.any(Number), expect.any(Number));
   });
 });

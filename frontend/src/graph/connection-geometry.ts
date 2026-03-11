@@ -95,6 +95,10 @@ const HANDLE_DIRECTION_ORDER = [
   'northwest',
 ] as const;
 
+function isVerticalDirection(direction: string): boolean {
+  return direction === 'up' || direction === 'down';
+}
+
 function getPolygonEdgeCenters(vertices: Point[]): Point[] {
   return vertices.map((start, index) => {
     const end = vertices[(index + 1) % vertices.length];
@@ -536,31 +540,34 @@ export function getStubEndpoint(handlePosition: Point, direction: string, stubLe
 }
 
 /**
- * Find the first compass direction in a room's direction map that references a
- * given connection ID.  Returns `undefined` if no compass binding is found.
+ * Find the first direction in a room's direction map that references a given
+ * connection ID. Returns `undefined` if no binding is found.
  */
 export function findRoomDirectionForConnection(room: Room, connectionId: string): string | undefined {
   return findRoomDirectionsForConnection(room, connectionId)[0];
 }
 
 /**
- * Find all distinct compass directions in a room that reference a given
+ * Find all distinct directions in a room that reference a given
  * connection ID, preserving insertion order.
  */
 function findRoomDirectionsForConnection(room: Room, connectionId: string): string[] {
   const directions: string[] = [];
 
   for (const [dir, cid] of Object.entries(room.directions)) {
-    if (cid === connectionId && HANDLE_OFFSET_FACTORS[dir] !== undefined) {
+    if (cid === connectionId && (HANDLE_OFFSET_FACTORS[dir] !== undefined || isVerticalDirection(dir))) {
       directions.push(dir);
     }
   }
 
-  // Check if there's a non-compass direction that normalizes to a compass one
+  // Check if there's a non-canonical direction that normalizes to a supported one.
   for (const [dir, cid] of Object.entries(room.directions)) {
     if (cid === connectionId) {
       const normalized = normalizeDirection(dir);
-      if (HANDLE_OFFSET_FACTORS[normalized] !== undefined && !directions.includes(normalized)) {
+      if (
+        (HANDLE_OFFSET_FACTORS[normalized] !== undefined || isVerticalDirection(normalized))
+        && !directions.includes(normalized)
+      ) {
         directions.push(normalized);
       }
     }
@@ -602,26 +609,28 @@ export function computeConnectionPath(
       : findRoomDirectionForConnection(tgtRoom, conn.id);
 
   // Source endpoint
-  const srcStart = srcDir
-    ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions, srcRoom.shape)!
-    : getRoomCenter(srcRoom.position, srcRoomDimensions);
+  const srcHandlePosition = srcDir
+    ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions, srcRoom.shape)
+    : undefined;
+  const srcStart = srcHandlePosition ?? getRoomCenter(srcRoom.position, srcRoomDimensions);
 
   // Target endpoint
-  const tgtEnd = tgtDir
-    ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions, tgtRoom.shape)!
-    : getRoomCenter(tgtRoom.position, tgtRoomDimensions);
+  const tgtHandlePosition = tgtDir
+    ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions, tgtRoom.shape)
+    : undefined;
+  const tgtEnd = tgtHandlePosition ?? getRoomCenter(tgtRoom.position, tgtRoomDimensions);
 
   // Build points array
   const points: Point[] = [srcStart];
 
   // Source stub
-  if (srcDir) {
+  if (srcDir && srcHandlePosition) {
     const stub = getStubEndpointForRoom(srcStart, srcDir, stubLength, srcRoomDimensions, srcRoom.shape);
     if (stub) points.push(stub);
   }
 
   // Target stub (in reverse — the stub extends outward from the target handle)
-  if (tgtDir) {
+  if (tgtDir && tgtHandlePosition) {
     const stub = getStubEndpointForRoom(tgtEnd, tgtDir, stubLength, tgtRoomDimensions, tgtRoom.shape);
     if (stub) points.push(stub);
   }

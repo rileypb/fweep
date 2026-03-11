@@ -1291,6 +1291,14 @@ body {
   fill: #4f46e5;
 }
 
+.direction-handle--vertical {
+  fill: #0f766e;
+}
+
+.direction-handle--vertical:hover {
+  fill: #0d9488;
+}
+
 :root[data-theme='dark'] .direction-handle {
   fill: #818cf8;
   stroke: #1e293b;
@@ -1298,6 +1306,14 @@ body {
 
 :root[data-theme='dark'] .direction-handle:hover {
   fill: #a5b4fc;
+}
+
+:root[data-theme='dark'] .direction-handle--vertical {
+  fill: #2dd4bf;
+}
+
+:root[data-theme='dark'] .direction-handle--vertical:hover {
+  fill: #5eead4;
 }
 
 .room-name-input {

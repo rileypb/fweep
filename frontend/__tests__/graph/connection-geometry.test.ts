@@ -281,6 +281,18 @@ describe('findRoomDirectionForConnection', () => {
     const room = roomAt('A', 0, 0, { ne: 'conn-1' });
     expect(findRoomDirectionForConnection(room, 'conn-1')).toBe('northeast');
   });
+
+  it('returns up when the connection is bound as up', () => {
+    const room = roomAt('A', 0, 0, { up: 'conn-1' });
+
+    expect(findRoomDirectionForConnection(room, 'conn-1')).toBe('up');
+  });
+
+  it('returns down when the connection is bound as down', () => {
+    const room = roomAt('A', 0, 0, { down: 'conn-1' });
+
+    expect(findRoomDirectionForConnection(room, 'conn-1')).toBe('down');
+  });
 });
 
 describe('computeConnectionPath', () => {

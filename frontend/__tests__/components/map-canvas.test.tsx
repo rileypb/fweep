@@ -1608,17 +1608,24 @@ describe('MapCanvas', () => {
       return roomNode;
     }
 
-    it('shows 8 directional handles when hovering over a room', () => {
+    it('shows 10 directional handles when hovering over a room', () => {
       setupRoomAndHover();
 
       const handles = screen.getAllByTestId(/^direction-handle-/);
-      expect(handles).toHaveLength(8);
+      expect(handles).toHaveLength(10);
     });
 
     it.each(DIRECTIONS)('shows a handle for the %s direction', (dir) => {
       setupRoomAndHover();
 
       expect(screen.getByTestId(`direction-handle-${dir}`)).toBeInTheDocument();
+    });
+
+    it('shows handles for the up and down directions', () => {
+      setupRoomAndHover();
+
+      expect(screen.getByTestId('direction-handle-up')).toBeInTheDocument();
+      expect(screen.getByTestId('direction-handle-down')).toBeInTheDocument();
     });
 
     it('renders handle circles at the shared SVG geometry coordinates', () => {
@@ -1635,7 +1642,7 @@ describe('MapCanvas', () => {
       const roomNode = setupRoomAndHover();
 
       // Handles should be visible
-      expect(screen.getAllByTestId(/^direction-handle-/)).toHaveLength(8);
+      expect(screen.getAllByTestId(/^direction-handle-/)).toHaveLength(10);
 
       fireEvent.mouseLeave(roomNode);
 
@@ -1914,6 +1921,22 @@ describe('MapCanvas', () => {
       const drag = useEditorStore.getState().connectionDrag;
       expect(drag).not.toBeNull();
       expect(drag!.sourceDirection).toBe('north');
+    });
+
+    it('starts a vertical connection drag on mousedown on the up handle', () => {
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = within(kitchenNode).getByTestId('direction-handle-up');
+      fireEvent.mouseDown(handle, { clientX: 120, clientY: 218, button: 0 });
+
+      const drag = useEditorStore.getState().connectionDrag;
+      expect(drag).not.toBeNull();
+      expect(drag!.sourceDirection).toBe('up');
     });
 
     it('shows an SVG preview polyline during connection drag', () => {
@@ -2326,6 +2349,27 @@ describe('MapCanvas', () => {
       expect(screen.getByLabelText('none')).toBeChecked();
     });
 
+    it('does not offer up or down as connection annotation options', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+
+      expect(screen.queryByLabelText('up')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('down')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('in')).toBeInTheDocument();
+      expect(screen.getByLabelText('out')).toBeInTheDocument();
+    });
+
     it('updates connection start and end labels from the connection editor', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
@@ -2471,18 +2515,20 @@ describe('MapCanvas', () => {
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
 
       expect(annotationLine.tagName.toLowerCase()).toBe('line');
       expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(167.6, 5);
       expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(68.4, 5);
+      expect(Math.abs(lineY1 - lineY2)).toBeLessThan(40);
+      expect(Math.abs(lineY1 - lineY2)).toBeGreaterThan(20);
       expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(68.4, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
-      expect(arrowBasePoints[0][1]).toBeCloseTo(78.4, 5);
+      expect(arrowBasePoints[0][1]).toBeGreaterThan(arrowPoints[0][1]);
       expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowBasePoints[1][1]).toBeCloseTo(78.4, 5);
+      expect(arrowBasePoints[1][1]).toBeGreaterThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('up');
       expect(annotationText.getAttribute('transform')).toBeNull();
     });
@@ -2503,19 +2549,72 @@ describe('MapCanvas', () => {
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
 
       expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(68.4, 5);
       expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(167.6, 5);
+      expect(Math.abs(lineY1 - lineY2)).toBeLessThan(50);
+      expect(Math.abs(lineY1 - lineY2)).toBeGreaterThan(25);
       expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(167.6, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
       expect(arrowPoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowPoints[1][1]).toBeCloseTo(157.6, 5);
+      expect(arrowPoints[1][1]).toBeLessThan(arrowPoints[0][1]);
       expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
-      expect(arrowPoints[2][1]).toBeCloseTo(157.6, 5);
-      expect(annotationText).toHaveTextContent('up');
+      expect(arrowPoints[2][1]).toBeLessThan(arrowPoints[0][1]);
+      expect(annotationText).toHaveTextContent('down');
       expect(annotationText.getAttribute('transform')).toBeNull();
+    });
+
+    it('renders an up decoration from endpoint directions when one end is up', () => {
+      const doc = createEmptyMap('Test');
+      const cellar = { ...createRoom('Cellar'), position: { x: 80, y: 200 } };
+      const attic = { ...createRoom('Attic'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, cellar);
+      d = addRoom(d, attic);
+      const conn = createConnection(cellar.id, attic.id, true);
+      d = addConnection(d, conn, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
+    });
+
+    it('renders a down decoration from endpoint directions when no end is up and one end is down', () => {
+      const doc = createEmptyMap('Test');
+      const ledge = { ...createRoom('Ledge'), position: { x: 80, y: 200 } };
+      const shaft = { ...createRoom('Shaft'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, ledge);
+      d = addRoom(d, shaft);
+      const conn = createConnection(ledge.id, shaft.id, false);
+      d = addConnection(d, conn, 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
+    });
+
+    it('does not render a vertical decoration when both ends are up', () => {
+      const doc = createEmptyMap('Test');
+      const lower = { ...createRoom('Lower'), position: { x: 80, y: 200 } };
+      const upper = { ...createRoom('Upper'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, lower);
+      d = addRoom(d, upper);
+      const conn = createConnection(lower.id, upper.id, true);
+      d = addConnection(d, conn, 'up', 'up');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();
     });
 
     it('renders an in annotation as a centered parallel arrow and horizontal label', () => {
