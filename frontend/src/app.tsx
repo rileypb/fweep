@@ -215,7 +215,6 @@ export function App(): React.JSX.Element {
 
   const reportCliError = (message: string) => {
     setCliError(message);
-    console.error(message);
     cliInputRef.current?.select();
   };
 
@@ -227,6 +226,7 @@ export function App(): React.JSX.Element {
           className="app-cli-form"
           onSubmit={(event) => {
             event.preventDefault();
+            let shouldSelectCliInput = true;
             const command = parseCliCommand(cliCommand);
             if (command === null) {
               reportCliError("I didn't understand you.");
@@ -272,6 +272,7 @@ export function App(): React.JSX.Element {
               selectRoom(roomMatch.room.id);
               setRequestedRoomEditorId(roomMatch.room.id);
               setCliError(null);
+              shouldSelectCliInput = false;
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
               if (sourceRoomMatch.kind === 'none') {
@@ -355,7 +356,9 @@ export function App(): React.JSX.Element {
               setCliError(null);
               console.log(description);
             }
-            cliInputRef.current?.select();
+            if (shouldSelectCliInput) {
+              cliInputRef.current?.select();
+            }
           }}
         >
           <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
