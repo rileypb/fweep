@@ -161,6 +161,8 @@ export function App(): React.JSX.Element {
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -263,6 +265,10 @@ export function App(): React.JSX.Element {
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomEditorId(roomMatch.room.id);
+            } else if (command.kind === 'undo') {
+              undo();
+            } else if (command.kind === 'redo') {
+              redo();
             } else {
               const description = parseCliCommandDescription(cliCommand);
               if (description === null) {

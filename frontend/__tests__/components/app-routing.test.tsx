@@ -345,6 +345,63 @@ describe('URL routing', () => {
     errorSpy.mockRestore();
   });
 
+  it('undoes the previous command for the undo CLI command', async () => {
+    const doc = createEmptyMap('CLI Undo Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli undo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen{enter}');
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
+
+    fireEvent.change(input, { target: { value: 'undo' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalledWith("I didn't understand you.");
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('redoes the previous undone command for the redo CLI command', async () => {
+    const doc = createEmptyMap('CLI Redo Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli redo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen{enter}');
+    fireEvent.change(input, { target: { value: 'undo' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+
+    fireEvent.change(input, { target: { value: 'redo' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})[0]?.name).toBe('Kitchen');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalledWith("I didn't understand you.");
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
