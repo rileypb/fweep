@@ -29,7 +29,7 @@
   - User creates kitchen. User asks to create kitchen again; create kitchen 2 instead. If the user asks to create the kitchen yet again, create kitchen 3, etc.
 - Place newly created rooms in a location two grid cells to the east of the most recently-created room.
 - If there is no previously created room, place the new room at the center of the current viewport.
-- For the following: "locking" is defined only for prettification. A locked room is treated as immovable by the prettification algorithm, as though it had infinite inertia. Prettification is the algorithm we defined in the graphical UI for laying out rooms.
+- For the following: "locking" is defined only for prettification. This CLI-specific locking is transient and is distinct from the room's persistent `locked` property. A room that is locked for prettification is treated as immovable by the prettification algorithm, as though it had infinite inertia. Prettification is the algorithm we defined in the graphical UI for laying out rooms.
   - If the user creates a room and connects it in the same operation, for instance `create and connect bedroom east to living room`, temporarily lock all rooms except for the bedroom and prettify the map. Then unlock anything that wasn't locked before.
   - If the user creates a new connection, temporarily lock all rooms except for the two involved in the connection and prettify the map. Then unlock anything that wasn't locked before.
   - Do not do any locking or prettification when a connection is from a room to itself. In other words, the connection's target room is the same as its source room.
