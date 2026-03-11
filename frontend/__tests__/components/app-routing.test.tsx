@@ -682,6 +682,67 @@ describe('URL routing', () => {
     });
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.kitchen?.directions.west).toBe(connections[0].id);
+    expect(state.doc?.rooms.kitchen?.position).toEqual({ x: 120, y: 160 });
+  });
+
+  it('keeps uninvolved rooms fixed during connect prettification', async () => {
+    let doc = createEmptyMap('CLI Connect Prettify Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 700, y: 520 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 480, y: 320 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli connect prettify map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to hallway{enter}');
+
+    expect(useEditorStore.getState().doc?.rooms.pantry?.position).toEqual({ x: 480, y: 320 });
   });
 
   it('creates and connects a room in one CLI command', async () => {
@@ -744,6 +805,55 @@ describe('URL routing', () => {
 
     logSpy.mockRestore();
     errorSpy.mockRestore();
+  });
+
+  it('keeps pre-existing rooms fixed during create-and-connect prettification', async () => {
+    let doc = createEmptyMap('CLI Create Connect Prettify Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 520, y: 280 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 760, y: 440 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli create connect prettify map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
+
+    const state = useEditorStore.getState();
+    expect(state.doc?.rooms.hallway?.position).toEqual({ x: 520, y: 280 });
+    expect(state.doc?.rooms.pantry?.position).toEqual({ x: 760, y: 440 });
   });
 
   it('reports an unknown room for create and connect when the target room does not exist', async () => {

@@ -427,12 +427,15 @@ function findNearestOpenPosition(
   return preferredPosition;
 }
 
-export function computePrettifiedRoomPositions(doc: MapDocument): Readonly<Record<string, Position>> {
+export function computePrettifiedRoomPositions(
+  doc: MapDocument,
+  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
+): Readonly<Record<string, Position>> {
   const roomIds = Object.keys(doc.rooms).sort();
   if (roomIds.length === 0) {
     return {};
   }
-  const lockedRoomIds = new Set(roomIds.filter((roomId) => doc.rooms[roomId].locked));
+  const lockedRoomIds = new Set(roomIds.filter((roomId) => doc.rooms[roomId].locked || extraLockedRoomIds.has(roomId)));
   const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
   const constraints = deriveDirectionConstraints(doc);

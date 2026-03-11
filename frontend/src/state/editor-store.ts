@@ -612,6 +612,18 @@ function applyCliConnection(
   return { doc: nextDoc, connectionId: connection.id };
 }
 
+function prettifyCliConnectionResult(
+  doc: MapDocument,
+  movableRoomIds: readonly string[],
+): MapDocument {
+  const movableSet = new Set(movableRoomIds);
+  const transientLockedRoomIds = new Set(
+    Object.keys(doc.rooms).filter((roomId) => !movableSet.has(roomId)),
+  );
+  const nextPositions = computePrettifiedRoomPositions(doc, transientLockedRoomIds);
+  return domainSetRoomPositions(doc, nextPositions);
+}
+
 function patchDocumentView(
   doc: MapDocument,
   state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
@@ -856,17 +868,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot connect rooms: no document is loaded.');
     }
-    const { doc: nextDoc, connectionId } = applyCliConnection(doc, sourceRoomId, sourceDirection, targetRoomId, options);
+    const connectionResult = applyCliConnection(doc, sourceRoomId, sourceDirection, targetRoomId, options);
+    const nextDoc = sourceRoomId === targetRoomId
+      ? connectionResult.doc
+      : prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, targetRoomId]);
 
     set((state) => ({
       ...commitDocumentChange(state, doc, nextDoc),
       selectedRoomIds: [],
       selectedStickyNoteIds: [],
-      selectedConnectionIds: [connectionId],
+      selectedConnectionIds: [connectionResult.connectionId],
       selectedStickyNoteLinkIds: [],
     }));
 
-    return connectionId;
+    return connectionResult.connectionId;
   },
 
   createRoomAndConnect: (name, position, targetRoomId, options) => {
@@ -882,7 +897,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       oneWay: options.oneWay,
       targetDirection: options.targetDirection,
     });
-    nextDoc = connectionResult.doc;
+    nextDoc = room.id === targetRoomId
+      ? connectionResult.doc
+      : prettifyCliConnectionResult(connectionResult.doc, [room.id]);
 
     set((state) => ({
       ...commitDocumentChange(state, doc, nextDoc),
