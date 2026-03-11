@@ -16,6 +16,7 @@ Grammar
 input               ::= command ;
 
 command             ::= create-and-connect-command
+                      | create-relative-command
                       | connect-command
                       | create-command
                       | delete-command
@@ -35,6 +36,9 @@ redo-command        ::= "redo" ;
 
 create-and-connect-command
                     ::= "create" wsp "and" wsp connect-tail ;
+
+create-relative-command
+                    ::= "create" wsp room-name wsp direction wsp "of" wsp room-name ;
 
 connect-command     ::= "connect" wsp connect-tail ;
 
@@ -108,6 +112,11 @@ Semantic constraints
 - In a `create-and-connect-command`:
   - the source room is the room being created
   - the target room must already exist, or the command fails
+- In a `create-relative-command`:
+  - the source room is the room being created
+  - the written direction describes the created room's position relative to the target room
+  - the command is semantically equivalent to `create and connect <source room> <inverse of written direction> to <target room>`
+  - the target room must already exist, or the command fails
 - Commands that resolve a room by name must fail with a semantic error if zero rooms match or if more than one room matches.
 - Names are case-insensitive for matching and uniqueness checks.
 - Keywords and directions are reserved when unquoted.
@@ -124,6 +133,7 @@ The following words are reserved when they appear unquoted:
 - `undo`
 - `redo`
 - `to`
+- `of`
 - `one-way`
 - `oneway`
 - `one`
@@ -141,8 +151,8 @@ Notes on ambiguous or unspecified behavior
 3. Escaping rules.
    `cli.md` allows `\"` and `\\` inside quoted names. Other escape sequences are not part of the current grammar and should be rejected unless the CLI rules are extended.
 
-4. `create and connect` forms.
-   `cli.md` specifies that `create and connect` supports the same one-way and two-way connection forms as `connect`.
+4. Room-creation connection forms.
+   `cli.md` specifies that `create and connect` supports the same one-way and two-way connection forms as `connect`, and that `create <room> <direction> of <room>` is a synonym for the two-way `create and connect` form with the inverse source direction.
 
 5. The token character set is not tightly specified.
    This grammar allows any non-whitespace, non-quote character inside an unquoted token.

@@ -23,6 +23,7 @@
 - double quotes may contain keywords and directions. Legal escape sequences inside double quotes are `\"` for a literal double quote and `\\` for a literal backslash.
 - room creation may be combined with connections, like so: `create and connect bedroom east to living room`.
 - `create and connect` also supports one-way connections, e.g. `create and connect bedroom east one-way to living room`.
+- `create <room name 1> <direction> of <room name 2>` is accepted as a synonym for `create and connect <room name 1> <opposite direction> to <room name 2>`. In this form, the direction describes where room 1 is relative to room 2. For example, `create kitchen east of hallway` means `create and connect kitchen west to hallway`.
 - parsing precedence: a word in a command that matches a keyword or a direction is considered a keyword or direction unless it is surrounded by double quotes. For instance `connect living room east to dining room west` parses the same as `connect "living room" east to "dining room" west`
 
 ## Behavior rules

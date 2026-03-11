@@ -61,6 +61,15 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('describes relative create commands using the inverse source direction', () => {
+    expect(parseCliCommandDescription('create Kitchen east of Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going west to Hallway going east',
+    );
+    expect(parseCliCommandDescription('create Kitchen n of Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going south to Hallway going north',
+    );
+  });
+
   it('supports quoted names and escaped quotes', () => {
     expect(parseCliCommandDescription('connect "Living Room \\"East\\"" east to "Dining Room"')).toBe(
       'create a two-way connection from Living Room "East" going east to Dining Room going west',
@@ -74,6 +83,7 @@ describe('parseCliCommandDescription', () => {
   it('returns null for malformed commands', () => {
     expect(parseCliCommandDescription('create')).toBeNull();
     expect(parseCliCommandDescription('connect Kitchen east one-way Hallway')).toBeNull();
+    expect(parseCliCommandDescription('create and connect Kitchen east of Hallway')).toBeNull();
     expect(parseCliCommandDescription('connect "Kitchen east to Hallway')).toBeNull();
   });
 });

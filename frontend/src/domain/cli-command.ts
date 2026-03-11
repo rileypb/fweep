@@ -207,6 +207,43 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Ex
   };
 }
 
+function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
+  const sourceRoom = readRoomName(tokens, 1, isDirectionToken);
+  if (sourceRoom === null) {
+    return null;
+  }
+
+  const relationDirectionToken = tokens[sourceRoom.nextIndex];
+  if (!isDirectionToken(relationDirectionToken)) {
+    return null;
+  }
+
+  const relationDirection = normalizeDirection(relationDirectionToken.value);
+  const sourceDirection = oppositeDirection(relationDirection);
+  if (sourceDirection === null) {
+    return null;
+  }
+
+  const ofIndex = sourceRoom.nextIndex + 1;
+  if (!isTokenValue(tokens[ofIndex], 'of')) {
+    return null;
+  }
+
+  const targetRoom = readRoomName(tokens, ofIndex + 1, () => false);
+  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind: 'create-and-connect',
+    sourceRoomName: sourceRoom.value,
+    sourceDirection,
+    targetRoomName: targetRoom.value,
+    targetDirection: relationDirection,
+    oneWay: false,
+  };
+}
+
 export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
@@ -236,6 +273,13 @@ export function parseCliCommand(input: string): CliCommand | null {
       kind: 'create-and-connect',
       ...tail,
     };
+  }
+
+  if (isTokenValue(tokens[0], 'create')) {
+    const relativeCommand = parseCreateRelativeCommand(tokens);
+    if (relativeCommand !== null) {
+      return relativeCommand;
+    }
   }
 
   if (isTokenValue(tokens[0], 'connect')) {

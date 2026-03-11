@@ -794,6 +794,50 @@ describe('URL routing', () => {
     logSpy.mockRestore();
   });
 
+  it('supports relative create-and-connect syntax', async () => {
+    let doc = createEmptyMap('CLI Relative Create Connect Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli relative create connect map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen east of Hallway{enter}');
+
+    const state = useEditorStore.getState();
+    const rooms = Object.values(state.doc?.rooms ?? {});
+    const createdRoom = rooms.find((room) => room.name === 'Kitchen');
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(createdRoom).toBeDefined();
+    expect(connections).toHaveLength(1);
+    expect(state.doc?.rooms[createdRoom!.id]?.directions.west).toBe(connections[0].id);
+    expect(state.doc?.rooms.hallway?.directions.east).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id, 'hallway']);
+    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+  });
+
   it('keeps pre-existing rooms fixed during create-and-connect prettification', async () => {
     let doc = createEmptyMap('CLI Create Connect Prettify Map');
     doc = {
