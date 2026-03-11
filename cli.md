@@ -53,6 +53,7 @@
 - Attempting to delete an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
 - If multiple rooms match the requested name for `delete`, abort the action and print the error "Multiple rooms have that name. You must delete them manually."
 - Attempting to edit an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
+- If multiple rooms match the requested name for `edit`, abort the action and print the error "Multiple rooms have that name. You must edit them manually."
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.
   - Correspondingly, if the user types `connect bedroom east to living room west` and `connect kitchen east to living room west`, the first connection will be deleted and only the connection between kitchen and living room will remain.

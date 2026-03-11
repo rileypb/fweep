@@ -116,9 +116,16 @@ export interface MapCanvasProps {
   mapName: string;
   showGrid?: boolean;
   onBack?: () => void;
+  requestedRoomEditorId?: string | null;
+  onRoomEditorRequestHandled?: () => void;
 }
 
-export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanvasProps): React.JSX.Element {
+export function MapCanvas({
+  mapName,
+  showGrid: initialShowGrid = true,
+  requestedRoomEditorId = null,
+  onRoomEditorRequestHandled,
+}: MapCanvasProps): React.JSX.Element {
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [stickyNoteEditorId, setStickyNoteEditorId] = useState<string | null>(null);
@@ -351,6 +358,15 @@ export function MapCanvas({ mapName, showGrid: initialShowGrid = true }: MapCanv
     panToRoomEditorPosition(roomId);
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
+
+  useEffect(() => {
+    if (requestedRoomEditorId === null) {
+      return;
+    }
+
+    openRoomEditor(requestedRoomEditorId);
+    onRoomEditorRequestHandled?.();
+  }, [onRoomEditorRequestHandled, openRoomEditor, requestedRoomEditorId]);
 
   const openConnectionEditor = useCallback((connectionId: string) => {
     setStickyNoteEditorId(null);

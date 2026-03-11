@@ -165,6 +165,7 @@ export function App(): React.JSX.Element {
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
+  const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -248,6 +249,20 @@ export function App(): React.JSX.Element {
                 return;
               }
               removeRoom(roomMatch.room.id);
+            } else if (command.kind === 'edit' && storeDoc !== null) {
+              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+              if (roomMatch.kind === 'none') {
+                console.error(`Unknown room ${command.roomName}`);
+                cliInputRef.current?.select();
+                return;
+              }
+              if (roomMatch.kind === 'multiple') {
+                console.error('Multiple rooms have that name. You must edit them manually.');
+                cliInputRef.current?.select();
+                return;
+              }
+              selectRoom(roomMatch.room.id);
+              setRequestedRoomEditorId(roomMatch.room.id);
             } else {
               const description = parseCliCommandDescription(cliCommand);
               if (description === null) {
@@ -415,7 +430,14 @@ export function App(): React.JSX.Element {
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog onMapSelected={openMap} initialError={routeError} />
       ) : (
-        <MapCanvas mapName={activeMap.metadata.name} onBack={closeMap} />
+        <MapCanvas
+          mapName={activeMap.metadata.name}
+          onBack={closeMap}
+          requestedRoomEditorId={requestedRoomEditorId}
+          onRoomEditorRequestHandled={() => {
+            setRequestedRoomEditorId(null);
+          }}
+        />
       )}
     </main>
   );

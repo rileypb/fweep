@@ -213,6 +213,138 @@ describe('URL routing', () => {
     errorSpy.mockRestore();
   });
 
+  it('opens the room editor for the edit CLI command', async () => {
+    let doc = createEmptyMap('CLI Edit Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli edit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'edit kitchen{enter}');
+
+    expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Kitchen');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalledWith('Unknown room kitchen');
+    expect(errorSpy).not.toHaveBeenCalledWith('Multiple rooms have that name. You must edit them manually.');
+    expect(errorSpy).not.toHaveBeenCalledWith("I didn't understand you.");
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an unknown room for edit when no matching room exists', async () => {
+    const doc = createEmptyMap('CLI Edit Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli edit error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'edit kitchen{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Unknown room kitchen');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an error for edit when multiple rooms have the same name', async () => {
+    let doc = createEmptyMap('CLI Duplicate Edit Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        'room-2': {
+          id: 'room-2',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli duplicate edit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'edit kitchen{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Multiple rooms have that name. You must edit them manually.');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
