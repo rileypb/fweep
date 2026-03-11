@@ -66,6 +66,21 @@ describe('computePrettifiedRoomPositions', () => {
     expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
   });
 
+  it('treats a bidirectional up-down connection like a north-south constraint', () => {
+    const { doc, roomA, roomB } = buildBaseDoc(['Cellar', 'Attic']);
+    const connection = createConnection(roomA.id, roomB.id, true);
+    const connectedDoc = addConnection(doc, connection, 'up', 'down');
+
+    const positions = computePrettifiedRoomPositions(connectedDoc);
+
+    expect(positions[roomB.id].x).toBe(positions[roomA.id].x);
+    expect(positions[roomB.id].y).toBeLessThan(positions[roomA.id].y);
+    expectSnappedToGrid(getRoomCenterX(roomA, positions[roomA.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
+    expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
+    expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
+  });
+
   it('keeps an orthogonal chain aligned after relaxation', () => {
     let doc = createEmptyMap('Chain');
     const roomA = { ...createRoom('A'), position: { x: 400, y: 120 } };

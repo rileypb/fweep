@@ -34,6 +34,8 @@ const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
   southwest: { x: -1, y: 1 },
   west: { x: -1, y: 0 },
   northwest: { x: -1, y: -1 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
 };
 
 function snapCoordinate(value: number): number {
