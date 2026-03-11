@@ -207,21 +207,33 @@ export function getMinimapConnectionPoints(
   const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
 
   const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
+  if (connection.sourceRoomId === connection.targetRoomId || points.length < 2) {
+    return points.map((point) => toMinimapPoint(point, transform));
+  }
 
-  if (!connection.isBidirectional && connection.sourceRoomId !== connection.targetRoomId && points.length >= 2) {
-    const penultimatePoint = points[points.length - 2];
-    const targetPerimeterPoint = getRoomPerimeterPointToward(
+  const minimapPoints = [...points];
+  const sourceCenter = getRoomCenter(sourceRoom);
+  if (minimapPoints[0].x === sourceCenter.x && minimapPoints[0].y === sourceCenter.y) {
+    minimapPoints[0] = getRoomPerimeterPointToward(
+      sourceRoom.position,
+      minimapPoints[1],
+      sourceDimensions,
+      sourceRoom.shape,
+    );
+  }
+
+  const targetCenter = getRoomCenter(targetRoom);
+  const targetPointIndex = minimapPoints.length - 1;
+  if (minimapPoints[targetPointIndex].x === targetCenter.x && minimapPoints[targetPointIndex].y === targetCenter.y) {
+    minimapPoints[targetPointIndex] = getRoomPerimeterPointToward(
       targetRoom.position,
-      penultimatePoint,
+      minimapPoints[targetPointIndex - 1],
       targetDimensions,
       targetRoom.shape,
     );
-    const minimapPoints = points.slice(0, -1).concat(targetPerimeterPoint);
-
-    return minimapPoints.map((point) => toMinimapPoint(point, transform));
   }
 
-  return points.map((point) => toMinimapPoint(point, transform));
+  return minimapPoints.map((point) => toMinimapPoint(point, transform));
 }
 
 export function getMinimapViewportRect(

@@ -106,6 +106,37 @@ describe('MapMinimap', () => {
     expect(lastPoint).not.toBe('141.4,70');
   });
 
+  it('trims vertical minimap connections to both room outlines', () => {
+    const cellarBase = { ...createRoom('Cellar'), position: { x: 80, y: 200 } };
+    const atticBase = { ...createRoom('Attic'), position: { x: 80, y: 0 } };
+    const connection = createConnection(cellarBase.id, atticBase.id, true);
+    const cellar = { ...cellarBase, directions: { up: connection.id } };
+    const attic = { ...atticBase, directions: { down: connection.id } };
+
+    render(
+      <MapMinimap
+        mapId="map-1"
+        background={createEmptyBackground()}
+        rooms={{ [cellar.id]: cellar, [attic.id]: attic }}
+        connections={{ [connection.id]: connection }}
+        selectedRoomIds={[]}
+        selectedConnectionIds={[]}
+        panOffset={{ x: 0, y: 0 }}
+        canvasRect={{ width: 300, height: 200 }}
+        theme="light"
+        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
+        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
+      />,
+    );
+
+    const connectionLine = document.querySelector('.map-minimap__connection');
+    expect(connectionLine).not.toBeNull();
+    const points = (connectionLine?.getAttribute('points') ?? '').trim().split(/\s+/);
+
+    expect(points[0]).not.toBe('90,104');
+    expect(points[points.length - 1]).not.toBe('90,36');
+  });
+
   it('renders different room-shape silhouettes', () => {
     const rectangle = { ...createRoom('Rectangle'), position: { x: 0, y: 0 }, shape: 'rectangle' as const };
     const diamond = { ...createRoom('Diamond'), position: { x: 140, y: 0 }, shape: 'diamond' as const };
