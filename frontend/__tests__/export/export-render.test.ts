@@ -77,12 +77,14 @@ type FakeContext = {
   readonly stroke: ReturnType<typeof jest.fn>;
   readonly setLineDash: ReturnType<typeof jest.fn>;
   readonly ellipse: ReturnType<typeof jest.fn>;
+  readonly arc: ReturnType<typeof jest.fn>;
   readonly fillText: ReturnType<typeof jest.fn>;
   readonly drawImage: ReturnType<typeof jest.fn>;
   fillStyle: string;
   strokeStyle: string;
   lineWidth: number;
   font: string;
+  lineCap: CanvasLineCap;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
   globalAlpha: number;
@@ -106,12 +108,14 @@ function createFakeContext(): FakeContext {
     stroke: jest.fn(),
     setLineDash: jest.fn(),
     ellipse: jest.fn(),
+    arc: jest.fn(),
     fillText: jest.fn(),
     drawImage: jest.fn(),
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 0,
     font: '',
+    lineCap: 'butt',
     textAlign: 'start',
     textBaseline: 'alphabetic',
     globalAlpha: 1,
@@ -373,5 +377,154 @@ describe('renderExportCanvas', () => {
 
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, 640, 240);
     expect(context.clearRect).not.toHaveBeenCalled();
+  });
+
+  it('renders a padlock glyph for locked rooms and uses light-theme keyhole colors', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const lockedRoom = {
+      ...baseInput.doc.rooms['room-rect'],
+      locked: true,
+    };
+    const input: ExportRenderInput = {
+      ...baseInput,
+      theme: 'light',
+      doc: {
+        ...baseInput.doc,
+        rooms: {
+          ...baseInput.doc.rooms,
+          [lockedRoom.id]: lockedRoom,
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.save).toHaveBeenCalled();
+    expect(context.translate).toHaveBeenCalledTimes(2);
+    expect(context.arc).toHaveBeenCalled();
+    expect(context.restore).toHaveBeenCalled();
+    expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
+  });
+
+  it('skips background raster rendering when there is no active visible layer', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        background: {
+          activeLayerId: null,
+          layers: baseInput.doc.background.layers,
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
+    expect(context.drawImage).not.toHaveBeenCalled();
+  });
+
+  it('renders vertical endpoint labels and skips annotation text when no midpoint sample is available', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        connections: {
+          'connection-two-way': {
+            ...baseInput.doc.connections['connection-two-way'],
+            startLabel: ' enter ',
+            endLabel: ' exit ',
+            annotation: { kind: 'out' },
+          },
+        },
+      },
+      selectedConnectionIds: ['connection-two-way'],
+      selectedRoomIds: ['room-oval', 'room-octagon'],
+      settings: {
+        ...baseInput.settings,
+        scope: 'selection',
+      },
+    };
+
+    mockComputeConnectionPath.mockReturnValue([
+      { x: 0, y: 0 },
+      { x: 0, y: 40 },
+    ]);
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'quadratic',
+      start: { x: 0, y: 0 },
+      control: { x: 0, y: 20 },
+      end: { x: 0, y: 40 },
+    });
+    mockSampleConnectionGeometryAtFraction.mockReturnValue(null);
+
+    await renderExportCanvas(input);
+
+    expect(context.fillText).toHaveBeenCalledWith('enter', 10, 20);
+    expect(context.fillText).toHaveBeenCalledWith('exit', 10, 20);
+    expect(context.fillText).not.toHaveBeenCalledWith('in', expect.any(Number), expect.any(Number));
+  });
+
+  it('tolerates missing connection endpoints and empty polyline geometry', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const danglingConnection = {
+      ...baseInput.doc.connections['connection-one-way'],
+      id: 'connection-dangling',
+      sourceRoomId: 'missing-room',
+      targetRoomId: 'room-diamond',
+      annotation: null,
+      startLabel: '',
+      endLabel: '',
+    };
+    const validConnection = {
+      ...baseInput.doc.connections['connection-two-way'],
+      id: 'connection-empty-polyline',
+      annotation: null,
+      startLabel: '',
+      endLabel: '',
+    };
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        connections: {
+          'connection-dangling': danglingConnection,
+          'connection-empty-polyline': validConnection,
+        },
+      },
+      selectedConnectionIds: ['connection-dangling', 'connection-empty-polyline'],
+      selectedRoomIds: ['room-oval', 'room-octagon'],
+      settings: {
+        ...baseInput.settings,
+        scope: 'selection',
+      },
+    };
+
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'polyline',
+      points: [],
+    });
+
+    await expect(renderExportCanvas(input)).resolves.toBe(canvas);
+    expect(context.beginPath).toHaveBeenCalled();
+    expect(context.moveTo).not.toHaveBeenCalledWith(undefined, undefined);
   });
 });
