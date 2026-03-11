@@ -40,14 +40,20 @@ connect-command     ::= "connect" wsp connect-tail ;
 
 connect-tail        ::= room-name wsp source-direction wsp connection-kind wsp "to" wsp room-name ;
 
-connection-kind     ::= wsp "one-way"
+connection-kind     ::= wsp one-way-marker
                       | [ wsp target-direction ] ;
+
+one-way-marker      ::= "one-way"
+                      | "oneway"
+                      | "one" wsp "way" ;
 
 source-direction    ::= direction ;
 
 target-direction    ::= direction ;
 
-direction           ::= "north"
+direction           ::= direction-alias ;
+
+direction-alias     ::= "north"
                       | "south"
                       | "east"
                       | "west"
@@ -58,7 +64,13 @@ direction           ::= "north"
                       | "southwest"
                       | "southeast"
                       | "northwest"
-                      | "northeast" ;
+                      | "northeast"
+                      | "n"
+                      | "s"
+                      | "e"
+                      | "w"
+                      | "u"
+                      | "d" ;
 
 room-name           ::= quoted-name
                       | unquoted-name ;
@@ -112,6 +124,9 @@ The following words are reserved when they appear unquoted:
 - `redo`
 - `to`
 - `one-way`
+- `oneway`
+- `one`
+- `way`
 - all direction words listed above
 
 Notes on ambiguous or unspecified behavior

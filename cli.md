@@ -16,6 +16,8 @@
 	- `connect bedroom east to living room` creates a two-way connection from the bedroom to the living room, going east from the bedroom and defaulting to west from the living room.
   - a one-way connection is defined like so:
 	- `connect bedroom east one-way to living room` creates a one-way connection from the bedroom to the living room, going east from the bedroom.
+- `n`, `s`, `e`, `w`, `u`, and `d` are accepted as synonyms for `north`, `south`, `east`, `west`, `up`, and `down` respectively.
+- `oneway` and `one way` are accepted as synonyms for `one-way`.
 - double quotes serve to group words together for disambiguation: 
   - `connect "living room east" east to dining room`
 - double quotes may contain keywords and directions. Legal escape sequences inside double quotes are `\"` for a literal double quote and `\\` for a literal backslash.

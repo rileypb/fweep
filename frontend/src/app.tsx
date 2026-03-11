@@ -3,6 +3,7 @@ import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
+import { parseCliCommandDescription } from './domain/cli-command';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
@@ -155,6 +156,7 @@ export function App(): React.JSX.Element {
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
+  const cliInputRef = useRef<HTMLInputElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
 
@@ -207,6 +209,13 @@ export function App(): React.JSX.Element {
           className="app-cli-form"
           onSubmit={(event) => {
             event.preventDefault();
+            const description = parseCliCommandDescription(cliCommand);
+            if (description === null) {
+              console.error("I didn't understand you.");
+            } else {
+              console.log(description);
+            }
+            cliInputRef.current?.select();
           }}
         >
           <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
@@ -218,6 +227,7 @@ export function App(): React.JSX.Element {
             placeholder="Enter a command"
             autoComplete="off"
             spellCheck={false}
+            ref={cliInputRef}
             value={cliCommand}
             onChange={(event) => {
               setCliCommand(event.target.value);
