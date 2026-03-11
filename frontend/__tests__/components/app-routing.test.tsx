@@ -842,6 +842,55 @@ describe('URL routing', () => {
     expect(state.selectedConnectionIds).toEqual([connections[0].id]);
   });
 
+  it('supports relative above/below create syntax', async () => {
+    let doc = createEmptyMap('CLI Relative Above Below Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli relative above below map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen above Hallway{enter}');
+
+    const state = useEditorStore.getState();
+    const rooms = Object.values(state.doc?.rooms ?? {});
+    const createdRoom = rooms.find((room) => room.name === 'Kitchen');
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(createdRoom).toBeDefined();
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: createdRoom?.id,
+      targetRoomId: 'hallway',
+      isBidirectional: true,
+    });
+    expect(state.doc?.rooms[createdRoom!.id]?.directions.down).toBe(connections[0].id);
+    expect(state.doc?.rooms.hallway?.directions.up).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id, 'hallway']);
+    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+  });
+
   it('keeps pre-existing rooms fixed during create-and-connect prettification', async () => {
     let doc = createEmptyMap('CLI Create Connect Prettify Map');
     doc = {

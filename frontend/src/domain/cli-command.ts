@@ -208,6 +208,30 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Ex
 }
 
 function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
+  const aboveBelowIndex = tokens.findIndex((token, index) =>
+    index > 0 && !token.quoted && (isTokenValue(token, 'above') || isTokenValue(token, 'below')),
+  );
+  if (aboveBelowIndex !== -1) {
+    const sourceRoom = readRoomName(tokens, 1, (token) => token === tokens[aboveBelowIndex]);
+    if (sourceRoom === null || sourceRoom.nextIndex !== aboveBelowIndex) {
+      return null;
+    }
+
+    const targetRoom = readRoomName(tokens, aboveBelowIndex + 1, () => false);
+    if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      kind: 'create-and-connect',
+      sourceRoomName: sourceRoom.value,
+      sourceDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'down' : 'up',
+      targetRoomName: targetRoom.value,
+      targetDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'up' : 'down',
+      oneWay: false,
+    };
+  }
+
   const sourceRoom = readRoomName(tokens, 1, isDirectionToken);
   if (sourceRoom === null) {
     return null;

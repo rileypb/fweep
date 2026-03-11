@@ -70,6 +70,15 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('describes relative vertical create commands using bidirectional above/below syntax', () => {
+    expect(parseCliCommandDescription('create Kitchen above Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going down to Hallway going up',
+    );
+    expect(parseCliCommandDescription('create Kitchen below Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going up to Hallway going down',
+    );
+  });
+
   it('supports quoted names and escaped quotes', () => {
     expect(parseCliCommandDescription('connect "Living Room \\"East\\"" east to "Dining Room"')).toBe(
       'create a two-way connection from Living Room "East" going east to Dining Room going west',
