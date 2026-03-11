@@ -641,6 +641,136 @@ describe('URL routing', () => {
     errorSpy.mockRestore();
   });
 
+  it('supports self-loop connections', async () => {
+    let doc = createEmptyMap('CLI Self Connect Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli self connect map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to kitchen west{enter}');
+
+    const state = useEditorStore.getState();
+    const connections = Object.values(state.doc?.connections ?? {});
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: 'kitchen',
+      targetRoomId: 'kitchen',
+      isBidirectional: true,
+    });
+    expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
+    expect(state.doc?.rooms.kitchen?.directions.west).toBe(connections[0].id);
+  });
+
+  it('creates and connects a room in one CLI command', async () => {
+    let doc = createEmptyMap('CLI Create Connect Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli create connect map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
+
+    const state = useEditorStore.getState();
+    const rooms = Object.values(state.doc?.rooms ?? {});
+    const createdRoom = rooms.find((room) => room.name === 'Kitchen');
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(rooms).toHaveLength(2);
+    expect(createdRoom).toBeDefined();
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: createdRoom?.id,
+      targetRoomId: 'hallway',
+      isBidirectional: true,
+    });
+    expect(state.selectedRoomIds).toEqual(expect.arrayContaining([createdRoom?.id, 'hallway']));
+    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: 'undo' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
+    expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an unknown room for create and connect when the target room does not exist', async () => {
+    const doc = createEmptyMap('CLI Create Connect Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli create connect error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Unknown room Hallway');
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+    expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('undoes the previous command for the undo CLI command', async () => {
     const doc = createEmptyMap('CLI Undo Map');
     await saveMap(doc);
@@ -705,10 +835,15 @@ describe('URL routing', () => {
 
     render(<App />);
 
-    await user.type(screen.getByRole('textbox', { name: /cli command/i }), 'create{enter}');
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'create{enter}');
 
     expect(errorSpy).toHaveBeenCalledWith("I didn't understand you.");
     expect(logSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent("I didn't understand you.");
+
+    await user.type(input, 'x');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     logSpy.mockRestore();
     errorSpy.mockRestore();
@@ -832,7 +967,7 @@ describe('URL routing', () => {
 
     const input = screen.getByPlaceholderText('Map name');
     await user.type(input, 'Fresh Map');
-    await user.click(screen.getByRole('button', { name: /create/i }));
+    await user.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => {
       expect(window.location.hash).toMatch(/^#\/map\/.+$/);

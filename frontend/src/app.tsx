@@ -160,6 +160,7 @@ export function App(): React.JSX.Element {
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const connectRooms = useEditorStore((s) => s.connectRooms);
+  const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
   const undo = useEditorStore((s) => s.undo);
@@ -168,6 +169,7 @@ export function App(): React.JSX.Element {
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
+  const [cliError, setCliError] = useState<string | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
 
   // Sync the router's active map into the editor store.
@@ -211,6 +213,12 @@ export function App(): React.JSX.Element {
     };
   }, [isHelpOpen]);
 
+  const reportCliError = (message: string) => {
+    setCliError(message);
+    console.error(message);
+    cliInputRef.current?.select();
+  };
+
   return (
     <main className="app-shell">
       <div className="app-cli-bar">
@@ -221,8 +229,7 @@ export function App(): React.JSX.Element {
             event.preventDefault();
             const command = parseCliCommand(cliCommand);
             if (command === null) {
-              console.error("I didn't understand you.");
-              cliInputRef.current?.select();
+              reportCliError("I didn't understand you.");
               return;
             }
 
@@ -239,55 +246,50 @@ export function App(): React.JSX.Element {
                 x: (window.innerWidth / 2) - plan.position.x,
                 y: (window.innerHeight / 2) - plan.position.y,
               });
+              setCliError(null);
             } else if (command.kind === 'delete' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                console.error(`Unknown room ${command.roomName}`);
-                cliInputRef.current?.select();
+                reportCliError(`Unknown room ${command.roomName}`);
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                console.error('Multiple rooms have that name. You must delete them manually.');
-                cliInputRef.current?.select();
+                reportCliError('Multiple rooms have that name. You must delete them manually.');
                 return;
               }
               removeRoom(roomMatch.room.id);
+              setCliError(null);
             } else if (command.kind === 'edit' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                console.error(`Unknown room ${command.roomName}`);
-                cliInputRef.current?.select();
+                reportCliError(`Unknown room ${command.roomName}`);
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                console.error('Multiple rooms have that name. You must edit them manually.');
-                cliInputRef.current?.select();
+                reportCliError('Multiple rooms have that name. You must edit them manually.');
                 return;
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomEditorId(roomMatch.room.id);
+              setCliError(null);
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
               if (sourceRoomMatch.kind === 'none') {
-                console.error(`Unknown room ${command.sourceRoomName}`);
-                cliInputRef.current?.select();
+                reportCliError(`Unknown room ${command.sourceRoomName}`);
                 return;
               }
               if (sourceRoomMatch.kind === 'multiple') {
-                console.error('Multiple rooms have that name. You must connect them manually.');
-                cliInputRef.current?.select();
+                reportCliError('Multiple rooms have that name. You must connect them manually.');
                 return;
               }
 
               const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
               if (targetRoomMatch.kind === 'none') {
-                console.error(`Unknown room ${command.targetRoomName}`);
-                cliInputRef.current?.select();
+                reportCliError(`Unknown room ${command.targetRoomName}`);
                 return;
               }
               if (targetRoomMatch.kind === 'multiple') {
-                console.error('Multiple rooms have that name. You must connect them manually.');
-                cliInputRef.current?.select();
+                reportCliError('Multiple rooms have that name. You must connect them manually.');
                 return;
               }
 
@@ -300,17 +302,57 @@ export function App(): React.JSX.Element {
                   targetDirection: command.targetDirection,
                 },
               );
+              setCliError(null);
+            } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
+              const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
+              if (targetRoomMatch.kind === 'none') {
+                reportCliError(`Unknown room ${command.targetRoomName}`);
+                return;
+              }
+              if (targetRoomMatch.kind === 'multiple') {
+                reportCliError('Multiple rooms have that name. You must connect them manually.');
+                return;
+              }
+
+              const plan = planCreateRoomFromCli(
+                storeDoc,
+                command.sourceRoomName,
+                { width: window.innerWidth, height: window.innerHeight },
+                mapPanOffset,
+              );
+              const result = createRoomAndConnect(
+                plan.roomName,
+                plan.position,
+                targetRoomMatch.room.id,
+                {
+                  sourceDirection: command.sourceDirection,
+                  oneWay: command.oneWay,
+                  targetDirection: command.targetDirection,
+                },
+              );
+              const nextDoc = useEditorStore.getState().doc;
+              const createdRoom = nextDoc?.rooms[result.roomId];
+              const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
+              if (createdRoom && targetRoom) {
+                setMapPanOffset({
+                  x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
+                  y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
+                });
+              }
+              setCliError(null);
             } else if (command.kind === 'undo') {
               undo();
+              setCliError(null);
             } else if (command.kind === 'redo') {
               redo();
+              setCliError(null);
             } else {
               const description = parseCliCommandDescription(cliCommand);
               if (description === null) {
-                console.error("I didn't understand you.");
-                cliInputRef.current?.select();
+                reportCliError("I didn't understand you.");
                 return;
               }
+              setCliError(null);
               console.log(description);
             }
             cliInputRef.current?.select();
@@ -328,9 +370,15 @@ export function App(): React.JSX.Element {
             ref={cliInputRef}
             value={cliCommand}
             onChange={(event) => {
+              setCliError(null);
               setCliCommand(event.target.value);
             }}
           />
+          {cliError !== null && (
+            <p className="app-cli-error" role="alert">
+              {cliError}
+            </p>
+          )}
         </form>
       </div>
       <div className="app-controls app-controls--settings">

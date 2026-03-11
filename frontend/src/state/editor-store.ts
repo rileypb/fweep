@@ -227,6 +227,18 @@ export interface EditorState {
     },
   ) => string;
 
+  /** Create a room and immediately connect it in a single history entry. */
+  createRoomAndConnect: (
+    name: string,
+    position: Position,
+    targetRoomId: string,
+    options: {
+      sourceDirection: string;
+      oneWay: boolean;
+      targetDirection: string | null;
+    },
+  ) => { roomId: string; connectionId: string };
+
   /** Rename an existing room. */
   renameRoom: (roomId: string, name: string, options?: HistoryOptions) => void;
 
@@ -550,6 +562,56 @@ function commitDocumentChange(
   };
 }
 
+function applyCliConnection(
+  doc: MapDocument,
+  sourceRoomId: string,
+  sourceDirection: string,
+  targetRoomId: string,
+  options: {
+    oneWay: boolean;
+    targetDirection: string | null;
+  },
+): { doc: MapDocument; connectionId: string } {
+  const normalizedSourceDirection = normalizeDirection(sourceDirection);
+  const normalizedTargetDirection = options.targetDirection === null ? null : normalizeDirection(options.targetDirection);
+  const existingConnectionIds = new Set<string>();
+
+  const sourceRoom = doc.rooms[sourceRoomId];
+  if (!sourceRoom) {
+    throw new Error(`Room "${sourceRoomId}" not found.`);
+  }
+  const sourceExistingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+  if (sourceExistingConnectionId) {
+    existingConnectionIds.add(sourceExistingConnectionId);
+  }
+
+  if (!options.oneWay && normalizedTargetDirection !== null) {
+    const targetRoom = doc.rooms[targetRoomId];
+    if (!targetRoom) {
+      throw new Error(`Room "${targetRoomId}" not found.`);
+    }
+    const targetExistingConnectionId = targetRoom.directions[normalizedTargetDirection];
+    if (targetExistingConnectionId) {
+      existingConnectionIds.add(targetExistingConnectionId);
+    }
+  }
+
+  let nextDoc = doc;
+  for (const connectionId of existingConnectionIds) {
+    nextDoc = domainDeleteConnection(nextDoc, connectionId);
+  }
+
+  const connection = createConnection(sourceRoomId, targetRoomId, !options.oneWay);
+  nextDoc = addConnection(
+    nextDoc,
+    connection,
+    normalizedSourceDirection,
+    options.oneWay ? undefined : (normalizedTargetDirection ?? undefined),
+  );
+
+  return { doc: nextDoc, connectionId: connection.id };
+}
+
 function patchDocumentView(
   doc: MapDocument,
   state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
@@ -794,53 +856,43 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!doc) {
       throw new Error('Cannot connect rooms: no document is loaded.');
     }
-
-    const normalizedSourceDirection = normalizeDirection(sourceDirection);
-    const normalizedTargetDirection = options.targetDirection === null ? null : normalizeDirection(options.targetDirection);
-    const existingConnectionIds = new Set<string>();
-
-    const sourceRoom = doc.rooms[sourceRoomId];
-    if (!sourceRoom) {
-      throw new Error(`Room "${sourceRoomId}" not found.`);
-    }
-    const sourceExistingConnectionId = sourceRoom.directions[normalizedSourceDirection];
-    if (sourceExistingConnectionId) {
-      existingConnectionIds.add(sourceExistingConnectionId);
-    }
-
-    if (!options.oneWay && normalizedTargetDirection !== null) {
-      const targetRoom = doc.rooms[targetRoomId];
-      if (!targetRoom) {
-        throw new Error(`Room "${targetRoomId}" not found.`);
-      }
-      const targetExistingConnectionId = targetRoom.directions[normalizedTargetDirection];
-      if (targetExistingConnectionId) {
-        existingConnectionIds.add(targetExistingConnectionId);
-      }
-    }
-
-    let nextDoc = doc;
-    for (const connectionId of existingConnectionIds) {
-      nextDoc = domainDeleteConnection(nextDoc, connectionId);
-    }
-
-    const connection = createConnection(sourceRoomId, targetRoomId, !options.oneWay);
-    nextDoc = addConnection(
-      nextDoc,
-      connection,
-      normalizedSourceDirection,
-      options.oneWay ? undefined : (normalizedTargetDirection ?? undefined),
-    );
+    const { doc: nextDoc, connectionId } = applyCliConnection(doc, sourceRoomId, sourceDirection, targetRoomId, options);
 
     set((state) => ({
       ...commitDocumentChange(state, doc, nextDoc),
       selectedRoomIds: [],
       selectedStickyNoteIds: [],
-      selectedConnectionIds: [connection.id],
+      selectedConnectionIds: [connectionId],
       selectedStickyNoteLinkIds: [],
     }));
 
-    return connection.id;
+    return connectionId;
+  },
+
+  createRoomAndConnect: (name, position, targetRoomId, options) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot create and connect a room: no document is loaded.');
+    }
+
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
+    const room = { ...createRoom(name), position: snapped };
+    let nextDoc = addRoom(doc, room);
+    const connectionResult = applyCliConnection(nextDoc, room.id, options.sourceDirection, targetRoomId, {
+      oneWay: options.oneWay,
+      targetDirection: options.targetDirection,
+    });
+    nextDoc = connectionResult.doc;
+
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc),
+      selectedRoomIds: [room.id, targetRoomId],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connectionResult.connectionId],
+      selectedStickyNoteLinkIds: [],
+    }));
+
+    return { roomId: room.id, connectionId: connectionResult.connectionId };
   },
 
   renameRoom: (roomId, name, options) => {

@@ -66,6 +66,9 @@ body {
   flex: 0 1 min(50vw, 36rem);
   width: min(50vw, 36rem);
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .app-cli-input {
@@ -96,6 +99,21 @@ body {
 .app-cli-input:focus-visible {
   border-color: color-mix(in srgb, currentColor 42%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-cli-error {
+  margin: 0;
+  padding: 0 0.35rem;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+:root[data-theme='dark'] .app-cli-error {
+  color: #fca5a5;
+  text-shadow: none;
 }
 
 /* ---- App controls ---- */
