@@ -25,6 +25,7 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /cli command/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();

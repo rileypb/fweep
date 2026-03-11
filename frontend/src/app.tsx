@@ -156,6 +156,7 @@ export function App(): React.JSX.Element {
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [cliCommand, setCliCommand] = useState('');
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -200,7 +201,30 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="app-shell">
-      <h1 className="app-title">fweep</h1>
+      <div className="app-cli-bar">
+        <h1 className="app-title">fweep</h1>
+        <form
+          className="app-cli-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+          }}
+        >
+          <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
+          <input
+            id="app-cli-input"
+            className="app-cli-input"
+            type="text"
+            name="cli-command"
+            placeholder="Enter a command"
+            autoComplete="off"
+            spellCheck={false}
+            value={cliCommand}
+            onChange={(event) => {
+              setCliCommand(event.target.value);
+            }}
+          />
+        </form>
+      </div>
       <div className="app-controls app-controls--settings">
         {activeMap !== null && (
           <button

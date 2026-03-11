@@ -1,6 +1,8 @@
 :root {
   color-scheme: light;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --app-title-size: clamp(2.5rem, 8vw, 4rem);
+  --app-title-size-mobile: clamp(2rem, 12vw, 3rem);
   line-height: 1.5;
   font-weight: 400;
   color: #111827;
@@ -37,17 +39,63 @@ body {
   position: relative;
 }
 
-.app-title {
+.app-cli-bar {
   position: fixed;
   bottom: 1rem;
   left: 1rem;
-  margin: 0;
-  font-size: clamp(2.5rem, 8vw, 4rem);
-  font-weight: 700;
-  opacity: 0.12;
-  pointer-events: none;
-  user-select: none;
   z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5rem;
+  width: min(calc(100vw - 2rem), 72rem);
+  pointer-events: none;
+}
+
+.app-title {
+  margin: 0;
+  font-size: var(--app-title-size);
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.12;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.app-cli-form {
+  pointer-events: auto;
+  flex: 0 1 min(50vw, 36rem);
+  width: min(50vw, 36rem);
+  max-width: 100%;
+}
+
+.app-cli-input {
+  width: 100%;
+  height: calc(var(--app-title-size) * 0.6);
+  padding: 0 0.4em;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, Canvas 78%, transparent);
+  color: inherit;
+  font-size: 12pt;
+  line-height: 1;
+  font-weight: 700;
+  font-family: inherit;
+  opacity: 0.9;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-0.3em);
+}
+
+.app-cli-input::placeholder {
+  color: color-mix(in srgb, currentColor 46%, transparent);
+}
+
+.app-cli-input:focus {
+  outline: none;
+}
+
+.app-cli-input:focus-visible {
+  border-color: color-mix(in srgb, currentColor 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
 }
 
 /* ---- App controls ---- */
@@ -121,6 +169,39 @@ body {
 
 .app-control-button:disabled {
   cursor: default;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .app-cli-bar {
+    right: 1rem;
+    align-items: stretch;
+    gap: 1.5rem;
+  }
+
+  .app-title {
+    font-size: var(--app-title-size-mobile);
+  }
+
+  .app-cli-form {
+    flex-basis: min(52vw, 18rem);
+    width: min(52vw, 18rem);
+  }
+  
+  .app-cli-input {
+    height: calc(var(--app-title-size-mobile) * 0.6);
+  }
 }
 
 .help-overlay {
