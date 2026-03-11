@@ -345,6 +345,302 @@ describe('URL routing', () => {
     errorSpy.mockRestore();
   });
 
+  it('creates and selects a one-way connection for the connect CLI command', async () => {
+    let doc = createEmptyMap('CLI Connect Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli connect map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'connect kitchen east one-way to hallway{enter}');
+
+    const state = useEditorStore.getState();
+    const connections = Object.values(state.doc?.connections ?? {});
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: 'kitchen',
+      targetRoomId: 'hallway',
+      isBidirectional: false,
+    });
+    expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
+    expect(state.doc?.rooms.hallway?.directions.west).toBeUndefined();
+    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('creates a two-way connection and default reverse direction for the connect CLI command', async () => {
+    let doc = createEmptyMap('CLI Connect Two Way Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli connect two way map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to hallway{enter}');
+
+    const state = useEditorStore.getState();
+    const connections = Object.values(state.doc?.connections ?? {});
+    expect(connections).toHaveLength(1);
+    expect(connections[0].isBidirectional).toBe(true);
+    expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
+    expect(state.doc?.rooms.hallway?.directions.west).toBe(connections[0].id);
+  });
+
+  it('replaces existing directional bindings when connect reuses a direction', async () => {
+    let doc = createEmptyMap('CLI Connect Replace Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 360, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli connect replace map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to hallway{enter}');
+    await user.clear(input);
+    await user.type(input, 'connect kitchen east to pantry{enter}');
+
+    const state = useEditorStore.getState();
+    const connections = Object.values(state.doc?.connections ?? {});
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: 'kitchen',
+      targetRoomId: 'pantry',
+    });
+    expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
+    expect(state.doc?.rooms.hallway?.directions.west).toBeUndefined();
+    expect(state.doc?.rooms.pantry?.directions.west).toBe(connections[0].id);
+  });
+
+  it('reports an unknown room for connect when a named room does not exist', async () => {
+    let doc = createEmptyMap('CLI Connect Error Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli connect error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to hallway{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Unknown room hallway');
+    expect(logSpy).not.toHaveBeenCalled();
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('reports an ambiguity error for connect when a room name matches multiple rooms', async () => {
+    let doc = createEmptyMap('CLI Connect Ambiguous Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen1: {
+          id: 'kitchen1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        kitchen2: {
+          id: 'kitchen2',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 360, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli connect ambiguous map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'connect kitchen east to hallway{enter}');
+
+    expect(errorSpy).toHaveBeenCalledWith('Multiple rooms have that name. You must connect them manually.');
+    expect(logSpy).not.toHaveBeenCalled();
+
+    logSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('undoes the previous command for the undo CLI command', async () => {
     const doc = createEmptyMap('CLI Undo Map');
     await saveMap(doc);

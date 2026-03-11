@@ -216,6 +216,17 @@ export interface EditorState {
   /** Create a new sticky note at the given canvas position (snapped to grid). Returns the note ID. */
   addStickyNoteAtPosition: (text: string, position: Position) => string;
 
+  /** Create or replace a connection between two rooms and select it. */
+  connectRooms: (
+    sourceRoomId: string,
+    sourceDirection: string,
+    targetRoomId: string,
+    options: {
+      oneWay: boolean;
+      targetDirection: string | null;
+    },
+  ) => string;
+
   /** Rename an existing room. */
   renameRoom: (roomId: string, name: string, options?: HistoryOptions) => void;
 
@@ -776,6 +787,60 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const updatedDoc = addStickyNote(doc, stickyNote);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
     return stickyNote.id;
+  },
+
+  connectRooms: (sourceRoomId, sourceDirection, targetRoomId, options) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot connect rooms: no document is loaded.');
+    }
+
+    const normalizedSourceDirection = normalizeDirection(sourceDirection);
+    const normalizedTargetDirection = options.targetDirection === null ? null : normalizeDirection(options.targetDirection);
+    const existingConnectionIds = new Set<string>();
+
+    const sourceRoom = doc.rooms[sourceRoomId];
+    if (!sourceRoom) {
+      throw new Error(`Room "${sourceRoomId}" not found.`);
+    }
+    const sourceExistingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+    if (sourceExistingConnectionId) {
+      existingConnectionIds.add(sourceExistingConnectionId);
+    }
+
+    if (!options.oneWay && normalizedTargetDirection !== null) {
+      const targetRoom = doc.rooms[targetRoomId];
+      if (!targetRoom) {
+        throw new Error(`Room "${targetRoomId}" not found.`);
+      }
+      const targetExistingConnectionId = targetRoom.directions[normalizedTargetDirection];
+      if (targetExistingConnectionId) {
+        existingConnectionIds.add(targetExistingConnectionId);
+      }
+    }
+
+    let nextDoc = doc;
+    for (const connectionId of existingConnectionIds) {
+      nextDoc = domainDeleteConnection(nextDoc, connectionId);
+    }
+
+    const connection = createConnection(sourceRoomId, targetRoomId, !options.oneWay);
+    nextDoc = addConnection(
+      nextDoc,
+      connection,
+      normalizedSourceDirection,
+      options.oneWay ? undefined : (normalizedTargetDirection ?? undefined),
+    );
+
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc),
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connection.id],
+      selectedStickyNoteLinkIds: [],
+    }));
+
+    return connection.id;
   },
 
   renameRoom: (roomId, name, options) => {

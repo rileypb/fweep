@@ -159,6 +159,7 @@ export function App(): React.JSX.Element {
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const selectRoom = useEditorStore((s) => s.selectRoom);
+  const connectRooms = useEditorStore((s) => s.connectRooms);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
   const undo = useEditorStore((s) => s.undo);
@@ -265,6 +266,40 @@ export function App(): React.JSX.Element {
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomEditorId(roomMatch.room.id);
+            } else if (command.kind === 'connect' && storeDoc !== null) {
+              const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
+              if (sourceRoomMatch.kind === 'none') {
+                console.error(`Unknown room ${command.sourceRoomName}`);
+                cliInputRef.current?.select();
+                return;
+              }
+              if (sourceRoomMatch.kind === 'multiple') {
+                console.error('Multiple rooms have that name. You must connect them manually.');
+                cliInputRef.current?.select();
+                return;
+              }
+
+              const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
+              if (targetRoomMatch.kind === 'none') {
+                console.error(`Unknown room ${command.targetRoomName}`);
+                cliInputRef.current?.select();
+                return;
+              }
+              if (targetRoomMatch.kind === 'multiple') {
+                console.error('Multiple rooms have that name. You must connect them manually.');
+                cliInputRef.current?.select();
+                return;
+              }
+
+              connectRooms(
+                sourceRoomMatch.room.id,
+                command.sourceDirection,
+                targetRoomMatch.room.id,
+                {
+                  oneWay: command.oneWay,
+                  targetDirection: command.targetDirection,
+                },
+              );
             } else if (command.kind === 'undo') {
               undo();
             } else if (command.kind === 'redo') {
