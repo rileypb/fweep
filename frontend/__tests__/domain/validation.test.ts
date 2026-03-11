@@ -57,6 +57,28 @@ describe('parseUntrustedMapDocument', () => {
     expect(() => parseUntrustedMapDocument(broken)).toThrow('File does not contain a valid fweep map.');
   });
 
+  it('rejects a non-numeric schema version', () => {
+    const broken = {
+      ...validMap(),
+      schemaVersion: '1',
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow('File does not contain a valid fweep map.');
+  });
+
+  it('rejects empty map names', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        name: '   ',
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
   it('rejects non-finite room positions', () => {
     const doc = validMap();
     const roomId = Object.keys(doc.rooms)[0];
@@ -202,6 +224,37 @@ describe('parseUntrustedMapDocument', () => {
     });
   });
 
+  it('hydrates missing view metadata on legacy maps', () => {
+    const doc = validMap();
+    const legacyDoc = {
+      schemaVersion: doc.schemaVersion,
+      metadata: doc.metadata,
+      rooms: doc.rooms,
+      connections: doc.connections,
+      items: doc.items,
+      background: doc.background,
+    };
+
+    const parsed = parseUntrustedMapDocument(legacyDoc);
+    expect(parsed.view).toEqual({
+      pan: { x: 0, y: 0 },
+      showGrid: true,
+      snapToGrid: true,
+      useBezierConnections: false,
+    });
+  });
+
+  it('rejects invalid view and background container objects', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      view: 'not-an-object',
+      background: 'not-an-object',
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
   it('rejects malformed background layers', () => {
     const doc = validMap();
     const broken = {
@@ -218,6 +271,28 @@ describe('parseUntrustedMapDocument', () => {
           },
         },
         activeLayerId: 'layer1',
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
+  it('rejects invalid background layer metadata and unknown active layers', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      background: {
+        layers: {
+          layer1: {
+            id: 'layer1',
+            name: 'Background',
+            visible: true,
+            opacity: 0.5,
+            pixelSize: 2,
+            chunkSize: 128,
+          },
+        },
+        activeLayerId: 'missing-layer',
       },
     };
 
@@ -312,6 +387,102 @@ describe('parseUntrustedMapDocument', () => {
     };
 
     expect(() => parseUntrustedMapDocument(annotated)).toThrow(MapValidationError);
+  });
+
+  it('rejects invalid room, connection, item, sticky note, and sticky note link fields', () => {
+    const doc = validMap();
+    const roomId = Object.keys(doc.rooms)[0];
+    const secondRoomId = Object.keys(doc.rooms)[1];
+    const connectionId = Object.keys(doc.connections)[0];
+    const itemId = Object.keys(doc.items)[0];
+    const directions = Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [`dir-${index}`, connectionId]),
+    );
+
+    const broken = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [roomId]: {
+          ...doc.rooms[roomId],
+          shape: 'triangle',
+          fillColorIndex: undefined,
+          fillColor: 123,
+          strokeColorIndex: undefined,
+          strokeColor: '#not-a-real-color',
+          strokeStyle: 'wavy',
+          directions,
+        },
+      },
+      connections: {
+        ...doc.connections,
+        [connectionId]: {
+          ...doc.connections[connectionId],
+          id: 'different-connection-id',
+          annotation: { kind: 'text', text: 123 },
+          startLabel: 5,
+          endLabel: false,
+          strokeColorIndex: 999,
+          strokeStyle: 'wavy',
+        },
+      },
+      items: {
+        ...doc.items,
+        [itemId]: {
+          ...doc.items[itemId],
+          id: 'different-item-id',
+          description: 'x'.repeat(10_001),
+        },
+      },
+      stickyNotes: {
+        note1: {
+          id: 'different-note-id',
+          text: 'x'.repeat(10_001),
+          position: { x: 1, y: 2 },
+        },
+      },
+      stickyNoteLinks: {
+        link1: {
+          id: 'different-link-id',
+          stickyNoteId: 'note1',
+          roomId: secondRoomId,
+        },
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
+  it('rejects non-object rooms, connections, sticky notes, sticky note links, and items collections', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      rooms: 'bad',
+      connections: 'bad',
+      stickyNotes: 'bad',
+      stickyNoteLinks: 'bad',
+      items: 'bad',
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
+  it('rejects non-object item, sticky note, and sticky note link entries', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      items: {
+        badItem: 'bad',
+      },
+      stickyNotes: {
+        badNote: 'bad',
+      },
+      stickyNoteLinks: {
+        badLink: 'bad',
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
   });
 });
 
@@ -421,5 +592,24 @@ describe('validateMap', () => {
     const err = result.errors.find((e) => e.entityId === 'bad-item');
     expect(err).toBeDefined();
     expect(err?.path).toBe(`items.${badItem.id}.roomId`);
+  });
+
+  it('reports errors when sticky note links reference missing sticky notes or rooms', () => {
+    const d = validMap();
+    const broken: MapDocument = {
+      ...d,
+      stickyNotes: {},
+      stickyNoteLinks: {
+        link1: {
+          id: 'link1',
+          stickyNoteId: 'missing-note',
+          roomId: 'missing-room',
+        },
+      },
+    };
+
+    const result = validateMap(broken);
+    expect(result.errors.some((e) => /missing sticky note/i.test(e.message))).toBe(true);
+    expect(result.errors.some((e) => /missing room/i.test(e.message))).toBe(true);
   });
 });

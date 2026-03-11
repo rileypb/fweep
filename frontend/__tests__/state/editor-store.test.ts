@@ -1081,4 +1081,216 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().selectionDrag).toBeNull();
     });
   });
+
+  describe('additional coverage', () => {
+    it('throws when adding a sticky note without a document', () => {
+      expect(() => useEditorStore.getState().addStickyNoteAtPosition('Note', { x: 0, y: 0 })).toThrow();
+    });
+
+    it('toggles bezier connections in persisted view state', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().toggleUseBezierConnections();
+
+      expect(useEditorStore.getState().useBezierConnectionsEnabled).toBe(true);
+      expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(true);
+    });
+
+    it('updates room and connection styling fields', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+      const hall = { ...createRoom('Hall'), position: { x: 160, y: 0 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hall);
+      const connection = createConnection(kitchen.id, hall.id, true);
+      doc = addConnection(doc, connection, 'east', 'west');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().setRoomStyle(kitchen.id, {
+        fillColorIndex: 2,
+        strokeColorIndex: 3,
+        strokeStyle: 'dashed',
+      });
+      useEditorStore.getState().setConnectionStyle(connection.id, { strokeColorIndex: 4, strokeStyle: 'dotted' });
+      useEditorStore.getState().setConnectionLabels(connection.id, { startLabel: 'ledge', endLabel: 'stairs' });
+      useEditorStore.getState().setConnectionAnnotation(connection.id, { kind: 'door' });
+
+      expect(useEditorStore.getState().doc!.rooms[kitchen.id]).toMatchObject({
+        fillColorIndex: 2,
+        strokeColorIndex: 3,
+        strokeStyle: 'dashed',
+      });
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toMatchObject({
+        strokeColorIndex: 4,
+        strokeStyle: 'dotted',
+        startLabel: 'ledge',
+        endLabel: 'stairs',
+        annotation: { kind: 'door' },
+      });
+    });
+
+    it('throws when styling setters are used without a document', () => {
+      expect(() => useEditorStore.getState().setStickyNoteText('note-1', 'Text')).toThrow();
+      expect(() => useEditorStore.getState().setRoomStyle('room-1', { fillColorIndex: 1 })).toThrow();
+      expect(() => useEditorStore.getState().setConnectionStyle('conn-1', { strokeColorIndex: 1 })).toThrow();
+      expect(() => useEditorStore.getState().setConnectionLabels('conn-1', { startLabel: 'x' })).toThrow();
+      expect(() => useEditorStore.getState().setConnectionAnnotation('conn-1', { kind: 'door' })).toThrow();
+    });
+
+    it('connectRooms creates and replaces CLI connections', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+      const hall = { ...createRoom('Hall'), position: { x: 160, y: 0 } };
+      const pantry = { ...createRoom('Pantry'), position: { x: 320, y: 0 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hall);
+      doc = addRoom(doc, pantry);
+      useEditorStore.getState().loadDocument(doc);
+
+      const firstConnectionId = useEditorStore.getState().connectRooms(kitchen.id, 'e', hall.id, {
+        oneWay: true,
+        targetDirection: null,
+      });
+      expect(useEditorStore.getState().doc!.rooms[kitchen.id].directions.east).toBe(firstConnectionId);
+      expect(useEditorStore.getState().doc!.rooms[hall.id].directions.west).toBeUndefined();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([firstConnectionId]);
+
+      const secondConnectionId = useEditorStore.getState().connectRooms(kitchen.id, 'east', pantry.id, {
+        oneWay: false,
+        targetDirection: 'west',
+      });
+      expect(Object.keys(useEditorStore.getState().doc!.connections)).toHaveLength(1);
+      expect(useEditorStore.getState().doc!.rooms[pantry.id].directions.west).toBe(secondConnectionId);
+    });
+
+    it('createRoomAndConnect creates a snapped room and selects both rooms plus the connection', () => {
+      const hall = { ...createRoom('Hall'), position: { x: 160, y: 0 } };
+      const doc = addRoom(testDoc, hall);
+      useEditorStore.getState().loadDocument(doc);
+
+      const result = useEditorStore.getState().createRoomAndConnect('Kitchen', { x: 53, y: 87 }, hall.id, {
+        sourceDirection: 'n',
+        oneWay: false,
+        targetDirection: 'south',
+      });
+
+      expect(useEditorStore.getState().doc!.rooms[result.roomId]).toBeDefined();
+      expect(useEditorStore.getState().doc!.rooms[result.roomId].directions.north).toBe(result.connectionId);
+      expect(useEditorStore.getState().doc!.rooms[hall.id].directions.south).toBe(result.connectionId);
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([result.roomId, hall.id]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([result.connectionId]);
+    });
+
+    it('throws when CLI connection actions are used without a document', () => {
+      expect(() => useEditorStore.getState().connectRooms('a', 'north', 'b', { oneWay: true, targetDirection: null })).toThrow();
+      expect(() => useEditorStore.getState().createRoomAndConnect('Kitchen', { x: 0, y: 0 }, 'room-1', {
+        sourceDirection: 'north',
+        oneWay: true,
+        targetDirection: null,
+      })).toThrow();
+    });
+
+    it('manages sticky note selection and movement', () => {
+      useEditorStore.getState().setSelectedStickyNoteIds(['note-1', 'note-2']);
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual(['note-1', 'note-2']);
+      useEditorStore.getState().clearStickyNoteSelection();
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
+
+      useEditorStore.getState().loadDocument(testDoc);
+      const stickyNoteId = useEditorStore.getState().addStickyNoteAtPosition('note', { x: 0, y: 0 });
+      useEditorStore.getState().moveStickyNote(stickyNoteId, { x: 57, y: 86 });
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNoteId].position).toEqual({ x: 40, y: 80 });
+
+      useEditorStore.getState().toggleSnapToGrid();
+      useEditorStore.getState().moveStickyNotes({ [stickyNoteId]: { x: 57, y: 86 } });
+      expect(useEditorStore.getState().doc!.stickyNotes[stickyNoteId].position).toEqual({ x: 57, y: 86 });
+    });
+
+    it('throws when moving sticky notes without a document', () => {
+      expect(() => useEditorStore.getState().moveStickyNote('note-1', { x: 0, y: 0 })).toThrow();
+      expect(() => useEditorStore.getState().moveStickyNotes({ note1: { x: 0, y: 0 } })).toThrow();
+    });
+
+    it('supports sticky note link drag and sticky note drag flows', () => {
+      const stickyNote = { ...createStickyNote('Note'), position: { x: 40, y: 40 } };
+      const room = { ...createRoom('Room'), position: { x: 160, y: 40 } };
+      let doc = addStickyNote(testDoc, stickyNote);
+      doc = addRoom(doc, room);
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().startStickyNoteLinkDrag(stickyNote.id, 10, 20);
+      useEditorStore.getState().updateStickyNoteLinkDrag(30, 40);
+      expect(useEditorStore.getState().stickyNoteLinkDrag).toMatchObject({ cursorX: 30, cursorY: 40 });
+      useEditorStore.getState().completeStickyNoteLinkDrag(room.id);
+      expect(Object.values(useEditorStore.getState().doc!.stickyNoteLinks)).toHaveLength(1);
+
+      useEditorStore.getState().setSelection(['room-1'], [stickyNote.id], [], []);
+      useEditorStore.getState().startStickyNoteDrag(stickyNote.id);
+      useEditorStore.getState().updateStickyNoteDrag(15, 25);
+      expect(useEditorStore.getState().selectionDrag).toMatchObject({
+        roomIds: ['room-1'],
+        stickyNoteIds: [stickyNote.id],
+        dx: 15,
+        dy: 25,
+      });
+      useEditorStore.getState().endStickyNoteDrag();
+      expect(useEditorStore.getState().selectionDrag).toBeNull();
+    });
+
+    it('gracefully clears drag state when sticky note link completion occurs without a document or drag', () => {
+      useEditorStore.getState().completeStickyNoteLinkDrag('room-1');
+      expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
+
+      useEditorStore.getState().startStickyNoteLinkDrag('note-1', 0, 0);
+      resetStore();
+      useEditorStore.getState().completeStickyNoteLinkDrag('room-1');
+      expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
+    });
+
+    it('tracks and commits export regions', () => {
+      useEditorStore.getState().beginExportRegion({ x: 100, y: 80 });
+      useEditorStore.getState().updateExportRegion({ x: 20, y: 140 });
+      expect(useEditorStore.getState().exportRegionDraft).toEqual({
+        start: { x: 100, y: 80 },
+        current: { x: 20, y: 140 },
+      });
+
+      useEditorStore.getState().commitExportRegion();
+      expect(useEditorStore.getState().exportRegion).toEqual({
+        left: 20,
+        top: 80,
+        right: 100,
+        bottom: 140,
+      });
+
+      useEditorStore.getState().clearExportRegion();
+      useEditorStore.getState().updateExportRegion({ x: 1, y: 2 });
+      useEditorStore.getState().commitExportRegion();
+      expect(useEditorStore.getState().exportRegion).toBeNull();
+    });
+
+    it('covers additional drawing and background layer branches', () => {
+      useEditorStore.getState().setSelection(['room-1'], ['note-1'], ['conn-1'], ['link-1']);
+      useEditorStore.getState().setDrawingSize(20);
+      useEditorStore.getState().setDrawingTool('pencil');
+      useEditorStore.getState().setDrawingFillColor('#abcdef');
+      useEditorStore.getState().setCanvasInteractionMode('draw');
+      expect(useEditorStore.getState().drawingToolState.size).toBe(6);
+      expect(useEditorStore.getState().drawingToolState.fillColorRgbHex).toBe('#abcdef');
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+
+      useEditorStore.getState().loadDocument(testDoc);
+      const createdLayerId = useEditorStore.getState().ensureDefaultBackgroundLayer();
+      expect(useEditorStore.getState().doc?.background.layers[createdLayerId]).toBeDefined();
+      expect(useEditorStore.getState().ensureDefaultBackgroundLayer()).toBe(createdLayerId);
+
+      useEditorStore.getState().beginBackgroundStroke(createdLayerId);
+      useEditorStore.getState().commitBackgroundStroke({
+        kind: 'background-stroke',
+        mapId: testDoc.metadata.id,
+        layerId: createdLayerId,
+        chunks: [],
+      });
+      expect(useEditorStore.getState().backgroundRevision).toBe(1);
+      expect(useEditorStore.getState().activeStroke).toBeNull();
+    });
+  });
 });
