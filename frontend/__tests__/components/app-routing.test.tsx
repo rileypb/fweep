@@ -141,7 +141,8 @@ describe('URL routing', () => {
     await user.type(input, 'delete kitchen{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room kitchen');
+    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
+    expect(screen.getByRole('alert')).toHaveTextContent('No room with that name exists in the current map.');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
 
@@ -195,7 +196,8 @@ describe('URL routing', () => {
     await user.type(input, 'delete kitchen{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms have that name. You must delete them manually.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
+    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to delete.');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
@@ -276,7 +278,7 @@ describe('URL routing', () => {
     await user.type(input, 'edit kitchen{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room kitchen');
+    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
@@ -331,7 +333,8 @@ describe('URL routing', () => {
     await user.type(input, 'edit kitchen{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms have that name. You must edit them manually.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
+    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to edit.');
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
@@ -560,7 +563,7 @@ describe('URL routing', () => {
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room hallway');
+    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "hallway".');
 
     logSpy.mockRestore();
   });
@@ -625,7 +628,8 @@ describe('URL routing', () => {
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms have that name. You must connect them manually.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
+    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to connect.');
 
     logSpy.mockRestore();
   });
@@ -903,7 +907,7 @@ describe('URL routing', () => {
     await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
 
     expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room Hallway');
+    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "Hallway".');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
     expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
 
@@ -974,6 +978,7 @@ describe('URL routing', () => {
 
     expect(logSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent("I didn't understand you.");
+    expect(screen.getByRole('alert')).toHaveTextContent('The command does not match any supported CLI syntax.');
 
     await user.type(input, 'x');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();

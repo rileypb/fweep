@@ -105,11 +105,26 @@ body {
 .app-cli-error {
   margin: 0;
   flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  max-width: min(24rem, calc(100vw - 12rem));
   color: #b91c1c;
   font-size: 0.85rem;
   font-weight: 600;
   line-height: 1.2;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.app-cli-error-message,
+.app-cli-error-detail,
+.app-cli-error-suggestion {
+  display: block;
+}
+
+.app-cli-error-detail,
+.app-cli-error-suggestion {
+  font-weight: 500;
 }
 
 :root[data-theme='dark'] .app-cli-error {

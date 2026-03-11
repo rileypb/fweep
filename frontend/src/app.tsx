@@ -4,6 +4,12 @@ import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
 import { parseCliCommand, parseCliCommandDescription } from './domain/cli-command';
+import {
+  createAmbiguousRoomCliError,
+  createParseCliError,
+  createUnknownRoomCliError,
+  type CliError,
+} from './domain/cli-errors';
 import { planCreateRoomFromCli, resolveRoomByCliName } from './domain/cli-execution';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
@@ -169,7 +175,7 @@ export function App(): React.JSX.Element {
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
-  const [cliError, setCliError] = useState<string | null>(null);
+  const [cliError, setCliError] = useState<CliError | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
 
   // Sync the router's active map into the editor store.
@@ -213,8 +219,8 @@ export function App(): React.JSX.Element {
     };
   }, [isHelpOpen]);
 
-  const reportCliError = (message: string) => {
-    setCliError(message);
+  const reportCliError = (error: CliError) => {
+    setCliError(error);
     cliInputRef.current?.select();
   };
 
@@ -229,7 +235,7 @@ export function App(): React.JSX.Element {
             let shouldSelectCliInput = true;
             const command = parseCliCommand(cliCommand);
             if (command === null) {
-              reportCliError("I didn't understand you.");
+              reportCliError(createParseCliError());
               return;
             }
 
@@ -250,11 +256,11 @@ export function App(): React.JSX.Element {
             } else if (command.kind === 'delete' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                reportCliError(`Unknown room ${command.roomName}`);
+                reportCliError(createUnknownRoomCliError(command.roomName));
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                reportCliError('Multiple rooms have that name. You must delete them manually.');
+                reportCliError(createAmbiguousRoomCliError('delete', command.roomName));
                 return;
               }
               removeRoom(roomMatch.room.id);
@@ -262,11 +268,11 @@ export function App(): React.JSX.Element {
             } else if (command.kind === 'edit' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                reportCliError(`Unknown room ${command.roomName}`);
+                reportCliError(createUnknownRoomCliError(command.roomName));
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                reportCliError('Multiple rooms have that name. You must edit them manually.');
+                reportCliError(createAmbiguousRoomCliError('edit', command.roomName));
                 return;
               }
               selectRoom(roomMatch.room.id);
@@ -276,21 +282,21 @@ export function App(): React.JSX.Element {
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
               if (sourceRoomMatch.kind === 'none') {
-                reportCliError(`Unknown room ${command.sourceRoomName}`);
+                reportCliError(createUnknownRoomCliError(command.sourceRoomName));
                 return;
               }
               if (sourceRoomMatch.kind === 'multiple') {
-                reportCliError('Multiple rooms have that name. You must connect them manually.');
+                reportCliError(createAmbiguousRoomCliError('connect', command.sourceRoomName));
                 return;
               }
 
               const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
               if (targetRoomMatch.kind === 'none') {
-                reportCliError(`Unknown room ${command.targetRoomName}`);
+                reportCliError(createUnknownRoomCliError(command.targetRoomName));
                 return;
               }
               if (targetRoomMatch.kind === 'multiple') {
-                reportCliError('Multiple rooms have that name. You must connect them manually.');
+                reportCliError(createAmbiguousRoomCliError('connect', command.targetRoomName));
                 return;
               }
 
@@ -307,11 +313,11 @@ export function App(): React.JSX.Element {
             } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
               const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
               if (targetRoomMatch.kind === 'none') {
-                reportCliError(`Unknown room ${command.targetRoomName}`);
+                reportCliError(createUnknownRoomCliError(command.targetRoomName));
                 return;
               }
               if (targetRoomMatch.kind === 'multiple') {
-                reportCliError('Multiple rooms have that name. You must connect them manually.');
+                reportCliError(createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
                 return;
               }
 
@@ -350,7 +356,7 @@ export function App(): React.JSX.Element {
             } else {
               const description = parseCliCommandDescription(cliCommand);
               if (description === null) {
-                reportCliError("I didn't understand you.");
+                reportCliError(createParseCliError());
                 return;
               }
               setCliError(null);
@@ -379,7 +385,13 @@ export function App(): React.JSX.Element {
           />
           {cliError !== null && (
             <p className="app-cli-error" role="alert">
-              {cliError}
+              <span className="app-cli-error-message">{cliError.message}</span>
+              {cliError.detail !== null && (
+                <span className="app-cli-error-detail">{cliError.detail}</span>
+              )}
+              {cliError.suggestion !== null && (
+                <span className="app-cli-error-suggestion">{cliError.suggestion}</span>
+              )}
             </p>
           )}
         </form>
