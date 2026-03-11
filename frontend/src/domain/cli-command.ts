@@ -220,7 +220,7 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
 
   const relationDirection = normalizeDirection(relationDirectionToken.value);
   const sourceDirection = oppositeDirection(relationDirection);
-  if (sourceDirection === null) {
+  if (sourceDirection === null || sourceDirection === undefined) {
     return null;
   }
 

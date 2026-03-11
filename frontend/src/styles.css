@@ -63,16 +63,17 @@ body {
 
 .app-cli-form {
   pointer-events: auto;
-  flex: 0 1 min(50vw, 36rem);
-  width: min(50vw, 36rem);
-  max-width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.8rem;
 }
 
 .app-cli-input {
-  width: 100%;
+  flex: 0 1 min(50vw, 36rem);
+  width: min(50vw, 36rem);
+  max-width: 100%;
   height: calc(var(--app-title-size) * 0.6);
   padding: 0 0.4em;
   border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
@@ -103,7 +104,7 @@ body {
 
 .app-cli-error {
   margin: 0;
-  padding: 0 0.35rem;
+  flex: 0 1 auto;
   color: #b91c1c;
   font-size: 0.85rem;
   font-weight: 600;
@@ -213,11 +214,12 @@ body {
   }
 
   .app-cli-form {
-    flex-basis: min(52vw, 18rem);
-    width: min(52vw, 18rem);
+    gap: 0.6rem;
   }
   
   .app-cli-input {
+    flex-basis: min(52vw, 18rem);
+    width: min(52vw, 18rem);
     height: calc(var(--app-title-size-mobile) * 0.6);
   }
 }
