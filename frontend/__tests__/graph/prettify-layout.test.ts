@@ -1,8 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
-import { addConnection, addRoom, setRoomPositions } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { addConnection, addRoom, addStickyNote, addStickyNoteLink, setRoomPositions } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import type { MapDocument, Room } from '../../src/domain/map-types';
-import { computePrettifiedRoomPositions, PRETTIFY_GRID_SIZE } from '../../src/graph/prettify-layout';
+import { computePrettifiedLayoutPositions, computePrettifiedRoomPositions, PRETTIFY_GRID_SIZE } from '../../src/graph/prettify-layout';
+import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../../src/graph/sticky-note-geometry';
 
 function expectSnappedToGrid(value: number): void {
   expect(Number.isInteger(value / PRETTIFY_GRID_SIZE)).toBe(true);
@@ -218,5 +219,45 @@ describe('computePrettifiedRoomPositions', () => {
     const secondPositions = computePrettifiedRoomPositions(firstPassDoc);
 
     expect(secondPositions).toEqual(firstPositions);
+  });
+
+  it('moves a linked sticky note near its linked room without overlapping it', () => {
+    let doc = createEmptyMap('Linked Note');
+    const room = { ...createRoom('Kitchen'), position: { x: 200, y: 200 } };
+    const stickyNote = { ...createStickyNote('Remember the lantern'), position: { x: 200, y: 200 } };
+    doc = addRoom(doc, room);
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room.id));
+
+    const { roomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+    const roomPosition = roomPositions[room.id];
+    const stickyNotePosition = stickyNotePositions[stickyNote.id];
+
+    expect(stickyNotePosition).toBeDefined();
+    const stickyNoteLeft = stickyNotePosition.x;
+    const stickyNoteRight = stickyNoteLeft + STICKY_NOTE_WIDTH;
+    const stickyNoteTop = stickyNotePosition.y;
+    const stickyNoteBottom = stickyNoteTop + getStickyNoteHeight(stickyNote.text);
+    const roomLeft = roomPosition.x;
+    const roomRight = roomLeft + estimateRoomWidth(room.name);
+    const roomTop = roomPosition.y;
+    const roomBottom = roomTop + 36;
+
+    const overlapsHorizontally = stickyNoteLeft < roomRight && stickyNoteRight > roomLeft;
+    const overlapsVertically = stickyNoteTop < roomBottom && stickyNoteBottom > roomTop;
+    expect(overlapsHorizontally && overlapsVertically).toBe(false);
+  });
+
+  it('separates overlapping sticky notes during prettify', () => {
+    let doc = createEmptyMap('Overlapping Notes');
+    const room = { ...createRoom('Anchor'), position: { x: 320, y: 200 } };
+    const stickyNoteA = { ...createStickyNote('First'), position: { x: 320, y: 200 } };
+    const stickyNoteB = { ...createStickyNote('Second'), position: { x: 320, y: 200 } };
+    doc = addRoom(doc, room);
+    doc = addStickyNote(addStickyNote(doc, stickyNoteA), stickyNoteB);
+
+    const { stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+
+    expect(stickyNotePositions[stickyNoteA.id]).not.toEqual(stickyNotePositions[stickyNoteB.id]);
   });
 });

@@ -26,7 +26,7 @@ import {
   setStickyNotePositions as domainSetStickyNotePositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
-import { computePrettifiedRoomPositions } from '../graph/prettify-layout';
+import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
 import { restoreBackgroundChunks, type RasterChunkHistoryEntry } from '../storage/map-store';
 
 /** Grid size in pixels used for snapping room positions. */
@@ -644,8 +644,8 @@ function prettifyCliConnectionResult(
   const transientLockedRoomIds = new Set(
     Object.keys(doc.rooms).filter((roomId) => !movableSet.has(roomId)),
   );
-  const nextPositions = computePrettifiedRoomPositions(doc, transientLockedRoomIds);
-  return domainSetRoomPositions(doc, nextPositions);
+  const { roomPositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
+  return domainSetRoomPositions(doc, roomPositions);
 }
 
 function patchDocumentView(
@@ -1456,8 +1456,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    const nextPositions = computePrettifiedRoomPositions(doc);
-    const updatedDoc = domainSetRoomPositions(doc, nextPositions);
+    const { roomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+    const roomsUpdatedDoc = domainSetRoomPositions(doc, roomPositions);
+    const updatedDoc = domainSetStickyNotePositions(roomsUpdatedDoc, stickyNotePositions);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 

@@ -1,8 +1,10 @@
-import type { MapDocument, Position, Room } from '../domain/map-types';
+import type { MapDocument, Position, Room, StickyNote } from '../domain/map-types';
 import { getRoomNodeWidth } from './room-label-geometry';
+import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
 const ROOM_HEIGHT = 36;
 const ROOM_VERTICAL_GAP = 24;
 const ROOM_HORIZONTAL_GAP = 40;
+const STICKY_NOTE_GAP = 24;
 
 export const PRETTIFY_GRID_SIZE = 40;
 export const PRETTIFY_HORIZONTAL_SPACING = 160;
@@ -23,6 +25,11 @@ interface DirectionConstraint {
   readonly fromRoomId: string;
   readonly toRoomId: string;
   readonly delta: Vector;
+}
+
+interface PrettifiedLayoutPositions {
+  readonly roomPositions: Readonly<Record<string, Position>>;
+  readonly stickyNotePositions: Readonly<Record<string, Position>>;
 }
 
 const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
@@ -584,6 +591,200 @@ function canTranslateComponent(
   return true;
 }
 
+function getStickyNoteBounds(stickyNote: StickyNote, position: Position) {
+  return {
+    left: position.x,
+    top: position.y,
+    right: position.x + STICKY_NOTE_WIDTH,
+    bottom: position.y + getStickyNoteHeight(stickyNote.text),
+  };
+}
+
+function getRoomBounds(room: Room, position: Position) {
+  return {
+    left: position.x,
+    top: position.y,
+    right: position.x + estimateRoomWidth(room),
+    bottom: position.y + ROOM_HEIGHT,
+  };
+}
+
+function intersectsWithGap(
+  left: { left: number; top: number; right: number; bottom: number },
+  right: { left: number; top: number; right: number; bottom: number },
+  gap: number,
+): boolean {
+  return (
+    left.left < (right.right + gap)
+    && (left.right + gap) > right.left
+    && left.top < (right.bottom + gap)
+    && (left.bottom + gap) > right.top
+  );
+}
+
+function overlapsRoomOrStickyNote(
+  stickyNoteId: string,
+  candidatePosition: Position,
+  roomPositions: Readonly<Record<string, Position>>,
+  placedStickyNotes: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): boolean {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  const candidateBounds = getStickyNoteBounds(stickyNote, candidatePosition);
+
+  for (const [roomId, roomPosition] of Object.entries(roomPositions)) {
+    if (intersectsWithGap(candidateBounds, getRoomBounds(doc.rooms[roomId], roomPosition), STICKY_NOTE_GAP)) {
+      return true;
+    }
+  }
+
+  for (const [placedStickyNoteId, placedPosition] of placedStickyNotes) {
+    if (placedStickyNoteId === stickyNoteId) {
+      continue;
+    }
+
+    const placedStickyNote = doc.stickyNotes[placedStickyNoteId];
+    if (intersectsWithGap(candidateBounds, getStickyNoteBounds(placedStickyNote, placedPosition), STICKY_NOTE_GAP)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function findNearestOpenStickyNotePosition(
+  stickyNoteId: string,
+  preferredPosition: Position,
+  currentPosition: Position,
+  roomPositions: Readonly<Record<string, Position>>,
+  placedStickyNotes: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): Position {
+  if (!overlapsRoomOrStickyNote(stickyNoteId, preferredPosition, roomPositions, placedStickyNotes, doc)) {
+    return preferredPosition;
+  }
+
+  for (let radius = 1; radius <= 16; radius += 1) {
+    const candidates: Position[] = [];
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      candidates.push({ x: preferredPosition.x + (dx * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (-radius * PRETTIFY_GRID_SIZE) });
+      candidates.push({ x: preferredPosition.x + (dx * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (radius * PRETTIFY_GRID_SIZE) });
+    }
+
+    for (let dy = -(radius - 1); dy <= radius - 1; dy += 1) {
+      candidates.push({ x: preferredPosition.x + (-radius * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (dy * PRETTIFY_GRID_SIZE) });
+      candidates.push({ x: preferredPosition.x + (radius * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (dy * PRETTIFY_GRID_SIZE) });
+    }
+
+    const validCandidates = candidates
+      .filter((candidate) => !overlapsRoomOrStickyNote(stickyNoteId, candidate, roomPositions, placedStickyNotes, doc))
+      .sort((left, right) => {
+        const leftPreferredDistance = ((left.x - preferredPosition.x) ** 2) + ((left.y - preferredPosition.y) ** 2);
+        const rightPreferredDistance = ((right.x - preferredPosition.x) ** 2) + ((right.y - preferredPosition.y) ** 2);
+        if (leftPreferredDistance !== rightPreferredDistance) {
+          return leftPreferredDistance - rightPreferredDistance;
+        }
+
+        const leftCurrentDistance = ((left.x - currentPosition.x) ** 2) + ((left.y - currentPosition.y) ** 2);
+        const rightCurrentDistance = ((right.x - currentPosition.x) ** 2) + ((right.y - currentPosition.y) ** 2);
+        if (leftCurrentDistance !== rightCurrentDistance) {
+          return leftCurrentDistance - rightCurrentDistance;
+        }
+
+        return (left.y - right.y) || (left.x - right.x);
+      });
+
+    if (validCandidates.length > 0) {
+      return validCandidates[0];
+    }
+  }
+
+  return preferredPosition;
+}
+
+function getPreferredStickyNotePosition(
+  stickyNoteId: string,
+  roomPositions: Readonly<Record<string, Position>>,
+  doc: MapDocument,
+): Position {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  const linkedRoomIds = Object.values(doc.stickyNoteLinks)
+    .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && roomPositions[stickyNoteLink.roomId] !== undefined)
+    .map((stickyNoteLink) => stickyNoteLink.roomId)
+    .sort();
+
+  if (linkedRoomIds.length === 0) {
+    return {
+      x: snapCoordinate(stickyNote.position.x),
+      y: snapCoordinate(stickyNote.position.y),
+    };
+  }
+
+  const linkedRoom = doc.rooms[linkedRoomIds[0]];
+  const linkedRoomPosition = roomPositions[linkedRoomIds[0]];
+  const roomWidth = estimateRoomWidth(linkedRoom);
+  const noteHeight = getStickyNoteHeight(stickyNote.text);
+
+  const candidatePositions = [
+    {
+      x: snapCoordinate(linkedRoomPosition.x + roomWidth + STICKY_NOTE_GAP),
+      y: snapCoordinate(linkedRoomPosition.y + ((ROOM_HEIGHT - noteHeight) / 2)),
+    },
+    {
+      x: snapCoordinate(linkedRoomPosition.x - STICKY_NOTE_WIDTH - STICKY_NOTE_GAP),
+      y: snapCoordinate(linkedRoomPosition.y + ((ROOM_HEIGHT - noteHeight) / 2)),
+    },
+    {
+      x: snapCoordinate(linkedRoomPosition.x + ((roomWidth - STICKY_NOTE_WIDTH) / 2)),
+      y: snapCoordinate(linkedRoomPosition.y + ROOM_HEIGHT + STICKY_NOTE_GAP),
+    },
+    {
+      x: snapCoordinate(linkedRoomPosition.x + ((roomWidth - STICKY_NOTE_WIDTH) / 2)),
+      y: snapCoordinate(linkedRoomPosition.y - noteHeight - STICKY_NOTE_GAP),
+    },
+  ];
+
+  return candidatePositions.sort((left, right) => {
+    const leftDistance = ((left.x - stickyNote.position.x) ** 2) + ((left.y - stickyNote.position.y) ** 2);
+    const rightDistance = ((right.x - stickyNote.position.x) ** 2) + ((right.y - stickyNote.position.y) ** 2);
+    return leftDistance - rightDistance;
+  })[0];
+}
+
+function computePrettifiedStickyNotePositions(
+  doc: MapDocument,
+  roomPositions: Readonly<Record<string, Position>>,
+): Readonly<Record<string, Position>> {
+  const stickyNoteIds = Object.keys(doc.stickyNotes).sort((leftId, rightId) => {
+    const leftLinked = Object.values(doc.stickyNoteLinks).some((link) => link.stickyNoteId === leftId);
+    const rightLinked = Object.values(doc.stickyNoteLinks).some((link) => link.stickyNoteId === rightId);
+    if (leftLinked !== rightLinked) {
+      return leftLinked ? -1 : 1;
+    }
+
+    return leftId.localeCompare(rightId);
+  });
+
+  const placedStickyNotes = new Map<string, Position>();
+  for (const stickyNoteId of stickyNoteIds) {
+    const stickyNote = doc.stickyNotes[stickyNoteId];
+    const preferredPosition = getPreferredStickyNotePosition(stickyNoteId, roomPositions, doc);
+    placedStickyNotes.set(
+      stickyNoteId,
+      findNearestOpenStickyNotePosition(
+        stickyNoteId,
+        preferredPosition,
+        stickyNote.position,
+        roomPositions,
+        placedStickyNotes,
+        doc,
+      ),
+    );
+  }
+
+  return Object.fromEntries(placedStickyNotes.entries());
+}
+
 function recenterUnlockedComponents(
   components: readonly string[][],
   targetCentroids: ReadonlyMap<string, Vector>,
@@ -720,4 +921,15 @@ export function computePrettifiedRoomPositions(
   }
 
   return firstPass;
+}
+
+export function computePrettifiedLayoutPositions(
+  doc: MapDocument,
+  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
+): PrettifiedLayoutPositions {
+  const roomPositions = computePrettifiedRoomPositions(doc, extraLockedRoomIds);
+  return {
+    roomPositions,
+    stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions),
+  };
 }

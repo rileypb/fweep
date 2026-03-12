@@ -1,0 +1,49 @@
+1. Shift-click empty canvas creates a sticky note, while Shift-drag empty canvas pans.
+This is the biggest one. Shift is already overloaded, and in most editors Shift suggests selection extension, not "create a different entity." It also makes note creation easy to trigger by accident while trying to pan.
+I'd change this to a more explicit action:
+- N then click to place a note
+- a small "new note" button
+- or double-click with a dedicated note mode
+I would not keep Shift-click as the primary note-creation gesture.
+
+2. Shift-drag to pan is unusual.
+Desktop canvas tools usually use Space-drag, middle-mouse drag, or trackpad gesture panning. Shift-drag works, but it is not what most users will try first.
+I'd prefer:
+- Space-drag as the taught/default pan gesture
+- keep middle-mouse drag
+- optionally keep Shift-drag as compatibility, but stop advertising it as the main one
+
+3. Double-click empty canvas creates a room.
+This is understandable once learned, but double-click usually means "open/edit," not "create new object." Since room double-click already means edit, the empty-canvas meaning is easy enough to forget.
+I'd consider:
+- A then click to add room
+- toolbar/button creation
+- or single-key create command plus click placement
+If you keep double-click room creation, I'd treat it as a shortcut, not the main discoverable path.
+
+4. Alt/Option-drag from a sticky note to a room creates a sticky-note link.
+This is functional but not discoverable. Modifier-drag gestures are hard to remember unless the UI constantly hints them.
+I'd replace it with a visible link handle on sticky notes, parallel to room direction handles.
+
+5. Arrow keys move to the nearest room in that direction.
+This is useful, but not very standard for diagram editors. It feels more like a power-user feature than an obvious default.
+I would keep it, but surface it better in help or selection hints. It's a good shortcut, just not a discoverable one.
+
+6. Enter opens the room editor when one room is selected.
+This is reasonable, but it is a bit mixed with the dialog behavior where Enter also means save. It's not wrong, just mildly ambiguous across contexts.
+I think this one is acceptable as-is if selection state is clear.
+
+7. Mixed selection deletion with Delete / Backspace is good.
+That feels standard and coherent. I would keep it.
+
+8. Drag from room direction handles to create connections is good.
+That interaction is strong and explicit. The drop-on-body for one-way vs drop-on-handle for two-way is also a pretty coherent model.
+
+If I were simplifying the overall interaction model, my main recommendations would be:
+
+- Make pan be Space-drag or middle-drag.
+- Move sticky-note creation off Shift-click.
+- Move sticky-note linking off Alt-drag and onto an explicit handle.
+- Consider making room creation more explicit than empty-canvas double-click.
+
+The highest-ROI fixes are Shift-click note creation and Shift-drag panning. Those are the least intuitive parts of the current system.
