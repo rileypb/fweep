@@ -219,6 +219,7 @@ export function App(): React.JSX.Element {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isGameOutputCollapsed, setIsGameOutputCollapsed] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
+  const [hasUsedCliInput, setHasUsedCliInput] = useState(false);
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<{ roomId: string; requestId: number } | null>(null);
@@ -345,6 +346,7 @@ export function App(): React.JSX.Element {
             className="app-cli-form"
             onSubmit={(event) => {
               event.preventDefault();
+              setHasUsedCliInput(true);
               let shouldSelectCliInput = true;
               const submittedInput = cliCommand;
               const command = parseCliCommand(submittedInput);
@@ -529,12 +531,15 @@ export function App(): React.JSX.Element {
                 className="app-cli-input"
                 type="text"
                 name="cli-command"
-                placeholder="Enter a command"
+                placeholder={hasUsedCliInput ? 'Enter a command' : 'Type help'}
                 autoComplete="off"
                 spellCheck={false}
                 ref={cliInputRef}
                 value={cliCommand}
                 onChange={(event) => {
+                  if (!hasUsedCliInput && event.target.value.trim().length > 0) {
+                    setHasUsedCliInput(true);
+                  }
                   setCliCommand(event.target.value);
                 }}
               />

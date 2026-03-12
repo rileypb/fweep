@@ -47,10 +47,23 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /cli command/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /cli command/i })).toHaveAttribute('placeholder', 'Type help');
     expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();
+  });
+
+  it('switches the CLI placeholder after the input has been used once', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    expect(input).toHaveAttribute('placeholder', 'Type help');
+
+    await user.type(input, 'help');
+    await user.clear(input);
+
+    expect(input).toHaveAttribute('placeholder', 'Enter a command');
   });
 
   it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
