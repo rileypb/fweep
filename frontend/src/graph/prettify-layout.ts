@@ -105,6 +105,73 @@ function deriveDirectionConstraints(doc: MapDocument): DirectionConstraint[] {
   return constraints;
 }
 
+function positionsEqual(
+  left: Readonly<Record<string, Position>>,
+  right: Readonly<Record<string, Position>>,
+): boolean {
+  const leftRoomIds = Object.keys(left).sort();
+  const rightRoomIds = Object.keys(right).sort();
+  if (leftRoomIds.length !== rightRoomIds.length) {
+    return false;
+  }
+
+  for (let index = 0; index < leftRoomIds.length; index += 1) {
+    const leftRoomId = leftRoomIds[index];
+    const rightRoomId = rightRoomIds[index];
+    if (leftRoomId !== rightRoomId) {
+      return false;
+    }
+
+    const leftPosition = left[leftRoomId];
+    const rightPosition = right[rightRoomId];
+    if (leftPosition.x !== rightPosition.x || leftPosition.y !== rightPosition.y) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function comparePositionsLexicographically(
+  left: Readonly<Record<string, Position>>,
+  right: Readonly<Record<string, Position>>,
+): number {
+  const roomIds = Array.from(new Set([...Object.keys(left), ...Object.keys(right)])).sort();
+  for (const roomId of roomIds) {
+    const leftPosition = left[roomId];
+    const rightPosition = right[roomId];
+    if (!leftPosition && !rightPosition) {
+      continue;
+    }
+    if (!leftPosition) {
+      return -1;
+    }
+    if (!rightPosition) {
+      return 1;
+    }
+    if (leftPosition.y !== rightPosition.y) {
+      return leftPosition.y - rightPosition.y;
+    }
+    if (leftPosition.x !== rightPosition.x) {
+      return leftPosition.x - rightPosition.x;
+    }
+  }
+
+  return 0;
+}
+
+function withRoomPositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
+  return {
+    ...doc,
+    rooms: Object.fromEntries(
+      Object.entries(doc.rooms).map(([roomId, room]) => [
+        roomId,
+        positions[roomId] ? { ...room, position: positions[roomId] } : room,
+      ]),
+    ),
+  };
+}
+
 function getConnectedComponents(roomIds: readonly string[], constraints: readonly DirectionConstraint[]): string[][] {
   const adjacency = new Map<string, Set<string>>();
   for (const roomId of roomIds) {
@@ -358,6 +425,29 @@ function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): 
   };
 }
 
+function computePlacedCentroid(
+  roomIds: readonly string[],
+  positions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): Vector {
+  const total = roomIds.reduce(
+    (acc, roomId) => {
+      const position = positions.get(roomId);
+      if (!position) {
+        return acc;
+      }
+      const center = toRoomCenter(doc.rooms[roomId], position);
+      return { x: acc.x + center.x, y: acc.y + center.y };
+    },
+    { x: 0, y: 0 },
+  );
+
+  return {
+    x: total.x / roomIds.length,
+    y: total.y / roomIds.length,
+  };
+}
+
 function overlapsPlacedRooms(
   roomId: string,
   candidatePosition: Position,
@@ -396,6 +486,7 @@ function overlapsPlacedRooms(
 function findNearestOpenPosition(
   roomId: string,
   preferredPosition: Position,
+  currentPosition: Position,
   placedPositions: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): Position {
@@ -403,33 +494,135 @@ function findNearestOpenPosition(
     return preferredPosition;
   }
 
-  const offsets: Position[] = [{ x: 0, y: 0 }];
   for (let radius = 1; radius <= 12; radius += 1) {
+    const candidates: Position[] = [];
     for (let dx = -radius; dx <= radius; dx += 1) {
-      offsets.push({ x: dx * PRETTIFY_GRID_SIZE, y: -radius * PRETTIFY_GRID_SIZE });
-      offsets.push({ x: dx * PRETTIFY_GRID_SIZE, y: radius * PRETTIFY_GRID_SIZE });
+      candidates.push({ x: preferredPosition.x + (dx * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (-radius * PRETTIFY_GRID_SIZE) });
+      candidates.push({ x: preferredPosition.x + (dx * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (radius * PRETTIFY_GRID_SIZE) });
     }
 
     for (let dy = -(radius - 1); dy <= radius - 1; dy += 1) {
-      offsets.push({ x: -radius * PRETTIFY_GRID_SIZE, y: dy * PRETTIFY_GRID_SIZE });
-      offsets.push({ x: radius * PRETTIFY_GRID_SIZE, y: dy * PRETTIFY_GRID_SIZE });
+      candidates.push({ x: preferredPosition.x + (-radius * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (dy * PRETTIFY_GRID_SIZE) });
+      candidates.push({ x: preferredPosition.x + (radius * PRETTIFY_GRID_SIZE), y: preferredPosition.y + (dy * PRETTIFY_GRID_SIZE) });
     }
-  }
 
-  for (const offset of offsets) {
-    const candidate = {
-      x: preferredPosition.x + offset.x,
-      y: preferredPosition.y + offset.y,
-    };
-    if (!overlapsPlacedRooms(roomId, candidate, placedPositions, doc)) {
-      return candidate;
+    const validCandidates = candidates
+      .filter((candidate) => !overlapsPlacedRooms(roomId, candidate, placedPositions, doc))
+      .sort((left, right) => {
+        const leftPreferredDistance = ((left.x - preferredPosition.x) ** 2) + ((left.y - preferredPosition.y) ** 2);
+        const rightPreferredDistance = ((right.x - preferredPosition.x) ** 2) + ((right.y - preferredPosition.y) ** 2);
+        if (leftPreferredDistance !== rightPreferredDistance) {
+          return leftPreferredDistance - rightPreferredDistance;
+        }
+
+        const leftCurrentDistance = ((left.x - currentPosition.x) ** 2) + ((left.y - currentPosition.y) ** 2);
+        const rightCurrentDistance = ((right.x - currentPosition.x) ** 2) + ((right.y - currentPosition.y) ** 2);
+        if (leftCurrentDistance !== rightCurrentDistance) {
+          return leftCurrentDistance - rightCurrentDistance;
+        }
+
+        return (left.y - right.y) || (left.x - right.x);
+      });
+
+    if (validCandidates.length > 0) {
+      return validCandidates[0];
     }
   }
 
   return preferredPosition;
 }
 
-export function computePrettifiedRoomPositions(
+function canTranslateComponent(
+  roomIds: readonly string[],
+  delta: Position,
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): boolean {
+  if (delta.x === 0 && delta.y === 0) {
+    return true;
+  }
+
+  const componentRoomIds = new Set(roomIds);
+  const shiftedPositions = new Map<string, Position>();
+  for (const roomId of roomIds) {
+    const position = placedPositions.get(roomId);
+    if (!position) {
+      return false;
+    }
+    shiftedPositions.set(roomId, {
+      x: position.x + delta.x,
+      y: position.y + delta.y,
+    });
+  }
+
+  for (const roomId of roomIds) {
+    const shiftedPosition = shiftedPositions.get(roomId)!;
+    for (const [otherRoomId, otherPosition] of placedPositions) {
+      if (componentRoomIds.has(otherRoomId)) {
+        continue;
+      }
+
+      const room = doc.rooms[roomId];
+      const otherRoom = doc.rooms[otherRoomId];
+      const candidateLeft = shiftedPosition.x;
+      const candidateRight = candidateLeft + estimateRoomWidth(room) + ROOM_HORIZONTAL_GAP;
+      const candidateTop = shiftedPosition.y;
+      const candidateBottom = candidateTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+      const otherLeft = otherPosition.x;
+      const otherRight = otherLeft + estimateRoomWidth(otherRoom) + ROOM_HORIZONTAL_GAP;
+      const otherTop = otherPosition.y;
+      const otherBottom = otherTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+
+      const intersectsHorizontally = candidateLeft < otherRight && candidateRight > otherLeft;
+      const intersectsVertically = candidateTop < otherBottom && candidateBottom > otherTop;
+      if (intersectsHorizontally && intersectsVertically) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+function recenterUnlockedComponents(
+  components: readonly string[][],
+  targetCentroids: ReadonlyMap<string, Vector>,
+  lockedRoomIds: ReadonlySet<string>,
+  placedPositions: Map<string, Position>,
+  doc: MapDocument,
+): void {
+  for (const componentRoomIds of components) {
+    if (componentRoomIds.some((roomId) => lockedRoomIds.has(roomId))) {
+      continue;
+    }
+
+    const componentKey = componentRoomIds.join('\0');
+    const targetCentroid = targetCentroids.get(componentKey);
+    if (!targetCentroid) {
+      continue;
+    }
+
+    const currentCentroid = computePlacedCentroid(componentRoomIds, placedPositions, doc);
+    const delta = {
+      x: snapCoordinate(targetCentroid.x - currentCentroid.x),
+      y: snapCoordinate(targetCentroid.y - currentCentroid.y),
+    };
+
+    if (!canTranslateComponent(componentRoomIds, delta, placedPositions, doc)) {
+      continue;
+    }
+
+    for (const roomId of componentRoomIds) {
+      const position = placedPositions.get(roomId)!;
+      placedPositions.set(roomId, {
+        x: position.x + delta.x,
+        y: position.y + delta.y,
+      });
+    }
+  }
+}
+
+function computePrettifiedRoomPositionsSinglePass(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
 ): Readonly<Record<string, Position>> {
@@ -443,6 +636,7 @@ export function computePrettifiedRoomPositions(
   const constraints = deriveDirectionConstraints(doc);
   const components = getConnectedComponents(roomIds, constraints);
   const normalizedPositions = new Map<string, Vector>();
+  const componentTargetCentroids = new Map<string, Vector>();
 
   for (const componentRoomIds of components) {
     const relativeSeedPositions = computeSeedPositions(componentRoomIds, constraints);
@@ -463,6 +657,10 @@ export function computePrettifiedRoomPositions(
     }
 
     const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds);
+    componentTargetCentroids.set(
+      componentRoomIds.join('\0'),
+      computeSeedCentroid(componentRoomIds, relaxedPositions),
+    );
 
     for (const roomId of componentRoomIds) {
       normalizedPositions.set(roomId, relaxedPositions.get(roomId)!);
@@ -477,7 +675,7 @@ export function computePrettifiedRoomPositions(
   const orderedRoomIds = unlockedRoomIds.sort((leftRoomId, rightRoomId) => {
     const leftPosition = normalizedPositions.get(leftRoomId)!;
     const rightPosition = normalizedPositions.get(rightRoomId)!;
-    return (leftPosition.y - rightPosition.y) || (leftPosition.x - rightPosition.x);
+    return (leftPosition.y - rightPosition.y) || (leftPosition.x - rightPosition.x) || leftRoomId.localeCompare(rightRoomId);
   });
 
   for (const roomId of orderedRoomIds) {
@@ -494,9 +692,32 @@ export function computePrettifiedRoomPositions(
 
     placedPositions.set(
       roomId,
-      findNearestOpenPosition(roomId, snappedPosition, placedPositions, doc),
+      findNearestOpenPosition(roomId, snappedPosition, doc.rooms[roomId].position, placedPositions, doc),
     );
   }
 
+  recenterUnlockedComponents(components, componentTargetCentroids, lockedRoomIds, placedPositions, doc);
+
   return Object.fromEntries(placedPositions.entries());
+}
+
+export function computePrettifiedRoomPositions(
+  doc: MapDocument,
+  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
+): Readonly<Record<string, Position>> {
+  const currentPositions = Object.fromEntries(
+    Object.entries(doc.rooms).map(([roomId, room]) => [roomId, room.position]),
+  ) as Record<string, Position>;
+  const firstPass = computePrettifiedRoomPositionsSinglePass(doc, extraLockedRoomIds);
+  const secondPass = computePrettifiedRoomPositionsSinglePass(withRoomPositions(doc, firstPass), extraLockedRoomIds);
+
+  if (positionsEqual(firstPass, secondPass)) {
+    return firstPass;
+  }
+
+  if (positionsEqual(secondPass, currentPositions)) {
+    return comparePositionsLexicographically(currentPositions, firstPass) <= 0 ? currentPositions : firstPass;
+  }
+
+  return firstPass;
 }

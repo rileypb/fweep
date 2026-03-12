@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { addConnection, addRoom, setRoomPositions } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
 import type { MapDocument, Room } from '../../src/domain/map-types';
 import { computePrettifiedRoomPositions, PRETTIFY_GRID_SIZE } from '../../src/graph/prettify-layout';
@@ -149,7 +149,7 @@ describe('computePrettifiedRoomPositions', () => {
 
     const positions = computePrettifiedRoomPositions(doc);
 
-    expect(positions[roomA.id].x).not.toBe(positions[roomB.id].x);
+    expect(positions[roomA.id]).not.toEqual(positions[roomB.id]);
     expectSnappedToGrid(getRoomCenterX(roomA, positions[roomA.id].x));
     expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
     expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
@@ -198,5 +198,21 @@ describe('computePrettifiedRoomPositions', () => {
     expect(positions[lockedRoom.id]).toEqual(lockedRoom.position);
     expect(positions[freeRoom.id]).not.toEqual(freeRoom.position);
     expect(positions[freeRoom.id].x).toBeGreaterThan(positions[lockedRoom.id].x);
+  });
+
+  it('does not drift when prettified repeatedly for disconnected overlapping rooms', () => {
+    let doc = createEmptyMap('Stable Repeat');
+    const roomA = { ...createRoom('Alpha'), position: { x: 0, y: 0 } };
+    const roomB = { ...createRoom('Beta'), position: { x: 0, y: 0 } };
+    const roomC = { ...createRoom('Gamma'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(addRoom(doc, roomA), roomB), roomC);
+
+    const firstPositions = computePrettifiedRoomPositions(doc);
+    let firstPassDoc = doc;
+    firstPassDoc = setRoomPositions(firstPassDoc, firstPositions);
+
+    const secondPositions = computePrettifiedRoomPositions(firstPassDoc);
+
+    expect(secondPositions).toEqual(firstPositions);
   });
 });
