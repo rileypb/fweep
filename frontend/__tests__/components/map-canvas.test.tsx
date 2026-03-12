@@ -1162,22 +1162,21 @@ describe('MapCanvas', () => {
       expect(nameInput.selectionEnd).toBe('Kitchen'.length);
     });
 
-    it('applies room name and description edits immediately', async () => {
+    it('applies room name edits immediately', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
 
       const nameInput = screen.getByTestId('room-editor-name-input');
-      const descriptionInput = screen.getByTestId('room-editor-description-input');
 
       await user.clear(nameInput);
       await user.type(nameInput, 'Pantry');
-      await user.type(descriptionInput, 'A pantry with labelled jars.');
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
       expect(room.name).toBe('Pantry');
-      expect(room.description).toBe('A pantry with labelled jars.');
+      expect(room.description).toBe('');
+      expect(screen.queryByTestId('room-editor-description-input')).not.toBeInTheDocument();
     });
 
     it('updates the room shape from the room editor', async () => {
@@ -1238,19 +1237,19 @@ describe('MapCanvas', () => {
       });
     });
 
-    it('pressing Enter in the room name field moves focus to the description field', async () => {
+    it('pressing Enter in the room name field moves focus to the first shape option', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
 
       const nameInput = screen.getByTestId('room-editor-name-input');
-      const descriptionInput = screen.getByTestId('room-editor-description-input');
+      const shapeOption = screen.getByTestId('room-shape-option-rectangle');
 
       await user.click(nameInput);
       await user.keyboard('{Enter}');
 
-      expect(document.activeElement).toBe(descriptionInput);
+      expect(document.activeElement).toBe(shapeOption);
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
 
@@ -1259,6 +1258,19 @@ describe('MapCanvas', () => {
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('closes the room editor on Escape even when another control is focused', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+      const strokeStyleInput = screen.getByLabelText('Stroke style');
+      strokeStyleInput.focus();
+
       await user.keyboard('{Escape}');
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();

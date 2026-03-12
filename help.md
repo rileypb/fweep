@@ -3,6 +3,21 @@
 ## CLI, or how to type out a map
 
 - `create <room name>` creates a new room.
+- `delete <room name>` deletes a room with that name.
+- `edit <room name>` opens the room editor for that room.
+- `connect <room> <direction> to <room>` creates a two-way connection.
+- `connect <room> <direction> to <room> <direction>` creates a two-way connection with an explicit direction on both ends.
+- `connect <room> <direction> one-way to <room>` creates a one-way connection.
+- `create and connect <room> <direction> to <room>` creates a new room and immediately connects it.
+- `create <new room> <direction> of <existing room>` creates a new room and a two-way relative connection.
+- `create <new room> above <existing room>` creates a new room above an existing one, with `down` from the new room and `up` from the existing room.
+- `create <new room> below <existing room>` creates a new room below an existing one, with `up` from the new room and `down` from the existing room.
+- `undo` undoes the previous command.
+- `redo` redoes the previously undone command.
+- Room names can be quoted, for example `create "Machine Room"`.
+- In quoted names, `\"` inserts a literal quote.
+- Short direction aliases also work in the CLI, such as `n`, `s`, `e`, `w`, `u`, and `d`.
+- If a two-way `connect` command omits the target direction, fweep uses the opposite direction by default.
 
 ## Mouse and Trackpad
 
@@ -48,7 +63,6 @@
 - `Delete` / `Backspace`: delete the current mixed selection.
 - `Enter`: open the room editor when exactly one room is selected.
 - `Arrow keys`: move selection to the nearest room in that direction.
-- `D`: toggle draw mode.
 - `Ctrl/Cmd+Z`: undo.
 - `Ctrl/Cmd+Y`: redo.
 - `Ctrl/Cmd+Shift+Z`: redo.
@@ -56,12 +70,11 @@
 ## Editors and Dialogs
 
 - `Escape`: close the room editor, connection editor, sticky-note text editor, color picker, or export dialog.
-- In the room editor, `Enter` in the room name field moves focus to the description field.
+- In the room editor, `Enter` in the room name field moves focus to the shape controls.
 - Clicking a room or connection editor backdrop closes it.
 
 ## Toolbar and Buttons
 
-- Drawing tool buttons switch to draw mode.
 - The snap button toggles grid snapping.
 - The grid button toggles grid visibility.
 - The theme button toggles light and dark mode.

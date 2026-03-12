@@ -241,11 +241,24 @@ export function RoomEditorOverlay({
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
   const renameRoom = useEditorStore((s) => s.renameRoom);
-  const describeRoom = useEditorStore((s) => s.describeRoom);
   const setRoomShape = useEditorStore((s) => s.setRoomShape);
   const setRoomStyle = useEditorStore((s) => s.setRoomStyle);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const firstShapeOptionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   useEffect(() => {
     if (nameInputRef.current) {
@@ -255,24 +268,11 @@ export function RoomEditorOverlay({
   }, []);
 
   const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-      return;
-    }
-
     if (e.key === 'Enter') {
       e.preventDefault();
-      descriptionInputRef.current?.focus();
+      firstShapeOptionRef.current?.focus();
     }
-  }, [onClose]);
-
-  const handleDescriptionKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-    }
-  }, [onClose]);
+  }, []);
 
   if (!room) {
     return null;
@@ -374,27 +374,12 @@ export function RoomEditorOverlay({
 
           <div className="room-editor-main">
             <div className="room-editor-field">
-              <label className="room-editor-label" htmlFor="room-editor-description-input">
-                Description
-              </label>
-              <textarea
-                id="room-editor-description-input"
-                ref={descriptionInputRef}
-                className="room-editor-textarea"
-                data-testid="room-editor-description-input"
-                value={room.description}
-                onChange={(e) => describeRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:description` })}
-                onKeyDown={handleDescriptionKeyDown}
-                rows={8}
-              />
-            </div>
-
-            <div className="room-editor-field">
               <span className="room-editor-label">Shape</span>
               <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
-                {ROOM_SHAPES.map((shape) => (
+                {ROOM_SHAPES.map((shape, index) => (
                   <button
                     key={shape}
+                    ref={index === 0 ? firstShapeOptionRef : undefined}
                     type="button"
                     role="radio"
                     aria-checked={room.shape === shape}
