@@ -2248,25 +2248,7 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
-    it('closes the connection editor from the close button', () => {
-      const doc = createEmptyMap('Test');
-      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
-      let updated = addRoom(doc, kitchen);
-      updated = addRoom(updated, hallway);
-      const conn = createConnection(kitchen.id, hallway.id, true);
-      updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
-
-      render(<MapCanvas mapName="Test" />);
-
-      fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
-      fireEvent.click(screen.getByRole('button', { name: /close connection editor/i }));
-
-      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
-    });
-
-    it('closes the connection editor on Escape', async () => {
+    it('cancels the connection editor from the cancel button', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2280,12 +2262,35 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
+      await user.click(screen.getByRole('button', { name: /cancel connection editor/i }));
+
+      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+      expect(useEditorStore.getState().doc!.connections[conn.id].strokeColorIndex).toBe(0);
+    });
+
+    it('cancels the connection editor on Escape', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.type(screen.getByLabelText(/connection start label/i), 'archway');
       await user.keyboard('{Escape}');
 
       expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
+      expect(useEditorStore.getState().doc!.connections[conn.id].startLabel).toBe('');
     });
 
-    it('closes the connection editor and clears selection when clicking the backdrop', async () => {
+    it('cancels the connection editor and clears selection when clicking the backdrop', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2299,14 +2304,16 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.type(screen.getByLabelText(/connection start label/i), 'archway');
       await user.click(screen.getByTestId('connection-editor-overlay').querySelector('.connection-editor-backdrop') as HTMLElement);
 
       expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
+      expect(useEditorStore.getState().doc!.connections[conn.id].startLabel).toBe('');
     });
 
-    it('updates connection color and stroke style from the connection editor', async () => {
+    it('keeps connection style edits local until saved', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2324,9 +2331,31 @@ describe('MapCanvas', () => {
       await user.selectOptions(screen.getByLabelText(/connection stroke style/i), 'dotted');
 
       const updatedConnection = useEditorStore.getState().doc!.connections[conn.id];
+      expect(updatedConnection.strokeColorIndex).toBe(0);
+      expect(updatedConnection.strokeStyle).toBe('solid');
+    });
+
+    it('applies connection style edits when saved', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
+      await user.selectOptions(screen.getByLabelText(/connection stroke style/i), 'dotted');
+      await user.click(screen.getByRole('button', { name: /save connection editor/i }));
+
+      const updatedConnection = useEditorStore.getState().doc!.connections[conn.id];
       expect(updatedConnection.strokeColorIndex).toBe(4);
       expect(updatedConnection.strokeStyle).toBe('dotted');
-
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine).toHaveStyle({
         stroke: '#166534',
@@ -2334,7 +2363,7 @@ describe('MapCanvas', () => {
       });
     });
 
-    it('updates connection annotations from the connection editor', async () => {
+    it('keeps connection annotation edits local until saved', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2350,21 +2379,43 @@ describe('MapCanvas', () => {
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.click(screen.getByLabelText('door'));
 
-      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toEqual({ kind: 'door' });
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toBeNull();
 
       const textInput = screen.getByLabelText(/connection annotation text/i);
       await user.clear(textInput);
       await user.type(textInput, 'secret passage');
 
-      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toEqual({
-        kind: 'text',
-        text: 'secret passage',
-      });
       expect(screen.getByLabelText('Text')).toBeChecked();
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toBeNull();
 
       await user.click(screen.getByLabelText('none'));
       expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toBeNull();
       expect(screen.getByLabelText('none')).toBeChecked();
+    });
+
+    it('applies connection annotation edits when saved', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+      const textInput = screen.getByLabelText(/connection annotation text/i);
+      await user.clear(textInput);
+      await user.type(textInput, 'secret passage');
+      await user.click(screen.getByRole('button', { name: /save connection editor/i }));
+
+      expect(useEditorStore.getState().doc!.connections[conn.id].annotation).toEqual({
+        kind: 'text',
+        text: 'secret passage',
+      });
     });
 
     it('does not offer up or down as connection annotation options', async () => {
@@ -2388,7 +2439,7 @@ describe('MapCanvas', () => {
       expect(screen.getByLabelText('out')).toBeInTheDocument();
     });
 
-    it('updates connection start and end labels from the connection editor', async () => {
+    it('pressing Enter in a connection field saves and closes the connection editor', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
@@ -2402,9 +2453,13 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
-      await user.type(screen.getByLabelText(/connection start label/i), 'archway');
-      await user.type(screen.getByLabelText(/connection end label/i), 'landing');
+      const startLabelInput = screen.getByLabelText(/connection start label/i);
+      const endLabelInput = screen.getByLabelText(/connection end label/i);
+      await user.type(startLabelInput, 'archway');
+      await user.type(endLabelInput, 'landing');
+      fireEvent.keyDown(startLabelInput, { key: 'Enter' });
 
+      expect(screen.queryByTestId('connection-editor-overlay')).not.toBeInTheDocument();
       const updatedConnection = useEditorStore.getState().doc!.connections[conn.id];
       expect(updatedConnection.startLabel).toBe('archway');
       expect(updatedConnection.endLabel).toBe('landing');

@@ -69,14 +69,38 @@ export function ConnectionEditorOverlay({
   onBackdropClose,
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
-  const setConnectionAnnotation = useEditorStore((s) => s.setConnectionAnnotation);
-  const setConnectionLabels = useEditorStore((s) => s.setConnectionLabels);
-  const setConnectionStyle = useEditorStore((s) => s.setConnectionStyle);
+  const applyConnectionEditorDraft = useEditorStore((s) => s.applyConnectionEditorDraft);
+  const startLabelInputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(() => (
+    connection === null
+      ? null
+      : {
+        strokeColorIndex: connection.strokeColorIndex,
+        strokeStyle: connection.strokeStyle,
+        annotation: connection.annotation,
+        startLabel: connection.startLabel,
+        endLabel: connection.endLabel,
+      }
+  ));
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         event.preventDefault();
+        onBackdropClose();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const target = event.target;
+        if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
+          return;
+        }
+
+        event.preventDefault();
+        if (connection !== null && draft !== null) {
+          applyConnectionEditorDraft(connection.id, draft);
+        }
         onClose();
       }
     }
@@ -85,14 +109,36 @@ export function ConnectionEditorOverlay({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [applyConnectionEditorDraft, connection, draft, onBackdropClose, onClose]);
 
-  if (!connection) {
+  useEffect(() => {
+    if (startLabelInputRef.current) {
+      startLabelInputRef.current.focus();
+      startLabelInputRef.current.select();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (connection === null) {
+      setDraft(null);
+      return;
+    }
+
+    setDraft({
+      strokeColorIndex: connection.strokeColorIndex,
+      strokeStyle: connection.strokeStyle,
+      annotation: connection.annotation,
+      startLabel: connection.startLabel,
+      endLabel: connection.endLabel,
+    });
+  }, [connection]);
+
+  if (!connection || !draft) {
     return null;
   }
 
-  const selectedAnnotationKind = connection.annotation?.kind ?? null;
-  const annotationText = connection.annotation?.kind === 'text' ? connection.annotation.text ?? '' : '';
+  const selectedAnnotationKind = draft.annotation?.kind ?? null;
+  const annotationText = draft.annotation?.kind === 'text' ? draft.annotation.text ?? '' : '';
   const presetAnnotationKinds = CONNECTION_ANNOTATION_KINDS.filter((kind) => kind !== 'text');
 
   return (
@@ -105,23 +151,22 @@ export function ConnectionEditorOverlay({
         aria-label="Connection editor"
         data-testid="connection-editor-dialog"
       >
-        <button
-          className="connection-editor-close"
-          type="button"
-          aria-label="Close connection editor"
-          onClick={onClose}
+        <form
+          className="connection-editor-content"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyConnectionEditorDraft(connection.id, draft);
+            onClose();
+          }}
         >
-          ×
-        </button>
-        <div className="connection-editor-content">
           <aside className="connection-editor-sidebar" data-testid="connection-editor-sidebar">
             <div className="room-editor-field">
               <span className="room-editor-label">Stroke color</span>
               <ColorChipGroup
                 label="Connection stroke color"
                 options={ROOM_STROKE_PALETTE}
-                selectedIndex={connection.strokeColorIndex}
-                onSelect={(strokeColorIndex) => setConnectionStyle(connection.id, { strokeColorIndex })}
+                selectedIndex={draft.strokeColorIndex}
+                onSelect={(strokeColorIndex) => setDraft((current) => current === null ? current : { ...current, strokeColorIndex })}
                 testIdPrefix="connection-stroke-color-chip"
               />
             </div>
@@ -133,8 +178,11 @@ export function ConnectionEditorOverlay({
                 id="connection-editor-stroke-style-input"
                 className="room-editor-input"
                 aria-label="Connection stroke style"
-                value={connection.strokeStyle}
-                onChange={(e) => setConnectionStyle(connection.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
+                value={draft.strokeStyle}
+                onChange={(e) => setDraft((current) => current === null ? current : {
+                  ...current,
+                  strokeStyle: e.target.value as RoomStrokeStyle,
+                })}
               >
                 {ROOM_STROKE_STYLES.map((strokeStyle) => (
                   <option key={strokeStyle} value={strokeStyle}>
@@ -150,12 +198,13 @@ export function ConnectionEditorOverlay({
                 Start label
               </label>
               <input
+                ref={startLabelInputRef}
                 id="connection-editor-start-label-input"
                 className="room-editor-input"
                 type="text"
                 aria-label="Connection start label"
-                value={connection.startLabel}
-                onChange={(e) => setConnectionLabels(connection.id, { startLabel: e.target.value })}
+                value={draft.startLabel}
+                onChange={(e) => setDraft((current) => current === null ? current : { ...current, startLabel: e.target.value })}
               />
             </div>
             <div className="room-editor-field">
@@ -167,8 +216,8 @@ export function ConnectionEditorOverlay({
                 className="room-editor-input"
                 type="text"
                 aria-label="Connection end label"
-                value={connection.endLabel}
-                onChange={(e) => setConnectionLabels(connection.id, { endLabel: e.target.value })}
+                value={draft.endLabel}
+                onChange={(e) => setDraft((current) => current === null ? current : { ...current, endLabel: e.target.value })}
               />
             </div>
             <fieldset className="connection-annotation-group">
@@ -178,7 +227,7 @@ export function ConnectionEditorOverlay({
                   type="radio"
                   name={`connection-annotation-${connection.id}`}
                   checked={selectedAnnotationKind === null}
-                  onChange={() => setConnectionAnnotation(connection.id, null)}
+                  onChange={() => setDraft((current) => current === null ? current : { ...current, annotation: null })}
                 />
                 <span>none</span>
               </label>
@@ -188,7 +237,7 @@ export function ConnectionEditorOverlay({
                     type="radio"
                     name={`connection-annotation-${connection.id}`}
                     checked={selectedAnnotationKind === kind}
-                    onChange={() => setConnectionAnnotation(connection.id, { kind })}
+                    onChange={() => setDraft((current) => current === null ? current : { ...current, annotation: { kind } })}
                   />
                   <span>{kind}</span>
                 </label>
@@ -198,7 +247,10 @@ export function ConnectionEditorOverlay({
                   type="radio"
                   name={`connection-annotation-${connection.id}`}
                   checked={selectedAnnotationKind === 'text'}
-                  onChange={() => setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText })}
+                  onChange={() => setDraft((current) => current === null ? current : {
+                    ...current,
+                    annotation: { kind: 'text', text: annotationText },
+                  })}
                 />
                 <span>Text</span>
                 <input
@@ -208,15 +260,38 @@ export function ConnectionEditorOverlay({
                   value={annotationText}
                   onFocus={() => {
                     if (selectedAnnotationKind !== 'text') {
-                      setConnectionAnnotation(connection.id, { kind: 'text', text: annotationText });
+                      setDraft((current) => current === null ? current : {
+                        ...current,
+                        annotation: { kind: 'text', text: annotationText },
+                      });
                     }
                   }}
-                  onChange={(e) => setConnectionAnnotation(connection.id, { kind: 'text', text: e.target.value })}
+                  onChange={(e) => setDraft((current) => current === null ? current : {
+                    ...current,
+                    annotation: { kind: 'text', text: e.target.value },
+                  })}
                 />
               </label>
             </fieldset>
+            <div className="room-editor-actions">
+              <button
+                type="button"
+                className="room-editor-secondary"
+                aria-label="Cancel connection editor"
+                onClick={onBackdropClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="room-editor-primary"
+                aria-label="Save connection editor"
+              >
+                Save
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

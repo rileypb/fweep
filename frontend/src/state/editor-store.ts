@@ -273,6 +273,18 @@ export interface EditorState {
     },
   ) => void;
 
+  /** Apply a connection editor draft in a single history step. */
+  applyConnectionEditorDraft: (
+    connectionId: string,
+    draft: {
+      strokeColorIndex: number;
+      strokeStyle: RoomStrokeStyle;
+      annotation: ConnectionAnnotation | null;
+      startLabel: string;
+      endLabel: string;
+    },
+  ) => void;
+
   /** Update an existing connection's visual styling. */
   setConnectionStyle: (
     connectionId: string,
@@ -983,6 +995,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       fillColorIndex: draft.fillColorIndex,
       strokeColorIndex: draft.strokeColorIndex,
       strokeStyle: draft.strokeStyle,
+    });
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  applyConnectionEditorDraft: (connectionId, draft) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot apply connection editor draft: no document is loaded.');
+    }
+
+    let updatedDoc = doc;
+    updatedDoc = domainSetConnectionStyle(updatedDoc, connectionId, {
+      strokeColorIndex: draft.strokeColorIndex,
+      strokeStyle: draft.strokeStyle,
+    });
+    updatedDoc = domainSetConnectionAnnotation(updatedDoc, connectionId, draft.annotation);
+    updatedDoc = domainSetConnectionLabels(updatedDoc, connectionId, {
+      startLabel: draft.startLabel,
+      endLabel: draft.endLabel,
     });
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },

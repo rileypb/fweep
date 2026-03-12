@@ -69,10 +69,13 @@
 
 ## Editors and Dialogs
 
-- `Escape`: cancel the room editor, or close the connection editor, sticky-note text editor, color picker, or export dialog.
+- `Escape`: cancel the room editor or connection editor, or close the sticky-note text editor, color picker, or export dialog.
 - In the room editor, `Enter` saves the current draft.
+- In the connection editor, `Enter` saves the current draft.
 - In the room editor, `Tab` and `Shift+Tab` move focus between controls.
+- In the connection editor, `Tab` and `Shift+Tab` move focus between controls.
 - The room editor has `Cancel` and `Save` buttons for discarding or applying changes.
+- The connection editor has `Cancel` and `Save` buttons for discarding or applying changes.
 - Clicking a room or connection editor backdrop closes it.
 
 ## Toolbar and Buttons
