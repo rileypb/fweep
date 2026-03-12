@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { createEmptyMap } from '../../src/domain/map-types';
@@ -130,6 +130,8 @@ function resetStore(): void {
 describe('MapCanvas drawing mode', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
+      .__FWEEP_TEST_ENABLE_DRAWING_INTERFACE__ = true;
     resetStore();
     useEditorStore.getState().loadDocument(createEmptyMap('Drawing Test'));
     mockBlobToCanvas.mockResolvedValue(createCanvas());
@@ -140,64 +142,76 @@ describe('MapCanvas drawing mode', () => {
     mockDrawBucketFill.mockReturnValue(false);
   });
 
-  it('ignores freehand drawing gestures when drawing is disabled', async () => {
+  afterEach(() => {
+    Reflect.deleteProperty(
+      globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean },
+      '__FWEEP_TEST_ENABLE_DRAWING_INTERFACE__',
+    );
+  });
+
+  it('draws and saves a freehand stroke in draw mode', async () => {
     useEditorStore.getState().setCanvasInteractionMode('draw');
 
     render(<MapCanvas mapName="Drawing Test" />);
 
     const canvas = screen.getByTestId('map-canvas');
     fireEvent.mouseDown(canvas, { clientX: 20, clientY: 30, button: 0 });
+    await waitFor(() => {
+      expect(mockDrawStrokeSegment).toHaveBeenCalled();
+    });
     fireEvent.mouseMove(document, { clientX: 28, clientY: 36 });
     fireEvent.mouseUp(document, { clientX: 28, clientY: 36 });
 
     await waitFor(() => {
-      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+      expect(mockSaveBackgroundChunks).toHaveBeenCalled();
     });
 
-    expect(mockDrawStrokeSegment).not.toHaveBeenCalled();
-    expect(mockSaveBackgroundChunks).not.toHaveBeenCalled();
-    expect(mockCompositeStrokePreview).not.toHaveBeenCalled();
-    expect(mockRedrawChunk).not.toHaveBeenCalled();
-    expect(mockReloadVisibleChunks).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
+    expect(mockDrawStrokeSegment).toHaveBeenCalled();
+    expect(mockCompositeStrokePreview).toHaveBeenCalled();
+    expect(mockRedrawChunk).toHaveBeenCalled();
+    expect(mockClearLivePreviewChunks).toHaveBeenCalled();
+    expect(mockReloadVisibleChunks).toHaveBeenCalled();
     expect(useEditorStore.getState().activeStroke).toBeNull();
-    expect(useEditorStore.getState().doc?.background.activeLayerId).toBeNull();
+    expect(useEditorStore.getState().doc?.background.activeLayerId).not.toBeNull();
   });
 
-  it('ignores bucket-fill gestures when drawing is disabled', async () => {
+  it('applies and saves a bucket fill when it changes pixels', async () => {
     useEditorStore.getState().setCanvasInteractionMode('draw');
     useEditorStore.getState().setDrawingTool('bucket');
-    mockDrawBucketFill.mockReturnValue(false);
+    mockDrawBucketFill.mockReturnValue(true);
 
     render(<MapCanvas mapName="Drawing Test" />);
 
     fireEvent.mouseDown(screen.getByTestId('map-canvas'), { clientX: 40, clientY: 50, button: 0 });
 
     await waitFor(() => {
-      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+      expect(mockSaveBackgroundChunks).toHaveBeenCalled();
     });
 
-    expect(mockDrawBucketFill).not.toHaveBeenCalled();
-    expect(mockSaveBackgroundChunks).not.toHaveBeenCalled();
-    expect(mockDeleteBackgroundChunks).not.toHaveBeenCalled();
+    expect(mockDrawBucketFill).toHaveBeenCalled();
+    expect(mockRedrawChunk).toHaveBeenCalled();
+    expect(mockDeleteBackgroundChunks).toHaveBeenCalled();
+    expect(useEditorStore.getState().activeStroke).toBeNull();
   });
 
-  it('does not start drawing even when bucket fill obey-map is enabled', async () => {
+  it('cancels an unchanged bucket fill even when obey-map is enabled', async () => {
     useEditorStore.getState().setCanvasInteractionMode('draw');
     useEditorStore.getState().setDrawingTool('bucket');
     useEditorStore.getState().setBucketObeyMap(true);
-    mockDrawBucketFill.mockReturnValue(true);
+    mockDrawBucketFill.mockReturnValue(false);
 
     render(<MapCanvas mapName="Drawing Test" />);
 
     fireEvent.mouseDown(screen.getByTestId('map-canvas'), { clientX: 60, clientY: 70, button: 0 });
 
     await waitFor(() => {
-      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+      expect(useEditorStore.getState().activeStroke).toBeNull();
     });
 
-    expect(mockDrawMapObstacleMask).not.toHaveBeenCalled();
-    expect(mockDrawBucketFill).not.toHaveBeenCalled();
-    expect(mockRedrawChunk).not.toHaveBeenCalled();
+    expect(mockDrawMapObstacleMask).toHaveBeenCalled();
+    expect(mockDrawBucketFill).toHaveBeenCalled();
+    expect(mockSaveBackgroundChunks).not.toHaveBeenCalled();
     expect(mockReloadVisibleChunks).not.toHaveBeenCalled();
   });
 });

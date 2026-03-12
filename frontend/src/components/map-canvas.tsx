@@ -84,7 +84,13 @@ interface ActiveDrawingStroke {
 }
 
 const AUTO_PAN_ANIMATION_MS = 320;
-const DRAWING_INTERFACE_ENABLED = false;
+
+function isDrawingInterfaceEnabled(): boolean {
+  return (
+    (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
+      .__FWEEP_TEST_ENABLE_DRAWING_INTERFACE__
+  ) ?? false;
+}
 
 function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['drawingToolState'] {
   const { drawingToolState } = useEditorStore.getState();
@@ -127,6 +133,7 @@ export function MapCanvas({
   requestedRoomEditorId = null,
   onRoomEditorRequestHandled,
 }: MapCanvasProps): React.JSX.Element {
+  const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [stickyNoteEditorId, setStickyNoteEditorId] = useState<string | null>(null);
@@ -188,8 +195,8 @@ export function MapCanvas({
   } = useMapViewport({ initialPanOffset: persistedPanOffset });
 
   const showGrid = doc ? showGridEnabled : initialShowGrid;
-  const effectiveCanvasInteractionMode = DRAWING_INTERFACE_ENABLED ? canvasInteractionMode : 'map';
-  const minimapBackground = DRAWING_INTERFACE_ENABLED && doc ? doc.background : {
+  const effectiveCanvasInteractionMode = drawingInterfaceEnabled ? canvasInteractionMode : 'map';
+  const minimapBackground = drawingInterfaceEnabled && doc ? doc.background : {
     activeLayerId: null,
     layers: {},
   };
@@ -198,7 +205,7 @@ export function MapCanvas({
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
 
   useEffect(() => {
-    if (DRAWING_INTERFACE_ENABLED) {
+    if (drawingInterfaceEnabled) {
       return;
     }
 
@@ -210,7 +217,7 @@ export function MapCanvas({
       cancelBackgroundStroke();
       drawingStrokeRef.current = null;
     }
-  }, [activeStroke, cancelBackgroundStroke, canvasInteractionMode, setCanvasInteractionMode]);
+  }, [activeStroke, cancelBackgroundStroke, canvasInteractionMode, drawingInterfaceEnabled, setCanvasInteractionMode]);
 
   useEffect(() => {
     if (stickyNoteEditorId !== null && !selectedStickyNoteIds.includes(stickyNoteEditorId)) {
@@ -274,7 +281,7 @@ export function MapCanvas({
         return;
       }
 
-      if (DRAWING_INTERFACE_ENABLED && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
+      if (drawingInterfaceEnabled && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
       }
@@ -284,7 +291,7 @@ export function MapCanvas({
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown);
     };
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, redo, roomEditorId, setCanvasInteractionMode, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, redo, roomEditorId, setCanvasInteractionMode, undo]);
 
   useEffect(() => {
     if (!doc) {
@@ -751,7 +758,7 @@ export function MapCanvas({
     }
 
     if (
-      DRAWING_INTERFACE_ENABLED
+      drawingInterfaceEnabled
       && (!e.shiftKey || isShiftShapeDraw || isBucketTool)
       && doc
       && drawingEnabled
@@ -909,6 +916,7 @@ export function MapCanvas({
     connectionDrag,
     connectionEditorId,
     doc,
+    drawingInterfaceEnabled,
     drawStrokePoint,
     applyBucketFill,
     ensureDefaultBackgroundLayer,
@@ -1034,7 +1042,7 @@ export function MapCanvas({
       return;
     }
 
-    if (DRAWING_INTERFACE_ENABLED && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
+    if (drawingInterfaceEnabled && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
       return;
@@ -1092,7 +1100,7 @@ export function MapCanvas({
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     panRoomIntoView(nearestRoom);
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo]);
 
   const classes = [
     'map-canvas',
@@ -1122,7 +1130,7 @@ export function MapCanvas({
           className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
           data-testid="map-canvas-scene"
         >
-          {DRAWING_INTERFACE_ENABLED && <MapDrawingToolbar />}
+          {drawingInterfaceEnabled && <MapDrawingToolbar />}
         {doc && (rooms.length > 0 || stickyNotes.length > 0 || minimapBackground.activeLayerId !== null) && (
           <MapMinimap
             mapId={doc.metadata.id}
@@ -1146,7 +1154,7 @@ export function MapCanvas({
           data-testid="map-canvas-content"
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
-          {DRAWING_INTERFACE_ENABLED && doc && (
+          {drawingInterfaceEnabled && doc && (
             <MapCanvasBackground
               ref={backgroundRef}
               mapId={doc.metadata.id}
