@@ -1514,18 +1514,34 @@ describe('MapCanvas', () => {
   });
 
   describe('sticky notes', () => {
-    it('creates a sticky note on shift-click without entering edit mode', () => {
+    it('creates a sticky note after pressing N and clicking without entering edit mode', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.click(canvas, { clientX: 200, clientY: 300, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
 
       const stickyNotes = Object.values(useEditorStore.getState().doc!.stickyNotes);
       expect(stickyNotes).toHaveLength(1);
       expect(screen.queryByTestId('sticky-note-textarea')).not.toBeInTheDocument();
+    });
+
+    it('only arms note placement for a single click', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
+      fireEvent.click(canvas, { clientX: 240, clientY: 340 });
+
+      const stickyNotes = Object.values(useEditorStore.getState().doc!.stickyNotes);
+      expect(stickyNotes).toHaveLength(1);
     });
 
     it('opens sticky note editing on double-click', async () => {
@@ -1534,7 +1550,8 @@ describe('MapCanvas', () => {
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
-      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300 });
       const noteElement = screen.getByTestId('sticky-note');
       const initialMinHeight = noteElement.style.minHeight;
 
@@ -1549,7 +1566,8 @@ describe('MapCanvas', () => {
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
-      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300 });
 
       expect(screen.getByTestId('sticky-note-selection-outline')).toBeInTheDocument();
     });
@@ -1561,7 +1579,8 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
 
-      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120, shiftKey: true });
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120 });
 
       const stickyNote = screen.getByTestId('sticky-note');
       const roomNode = screen.getByTestId('room-node');

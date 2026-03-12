@@ -148,6 +148,7 @@ export function MapCanvas({
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
   const [isAltKeyDown, setIsAltKeyDown] = useState(false);
+  const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
@@ -282,6 +283,17 @@ export function MapCanvas({
       if (drawingInterfaceEnabled && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
+        return;
+      }
+
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        setIsNotePlacementArmed(true);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        setIsNotePlacementArmed(false);
       }
     };
 
@@ -1012,18 +1024,20 @@ export function MapCanvas({
       return;
     }
 
-    if (e.shiftKey && doc) {
+    if (isNotePlacementArmed && doc) {
       const { x, y } = toMapPoint(e.clientX, e.clientY);
       const stickyNoteId = addStickyNoteAtPosition('', { x, y });
       useEditorStore.getState().selectStickyNote(stickyNoteId);
       setStickyNoteEditorId(null);
+      setIsNotePlacementArmed(false);
       return;
     }
 
+    setIsNotePlacementArmed(false);
     closeStickyNoteEditor();
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, roomEditorId, toMapPoint]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, roomEditorId, toMapPoint]);
 
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (roomEditorId || connectionEditorId || activeStroke) return;

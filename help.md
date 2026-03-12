@@ -23,7 +23,7 @@
 ## Mouse and Trackpad
 
 - `Double-click` empty canvas: create a room.
-- `Shift-click` empty canvas: create a sticky note.
+- `N`, then click empty canvas: create a sticky note.
 - `Click` empty canvas: clear selection.
 - `Drag` empty canvas: marquee-select rooms, connections, sticky notes, and sticky-note links.
 - `Shift-drag` empty canvas: pan the map.
