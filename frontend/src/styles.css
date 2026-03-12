@@ -54,7 +54,7 @@ body {
 
 .app-game-output {
   position: fixed;
-  z-index: 1;
+  z-index: 2;
   pointer-events: none;
   display: block;
   width: 100%;
@@ -87,10 +87,9 @@ body {
   position: fixed;
   bottom: 1rem;
   left: 1rem;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   align-items: flex-end;
-  gap: 2.5rem;
   width: fit-content;
   max-width: min(calc(100vw - 2rem), 72rem);
   pointer-events: none;
@@ -98,10 +97,10 @@ body {
 
 .app-title {
   margin: 0;
-  font-size: var(--app-title-size);
+  font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
-  opacity: 0.12;
+  opacity: 0.4;
   user-select: none;
   flex: 0 0 auto;
 }
@@ -178,7 +177,7 @@ body {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.5rem;
-  z-index: 3;
+  z-index: 5;
 }
 
 .app-controls--settings {
@@ -260,11 +259,10 @@ body {
   .app-cli-bar {
     right: 1rem;
     align-items: stretch;
-    gap: 1.5rem;
   }
 
   .app-title {
-    font-size: var(--app-title-size-mobile);
+    font-size: 1.25rem;
   }
 
   .app-cli-form {
@@ -679,18 +677,24 @@ body {
   inset: 0;
   overflow: hidden;
   background-color: transparent;
-  z-index: 2;
 }
 
 .map-canvas--grid {
   --grid-color: rgba(0, 0, 0, 0.07);
+}
+
+.map-canvas-grid-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
   background-image:
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
-.map-canvas--grid-animated {
+.map-canvas-grid-layer--animated {
   transition: background-position 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -714,9 +718,14 @@ body {
   --grid-color: rgba(255, 255, 255, 0.06);
 }
 
+:root[data-theme='dark'] .map-canvas-grid-layer {
+  --grid-color: rgba(255, 255, 255, 0.06);
+}
+
 .map-canvas-scene {
   position: absolute;
   inset: 0;
+  z-index: 4;
   transition: opacity 0.16s ease, filter 0.16s ease;
 }
 
@@ -729,6 +738,7 @@ body {
 .map-canvas-background-layer {
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
 }
 

@@ -1140,8 +1140,24 @@ export function MapCanvas({
       onDoubleClick={handleCanvasDoubleClick}
       onKeyDown={handleCanvasKeyDown}
       tabIndex={-1}
-      style={showGrid ? { backgroundPosition: `${panOffset.x}px ${panOffset.y}px` } : undefined}
     >
+        {drawingInterfaceEnabled && doc && (
+          <MapCanvasBackground
+            ref={backgroundRef}
+            mapId={doc.metadata.id}
+            background={doc.background}
+            panOffset={panOffset}
+            canvasRect={effectiveCanvasRect}
+            backgroundRevision={backgroundRevision}
+          />
+        )}
+        {showGrid && (
+          <div
+            className={`map-canvas-grid-layer${isAutoPanning ? ' map-canvas-grid-layer--animated' : ''}`}
+            aria-hidden="true"
+            style={{ backgroundPosition: `${panOffset.x}px ${panOffset.y}px` }}
+          />
+        )}
         <div
           className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
           data-testid="map-canvas-scene"
@@ -1170,16 +1186,6 @@ export function MapCanvas({
           data-testid="map-canvas-content"
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
-          {drawingInterfaceEnabled && doc && (
-            <MapCanvasBackground
-              ref={backgroundRef}
-              mapId={doc.metadata.id}
-              background={doc.background}
-              panOffset={panOffset}
-              canvasRect={effectiveCanvasRect}
-              backgroundRevision={backgroundRevision}
-            />
-          )}
           {doc && (
             <MapCanvasConnections
               rooms={doc.rooms}

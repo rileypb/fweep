@@ -203,6 +203,7 @@ export function App(): React.JSX.Element {
   const redo = useEditorStore((s) => s.redo);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
+  const cliInputShellRef = useRef<HTMLDivElement | null>(null);
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
@@ -254,11 +255,11 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     const updateGameOutputLayout = () => {
-      if (cliInputRef.current === null) {
+      if (cliInputShellRef.current === null) {
         return;
       }
 
-      const rect = cliInputRef.current.getBoundingClientRect();
+      const rect = cliInputShellRef.current.getBoundingClientRect();
       setGameOutputLayout({
         left: rect.left,
         bottom: window.innerHeight - rect.top,
@@ -307,7 +308,6 @@ export function App(): React.JSX.Element {
         }}
       />
       <div className="app-cli-bar">
-        <h1 className="app-title">fweep</h1>
         <form
           className="app-cli-form"
           onSubmit={(event) => {
@@ -461,7 +461,7 @@ export function App(): React.JSX.Element {
           }}
         >
           <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
-          <div className="app-cli-input-shell">
+          <div ref={cliInputShellRef} className="app-cli-input-shell">
             <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
             <input
               id="app-cli-input"
@@ -550,6 +550,7 @@ export function App(): React.JSX.Element {
         >
           ?
         </button>
+        <h1 className="app-title">fweep</h1>
       </div>
       {isHelpOpen && (
         <div className="help-overlay" data-testid="help-overlay">
