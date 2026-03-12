@@ -62,7 +62,7 @@ body {
   padding: 0.8rem 0.9rem;
   border: none;
   border-radius: 0.9rem;
-  background: color-mix(in srgb, Canvas 70%, transparent);
+  background: transparent;
   color: color-mix(in srgb, currentColor 50%, transparent);
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   resize: none;
@@ -124,7 +124,7 @@ body {
   gap: 0.15rem;
   padding: 0 0.4em;
   border-radius: 0.8rem;
-  background: color-mix(in srgb, Canvas 78%, transparent);
+  background: transparent;
   transform: translateY(-0.3em);
 }
 
@@ -167,7 +167,7 @@ body {
 }
 
 .app-cli-input-shell:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: none;
 }
 
 /* ---- App controls ---- */
