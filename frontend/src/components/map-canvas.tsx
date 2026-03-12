@@ -1039,6 +1039,23 @@ export function MapCanvas({
     clearSelection();
   }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, roomEditorId, toMapPoint]);
 
+  const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+      return;
+    }
+
+    if (isEditableTarget(e.target)) {
+      return;
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+
+    e.preventDefault();
+    panBy({ x: -e.deltaX, y: -e.deltaY });
+  }, [connectionDrag, connectionEditorId, panBy, roomEditorId]);
+
   const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (roomEditorId || connectionEditorId || activeStroke) return;
 
@@ -1150,6 +1167,7 @@ export function MapCanvas({
         handleCanvasSelectionMouseDown(e);
         handleCanvasMouseDown(e);
       }}
+      onWheel={handleCanvasWheel}
       onClick={handleCanvasClick}
       onDoubleClick={handleCanvasDoubleClick}
       onKeyDown={handleCanvasKeyDown}

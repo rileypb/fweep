@@ -436,6 +436,34 @@ describe('MapCanvas', () => {
       expect(canvas).not.toHaveClass('map-canvas--panning');
     });
 
+    it('pans the map on trackpad-style wheel gestures over the canvas', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+
+      fireEvent.wheel(canvas, { deltaX: 20, deltaY: 30 });
+
+      expect(content.style.transform).toBe('translate(-20px, -30px)');
+    });
+
+    it('does not pan the map on ctrl-wheel gestures', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+
+      fireEvent.wheel(canvas, { deltaX: 20, deltaY: 30, ctrlKey: true });
+
+      expect(content.style.transform).toBe('translate(0px, 0px)');
+    });
+
     it('does not create a sticky note when shift-dragging to pan', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
