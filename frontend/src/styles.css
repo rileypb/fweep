@@ -1402,6 +1402,7 @@ body {
   width: 9rem;
   min-width: 9rem;
   max-width: none;
+  border-bottom: none;
 }
 
 :root[data-theme='dark'] .room-editor-room-node {
@@ -1412,7 +1413,7 @@ body {
   position: relative;
   z-index: 1;
   width: min(42rem, calc(100vw - 2rem));
-  margin-top: 5.3rem;
+  margin-top: 7.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
