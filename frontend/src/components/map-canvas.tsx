@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Room } from '../domain/map-types';
+import { createRoom, type Position, type Room } from '../domain/map-types';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
 import { useMapViewport } from './use-map-viewport';
@@ -124,6 +124,11 @@ export interface MapCanvasProps {
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
 }
 
+interface RoomEditorState {
+  readonly roomId?: string;
+  readonly initialPosition?: Position;
+}
+
 export function MapCanvas({
   mapName,
   showGrid: initialShowGrid = true,
@@ -131,7 +136,8 @@ export function MapCanvas({
   requestedRoomRevealRequest = null,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
-  const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
+  const [roomEditorState, setRoomEditorState] = useState<RoomEditorState | null>(null);
+  const roomEditorId = roomEditorState?.roomId ?? null;
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [stickyNoteEditorId, setStickyNoteEditorId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -148,7 +154,6 @@ export function MapCanvas({
   const selectedStickyNoteIds = useEditorStore((s) => s.selectedStickyNoteIds);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
-  const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const addStickyNoteAtPosition = useEditorStore((s) => s.addStickyNoteAtPosition);
   const setSelection = useEditorStore((s) => s.setSelection);
   const exportRegionDraft = useEditorStore((s) => s.exportRegionDraft);
@@ -316,7 +321,7 @@ export function MapCanvas({
   }, [doc, panOffset, persistedPanOffset.x, persistedPanOffset.y, setMapPanOffset]);
 
   const closeRoomEditor = useCallback(() => {
-    setRoomEditorId(null);
+    setRoomEditorState(null);
     requestAnimationFrame(() => {
       canvasRef.current?.focus();
     });
@@ -343,10 +348,9 @@ export function MapCanvas({
     setIsAutoPanning(true);
   }, []);
 
-  const panToRoomEditorPosition = useCallback((roomId: string) => {
+  const panToRoomEditorPositionForRoom = useCallback((room: Room) => {
     const canvasEl = canvasRef.current;
-    const room = useEditorStore.getState().doc?.rooms[roomId];
-    if (!canvasEl || !room) {
+    if (!canvasEl) {
       return;
     }
 
@@ -364,12 +368,31 @@ export function MapCanvas({
     }));
   }, [canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
+  const panToRoomEditorPosition = useCallback((roomId: string) => {
+    const room = useEditorStore.getState().doc?.rooms[roomId];
+    if (!room) {
+      return;
+    }
+
+    panToRoomEditorPositionForRoom(room);
+  }, [panToRoomEditorPositionForRoom]);
+
   const openRoomEditor = useCallback((roomId: string) => {
     setStickyNoteEditorId(null);
     setConnectionEditorId(null);
     panToRoomEditorPosition(roomId);
-    setRoomEditorId(roomId);
+    setRoomEditorState({ roomId });
   }, [panToRoomEditorPosition]);
+
+  const openNewRoomEditor = useCallback((position: Position) => {
+    setStickyNoteEditorId(null);
+    setConnectionEditorId(null);
+    panToRoomEditorPositionForRoom({
+      ...createRoom('Room'),
+      position,
+    });
+    setRoomEditorState({ initialPosition: position });
+  }, [panToRoomEditorPositionForRoom]);
 
   useLayoutEffect(() => {
     if (requestedRoomEditorRequest === null) {
@@ -381,12 +404,12 @@ export function MapCanvas({
 
   const openConnectionEditor = useCallback((connectionId: string) => {
     setStickyNoteEditorId(null);
-    setRoomEditorId(null);
+    setRoomEditorState(null);
     setConnectionEditorId(connectionId);
   }, []);
 
   const openStickyNoteEditor = useCallback((stickyNoteId: string) => {
-    setRoomEditorId(null);
+    setRoomEditorState(null);
     setConnectionEditorId(null);
     setStickyNoteEditorId(stickyNoteId);
   }, []);
@@ -1011,9 +1034,8 @@ export function MapCanvas({
     }
 
     const { x, y } = toMapPoint(e.clientX, e.clientY);
-    const roomId = addRoomAtPosition('Room', { x, y });
-    openRoomEditor(roomId);
-  }, [activeStroke, addRoomAtPosition, connectionEditorId, openRoomEditor, roomEditorId, toMapPoint]);
+    openNewRoomEditor({ x, y });
+  }, [activeStroke, connectionEditorId, openNewRoomEditor, roomEditorId, toMapPoint]);
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
@@ -1302,14 +1324,20 @@ export function MapCanvas({
         preferredInitialScope={preferredExportScope}
       />
 
-      {roomEditorId && (
+      {roomEditorState && (
         <RoomEditorOverlay
-          key={roomEditorId}
-          roomId={roomEditorId}
+          key={roomEditorId ?? `new-room-${roomEditorState.initialPosition?.x ?? 0}-${roomEditorState.initialPosition?.y ?? 0}`}
+          roomId={roomEditorId ?? undefined}
+          initialPosition={roomEditorState.initialPosition}
           panOffset={panOffset}
           canvasRect={effectiveCanvasRect}
           theme={theme}
-          onClose={closeRoomEditor}
+          onClose={(savedRoomId) => {
+            closeRoomEditor();
+            if (savedRoomId) {
+              useEditorStore.getState().selectRoom(savedRoomId);
+            }
+          }}
           onBackdropClose={closeRoomEditorFromBackdrop}
         />
       )}

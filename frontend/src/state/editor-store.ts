@@ -230,6 +230,18 @@ export interface EditorState {
   /** Create a new room at the given canvas position (snapped to grid). Returns the room ID. */
   addRoomAtPosition: (name: string, position: Position) => string;
 
+  /** Create a new room from the room editor draft in a single history step. Returns the room ID. */
+  createRoomFromEditorDraft: (
+    position: Position,
+    draft: {
+      name: string;
+      shape: RoomShape;
+      fillColorIndex: number;
+      strokeColorIndex: number;
+      strokeStyle: RoomStrokeStyle;
+    },
+  ) => string;
+
   /** Create a new sticky note at the given canvas position (snapped to grid). Returns the note ID. */
   addStickyNoteAtPosition: (text: string, position: Position) => string;
 
@@ -897,6 +909,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
+    return room.id;
+  },
+
+  createRoomFromEditorDraft: (position, draft) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot create a room from the editor: no document is loaded.');
+    }
+
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
+    const room = {
+      ...createRoom(draft.name),
+      position: snapped,
+      shape: draft.shape,
+      fillColorIndex: draft.fillColorIndex,
+      strokeColorIndex: draft.strokeColorIndex,
+      strokeStyle: draft.strokeStyle,
+    };
+    const updatedDoc = addRoom(doc, room);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedRoomIds: [room.id],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+    }));
     return room.id;
   },
 

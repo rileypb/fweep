@@ -4,6 +4,7 @@ import {
   CONNECTION_ANNOTATION_KINDS,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
+  type Position,
   type RoomStrokeStyle,
 } from '../domain/map-types';
 import {
@@ -283,28 +284,38 @@ export function ConnectionEditorOverlay({
 }
 
 export interface RoomEditorOverlayProps {
-  roomId: string;
+  roomId?: string;
+  initialPosition?: Position;
   panOffset: PanOffset;
   canvasRect: DOMRect | null;
   theme: ThemeMode;
-  onClose: () => void;
+  onClose: (savedRoomId?: string) => void;
   onBackdropClose: () => void;
 }
 
 export function RoomEditorOverlay({
   roomId,
+  initialPosition,
   panOffset,
   canvasRect,
   theme,
   onClose,
   onBackdropClose,
 }: RoomEditorOverlayProps): React.JSX.Element | null {
-  const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
+  const room = useEditorStore((s) => (roomId === undefined ? null : (s.doc?.rooms[roomId] ?? null)));
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
+  const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const isNewRoomDraft = roomId === undefined;
   const [draft, setDraft] = useState(() => (
     room === null
-      ? null
+      ? {
+        name: 'Room',
+        shape: 'rectangle' as const,
+        fillColorIndex: 0,
+        strokeColorIndex: 0,
+        strokeStyle: 'solid' as const,
+      }
       : {
         name: room.name,
         shape: room.shape,
@@ -329,8 +340,18 @@ export function RoomEditorOverlay({
         }
 
         event.preventDefault();
-        if (room !== null && draft !== null) {
-          applyRoomEditorDraft(room.id, draft);
+        if (draft !== null) {
+          if (room !== null) {
+            applyRoomEditorDraft(room.id, draft);
+            onClose(room.id);
+            return;
+          }
+
+          if (initialPosition) {
+            const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
+            onClose(createdRoomId);
+            return;
+          }
         }
         onClose();
       }
@@ -340,7 +361,7 @@ export function RoomEditorOverlay({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [applyRoomEditorDraft, draft, onBackdropClose, onClose, room]);
+  }, [applyRoomEditorDraft, createRoomFromEditorDraft, draft, initialPosition, onBackdropClose, onClose, room]);
 
   useLayoutEffect(() => {
     if (nameInputRef.current) {
@@ -349,12 +370,19 @@ export function RoomEditorOverlay({
     }
   }, []);
 
-  if (!room || !draft) {
+  if ((!room && !isNewRoomDraft) || !draft || (isNewRoomDraft && !initialPosition)) {
     return null;
   }
 
   const draftRoom = {
-    ...room,
+    ...(room ?? {
+      id: 'room-editor-draft',
+      description: '',
+      directions: {},
+      isDark: false,
+      locked: false,
+      position: initialPosition!,
+    }),
     name: draft.name,
     shape: draft.shape,
     fillColorIndex: draft.fillColorIndex,
@@ -402,7 +430,18 @@ export function RoomEditorOverlay({
         data-testid="room-editor-dialog"
         onSubmit={(event) => {
           event.preventDefault();
-          applyRoomEditorDraft(room.id, draft);
+          if (room !== null) {
+            applyRoomEditorDraft(room.id, draft);
+            onClose(room.id);
+            return;
+          }
+
+          if (initialPosition) {
+            const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
+            onClose(createdRoomId);
+            return;
+          }
+
           onClose();
         }}
       >
