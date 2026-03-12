@@ -461,20 +461,23 @@ export function App(): React.JSX.Element {
           }}
         >
           <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
-          <input
-            id="app-cli-input"
-            className="app-cli-input"
-            type="text"
-            name="cli-command"
-            placeholder="Enter a command"
-            autoComplete="off"
-            spellCheck={false}
-            ref={cliInputRef}
-            value={cliCommand}
-            onChange={(event) => {
-              setCliCommand(event.target.value);
-            }}
-          />
+          <div className="app-cli-input-shell">
+            <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
+            <input
+              id="app-cli-input"
+              className="app-cli-input"
+              type="text"
+              name="cli-command"
+              placeholder="Enter a command"
+              autoComplete="off"
+              spellCheck={false}
+              ref={cliInputRef}
+              value={cliCommand}
+              onChange={(event) => {
+                setCliCommand(event.target.value);
+              }}
+            />
+          </div>
         </form>
       </div>
       <div className="app-controls app-controls--settings">

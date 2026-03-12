@@ -66,7 +66,12 @@ body {
   color: color-mix(in srgb, currentColor 50%, transparent);
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   resize: none;
+  scrollbar-width: none;
   backdrop-filter: blur(10px);
+}
+
+.app-game-output::-webkit-scrollbar {
+  display: none;
 }
 
 .app-game-output:focus {
@@ -110,22 +115,44 @@ body {
   gap: 0.8rem;
 }
 
-.app-cli-input {
+.app-cli-input-shell {
   flex: 0 1 min(50vw, 36rem);
   width: min(50vw, 36rem);
   max-width: 100%;
   height: calc(var(--app-title-size) * 0.6);
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
   padding: 0 0.4em;
-  border: none;
   border-radius: 0.8rem;
   background: color-mix(in srgb, Canvas 78%, transparent);
+  transform: translateY(-0.3em);
+}
+
+.app-cli-prompt {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-size: 12pt;
+  line-height: 1;
+  font-weight: 700;
+  user-select: none;
+}
+
+.app-cli-input {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: inherit;
   font-size: 12pt;
   line-height: 1;
   font-weight: 700;
   font-family: inherit;
   opacity: 0.9;
-  transform: translateY(-0.3em);
 }
 
 .app-cli-input::placeholder {
@@ -137,7 +164,10 @@ body {
 }
 
 .app-cli-input:focus-visible {
-  border-color: color-mix(in srgb, currentColor 42%, transparent);
+  box-shadow: none;
+}
+
+.app-cli-input-shell:focus-within {
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
 }
 
@@ -242,6 +272,10 @@ body {
   }
   
   .app-cli-input {
+    height: 100%;
+  }
+
+  .app-cli-input-shell {
     flex-basis: min(52vw, 18rem);
     width: min(52vw, 18rem);
     height: calc(var(--app-title-size-mobile) * 0.6);
