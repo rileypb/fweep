@@ -100,17 +100,25 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
 
   // Listen for browser back/forward navigation.
   useEffect(() => {
+    let cancelled = false;
+
     const syncFromLocation = () => {
       const id = mapIdFromHash(currentHashRoute());
       if (!id) {
-        setActiveMap(null);
-        setLoading(false);
-        setRouteError(null);
+        if (!cancelled) {
+          setActiveMap(null);
+          setLoading(false);
+          setRouteError(null);
+        }
         return;
       }
 
       setLoading(true);
       void loadMapImpl(id).then((doc) => {
+        if (cancelled) {
+          return;
+        }
+
         setActiveMap(doc ?? null);
         setLoading(false);
         setRouteError(null);
@@ -118,6 +126,10 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
           replaceHashRoute('#/');
         }
       }).catch((err: unknown) => {
+        if (cancelled) {
+          return;
+        }
+
         setActiveMap(null);
         setLoading(false);
         setRouteError(err instanceof Error ? err.message : 'This map could not be opened.');
@@ -128,6 +140,7 @@ export function useMapRouter(options: UseMapRouterOptions = {}): UseMapRouterRes
     window.addEventListener('popstate', syncFromLocation);
     window.addEventListener('hashchange', syncFromLocation);
     return () => {
+      cancelled = true;
       window.removeEventListener('popstate', syncFromLocation);
       window.removeEventListener('hashchange', syncFromLocation);
     };

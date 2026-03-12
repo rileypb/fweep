@@ -221,8 +221,9 @@ export function App(): React.JSX.Element {
   const [cliCommand, setCliCommand] = useState('');
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
-  const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
-  const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
+  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<{ roomId: string; requestId: number } | null>(null);
+  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<{ roomId: string; requestId: number } | null>(null);
+  const [nextUiRequestId, setNextUiRequestId] = useState(1);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -282,6 +283,12 @@ export function App(): React.JSX.Element {
   const reportCliError = (submittedInput: string, error: CliError) => {
     appendGameOutput([formatCliEcho(submittedInput), formatCliError(error)]);
     cliInputRef.current?.select();
+  };
+
+  const issueUiRequestId = (): number => {
+    const requestId = nextUiRequestId;
+    setNextUiRequestId(requestId + 1);
+    return requestId;
   };
 
   const reportRoomReferenceError = (
@@ -384,7 +391,10 @@ export function App(): React.JSX.Element {
                 }
                 selectRoom(roomMatch.room.id);
                 setCliPronounRoomId(roomMatch.room.id);
-                setRequestedRoomEditorId(roomMatch.room.id);
+                setRequestedRoomEditorRequest({
+                  roomId: roomMatch.room.id,
+                  requestId: issueUiRequestId(),
+                });
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
                 shouldSelectCliInput = false;
               } else if (command.kind === 'show' && storeDoc !== null) {
@@ -397,7 +407,10 @@ export function App(): React.JSX.Element {
                 }
                 selectRoom(roomMatch.room.id);
                 setCliPronounRoomId(roomMatch.room.id);
-                setRequestedRoomRevealId(roomMatch.room.id);
+                setRequestedRoomRevealRequest({
+                  roomId: roomMatch.room.id,
+                  requestId: issueUiRequestId(),
+                });
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'notate' && storeDoc !== null) {
                 const roomMatch = resolveRoomByCliReference(storeDoc, command.roomName, cliPronounRoomId);
@@ -671,14 +684,8 @@ export function App(): React.JSX.Element {
         <MapCanvas
           mapName={activeMap.metadata.name}
           onBack={closeMap}
-          requestedRoomEditorId={requestedRoomEditorId}
-          onRoomEditorRequestHandled={() => {
-            setRequestedRoomEditorId(null);
-          }}
-          requestedRoomRevealId={requestedRoomRevealId}
-          onRoomRevealRequestHandled={() => {
-            setRequestedRoomRevealId(null);
-          }}
+          requestedRoomEditorRequest={requestedRoomEditorRequest}
+          requestedRoomRevealRequest={requestedRoomRevealRequest}
         />
       )}
     </main>

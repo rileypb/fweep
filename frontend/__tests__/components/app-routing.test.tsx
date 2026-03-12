@@ -24,6 +24,15 @@ function expectGameOutputToContain(...fragments: readonly string[]) {
   }
 }
 
+async function submitCliCommand(command: string): Promise<HTMLInputElement> {
+  const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+  await act(async () => {
+    fireEvent.change(input, { target: { value: command } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+  });
+  return input;
+}
+
 beforeEach(() => {
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
@@ -143,16 +152,12 @@ describe('URL routing', () => {
 
     navigateTo(`#/map/${doc.metadata.id}`);
 
-    const user = userEvent.setup();
     render(<App />);
     await screen.findByText(/cli pronoun map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
-    await user.type(input, 'create Kitchen{enter}');
-    await user.clear(input);
-    await user.type(input, 'connect it e to living room{enter}');
-    await user.clear(input);
-    await user.type(input, 'edit it{enter}');
+    await submitCliCommand('create Kitchen');
+    await submitCliCommand('connect it e to living room');
+    await submitCliCommand('edit it');
 
     const state = useEditorStore.getState();
     const kitchen = Object.values(state.doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
@@ -206,16 +211,12 @@ describe('URL routing', () => {
 
     navigateTo(`#/map/${doc.metadata.id}`);
 
-    const user = userEvent.setup();
     render(<App />);
     await screen.findByText(/cli pronoun preserve map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
-    await user.type(input, 'show living room{enter}');
-    await user.clear(input);
-    await user.type(input, 'connect kitchen e to it{enter}');
-    await user.clear(input);
-    await user.type(input, 'edit it{enter}');
+    await submitCliCommand('show living room');
+    await submitCliCommand('connect kitchen e to it');
+    await submitCliCommand('edit it');
 
     expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Living Room');

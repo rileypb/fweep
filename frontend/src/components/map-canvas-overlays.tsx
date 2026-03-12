@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import {
   CONNECTION_ANNOTATION_KINDS,
@@ -111,27 +111,12 @@ export function ConnectionEditorOverlay({
     };
   }, [applyConnectionEditorDraft, connection, draft, onBackdropClose, onClose]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (startLabelInputRef.current) {
       startLabelInputRef.current.focus();
       startLabelInputRef.current.select();
     }
   }, []);
-
-  useEffect(() => {
-    if (connection === null) {
-      setDraft(null);
-      return;
-    }
-
-    setDraft({
-      strokeColorIndex: connection.strokeColorIndex,
-      strokeStyle: connection.strokeStyle,
-      annotation: connection.annotation,
-      startLabel: connection.startLabel,
-      endLabel: connection.endLabel,
-    });
-  }, [connection]);
 
   if (!connection || !draft) {
     return null;
@@ -357,27 +342,12 @@ export function RoomEditorOverlay({
     };
   }, [applyRoomEditorDraft, draft, onBackdropClose, onClose, room]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (nameInputRef.current) {
       nameInputRef.current.focus();
       nameInputRef.current.select();
     }
   }, []);
-
-  useEffect(() => {
-    if (room === null) {
-      setDraft(null);
-      return;
-    }
-
-    setDraft({
-      name: room.name,
-      shape: room.shape,
-      fillColorIndex: room.fillColorIndex,
-      strokeColorIndex: room.strokeColorIndex,
-      strokeStyle: room.strokeStyle,
-    });
-  }, [room]);
 
   if (!room || !draft) {
     return null;

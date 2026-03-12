@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Room } from '../domain/map-types';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
@@ -82,8 +82,6 @@ interface ActiveDrawingStroke {
   readonly chunks: Map<string, StrokeChunkState>;
 }
 
-const AUTO_PAN_ANIMATION_MS = 320;
-
 function isDrawingInterfaceEnabled(): boolean {
   return (
     (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
@@ -122,19 +120,15 @@ export interface MapCanvasProps {
   mapName: string;
   showGrid?: boolean;
   onBack?: () => void;
-  requestedRoomEditorId?: string | null;
-  onRoomEditorRequestHandled?: () => void;
-  requestedRoomRevealId?: string | null;
-  onRoomRevealRequestHandled?: () => void;
+  requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
+  requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
 }
 
 export function MapCanvas({
   mapName,
   showGrid: initialShowGrid = true,
-  requestedRoomEditorId = null,
-  onRoomEditorRequestHandled,
-  requestedRoomRevealId = null,
-  onRoomRevealRequestHandled,
+  requestedRoomEditorRequest = null,
+  requestedRoomRevealRequest = null,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
@@ -179,7 +173,6 @@ export function MapCanvas({
   const beginBackgroundStroke = useEditorStore((s) => s.beginBackgroundStroke);
   const cancelBackgroundStroke = useEditorStore((s) => s.cancelBackgroundStroke);
   const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
-  const autoPanTimeoutRef = useRef<number | null>(null);
   const suppressCanvasClickRef = useRef(false);
   const persistPanTimeoutRef = useRef<number | null>(null);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
@@ -250,9 +243,6 @@ export function MapCanvas({
   }, []);
 
   useEffect(() => () => {
-    if (autoPanTimeoutRef.current !== null) {
-      window.clearTimeout(autoPanTimeoutRef.current);
-    }
     if (persistPanTimeoutRef.current !== null) {
       window.clearTimeout(persistPanTimeoutRef.current);
     }
@@ -351,15 +341,6 @@ export function MapCanvas({
 
   const startAutoPanAnimation = useCallback(() => {
     setIsAutoPanning(true);
-
-    if (autoPanTimeoutRef.current !== null) {
-      window.clearTimeout(autoPanTimeoutRef.current);
-    }
-
-    autoPanTimeoutRef.current = window.setTimeout(() => {
-      setIsAutoPanning(false);
-      autoPanTimeoutRef.current = null;
-    }, AUTO_PAN_ANIMATION_MS);
   }, []);
 
   const panToRoomEditorPosition = useCallback((roomId: string) => {
@@ -390,14 +371,13 @@ export function MapCanvas({
     setRoomEditorId(roomId);
   }, [panToRoomEditorPosition]);
 
-  useEffect(() => {
-    if (requestedRoomEditorId === null) {
+  useLayoutEffect(() => {
+    if (requestedRoomEditorRequest === null) {
       return;
     }
 
-    openRoomEditor(requestedRoomEditorId);
-    onRoomEditorRequestHandled?.();
-  }, [onRoomEditorRequestHandled, openRoomEditor, requestedRoomEditorId]);
+    openRoomEditor(requestedRoomEditorRequest.roomId);
+  }, [openRoomEditor, requestedRoomEditorRequest]);
 
   const openConnectionEditor = useCallback((connectionId: string) => {
     setStickyNoteEditorId(null);
@@ -434,17 +414,16 @@ export function MapCanvas({
     }));
   }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
-  useEffect(() => {
-    if (requestedRoomRevealId === null) {
+  useLayoutEffect(() => {
+    if (requestedRoomRevealRequest === null) {
       return;
     }
 
-    const room = useEditorStore.getState().doc?.rooms[requestedRoomRevealId];
+    const room = useEditorStore.getState().doc?.rooms[requestedRoomRevealRequest.roomId];
     if (room) {
       centerRoomOnScreen(room);
     }
-    onRoomRevealRequestHandled?.();
-  }, [centerRoomOnScreen, onRoomRevealRequestHandled, requestedRoomRevealId]);
+  }, [centerRoomOnScreen, requestedRoomRevealRequest]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },
@@ -974,10 +953,6 @@ export function MapCanvas({
     const startY = e.clientY;
     const startPan = panOffsetRef.current;
 
-    if (autoPanTimeoutRef.current !== null) {
-      window.clearTimeout(autoPanTimeoutRef.current);
-      autoPanTimeoutRef.current = null;
-    }
     setIsAutoPanning(false);
     setIsPanning(true);
 
@@ -1187,6 +1162,13 @@ export function MapCanvas({
         <div
           className={`map-canvas-content${isAutoPanning ? ' map-canvas-content--animated' : ''}`}
           data-testid="map-canvas-content"
+          onTransitionEnd={(event) => {
+            if (event.target !== event.currentTarget || event.propertyName !== 'transform') {
+              return;
+            }
+
+            setIsAutoPanning(false);
+          }}
           style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
         >
           {doc && (
@@ -1322,6 +1304,7 @@ export function MapCanvas({
 
       {roomEditorId && (
         <RoomEditorOverlay
+          key={roomEditorId}
           roomId={roomEditorId}
           panOffset={panOffset}
           canvasRect={effectiveCanvasRect}
@@ -1332,6 +1315,7 @@ export function MapCanvas({
       )}
       {connectionEditorId && (
         <ConnectionEditorOverlay
+          key={connectionEditorId}
           connectionId={connectionEditorId}
           onClose={closeConnectionEditor}
           onBackdropClose={closeConnectionEditorFromBackdrop}

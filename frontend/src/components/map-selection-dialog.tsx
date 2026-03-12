@@ -38,10 +38,28 @@ export function MapSelectionDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     storage.listMaps()
-      .then(setMaps)
-      .catch((err: unknown) => setError(String(err)))
-      .finally(() => setLoading(false));
+      .then((nextMaps) => {
+        if (!cancelled) {
+          setMaps(nextMaps);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [storage]);
 
   useEffect(() => {

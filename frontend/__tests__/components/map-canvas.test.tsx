@@ -228,21 +228,18 @@ describe('MapCanvas', () => {
     expect(screen.getByRole('heading', { name: 'Export PNG' })).toBeInTheDocument();
   });
 
-  it('opens a requested room editor and reports when the request is handled', async () => {
-    const handled = jest.fn<() => void>();
+  it('opens a requested room editor', async () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
 
     render(
       <MapCanvas
         mapName="Test"
-        requestedRoomEditorId={room.id}
-        onRoomEditorRequestHandled={handled}
+        requestedRoomEditorRequest={{ roomId: room.id, requestId: 1 }}
       />,
     );
 
     expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
-    expect(handled).toHaveBeenCalledTimes(1);
   });
 
   describe('map panning', () => {
@@ -1019,7 +1016,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'ArrowRight' });
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
-      expect(content.style.transform).toBe('translate(-304px, 0px)');
+      expect(content.style.transform).toBe('translate(-390px, -38px)');
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
