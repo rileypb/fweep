@@ -186,9 +186,9 @@ function describeCliOutcome(command: CliCommand): string {
     case 'create-and-connect':
       return 'created and connected.';
     case 'undo':
-      return 'undid.';
+      return 'undone.';
     case 'redo':
-      return 'redid.';
+      return 'redone.';
   }
 }
 

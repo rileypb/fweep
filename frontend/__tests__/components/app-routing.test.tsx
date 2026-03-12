@@ -1276,7 +1276,7 @@ describe('URL routing', () => {
 
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
     expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
-    expectGameOutputToContain('undo', 'undid');
+    expectGameOutputToContain('undo', 'undone');
   });
 
   it('supports relative create-and-connect syntax', async () => {
@@ -1459,7 +1459,7 @@ describe('URL routing', () => {
     fireEvent.change(input, { target: { value: 'undo' } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
-    expectGameOutputToContain('create Kitchen', 'created', 'undo', 'undid');
+    expectGameOutputToContain('create Kitchen', 'created', 'undo', 'undone');
   });
 
   it('redoes the previous undone command for the redo CLI command', async () => {
@@ -1482,7 +1482,7 @@ describe('URL routing', () => {
     await user.type(input, 'redo{enter}');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})[0]?.name).toBe('Kitchen');
-    expectGameOutputToContain('redo', 'redid');
+    expectGameOutputToContain('redo', 'redone');
   });
 
   it('reports when there is nothing to undo for the undo CLI command', async () => {
