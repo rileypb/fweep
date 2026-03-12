@@ -6,7 +6,6 @@ import { useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
-  getPanDeltaToRevealRoom,
   getRoomScreenGeometry,
   getStickyNoteLinksWithinSelectionBox,
   getStickyNotesWithinSelectionBox,
@@ -416,18 +415,22 @@ export function MapCanvas({
     setStickyNoteEditorId(null);
   }, []);
 
-  const panRoomIntoView = useCallback((room: Room) => {
+  const centerRoomOnScreen = useCallback((room: Room) => {
     const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
-    const delta = getPanDeltaToRevealRoom(room, panOffsetRef.current, currentCanvasRect);
+    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect);
+    const canvasWidth = currentCanvasRect?.width ?? canvasRef.current?.clientWidth ?? 0;
+    const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
+    const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
+    const roomCenterY = (roomGeometry.top - (currentCanvasRect?.top ?? 0)) + (roomGeometry.height / 2);
 
-    if (delta.x === 0 && delta.y === 0) {
+    if (canvasWidth === 0 && canvasHeight === 0) {
       return;
     }
 
     startAutoPanAnimation();
     setPanOffset((prev) => ({
-      x: prev.x + delta.x,
-      y: prev.y + delta.y,
+      x: prev.x + ((canvasWidth / 2) - roomCenterX),
+      y: prev.y + ((canvasHeight / 2) - roomCenterY),
     }));
   }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
 
@@ -438,10 +441,10 @@ export function MapCanvas({
 
     const room = useEditorStore.getState().doc?.rooms[requestedRoomRevealId];
     if (room) {
-      panRoomIntoView(room);
+      centerRoomOnScreen(room);
     }
     onRoomRevealRequestHandled?.();
-  }, [onRoomRevealRequestHandled, panRoomIntoView, requestedRoomRevealId]);
+  }, [centerRoomOnScreen, onRoomRevealRequestHandled, requestedRoomRevealId]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },
@@ -1115,8 +1118,8 @@ export function MapCanvas({
 
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
-    panRoomIntoView(nearestRoom);
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, openRoomEditor, panRoomIntoView, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo]);
+    centerRoomOnScreen(nearestRoom);
+  }, [canvasInteractionMode, centerRoomOnScreen, connectionDrag, connectionEditorId, drawingInterfaceEnabled, openRoomEditor, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo]);
 
   const classes = [
     'map-canvas',

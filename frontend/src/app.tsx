@@ -3,7 +3,12 @@ import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
-import { parseCliCommand, parseCliCommandDescription, type CliCommand } from './domain/cli-command';
+import {
+  CLI_COMMAND_FORMS,
+  parseCliCommand,
+  parseCliCommandDescription,
+  type CliCommand,
+} from './domain/cli-command';
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
@@ -152,7 +157,6 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
 }
 
 const HELP_CONTENT = parseHelpMarkdown(helpMarkdown);
-const MAX_GAME_OUTPUT_LINES = 20;
 
 function formatCliError(error: CliError): string {
   return [error.message, error.detail, error.suggestion].filter((part): part is string => part !== null).join(' ');
@@ -164,6 +168,8 @@ function formatCliEcho(input: string): string {
 
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
+    case 'help':
+      return 'listed available commands.';
     case 'create':
       return 'created.';
     case 'delete':
@@ -202,6 +208,8 @@ export function App(): React.JSX.Element {
   const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
+  const canUndo = useEditorStore((s) => s.canUndo);
+  const canRedo = useEditorStore((s) => s.canRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
@@ -212,6 +220,7 @@ export function App(): React.JSX.Element {
   const [cliCommand, setCliCommand] = useState('');
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [gameOutputLayout, setGameOutputLayout] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  const [cliStackLayout, setCliStackLayout] = useState<{ left: number; bottom: number; width: number; height: number } | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
   const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
 
@@ -257,25 +266,33 @@ export function App(): React.JSX.Element {
   }, [isHelpOpen]);
 
   useEffect(() => {
-    const updateGameOutputLayout = () => {
-      if (cliInputShellRef.current === null) {
+    const updateCliLayouts = () => {
+      if (cliInputShellRef.current === null || gameOutputRef.current === null) {
         return;
       }
 
-      const rect = cliInputShellRef.current.getBoundingClientRect();
+      const inputRect = cliInputShellRef.current.getBoundingClientRect();
+      const outputRect = gameOutputRef.current.getBoundingClientRect();
       setGameOutputLayout({
-        left: rect.left,
-        bottom: window.innerHeight - rect.top,
-        width: rect.width,
+        left: inputRect.left,
+        bottom: window.innerHeight - inputRect.top,
+        width: inputRect.width,
+      });
+      setCliStackLayout({
+        left: Math.min(outputRect.left, inputRect.left),
+        bottom: window.innerHeight - Math.max(outputRect.bottom, inputRect.bottom),
+        width: Math.max(outputRect.right, inputRect.right) - Math.min(outputRect.left, inputRect.left),
+        height: Math.max(outputRect.bottom, inputRect.bottom) - Math.min(outputRect.top, inputRect.top),
       });
     };
 
-    updateGameOutputLayout();
-    window.addEventListener('resize', updateGameOutputLayout);
+    const rafId = window.requestAnimationFrame(updateCliLayouts);
+    window.addEventListener('resize', updateCliLayouts);
     return () => {
-      window.removeEventListener('resize', updateGameOutputLayout);
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', updateCliLayouts);
     };
-  }, []);
+  }, [gameOutputLines]);
 
   useEffect(() => {
     if (gameOutputRef.current === null) {
@@ -286,7 +303,7 @@ export function App(): React.JSX.Element {
   }, [gameOutputLines]);
 
   const appendGameOutput = (lines: readonly string[]) => {
-    setGameOutputLines((previousLines) => [...previousLines, ...lines, ''].slice(-MAX_GAME_OUTPUT_LINES));
+    setGameOutputLines((previousLines) => [...previousLines, ...lines, '']);
   };
 
   const reportCliError = (submittedInput: string, error: CliError) => {
@@ -296,6 +313,18 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="app-shell">
+      {cliStackLayout !== null && (
+        <div
+          aria-hidden="true"
+          className="app-cli-stack-border"
+          style={{
+            left: `${cliStackLayout.left}px`,
+            bottom: `${cliStackLayout.bottom}px`,
+            width: `${cliStackLayout.width}px`,
+            height: `${cliStackLayout.height}px`,
+          }}
+        />
+      )}
       <textarea
         id="app-game-output"
         className="app-game-output"
@@ -323,7 +352,9 @@ export function App(): React.JSX.Element {
               return;
             }
 
-            if (command.kind === 'create' && storeDoc !== null) {
+            if (command.kind === 'help') {
+              appendGameOutput([formatCliEcho(submittedInput), ...CLI_COMMAND_FORMS]);
+            } else if (command.kind === 'create' && storeDoc !== null) {
               const plan = planCreateRoomFromCli(
                 storeDoc,
                 command.roomName,
@@ -457,9 +488,19 @@ export function App(): React.JSX.Element {
               }
               appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'undo') {
+              if (!canUndo) {
+                appendGameOutput([formatCliEcho(submittedInput), 'Nothing to undo.']);
+                cliInputRef.current?.select();
+                return;
+              }
               undo();
               appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'redo') {
+              if (!canRedo) {
+                appendGameOutput([formatCliEcho(submittedInput), 'Nothing to redo.']);
+                cliInputRef.current?.select();
+                return;
+              }
               redo();
               appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else {

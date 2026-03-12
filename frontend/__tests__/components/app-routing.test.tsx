@@ -2,6 +2,8 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createEmptyMap } from '../../src/domain/map-types';
+import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
+import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -53,6 +55,36 @@ describe('URL routing', () => {
     expectGameOutputToContain(
       'connect Kitchen east to Hallway',
       'create a two-way connection from Kitchen going east to Hallway going west',
+    );
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('lists all supported CLI command forms for the help command', async () => {
+    const doc = createEmptyMap('CLI Command List Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli command list map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'help{enter}');
+
+    expectGameOutputToContain(
+      'help',
+      'create <room name>',
+      'delete <room name>',
+      'edit <room name>',
+      'show <room name>',
+      'notate <room name> with <note text>',
+      'annotate <room name> with <note text>',
+      'connect <room name> <direction> one-way to <room name>',
+      'create and connect <room name> <direction> to <room name>',
+      'create <room name> above <room name>',
+      'redo',
     );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
@@ -258,7 +290,7 @@ describe('URL routing', () => {
     }
   });
 
-  it('selects and scrolls a room into view for the show CLI command', async () => {
+  it('selects and centers a room for the show CLI command', async () => {
     jest.useFakeTimers();
     let doc = createEmptyMap('CLI Show Map');
     doc = {
@@ -310,7 +342,10 @@ describe('URL routing', () => {
       });
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
-      expect(screen.getByTestId('map-canvas-content').style.transform).not.toBe('translate(0px, 0px)');
+      expect(useEditorStore.getState().mapPanOffset).toEqual({
+        x: (300 / 2) - (1200 + (getRoomNodeWidth(doc.rooms['room-1']) / 2)),
+        y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
+      });
       expectGameOutputToContain('show kitchen', 'shown');
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(input.value.length);
@@ -1316,6 +1351,42 @@ describe('URL routing', () => {
     expectGameOutputToContain('redo', 'redid');
   });
 
+  it('reports when there is nothing to undo for the undo CLI command', async () => {
+    const doc = createEmptyMap('CLI Empty Undo Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli empty undo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'undo{enter}');
+
+    expectGameOutputToContain('undo', 'Nothing to undo.');
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('reports when there is nothing to redo for the redo CLI command', async () => {
+    const doc = createEmptyMap('CLI Empty Redo Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli empty redo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'redo{enter}');
+
+    expectGameOutputToContain('redo', 'Nothing to redo.');
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -1337,7 +1408,7 @@ describe('URL routing', () => {
     );
   });
 
-  it('caps the game output box at the most recent 20 lines', () => {
+  it('retains the full game output history', () => {
     render(<App />);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -1349,14 +1420,13 @@ describe('URL routing', () => {
     }
 
     const outputLines = getGameOutputBox().value.split('\n');
-    expect(outputLines).toHaveLength(20);
-    expect(outputLines[0]).toBe("I didn't understand you. The command does not match any supported CLI syntax. Check the wording and try again. For example: `create kitchen`.");
-    expect(outputLines[1]).toBe('');
-    expect(outputLines[2]).toBe('>blorb room 2');
-    expect(outputLines).not.toContain('>blorb room 1');
-    expect(outputLines[17]).toBe('>blorb room 7');
-    expect(outputLines[18]).toContain("I didn't understand you.");
-    expect(outputLines[19]).toBe('');
+    expect(outputLines).toHaveLength(21);
+    expect(outputLines[0]).toBe('>blorb room 1');
+    expect(outputLines[1]).toContain("I didn't understand you.");
+    expect(outputLines[2]).toBe('');
+    expect(outputLines[18]).toBe('>blorb room 7');
+    expect(outputLines[19]).toContain("I didn't understand you.");
+    expect(outputLines[20]).toBe('');
   });
 
   it('opens and closes the help dialog', async () => {

@@ -1,6 +1,7 @@
 import { normalizeDirection, oppositeDirection } from './directions';
 
 export type CliCommand =
+  | { readonly kind: 'help' }
   | { readonly kind: 'create'; readonly roomName: string }
   | { readonly kind: 'delete'; readonly roomName: string }
   | { readonly kind: 'edit'; readonly roomName: string }
@@ -24,6 +25,27 @@ export type CliCommand =
   }
   | { readonly kind: 'undo' }
   | { readonly kind: 'redo' };
+
+export const CLI_COMMAND_FORMS = [
+  'help',
+  'create <room name>',
+  'delete <room name>',
+  'edit <room name>',
+  'show <room name>',
+  'notate <room name> with <note text>',
+  'annotate <room name> with <note text>',
+  'connect <room name> <direction> one-way to <room name>',
+  'connect <room name> <direction> to <room name>',
+  'connect <room name> <direction> to <room name> <direction>',
+  'create and connect <room name> <direction> one-way to <room name>',
+  'create and connect <room name> <direction> to <room name>',
+  'create and connect <room name> <direction> to <room name> <direction>',
+  'create <room name> <direction> of <room name>',
+  'create <room name> above <room name>',
+  'create <room name> below <room name>',
+  'undo',
+  'redo',
+] as const;
 
 interface Token {
   readonly value: string;
@@ -289,6 +311,10 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'redo' };
   }
 
+  if (tokens.length === 1 && isTokenValue(tokens[0], 'help')) {
+    return { kind: 'help' };
+  }
+
   if (isTokenValue(tokens[0], 'create') && isTokenValue(tokens[1], 'and') && isTokenValue(tokens[2], 'connect')) {
     const tail = parseConnectTail(tokens, 3);
     if (tail === null) {
@@ -396,6 +422,8 @@ export function parseCliCommand(input: string): CliCommand | null {
 
 function describeCliCommand(command: CliCommand): string {
   switch (command.kind) {
+    case 'help':
+      return 'list the available CLI command forms';
     case 'create':
       return `create a room called ${command.roomName}`;
     case 'delete':

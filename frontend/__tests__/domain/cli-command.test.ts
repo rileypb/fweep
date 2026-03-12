@@ -2,6 +2,10 @@ import { describe, expect, it } from '@jest/globals';
 import { parseCliCommandDescription } from '../../src/domain/cli-command';
 
 describe('parseCliCommandDescription', () => {
+  it('describes help commands', () => {
+    expect(parseCliCommandDescription('help')).toBe('list the available CLI command forms');
+  });
+
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
   });

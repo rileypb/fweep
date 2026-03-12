@@ -54,8 +54,8 @@ body {
 
 .app-game-output {
   position: fixed;
-  z-index: 2;
-  pointer-events: none;
+  z-index: 5;
+  pointer-events: auto;
   display: block;
   width: 100%;
   min-height: 0;
@@ -66,12 +66,14 @@ body {
   color: color-mix(in srgb, currentColor 50%, transparent);
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   resize: none;
-  scrollbar-width: none;
-  backdrop-filter: blur(10px);
 }
 
-.app-game-output::-webkit-scrollbar {
-  display: none;
+.app-cli-stack-border {
+  position: fixed;
+  z-index: 4;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
 }
 
 .app-game-output:focus {
@@ -87,7 +89,7 @@ body {
   position: fixed;
   bottom: 1rem;
   left: 1rem;
-  z-index: 5;
+  z-index: 6;
   display: flex;
   align-items: flex-end;
   width: fit-content;
@@ -115,8 +117,8 @@ body {
 }
 
 .app-cli-input-shell {
-  flex: 0 1 min(50vw, 36rem);
-  width: min(50vw, 36rem);
+  flex: 0 1 min(37.5vw, 27rem);
+  width: min(37.5vw, 27rem);
   max-width: 100%;
   height: calc(var(--app-title-size) * 0.6);
   display: flex;
@@ -177,7 +179,7 @@ body {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.5rem;
-  z-index: 5;
+  z-index: 6;
 }
 
 .app-controls--settings {
