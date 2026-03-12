@@ -56,10 +56,11 @@ describe('MapCanvas', () => {
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
-  it('defaults to map interaction mode', () => {
+  it('keeps drawing controls hidden and defaults to map interaction mode', () => {
     render(<MapCanvas mapName="Test" />);
 
-    expect(screen.getByRole('button', { name: 'Switch to draw mode' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByTestId('map-drawing-toolbar')).not.toBeInTheDocument();
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
   });
 
   it('uses the map-mode cursor on empty canvas by default', () => {
@@ -70,46 +71,19 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--pan-ready');
   });
 
-  it('uses the draw-mode cursor when drawing mode is active', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
-
-    expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--draw-mode');
-    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--map-mode');
-  });
-
-  it('clears mixed selection when switching to draw mode', async () => {
-    const user = userEvent.setup();
-    const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-    const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
-    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 240 } };
-    const stickyNoteLink = createStickyNoteLink(stickyNote.id, roomB.id);
-    let doc = addRoom(createEmptyMap('Test'), roomA);
-    doc = addRoom(doc, roomB);
-    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
-    doc = {
-      ...doc,
-      stickyNotes: { [stickyNote.id]: stickyNote },
-      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
-    };
-    const connectionId = Object.keys(doc.connections)[0];
-    useEditorStore.getState().loadDocument(doc);
-    useEditorStore.getState().setSelection([roomA.id], [stickyNote.id], [connectionId], [stickyNoteLink.id]);
+  it('forces persisted draw mode back to map mode', async () => {
+    useEditorStore.getState().setCanvasInteractionMode('draw');
 
     render(<MapCanvas mapName="Test" />);
 
-    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
-
-    expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
-    expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
-    expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
-    expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+    await waitFor(() => {
+      expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
+    });
+    expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--map-mode');
+    expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--draw-mode');
   });
 
-  it('disables room and sticky-note pointer interaction in draw mode', async () => {
-    const user = userEvent.setup();
+  it('keeps room and sticky-note pointer interaction enabled', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
     useEditorStore.getState().loadDocument({
@@ -119,14 +93,11 @@ describe('MapCanvas', () => {
 
     render(<MapCanvas mapName="Test" />);
 
-    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
-
-    expect(screen.getByTestId('room-node')).toHaveStyle({ pointerEvents: 'none' });
-    expect(screen.getByTestId('sticky-note')).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId('room-node')).not.toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ pointerEvents: 'none' });
   });
 
-  it('disables connection and sticky-note-link pointer interaction in draw mode', async () => {
-    const user = userEvent.setup();
+  it('keeps connection and sticky-note-link pointer interaction enabled', () => {
     const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
     const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 240 } };
@@ -144,10 +115,8 @@ describe('MapCanvas', () => {
 
     render(<MapCanvas mapName="Test" />);
 
-    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
-
-    expect(screen.getByTestId(`connection-hit-target-${connectionId}`)).toHaveStyle({ pointerEvents: 'none' });
-    expect(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`)).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId(`connection-hit-target-${connectionId}`)).not.toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`)).not.toHaveStyle({ pointerEvents: 'none' });
   });
 
   it('uses the pan-ready cursor when Shift is held in map mode', () => {
@@ -178,74 +147,29 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ cursor: 'move' });
   });
 
-  it('toggles into draw interaction mode from the toolbar', async () => {
-    const user = userEvent.setup();
+  it('hides the background drawing layer', () => {
+    const doc = createEmptyMap('Test');
+    useEditorStore.getState().loadDocument({
+      ...doc,
+      background: {
+        activeLayerId: 'layer-1',
+        layers: {
+          'layer-1': {
+            id: 'layer-1',
+            name: 'Sketch',
+            visible: true,
+            opacity: 1,
+            pixelSize: 1,
+            chunkSize: 256,
+          },
+        },
+      },
+    });
+
     render(<MapCanvas mapName="Test" />);
 
-    await user.click(screen.getByRole('button', { name: 'Switch to draw mode' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(screen.getByRole('button', { name: 'Switch to map mode' })).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('switches into draw mode when selecting a drawing tool', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Brush' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.tool).toBe('brush');
-  });
-
-  it('selects the line tool from the drawing toolbar', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Line' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.tool).toBe('line');
-  });
-
-  it('selects the rectangle tool from the drawing toolbar', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Rectangle' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.tool).toBe('rectangle');
-  });
-
-  it('selects the bucket fill tool from the drawing toolbar', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Bucket fill' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.tool).toBe('bucket');
-  });
-
-  it('selects the ellipse tool from the drawing toolbar', async () => {
-    const user = userEvent.setup();
-    render(<MapCanvas mapName="Test" />);
-
-    await user.click(screen.getByRole('button', { name: 'Ellipse' }));
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.tool).toBe('ellipse');
-  });
-
-  it('switches into draw mode when changing drawing settings', () => {
-    render(<MapCanvas mapName="Test" />);
-
-    const sizeInput = screen.getByLabelText('Drawing tool size');
-    fireEvent.change(sizeInput, { target: { value: '4' } });
-
-    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-    expect(useEditorStore.getState().drawingToolState.size).toBe(4);
+    expect(screen.queryByTestId('map-drawing-toolbar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('map-canvas-background')).not.toBeInTheDocument();
   });
 
   it('hides the background grid when showGrid is false', () => {
@@ -721,22 +645,16 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().doc!.rooms[room.id].name).toBe('Kitchen');
     });
 
-    it('toggles drawing mode with the D key', () => {
+    it('does not toggle drawing mode with the D key', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(canvas, { key: 'd' });
-      expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
-
-      fireEvent.keyDown(canvas, { key: 'd' });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
     });
 
-    it('toggles drawing mode with D even when the canvas is not focused', () => {
+    it('does not toggle drawing mode with D when the canvas is not focused', () => {
       render(<MapCanvas mapName="Test" />);
-
-      fireEvent.keyDown(window, { key: 'd' });
-      expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
 
       fireEvent.keyDown(window, { key: 'd' });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');

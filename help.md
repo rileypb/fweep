@@ -1,5 +1,9 @@
 # Fweep Help
 
+## CLI, or how to type out a map
+
+- `create <room name>` creates a new room.
+
 ## Mouse and Trackpad
 
 - `Double-click` empty canvas: create a room.
