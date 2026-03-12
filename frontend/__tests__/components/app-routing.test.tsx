@@ -119,6 +119,126 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('supports it as a pronoun for the last direct-object room across commands', async () => {
+    let doc = createEmptyMap('CLI Pronoun Map');
+    doc = {
+      ...doc,
+      rooms: {
+        living: {
+          id: 'living',
+          name: 'Living Room',
+          description: '',
+          position: { x: 480, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli pronoun map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen{enter}');
+    await user.clear(input);
+    await user.type(input, 'connect it e to living room{enter}');
+    await user.clear(input);
+    await user.type(input, 'edit it{enter}');
+
+    const state = useEditorStore.getState();
+    const kitchen = Object.values(state.doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
+    const living = state.doc?.rooms.living;
+    const connection = Object.values(state.doc?.connections ?? {})[0];
+
+    expect(kitchen).toBeDefined();
+    expect(living).toBeDefined();
+    expect(connection).toMatchObject({
+      sourceRoomId: kitchen?.id,
+      targetRoomId: living?.id,
+    });
+    expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Kitchen');
+  });
+
+  it('preserves the existing it binding when it is used as the indirect object', async () => {
+    let doc = createEmptyMap('CLI Pronoun Preserve Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        living: {
+          id: 'living',
+          name: 'Living Room',
+          description: '',
+          position: { x: 480, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli pronoun preserve map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'show living room{enter}');
+    await user.clear(input);
+    await user.type(input, 'connect kitchen e to it{enter}');
+    await user.clear(input);
+    await user.type(input, 'edit it{enter}');
+
+    expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Living Room');
+  });
+
+  it('reports an error when it is unbound', async () => {
+    const doc = createEmptyMap('CLI Pronoun Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli pronoun error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'edit it{enter}');
+
+    expectGameOutputToContain('edit it', 'Nothing is currently bound to "it".');
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it('deletes a room for the delete CLI command', async () => {
     let doc = createEmptyMap('CLI Delete Map');
     const room = {

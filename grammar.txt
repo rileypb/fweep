@@ -130,6 +130,8 @@ Semantic constraints
   - the command is semantically equivalent to `create and connect <source room> <inverse of written direction> to <target room>`
   - the target room must already exist, or the command fails
 - Commands that resolve a room by name must fail with a semantic error if zero rooms match or if more than one room matches.
+- The unquoted room name `it` is a pronoun placeholder rather than a literal room name when a prior successful command has bound a room direct object for pronoun resolution.
+- If `it` is used where a room name is expected and no room is currently bound, execution must fail with a semantic error.
 - Names are case-insensitive for matching and uniqueness checks.
 - Keywords and directions are reserved when unquoted.
 
@@ -188,5 +190,8 @@ Notes on ambiguous or unspecified behavior
    - the note text is the full remaining text after `with`
    - quoted note text uses the same escape rules as quoted room names
 
-9. This grammar models only the currently documented commands.
+9. Pronoun resolution for `it`.
+   The grammar still parses `it` as an ordinary unquoted room name token. Its special behavior is semantic: before command execution, `it` may be substituted with the most recently bound room direct object.
+
+10. This grammar models only the currently documented commands.
    It does not include autocomplete, history, quick reference, or any future item/description commands.

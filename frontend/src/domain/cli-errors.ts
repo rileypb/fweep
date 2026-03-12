@@ -1,7 +1,8 @@
 export type CliErrorCode =
   | 'parse'
   | 'unknown-room'
-  | 'ambiguous-room';
+  | 'ambiguous-room'
+  | 'unbound-pronoun';
 
 export type CliErrorCommandKind = 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | null;
 
@@ -66,5 +67,15 @@ export function createAmbiguousRoomCliError(
     message: `Multiple rooms are named ${quoteCliValue(roomName)}.`,
     detail: `The CLI cannot tell which one you want to ${action}.`,
     suggestion,
+  };
+}
+
+export function createUnboundPronounCliError(): CliError {
+  return {
+    code: 'unbound-pronoun',
+    commandKind: null,
+    message: 'Nothing is currently bound to "it".',
+    detail: 'Use a command that refers to a room first, such as `show kitchen` or `edit kitchen`.',
+    suggestion: 'Then you can refer to that room as `it` in a later command.',
   };
 }

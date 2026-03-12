@@ -12,10 +12,11 @@ import {
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
+  createUnboundPronounCliError,
   createUnknownRoomCliError,
   type CliError,
 } from './domain/cli-errors';
-import { planCreateRoomFromCli, resolveRoomByCliName } from './domain/cli-execution';
+import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference } from './domain/cli-execution';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { saveMap } from './storage/map-store';
@@ -219,15 +220,18 @@ export function App(): React.JSX.Element {
   const [isGameOutputCollapsed, setIsGameOutputCollapsed] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
+  const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
   const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
     if (activeMap) {
+      setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = activeMap;
       loadDocument(activeMap);
     } else {
+      setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = null;
       unloadDocument();
     }
@@ -280,6 +284,30 @@ export function App(): React.JSX.Element {
     cliInputRef.current?.select();
   };
 
+  const reportRoomReferenceError = (
+    submittedInput: string,
+    roomMatch: ReturnType<typeof resolveRoomByCliReference>,
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect',
+    roomName: string,
+  ): boolean => {
+    if (roomMatch.kind === 'pronoun-unbound') {
+      reportCliError(submittedInput, createUnboundPronounCliError());
+      return true;
+    }
+
+    if (roomMatch.kind === 'none') {
+      reportCliError(submittedInput, createUnknownRoomCliError(roomName));
+      return true;
+    }
+
+    if (roomMatch.kind === 'multiple') {
+      reportCliError(submittedInput, createAmbiguousRoomCliError(commandKind, roomName));
+      return true;
+    }
+
+    return false;
+  };
+
   return (
     <main className="app-shell">
       <div className="app-cli-stack">
@@ -328,6 +356,7 @@ export function App(): React.JSX.Element {
                   mapPanOffset,
                 );
                 const roomId = addRoomAtPosition(plan.roomName, plan.position);
+                setCliPronounRoomId(roomId);
                 selectRoom(roomId);
                 setMapPanOffset({
                   x: (window.innerWidth / 2) - plan.position.x,
@@ -335,74 +364,66 @@ export function App(): React.JSX.Element {
                 });
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'delete' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-                if (roomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                const roomMatch = resolveRoomByCliReference(storeDoc, command.roomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, roomMatch, 'delete', command.roomName)) {
                   return;
                 }
-                if (roomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('delete', command.roomName));
+                if (roomMatch.kind !== 'one') {
                   return;
                 }
                 removeRoom(roomMatch.room.id);
+                setCliPronounRoomId((previous) => (previous === roomMatch.room.id ? null : previous));
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'edit' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-                if (roomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                const roomMatch = resolveRoomByCliReference(storeDoc, command.roomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, roomMatch, 'edit', command.roomName)) {
                   return;
                 }
-                if (roomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('edit', command.roomName));
+                if (roomMatch.kind !== 'one') {
                   return;
                 }
                 selectRoom(roomMatch.room.id);
+                setCliPronounRoomId(roomMatch.room.id);
                 setRequestedRoomEditorId(roomMatch.room.id);
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
                 shouldSelectCliInput = false;
               } else if (command.kind === 'show' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-                if (roomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                const roomMatch = resolveRoomByCliReference(storeDoc, command.roomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, roomMatch, 'show', command.roomName)) {
                   return;
                 }
-                if (roomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('show', command.roomName));
+                if (roomMatch.kind !== 'one') {
                   return;
                 }
                 selectRoom(roomMatch.room.id);
+                setCliPronounRoomId(roomMatch.room.id);
                 setRequestedRoomRevealId(roomMatch.room.id);
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'notate' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-                if (roomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                const roomMatch = resolveRoomByCliReference(storeDoc, command.roomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, roomMatch, 'notate', command.roomName)) {
                   return;
                 }
-                if (roomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('notate', command.roomName));
+                if (roomMatch.kind !== 'one') {
                   return;
                 }
                 addStickyNoteForRoom(roomMatch.room.id, command.noteText);
+                setCliPronounRoomId(roomMatch.room.id);
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'connect' && storeDoc !== null) {
-                const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
-                if (sourceRoomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.sourceRoomName));
+                const sourceRoomMatch = resolveRoomByCliReference(storeDoc, command.sourceRoomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, sourceRoomMatch, 'connect', command.sourceRoomName)) {
                   return;
                 }
-                if (sourceRoomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.sourceRoomName));
+                if (sourceRoomMatch.kind !== 'one') {
                   return;
                 }
 
-                const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
-                if (targetRoomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
+                const targetRoomMatch = resolveRoomByCliReference(storeDoc, command.targetRoomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, targetRoomMatch, 'connect', command.targetRoomName)) {
                   return;
                 }
-                if (targetRoomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.targetRoomName));
+                if (targetRoomMatch.kind !== 'one') {
                   return;
                 }
 
@@ -415,15 +436,16 @@ export function App(): React.JSX.Element {
                     targetDirection: command.targetDirection,
                   },
                 );
+                if (!isCliPronounReference(command.targetRoomName)) {
+                  setCliPronounRoomId(sourceRoomMatch.room.id);
+                }
                 appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
-                const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
-                if (targetRoomMatch.kind === 'none') {
-                  reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
+                const targetRoomMatch = resolveRoomByCliReference(storeDoc, command.targetRoomName, cliPronounRoomId);
+                if (reportRoomReferenceError(submittedInput, targetRoomMatch, 'create-and-connect', command.targetRoomName)) {
                   return;
                 }
-                if (targetRoomMatch.kind === 'multiple') {
-                  reportCliError(submittedInput, createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
+                if (targetRoomMatch.kind !== 'one') {
                   return;
                 }
 
@@ -446,6 +468,9 @@ export function App(): React.JSX.Element {
                 const nextDoc = useEditorStore.getState().doc;
                 const createdRoom = nextDoc?.rooms[result.roomId];
                 const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
+                if (!isCliPronounReference(command.targetRoomName)) {
+                  setCliPronounRoomId(result.roomId);
+                }
                 if (createdRoom && targetRoom) {
                   setMapPanOffset({
                     x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),

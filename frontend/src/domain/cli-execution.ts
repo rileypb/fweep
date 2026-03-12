@@ -9,12 +9,17 @@ export interface CreateRoomCliPlan {
 }
 
 export type CliRoomMatch =
+  | { readonly kind: 'pronoun-unbound' }
   | { readonly kind: 'none' }
   | { readonly kind: 'one'; readonly room: Room }
   | { readonly kind: 'multiple'; readonly rooms: readonly Room[] };
 
 function normalizeCliName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function isCliPronounReference(requestedName: string): boolean {
+  return normalizeCliName(requestedName) === 'it';
 }
 
 export function findRoomsByCliName(doc: MapDocument, requestedName: string): readonly Room[] {
@@ -32,6 +37,23 @@ export function resolveRoomByCliName(doc: MapDocument, requestedName: string): C
   }
 
   return { kind: 'multiple', rooms: matches };
+}
+
+export function resolveRoomByCliReference(
+  doc: MapDocument,
+  requestedName: string,
+  pronounRoomId: string | null,
+): CliRoomMatch {
+  if (!isCliPronounReference(requestedName)) {
+    return resolveRoomByCliName(doc, requestedName);
+  }
+
+  if (pronounRoomId === null) {
+    return { kind: 'pronoun-unbound' };
+  }
+
+  const room = doc.rooms[pronounRoomId];
+  return room ? { kind: 'one', room } : { kind: 'pronoun-unbound' };
 }
 
 function getExistingRoomNames(doc: MapDocument): Set<string> {

@@ -1,7 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 import { addRoom } from '../../src/domain/map-operations';
 import { createEmptyMap, createRoom } from '../../src/domain/map-types';
-import { findRoomsByCliName, planCreateRoomFromCli, resolveRoomByCliName } from '../../src/domain/cli-execution';
+import {
+  findRoomsByCliName,
+  isCliPronounReference,
+  planCreateRoomFromCli,
+  resolveRoomByCliName,
+  resolveRoomByCliReference,
+} from '../../src/domain/cli-execution';
 
 describe('planCreateRoomFromCli', () => {
   it('places the first room at the center of the current viewport', () => {
@@ -70,5 +76,28 @@ describe('resolveRoomByCliName', () => {
 
     const matches = findRoomsByCliName(doc, 'kitchen');
     expect(resolveRoomByCliName(doc, 'kitchen')).toEqual({ kind: 'multiple', rooms: matches });
+  });
+});
+
+describe('resolveRoomByCliReference', () => {
+  it('resolves it to the bound room id', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliReference(doc, 'it', room.id)).toEqual({ kind: 'one', room });
+  });
+
+  it('reports an unbound pronoun when it has no room binding', () => {
+    const doc = createEmptyMap('Test Map');
+
+    expect(resolveRoomByCliReference(doc, 'it', null)).toEqual({ kind: 'pronoun-unbound' });
+  });
+});
+
+describe('isCliPronounReference', () => {
+  it('matches it case-insensitively', () => {
+    expect(isCliPronounReference('it')).toBe(true);
+    expect(isCliPronounReference(' IT ')).toBe(true);
+    expect(isCliPronounReference('kitchen')).toBe(false);
   });
 });

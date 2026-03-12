@@ -29,6 +29,10 @@
   - `notate kitchen with this room has nice wallpaper`
   - `annotate kitchen with this room has nice wallpaper`
   - `notate "machine room" with "check the humming noise here"`
+- `it` may be used in place of a room name after a command has established a direct-object room target. For example:
+  - `create kitchen`
+  - `connect it east to living room` means `connect kitchen east to living room`
+  - `edit it` means `edit kitchen`
 - parsing precedence: a word in a command that matches a keyword or a direction is considered a keyword or direction unless it is surrounded by double quotes. For instance `connect living room east to dining room west` parses the same as `connect "living room" east to "dining room" west`
 
 ## Behavior rules
@@ -45,6 +49,12 @@
 - `show <room name>` scrolls the indicated room into view and selects it.
 - `notate <room name> with <note text>` creates a sticky note, links it to the indicated room, and selects the new note.
 - `annotate <room name> with <note text>` behaves identically.
+- After a command with a room direct object succeeds, bind that room as the target for `it`.
+  - `create <room name>` binds the newly created room, including its de-duplicated final name.
+  - `delete <room name>` resolves `it` before deletion, but then clears the binding if it referred to the deleted room.
+  - `edit <room name>`, `show <room name>`, and `notate <room name> with <note text>` bind the referenced room.
+  - `connect <room name> ...` binds the source room, unless the target room was referred to as `it`; in that case the existing `it` binding is preserved.
+  - `create and connect <room name> ...` and `create <room name> <direction> of/above/below <room name>` bind the newly created room, unless the target room was referred to as `it`; in that case the existing `it` binding is preserved.
 - direction inverses follow the compass, with down and up serving as inverses, as do in and out. Custom directions are not supported by the CLI.
 - A single CLI command is one undo/redo entry.
 - `Undo` and `Redo` undo and redo the previous command respectively.
@@ -68,6 +78,7 @@
 - If multiple rooms match the requested name for `show`, abort the action and print the error "Multiple rooms have that name. You must show them manually."
 - Attempting to notate or annotate an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
 - If multiple rooms match the requested name for `notate` or `annotate`, abort the action and print the error "Multiple rooms have that name. You must notate them manually."
+- Attempting to use `it` when no room is currently bound to it is an error. Abort the action and print the error `Nothing is currently bound to "it".`
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.
   - Correspondingly, if the user types `connect bedroom east to living room west` and `connect kitchen east to living room west`, the first connection will be deleted and only the connection between kitchen and living room will remain.
