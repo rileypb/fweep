@@ -148,6 +148,7 @@ export function MapCanvas({
   const [isAutoPanning, setIsAutoPanning] = useState(false);
   const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
   const [isAltKeyDown, setIsAltKeyDown] = useState(false);
+  const [isRoomPlacementArmed, setIsRoomPlacementArmed] = useState(false);
   const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
@@ -288,11 +289,20 @@ export function MapCanvas({
 
       if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
         event.preventDefault();
+        setIsRoomPlacementArmed(false);
         setIsNotePlacementArmed(true);
         return;
       }
 
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        setIsNotePlacementArmed(false);
+        setIsRoomPlacementArmed(true);
+        return;
+      }
+
       if (event.key === 'Escape') {
+        setIsRoomPlacementArmed(false);
         setIsNotePlacementArmed(false);
       }
     };
@@ -1016,7 +1026,9 @@ export function MapCanvas({
 
     if (suppressCanvasClickRef.current) {
       suppressCanvasClickRef.current = false;
-      return;
+      if (!isRoomPlacementArmed && !isNotePlacementArmed) {
+        return;
+      }
     }
 
     const target = e.target as Element | null;
@@ -1029,15 +1041,25 @@ export function MapCanvas({
       const stickyNoteId = addStickyNoteAtPosition('', { x, y });
       useEditorStore.getState().selectStickyNote(stickyNoteId);
       setStickyNoteEditorId(null);
+      setIsRoomPlacementArmed(false);
       setIsNotePlacementArmed(false);
       return;
     }
 
+    if (isRoomPlacementArmed) {
+      const { x, y } = toMapPoint(e.clientX, e.clientY);
+      setIsNotePlacementArmed(false);
+      setIsRoomPlacementArmed(false);
+      openNewRoomEditor({ x, y });
+      return;
+    }
+
+    setIsRoomPlacementArmed(false);
     setIsNotePlacementArmed(false);
     closeStickyNoteEditor();
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, roomEditorId, toMapPoint]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, openNewRoomEditor, roomEditorId, toMapPoint]);
 
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
@@ -1055,18 +1077,6 @@ export function MapCanvas({
     e.preventDefault();
     panBy({ x: -e.deltaX, y: -e.deltaY });
   }, [connectionDrag, connectionEditorId, panBy, roomEditorId]);
-
-  const handleCanvasDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (roomEditorId || connectionEditorId || activeStroke) return;
-
-    const target = e.target as Element | null;
-    if (isCanvasChromeTarget(target) || isEditableTarget(target)) {
-      return;
-    }
-
-    const { x, y } = toMapPoint(e.clientX, e.clientY);
-    openNewRoomEditor({ x, y });
-  }, [activeStroke, connectionEditorId, openNewRoomEditor, roomEditorId, toMapPoint]);
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
@@ -1169,7 +1179,6 @@ export function MapCanvas({
       }}
       onWheel={handleCanvasWheel}
       onClick={handleCanvasClick}
-      onDoubleClick={handleCanvasDoubleClick}
       onKeyDown={handleCanvasKeyDown}
       tabIndex={-1}
     >

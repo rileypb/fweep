@@ -295,7 +295,8 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 180, clientY: 140 });
       fireEvent.mouseUp(document, { clientX: 180, clientY: 140 });
 
-      fireEvent.doubleClick(canvas, { clientX: 120, clientY: 120 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 120, clientY: 120 });
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
@@ -1414,17 +1415,18 @@ describe('MapCanvas', () => {
     });
   });
 
-  /* ---- Double-click to create room ---- */
+  /* ---- R then click to create room ---- */
 
-  describe('double-click to create room', () => {
-    it('opens a new-room draft on background double-click without creating the room yet', () => {
+  describe('R then click to create room', () => {
+    it('opens a new-room draft on background click after pressing R without creating the room yet', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(0);
@@ -1439,7 +1441,8 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
 
       const nameInput = screen.getByRole('textbox', { name: /room name/i });
       await user.clear(nameInput);
@@ -1459,7 +1462,8 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 200, clientY: 300 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
 
       const nameInput = screen.getByRole('textbox', { name: /room name/i });
       await user.clear(nameInput);
@@ -1470,7 +1474,7 @@ describe('MapCanvas', () => {
       expect(screen.queryByRole('textbox', { name: /room name/i })).not.toBeInTheDocument();
     });
 
-    it('does not create a room on a single background click', () => {
+    it('does not create a room on a background click without pressing R first', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -1491,7 +1495,8 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 55, clientY: 85 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 55, clientY: 85 });
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
@@ -1519,7 +1524,8 @@ describe('MapCanvas', () => {
         toJSON: () => ({}),
       });
 
-      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
       expect(content.style.transform).toBe('translate(310px, 100px)');
       expect(content).toHaveClass('map-canvas-content--animated');
@@ -1533,10 +1539,26 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
+    });
+
+    it('only arms room placement for a single click', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 100, clientY: 100 });
+      fireEvent.click(canvas, { clientX: 140, clientY: 140 });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
     });
   });
@@ -1770,7 +1792,8 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const canvas = screen.getByTestId('map-canvas');
-      fireEvent.doubleClick(canvas, { clientX: 100, clientY: 100 });
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);

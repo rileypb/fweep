@@ -22,7 +22,7 @@
 
 ## Mouse and Trackpad
 
-- `Double-click` empty canvas: create a room.
+- `R`, then click empty canvas: create a room.
 - `N`, then click empty canvas: create a sticky note.
 - `Click` empty canvas: clear selection.
 - `Drag` empty canvas: marquee-select rooms, connections, sticky notes, and sticky-note links.
