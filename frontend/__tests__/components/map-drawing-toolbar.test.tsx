@@ -105,6 +105,76 @@ describe('MapDrawingToolbar', () => {
     expect(screen.queryByLabelText('Stroke color picker')).not.toBeInTheDocument();
   });
 
+  it('closes the stroke color picker on outside click and Escape', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    const swatchButton = screen.getByRole('button', { name: 'Stroke' });
+    await user.click(swatchButton);
+    expect(screen.getByLabelText('Stroke color picker')).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByLabelText('Stroke color picker')).not.toBeInTheDocument();
+
+    await user.click(swatchButton);
+    expect(screen.getByLabelText('Stroke color picker')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByLabelText('Stroke color picker')).not.toBeInTheDocument();
+  });
+
+  it('updates stroke hue across multiple color-wheel segments', async () => {
+    const user = userEvent.setup();
+    useEditorStore.getState().setDrawingColor('#ff0000');
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Stroke' }));
+    const hueSlider = screen.getByLabelText('Stroke color picker hue');
+
+    fireEvent.change(hueSlider, { target: { value: '90' } });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#80ff00');
+
+    fireEvent.change(hueSlider, { target: { value: '150' } });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#00ff80');
+
+    fireEvent.change(hueSlider, { target: { value: '270' } });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#8000ff');
+
+    fireEvent.change(hueSlider, { target: { value: '330' } });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe('#ff0080');
+  });
+
+  it('ignores color-surface interactions without drag buttons or drawable bounds', async () => {
+    const user = userEvent.setup();
+    useEditorStore.getState().setDrawingColor('#ff0000');
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Stroke' }));
+    const surface = screen.getByLabelText('Stroke color picker surface');
+    const initialColor = useEditorStore.getState().drawingToolState.colorRgbHex;
+
+    Object.defineProperty(surface, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({}),
+      }),
+    });
+
+    fireEvent.pointerMove(surface, { clientX: 80, clientY: 20, buttons: 0 });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe(initialColor);
+
+    fireEvent.pointerDown(surface, { clientX: 80, clientY: 20, buttons: 1 });
+    expect(useEditorStore.getState().drawingToolState.colorRgbHex).toBe(initialColor);
+  });
+
   it('updates opacity and softness sliders', async () => {
     const user = userEvent.setup();
     render(<MapDrawingToolbar />);
@@ -170,5 +240,16 @@ describe('MapDrawingToolbar', () => {
     await user.click(screen.getByRole('button', { name: 'Brush' }));
     expect(sizeSlider.max).toBe('64');
     expect(sizeSlider.value).toBe('40');
+  });
+
+  it('updates the size slider and switches to draw mode', async () => {
+    const user = userEvent.setup();
+    render(<MapDrawingToolbar />);
+
+    await user.click(screen.getByRole('button', { name: 'Brush' }));
+    fireEvent.change(screen.getByLabelText('Drawing tool size'), { target: { value: '28' } });
+
+    expect(useEditorStore.getState().drawingToolState.size).toBe(28);
+    expect(useEditorStore.getState().canvasInteractionMode).toBe('draw');
   });
 });

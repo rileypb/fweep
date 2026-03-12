@@ -53,6 +53,10 @@ function buildBaseDoc(names: readonly string[]): { doc: MapDocument; roomA: Room
 }
 
 describe('computePrettifiedRoomPositions', () => {
+  it('returns no positions for an empty map', () => {
+    expect(computePrettifiedRoomPositions(createEmptyMap('Empty'))).toEqual({});
+  });
+
   it('places a bidirectional north-south connection on the same x-axis with the target above the source', () => {
     const { doc, roomA, roomB } = createTwoWayConnectionDoc();
 

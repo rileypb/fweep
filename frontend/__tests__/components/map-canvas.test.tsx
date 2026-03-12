@@ -228,6 +228,23 @@ describe('MapCanvas', () => {
     expect(screen.getByRole('heading', { name: 'Export PNG' })).toBeInTheDocument();
   });
 
+  it('opens a requested room editor and reports when the request is handled', async () => {
+    const handled = jest.fn<() => void>();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+
+    render(
+      <MapCanvas
+        mapName="Test"
+        requestedRoomEditorId={room.id}
+        onRoomEditorRequestHandled={handled}
+      />,
+    );
+
+    expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+    expect(handled).toHaveBeenCalledTimes(1);
+  });
+
   describe('map panning', () => {
     it('pans the map when shift-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
@@ -910,6 +927,20 @@ describe('MapCanvas', () => {
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
     });
 
+    it('ignores Delete when nothing is selected', () => {
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'Delete' });
+
+      expect(useEditorStore.getState().doc?.rooms[room.id]).toBeDefined();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
     it('moves selection to the nearest room on the right when ArrowRight is pressed', () => {
       const doc = createEmptyMap('Test');
       const origin = { ...createRoom('Origin'), position: { x: 80, y: 120 } };
@@ -1044,6 +1075,34 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(content.style.transform).toBe('translate(370px, -120px)');
       expect(content).toHaveClass('map-canvas-content--animated');
+    });
+
+    it('ignores Enter when more than one room is selected', () => {
+      const { kitchenNode, hallwayNode } = setupTwoRooms();
+      const canvas = screen.getByTestId('map-canvas');
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      fireEvent.mouseDown(hallwayNode, { clientX: 220, clientY: 140, button: 0, shiftKey: true });
+      fireEvent.mouseUp(document, { clientX: 220, clientY: 140, button: 0, shiftKey: true });
+
+      fireEvent.keyDown(canvas, { key: 'Enter' });
+
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('ignores arrow-key navigation when no room is selected', () => {
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'ArrowRight' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
     });
 
     it('draws the selected room outline as a bright red rounded rectangle', () => {
