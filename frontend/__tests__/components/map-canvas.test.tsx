@@ -1162,7 +1162,7 @@ describe('MapCanvas', () => {
       expect(nameInput.selectionEnd).toBe('Kitchen'.length);
     });
 
-    it('applies room name edits immediately', async () => {
+    it('keeps room name edits local until saved', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
@@ -1174,26 +1174,38 @@ describe('MapCanvas', () => {
       await user.type(nameInput, 'Pantry');
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
-      expect(room.name).toBe('Pantry');
+      expect(room.name).toBe('Kitchen');
+      expect(nameInput).toHaveValue('Pantry');
       expect(room.description).toBe('');
       expect(screen.queryByTestId('room-editor-description-input')).not.toBeInTheDocument();
     });
 
-    it('updates the room shape from the room editor', async () => {
+    it('applies room draft edits when saved', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
       await user.click(screen.getByTestId('room-shape-option-diamond'));
+      await user.click(screen.getByTestId('room-fill-color-chip-2'));
+      await user.click(screen.getByTestId('room-stroke-color-chip-4'));
+      await user.selectOptions(screen.getByLabelText('Stroke style'), 'dashed');
+      await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      expect(room.name).toBe('Pantry');
       expect(room.shape).toBe('diamond');
+      expect(room.fillColorIndex).toBe(2);
+      expect(room.strokeColorIndex).toBe(4);
+      expect(room.strokeStyle).toBe('dashed');
       expect(screen.getByTestId('room-node')).toHaveAttribute('data-room-shape', 'diamond');
-      expect(screen.getByTestId('room-editor-room-node')).toHaveAttribute('data-room-shape', 'diamond');
       expect(screen.getByTestId('room-node').querySelector('polygon.room-node-shape')).not.toBeNull();
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
     });
 
-    it('updates room style options from the room editor', async () => {
+    it('previews room style options in the room editor without applying them immediately', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
@@ -1208,14 +1220,14 @@ describe('MapCanvas', () => {
       await user.selectOptions(strokeStyleInput, 'dashed');
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
-      expect(room.fillColorIndex).toBe(2);
-      expect(room.strokeColorIndex).toBe(4);
-      expect(room.strokeStyle).toBe('dashed');
+      expect(room.fillColorIndex).toBe(0);
+      expect(room.strokeColorIndex).toBe(0);
+      expect(room.strokeStyle).toBe('solid');
 
       const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
       const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
 
-      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
+      expect(canvasShape).not.toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
       expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
     });
 
@@ -1228,72 +1240,89 @@ describe('MapCanvas', () => {
       await user.click(screen.getByTestId('room-stroke-color-chip-4'));
 
       const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
-      expect(canvasShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534' });
+      const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
+      expect(canvasShape).toHaveStyle({ fill: '#ffffff', stroke: '#6366f1' });
+      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534' });
 
       document.documentElement.setAttribute('data-theme', 'dark');
 
       await waitFor(() => {
-        expect(canvasShape).toHaveStyle({ fill: '#854d0e', stroke: '#86efac' });
+        expect(editorShape).toHaveStyle({ fill: '#854d0e', stroke: '#86efac' });
       });
     });
 
-    it('pressing Enter in the room name field moves focus to the first shape option', async () => {
+    it('pressing Enter in the room name field saves and closes the room editor', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
 
       const nameInput = screen.getByTestId('room-editor-name-input');
-      const shapeOption = screen.getByTestId('room-shape-option-rectangle');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
+      fireEvent.keyDown(nameInput, { key: 'Enter' });
 
-      await user.click(nameInput);
-      await user.keyboard('{Enter}');
-
-      expect(document.activeElement).toBe(shapeOption);
-      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Pantry');
     });
 
-    it('closes the room editor on Escape', async () => {
+    it('cancels the room editor on Escape', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
       await user.keyboard('{Escape}');
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Kitchen');
     });
 
-    it('closes the room editor on Escape even when another control is focused', async () => {
+    it('cancels the room editor on Escape even when another control is focused', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
       const strokeStyleInput = screen.getByLabelText('Stroke style');
       strokeStyleInput.focus();
 
       await user.keyboard('{Escape}');
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Kitchen');
     });
 
-    it('closes the room editor from the close button', async () => {
+    it('cancels the room editor from the cancel button', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
-      await user.click(screen.getByRole('button', { name: /close room editor/i }));
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
+      await user.click(screen.getByRole('button', { name: /cancel room editor/i }));
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Kitchen');
     });
 
-    it('closes the room editor when clicking the backdrop', async () => {
+    it('cancels the room editor when clicking the backdrop', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
       await user.dblClick(roomNode);
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      await user.clear(nameInput);
+      await user.type(nameInput, 'Pantry');
       await user.click(screen.getByTestId('room-editor-overlay').querySelector('.room-editor-backdrop') as HTMLElement);
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Kitchen');
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([]);
     });

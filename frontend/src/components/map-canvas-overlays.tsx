@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import {
   CONNECTION_ANNOTATION_KINDS,
@@ -240,16 +240,38 @@ export function RoomEditorOverlay({
   onBackdropClose,
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => s.doc?.rooms[roomId] ?? null);
-  const renameRoom = useEditorStore((s) => s.renameRoom);
-  const setRoomShape = useEditorStore((s) => s.setRoomShape);
-  const setRoomStyle = useEditorStore((s) => s.setRoomStyle);
+  const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const firstShapeOptionRef = useRef<HTMLButtonElement>(null);
+  const [draft, setDraft] = useState(() => (
+    room === null
+      ? null
+      : {
+        name: room.name,
+        shape: room.shape,
+        fillColorIndex: room.fillColorIndex,
+        strokeColorIndex: room.strokeColorIndex,
+        strokeStyle: room.strokeStyle,
+      }
+  ));
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         event.preventDefault();
+        onBackdropClose();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const target = event.target;
+        if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
+          return;
+        }
+
+        event.preventDefault();
+        if (room !== null && draft !== null) {
+          applyRoomEditorDraft(room.id, draft);
+        }
         onClose();
       }
     }
@@ -258,7 +280,7 @@ export function RoomEditorOverlay({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [applyRoomEditorDraft, draft, onBackdropClose, onClose, room]);
 
   useEffect(() => {
     if (nameInputRef.current) {
@@ -267,18 +289,34 @@ export function RoomEditorOverlay({
     }
   }, []);
 
-  const handleNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      firstShapeOptionRef.current?.focus();
+  useEffect(() => {
+    if (room === null) {
+      setDraft(null);
+      return;
     }
-  }, []);
 
-  if (!room) {
+    setDraft({
+      name: room.name,
+      shape: room.shape,
+      fillColorIndex: room.fillColorIndex,
+      strokeColorIndex: room.strokeColorIndex,
+      strokeStyle: room.strokeStyle,
+    });
+  }, [room]);
+
+  if (!room || !draft) {
     return null;
   }
 
-  const roomGeometry = getRoomScreenGeometry(room, panOffset, canvasRect);
+  const draftRoom = {
+    ...room,
+    name: draft.name,
+    shape: draft.shape,
+    fillColorIndex: draft.fillColorIndex,
+    strokeColorIndex: draft.strokeColorIndex,
+    strokeStyle: draft.strokeStyle,
+  };
+  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect);
 
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
@@ -286,7 +324,7 @@ export function RoomEditorOverlay({
       <div
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"
-        data-room-shape={room.shape}
+        data-room-shape={draft.shape}
         style={{
           transform: `translate(${roomGeometry.centerX}px, ${roomGeometry.top}px) translateX(-50%)`,
           width: `${roomGeometry.width}px`,
@@ -299,7 +337,7 @@ export function RoomEditorOverlay({
           width={roomGeometry.width}
           height={roomGeometry.height}
         >
-          {renderRoomShape(room.shape, roomGeometry.width, roomGeometry.height, room, theme)}
+          {renderRoomShape(draft.shape, roomGeometry.width, roomGeometry.height, draftRoom, theme)}
         </svg>
         <input
           ref={nameInputRef}
@@ -307,27 +345,22 @@ export function RoomEditorOverlay({
           data-testid="room-editor-name-input"
           type="text"
           aria-label="Room name"
-          value={room.name}
-          onChange={(e) => renameRoom(room.id, e.target.value, { historyMergeKey: `room:${room.id}:name` })}
-          onKeyDown={handleNameKeyDown}
+          value={draft.name}
+          onChange={(e) => setDraft((current) => current === null ? current : { ...current, name: e.target.value })}
         />
       </div>
-      <div
+      <form
         className="room-editor-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Room editor"
         data-testid="room-editor-dialog"
+        onSubmit={(event) => {
+          event.preventDefault();
+          applyRoomEditorDraft(room.id, draft);
+          onClose();
+        }}
       >
-        <button
-          className="room-editor-close"
-          type="button"
-          aria-label="Close room editor"
-          onClick={onClose}
-        >
-          ×
-        </button>
-
         <div className="room-editor-content">
           <aside className="room-editor-sidebar">
             <div className="room-editor-field">
@@ -335,8 +368,8 @@ export function RoomEditorOverlay({
               <ColorChipGroup
                 label="Fill color"
                 options={ROOM_FILL_PALETTE}
-                selectedIndex={room.fillColorIndex}
-                onSelect={(fillColorIndex) => setRoomStyle(room.id, { fillColorIndex })}
+                selectedIndex={draft.fillColorIndex}
+                onSelect={(fillColorIndex) => setDraft((current) => current === null ? current : { ...current, fillColorIndex })}
                 testIdPrefix="room-fill-color-chip"
               />
             </div>
@@ -346,8 +379,8 @@ export function RoomEditorOverlay({
               <ColorChipGroup
                 label="Stroke color"
                 options={ROOM_STROKE_PALETTE}
-                selectedIndex={room.strokeColorIndex}
-                onSelect={(strokeColorIndex) => setRoomStyle(room.id, { strokeColorIndex })}
+                selectedIndex={draft.strokeColorIndex}
+                onSelect={(strokeColorIndex) => setDraft((current) => current === null ? current : { ...current, strokeColorIndex })}
                 testIdPrefix="room-stroke-color-chip"
               />
             </div>
@@ -360,8 +393,8 @@ export function RoomEditorOverlay({
                 id="room-editor-stroke-style-input"
                 className="room-editor-input"
                 aria-label="Stroke style"
-                value={room.strokeStyle}
-                onChange={(e) => setRoomStyle(room.id, { strokeStyle: e.target.value as RoomStrokeStyle })}
+                value={draft.strokeStyle}
+                onChange={(e) => setDraft((current) => current === null ? current : { ...current, strokeStyle: e.target.value as RoomStrokeStyle })}
               >
                 {ROOM_STROKE_STYLES.map((strokeStyle) => (
                   <option key={strokeStyle} value={strokeStyle}>
@@ -376,28 +409,45 @@ export function RoomEditorOverlay({
             <div className="room-editor-field">
               <span className="room-editor-label">Shape</span>
               <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
-                {ROOM_SHAPES.map((shape, index) => (
+                {ROOM_SHAPES.map((shape) => (
                   <button
                     key={shape}
-                    ref={index === 0 ? firstShapeOptionRef : undefined}
                     type="button"
                     role="radio"
-                    aria-checked={room.shape === shape}
-                    className={`room-shape-option${room.shape === shape ? ' room-shape-option--selected' : ''}`}
+                    aria-checked={draft.shape === shape}
+                    className={`room-shape-option${draft.shape === shape ? ' room-shape-option--selected' : ''}`}
                     data-testid={`room-shape-option-${shape}`}
-                    onClick={() => setRoomShape(room.id, shape)}
+                    onClick={() => setDraft((current) => current === null ? current : { ...current, shape })}
                   >
                     <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
-                      {renderRoomShape(shape, 44, 28, room, theme)}
+                      {renderRoomShape(shape, 44, 28, draftRoom, theme)}
                     </svg>
                     <span>{shape}</span>
                   </button>
                 ))}
               </div>
             </div>
+
+            <div className="room-editor-actions">
+              <button
+                type="button"
+                className="room-editor-secondary"
+                aria-label="Cancel room editor"
+                onClick={onBackdropClose}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="room-editor-primary"
+                aria-label="Save room editor"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

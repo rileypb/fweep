@@ -261,6 +261,18 @@ export interface EditorState {
     },
   ) => void;
 
+  /** Apply a room editor draft in a single history step. */
+  applyRoomEditorDraft: (
+    roomId: string,
+    draft: {
+      name: string;
+      shape: RoomShape;
+      fillColorIndex: number;
+      strokeColorIndex: number;
+      strokeStyle: RoomStrokeStyle;
+    },
+  ) => void;
+
   /** Update an existing connection's visual styling. */
   setConnectionStyle: (
     connectionId: string,
@@ -955,6 +967,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set room style: no document is loaded.');
     }
     const updatedDoc = domainSetRoomStyle(doc, roomId, style);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  applyRoomEditorDraft: (roomId, draft) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot apply room editor draft: no document is loaded.');
+    }
+
+    let updatedDoc = doc;
+    updatedDoc = domainRenameRoom(updatedDoc, roomId, draft.name);
+    updatedDoc = domainSetRoomShape(updatedDoc, roomId, draft.shape);
+    updatedDoc = domainSetRoomStyle(updatedDoc, roomId, {
+      fillColorIndex: draft.fillColorIndex,
+      strokeColorIndex: draft.strokeColorIndex,
+      strokeStyle: draft.strokeStyle,
+    });
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
