@@ -3,7 +3,7 @@ import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
-import { parseCliCommand, parseCliCommandDescription } from './domain/cli-command';
+import { parseCliCommand, parseCliCommandDescription, type CliCommand } from './domain/cli-command';
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
@@ -152,6 +152,36 @@ function parseHelpMarkdown(markdown: string): { title: string; sections: HelpSec
 }
 
 const HELP_CONTENT = parseHelpMarkdown(helpMarkdown);
+const MAX_GAME_OUTPUT_LINES = 20;
+
+function formatCliError(error: CliError): string {
+  return [error.message, error.detail, error.suggestion].filter((part): part is string => part !== null).join(' ');
+}
+
+function formatCliEcho(input: string): string {
+  return `>${input}`;
+}
+
+function describeCliOutcome(command: CliCommand): string {
+  switch (command.kind) {
+    case 'create':
+      return 'created.';
+    case 'delete':
+      return 'deleted.';
+    case 'edit':
+      return 'edited.';
+    case 'show':
+      return 'shown.';
+    case 'connect':
+      return 'connected.';
+    case 'create-and-connect':
+      return 'created and connected.';
+    case 'undo':
+      return 'undid.';
+    case 'redo':
+      return 'redid.';
+  }
+}
 
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
@@ -173,9 +203,11 @@ export function App(): React.JSX.Element {
   const redo = useEditorStore((s) => s.redo);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
+  const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
-  const [cliError, setCliError] = useState<CliError | null>(null);
+  const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
+  const [gameOutputLayout, setGameOutputLayout] = useState<{ left: number; bottom: number; width: number } | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
   const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
 
@@ -220,13 +252,60 @@ export function App(): React.JSX.Element {
     };
   }, [isHelpOpen]);
 
-  const reportCliError = (error: CliError) => {
-    setCliError(error);
+  useEffect(() => {
+    const updateGameOutputLayout = () => {
+      if (cliInputRef.current === null) {
+        return;
+      }
+
+      const rect = cliInputRef.current.getBoundingClientRect();
+      setGameOutputLayout({
+        left: rect.left,
+        bottom: window.innerHeight - rect.top,
+        width: rect.width,
+      });
+    };
+
+    updateGameOutputLayout();
+    window.addEventListener('resize', updateGameOutputLayout);
+    return () => {
+      window.removeEventListener('resize', updateGameOutputLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gameOutputRef.current === null) {
+      return;
+    }
+
+    gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
+  }, [gameOutputLines]);
+
+  const appendGameOutput = (lines: readonly string[]) => {
+    setGameOutputLines((previousLines) => [...previousLines, ...lines, ''].slice(-MAX_GAME_OUTPUT_LINES));
+  };
+
+  const reportCliError = (submittedInput: string, error: CliError) => {
+    appendGameOutput([formatCliEcho(submittedInput), formatCliError(error)]);
     cliInputRef.current?.select();
   };
 
   return (
     <main className="app-shell">
+      <textarea
+        id="app-game-output"
+        className="app-game-output"
+        aria-label="Game output"
+        readOnly
+        rows={20}
+        ref={gameOutputRef}
+        value={gameOutputLines.join('\n')}
+        style={gameOutputLayout === null ? undefined : {
+          left: `${gameOutputLayout.left}px`,
+          bottom: `${gameOutputLayout.bottom}px`,
+          width: `${gameOutputLayout.width}px`,
+        }}
+      />
       <div className="app-cli-bar">
         <h1 className="app-title">fweep</h1>
         <form
@@ -234,9 +313,10 @@ export function App(): React.JSX.Element {
           onSubmit={(event) => {
             event.preventDefault();
             let shouldSelectCliInput = true;
-            const command = parseCliCommand(cliCommand);
+            const submittedInput = cliCommand;
+            const command = parseCliCommand(submittedInput);
             if (command === null) {
-              reportCliError(createParseCliError());
+              reportCliError(submittedInput, createParseCliError());
               return;
             }
 
@@ -253,64 +333,64 @@ export function App(): React.JSX.Element {
                 x: (window.innerWidth / 2) - plan.position.x,
                 y: (window.innerHeight / 2) - plan.position.y,
               });
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'delete' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.roomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('delete', command.roomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('delete', command.roomName));
                 return;
               }
               removeRoom(roomMatch.room.id);
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'edit' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.roomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('edit', command.roomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('edit', command.roomName));
                 return;
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomEditorId(roomMatch.room.id);
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               shouldSelectCliInput = false;
             } else if (command.kind === 'show' && storeDoc !== null) {
               const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
               if (roomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.roomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
                 return;
               }
               if (roomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('show', command.roomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('show', command.roomName));
                 return;
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomRevealId(roomMatch.room.id);
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
               if (sourceRoomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.sourceRoomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.sourceRoomName));
                 return;
               }
               if (sourceRoomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('connect', command.sourceRoomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.sourceRoomName));
                 return;
               }
 
               const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
               if (targetRoomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.targetRoomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
                 return;
               }
               if (targetRoomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('connect', command.targetRoomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.targetRoomName));
                 return;
               }
 
@@ -323,15 +403,15 @@ export function App(): React.JSX.Element {
                   targetDirection: command.targetDirection,
                 },
               );
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
               const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
               if (targetRoomMatch.kind === 'none') {
-                reportCliError(createUnknownRoomCliError(command.targetRoomName));
+                reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
                 return;
               }
               if (targetRoomMatch.kind === 'multiple') {
-                reportCliError(createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
+                reportCliError(submittedInput, createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
                 return;
               }
 
@@ -360,21 +440,20 @@ export function App(): React.JSX.Element {
                   y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
                 });
               }
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'undo') {
               undo();
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'redo') {
               redo();
-              setCliError(null);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else {
-              const description = parseCliCommandDescription(cliCommand);
+              const description = parseCliCommandDescription(submittedInput);
               if (description === null) {
-                reportCliError(createParseCliError());
+                reportCliError(submittedInput, createParseCliError());
                 return;
               }
-              setCliError(null);
-              console.log(description);
+              appendGameOutput([formatCliEcho(submittedInput), description]);
             }
             if (shouldSelectCliInput) {
               cliInputRef.current?.select();
@@ -393,21 +472,9 @@ export function App(): React.JSX.Element {
             ref={cliInputRef}
             value={cliCommand}
             onChange={(event) => {
-              setCliError(null);
               setCliCommand(event.target.value);
             }}
           />
-          {cliError !== null && (
-            <p className="app-cli-error" role="alert">
-              <span className="app-cli-error-message">{cliError.message}</span>
-              {cliError.detail !== null && (
-                <span className="app-cli-error-detail">{cliError.detail}</span>
-              )}
-              {cliError.suggestion !== null && (
-                <span className="app-cli-error-suggestion">{cliError.suggestion}</span>
-              )}
-            </p>
-          )}
         </form>
       </div>
       <div className="app-controls app-controls--settings">

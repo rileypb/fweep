@@ -11,6 +11,17 @@ function navigateTo(hashRoute: string) {
   window.history.pushState({}, '', hashRoute);
 }
 
+function getGameOutputBox(): HTMLTextAreaElement {
+  return screen.getByRole('textbox', { name: /game output/i }) as HTMLTextAreaElement;
+}
+
+function expectGameOutputToContain(...fragments: readonly string[]) {
+  const value = getGameOutputBox().value;
+  for (const fragment of fragments) {
+    expect(value).toContain(fragment);
+  }
+}
+
 beforeEach(() => {
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
@@ -33,19 +44,18 @@ describe('URL routing', () => {
 
   it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<App />);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'connect Kitchen east to Hallway{enter}');
 
-    expect(logSpy).toHaveBeenCalledWith('create a two-way connection from Kitchen going east to Hallway going west');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expectGameOutputToContain(
+      'connect Kitchen east to Hallway',
+      'create a two-way connection from Kitchen going east to Hallway going west',
+    );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('creates, selects, and centers a room for the create CLI command', async () => {
@@ -55,7 +65,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<App />);
     await screen.findByText(/cli map/i);
@@ -73,12 +82,9 @@ describe('URL routing', () => {
       x: (window.innerWidth / 2) - rooms[0].position.x,
       y: (window.innerHeight / 2) - rooms[0].position.y,
     });
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expectGameOutputToContain('create Kitchen', 'created');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('deletes a room for the delete CLI command', async () => {
@@ -107,7 +113,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<App />);
     await screen.findByText(/cli delete map/i);
@@ -117,12 +122,9 @@ describe('URL routing', () => {
 
     const state = useEditorStore.getState();
     expect(Object.values(state.doc?.rooms ?? {})).toHaveLength(0);
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expectGameOutputToContain('delete kitchen', 'deleted');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('reports an unknown room for delete when no matching room exists', async () => {
@@ -132,7 +134,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<App />);
     await screen.findByText(/cli delete error map/i);
@@ -140,13 +141,13 @@ describe('URL routing', () => {
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'delete kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
-    expect(screen.getByRole('alert')).toHaveTextContent('No room with that name exists in the current map.');
+    expectGameOutputToContain(
+      'delete kitchen',
+      'Unknown room "kitchen".',
+      'No room with that name exists in the current map.',
+    );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('reports an error for delete when multiple rooms have the same name', async () => {
@@ -187,7 +188,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<App />);
     await screen.findByText(/cli duplicate delete map/i);
@@ -195,14 +195,14 @@ describe('URL routing', () => {
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'delete kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
-    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to delete.');
+    expectGameOutputToContain(
+      'delete kitchen',
+      'Multiple rooms are named "kitchen".',
+      'The CLI cannot tell which one you want to delete.',
+    );
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('opens the room editor for the edit CLI command', async () => {
@@ -230,8 +230,6 @@ describe('URL routing', () => {
 
     navigateTo(`#/map/${doc.metadata.id}`);
 
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     try {
       render(<App />);
       await screen.findByText(/cli edit map/i);
@@ -250,11 +248,9 @@ describe('URL routing', () => {
       expect(roomNameInput).toHaveValue('Kitchen');
       expect(roomNameInput).toHaveFocus();
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
-      expect(logSpy).not.toHaveBeenCalled();
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expectGameOutputToContain('edit kitchen', 'edited');
       expect(input).not.toHaveFocus();
     } finally {
-      logSpy.mockRestore();
       await act(async () => {
         jest.runOnlyPendingTimers();
       });
@@ -287,8 +283,6 @@ describe('URL routing', () => {
 
     navigateTo(`#/map/${doc.metadata.id}`);
 
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     try {
       render(<App />);
       await screen.findByText(/cli show map/i);
@@ -317,12 +311,10 @@ describe('URL routing', () => {
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
       expect(screen.getByTestId('map-canvas-content').style.transform).not.toBe('translate(0px, 0px)');
-      expect(logSpy).not.toHaveBeenCalled();
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expectGameOutputToContain('show kitchen', 'shown');
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(input.value.length);
     } finally {
-      logSpy.mockRestore();
       await act(async () => {
         jest.runOnlyPendingTimers();
       });
@@ -337,21 +329,16 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli edit error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'edit kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
+    expectGameOutputToContain('edit kitchen', 'Unknown room "kitchen".');
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('reports an unknown room for show when no matching room exists', async () => {
@@ -361,20 +348,15 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli show error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'show kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
+    expectGameOutputToContain('show kitchen', 'Unknown room "kitchen".');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('reports an error for edit when multiple rooms have the same name', async () => {
@@ -415,23 +397,21 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli duplicate edit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'edit kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
-    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to edit.');
+    expectGameOutputToContain(
+      'edit kitchen',
+      'Multiple rooms are named "kitchen".',
+      'The CLI cannot tell which one you want to edit.',
+    );
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('reports an error for show when multiple rooms have the same name', async () => {
@@ -472,22 +452,20 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli duplicate show map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'show kitchen{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
-    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to show.');
+    expectGameOutputToContain(
+      'show kitchen',
+      'Multiple rooms are named "kitchen".',
+      'The CLI cannot tell which one you want to show.',
+    );
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-
-    logSpy.mockRestore();
   });
 
   it('creates and selects a one-way connection for the connect CLI command', async () => {
@@ -528,8 +506,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli connect map/i);
 
@@ -547,10 +523,7 @@ describe('URL routing', () => {
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.west).toBeUndefined();
     expect(state.selectedConnectionIds).toEqual([connections[0].id]);
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-
-    logSpy.mockRestore();
+    expectGameOutputToContain('connect kitchen east one-way to hallway', 'connected');
   });
 
   it('creates a two-way connection and default reverse direction for the connect CLI command', async () => {
@@ -701,18 +674,13 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli connect error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "hallway".');
-
-    logSpy.mockRestore();
+    expectGameOutputToContain('connect kitchen east to hallway', 'Unknown room "hallway".');
   });
 
   it('reports an ambiguity error for connect when a room name matches multiple rooms', async () => {
@@ -766,19 +734,17 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli connect ambiguous map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
-    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to connect.');
-
-    logSpy.mockRestore();
+    expectGameOutputToContain(
+      'connect kitchen east to hallway',
+      'Multiple rooms are named "kitchen".',
+      'The CLI cannot tell which one you want to connect.',
+    );
   });
 
   it('supports self-loop connections', async () => {
@@ -910,8 +876,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli create connect map/i);
 
@@ -933,16 +897,14 @@ describe('URL routing', () => {
     });
     expect(state.selectedRoomIds).toEqual(expect.arrayContaining([createdRoom?.id, 'hallway']));
     expect(state.selectedConnectionIds).toEqual([connections[0].id]);
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expectGameOutputToContain('create and connect Kitchen east to Hallway', 'created and connected');
 
     await user.clear(input);
     await user.type(input, 'undo{enter}');
 
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
     expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
-
-    logSpy.mockRestore();
+    expectGameOutputToContain('undo', 'undid');
   });
 
   it('supports relative create-and-connect syntax', async () => {
@@ -1094,20 +1056,18 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli create connect error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "Hallway".');
+    expectGameOutputToContain(
+      'create and connect Kitchen east to Hallway',
+      'Unknown room "Hallway".',
+    );
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
     expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
-
-    logSpy.mockRestore();
   });
 
   it('undoes the previous command for the undo CLI command', async () => {
@@ -1117,8 +1077,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli undo map/i);
 
@@ -1129,10 +1087,7 @@ describe('URL routing', () => {
     fireEvent.change(input, { target: { value: 'undo' } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-
-    logSpy.mockRestore();
+    expectGameOutputToContain('create Kitchen', 'created', 'undo', 'undid');
   });
 
   it('redoes the previous undone command for the redo CLI command', async () => {
@@ -1142,8 +1097,6 @@ describe('URL routing', () => {
     navigateTo(`#/map/${doc.metadata.id}`);
 
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
     await screen.findByText(/cli redo map/i);
 
@@ -1157,29 +1110,50 @@ describe('URL routing', () => {
     await user.type(input, 'redo{enter}');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})[0]?.name).toBe('Kitchen');
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-
-    logSpy.mockRestore();
+    expectGameOutputToContain('redo', 'redid');
   });
 
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
     render(<App />);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     await user.type(input, 'create{enter}');
 
-    expect(logSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent("I didn't understand you.");
-    expect(screen.getByRole('alert')).toHaveTextContent('The command does not match any supported CLI syntax.');
+    expectGameOutputToContain(
+      'create',
+      "I didn't understand you.",
+      'The command does not match any supported CLI syntax.',
+    );
 
     await user.type(input, 'x');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expectGameOutputToContain(
+      'create',
+      "I didn't understand you.",
+      'The command does not match any supported CLI syntax.',
+    );
+  });
 
-    logSpy.mockRestore();
+  it('caps the game output box at the most recent 20 lines', () => {
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const form = input.closest('form') as HTMLFormElement;
+
+    for (let index = 1; index <= 7; index += 1) {
+      fireEvent.change(input, { target: { value: `blorb room ${index}` } });
+      fireEvent.submit(form);
+    }
+
+    const outputLines = getGameOutputBox().value.split('\n');
+    expect(outputLines).toHaveLength(20);
+    expect(outputLines[0]).toBe("I didn't understand you. The command does not match any supported CLI syntax. Check the wording and try again. For example: `create kitchen`.");
+    expect(outputLines[1]).toBe('');
+    expect(outputLines[2]).toBe('>blorb room 2');
+    expect(outputLines).not.toContain('>blorb room 1');
+    expect(outputLines[17]).toBe('>blorb room 7');
+    expect(outputLines[18]).toContain("I didn't understand you.");
+    expect(outputLines[19]).toBe('');
   });
 
   it('opens and closes the help dialog', async () => {
