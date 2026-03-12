@@ -214,13 +214,10 @@ export function App(): React.JSX.Element {
   const redo = useEditorStore((s) => s.redo);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
-  const cliInputShellRef = useRef<HTMLDivElement | null>(null);
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
-  const [gameOutputLayout, setGameOutputLayout] = useState<{ left: number; bottom: number; width: number } | null>(null);
-  const [cliStackLayout, setCliStackLayout] = useState<{ left: number; bottom: number; width: number; height: number } | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
   const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
 
@@ -266,35 +263,6 @@ export function App(): React.JSX.Element {
   }, [isHelpOpen]);
 
   useEffect(() => {
-    const updateCliLayouts = () => {
-      if (cliInputShellRef.current === null || gameOutputRef.current === null) {
-        return;
-      }
-
-      const inputRect = cliInputShellRef.current.getBoundingClientRect();
-      const outputRect = gameOutputRef.current.getBoundingClientRect();
-      setGameOutputLayout({
-        left: inputRect.left,
-        bottom: window.innerHeight - inputRect.top,
-        width: inputRect.width,
-      });
-      setCliStackLayout({
-        left: Math.min(outputRect.left, inputRect.left),
-        bottom: window.innerHeight - Math.max(outputRect.bottom, inputRect.bottom),
-        width: Math.max(outputRect.right, inputRect.right) - Math.min(outputRect.left, inputRect.left),
-        height: Math.max(outputRect.bottom, inputRect.bottom) - Math.min(outputRect.top, inputRect.top),
-      });
-    };
-
-    const rafId = window.requestAnimationFrame(updateCliLayouts);
-    window.addEventListener('resize', updateCliLayouts);
-    return () => {
-      window.cancelAnimationFrame(rafId);
-      window.removeEventListener('resize', updateCliLayouts);
-    };
-  }, [gameOutputLines]);
-
-  useEffect(() => {
     if (gameOutputRef.current === null) {
       return;
     }
@@ -313,228 +281,214 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="app-shell">
-      {cliStackLayout !== null && (
-        <div
-          aria-hidden="true"
-          className="app-cli-stack-border"
-          style={{
-            left: `${cliStackLayout.left}px`,
-            bottom: `${cliStackLayout.bottom}px`,
-            width: `${cliStackLayout.width}px`,
-            height: `${cliStackLayout.height}px`,
-          }}
+      <div className="app-cli-stack">
+        <textarea
+          id="app-game-output"
+          className="app-game-output"
+          aria-label="Game output"
+          readOnly
+          rows={20}
+          ref={gameOutputRef}
+          value={gameOutputLines.join('\n')}
         />
-      )}
-      <textarea
-        id="app-game-output"
-        className="app-game-output"
-        aria-label="Game output"
-        readOnly
-        rows={20}
-        ref={gameOutputRef}
-        value={gameOutputLines.join('\n')}
-        style={gameOutputLayout === null ? undefined : {
-          left: `${gameOutputLayout.left}px`,
-          bottom: `${gameOutputLayout.bottom}px`,
-          width: `${gameOutputLayout.width}px`,
-        }}
-      />
-      <div className="app-cli-bar">
-        <form
-          className="app-cli-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            let shouldSelectCliInput = true;
-            const submittedInput = cliCommand;
-            const command = parseCliCommand(submittedInput);
-            if (command === null) {
-              reportCliError(submittedInput, createParseCliError());
-              return;
-            }
-
-            if (command.kind === 'help') {
-              appendGameOutput([formatCliEcho(submittedInput), ...CLI_COMMAND_FORMS]);
-            } else if (command.kind === 'create' && storeDoc !== null) {
-              const plan = planCreateRoomFromCli(
-                storeDoc,
-                command.roomName,
-                { width: window.innerWidth, height: window.innerHeight },
-                mapPanOffset,
-              );
-              const roomId = addRoomAtPosition(plan.roomName, plan.position);
-              selectRoom(roomId);
-              setMapPanOffset({
-                x: (window.innerWidth / 2) - plan.position.x,
-                y: (window.innerHeight / 2) - plan.position.y,
-              });
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'delete' && storeDoc !== null) {
-              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-              if (roomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
-                return;
-              }
-              if (roomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('delete', command.roomName));
-                return;
-              }
-              removeRoom(roomMatch.room.id);
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'edit' && storeDoc !== null) {
-              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-              if (roomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
-                return;
-              }
-              if (roomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('edit', command.roomName));
-                return;
-              }
-              selectRoom(roomMatch.room.id);
-              setRequestedRoomEditorId(roomMatch.room.id);
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              shouldSelectCliInput = false;
-            } else if (command.kind === 'show' && storeDoc !== null) {
-              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-              if (roomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
-                return;
-              }
-              if (roomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('show', command.roomName));
-                return;
-              }
-              selectRoom(roomMatch.room.id);
-              setRequestedRoomRevealId(roomMatch.room.id);
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'notate' && storeDoc !== null) {
-              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
-              if (roomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
-                return;
-              }
-              if (roomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('notate', command.roomName));
-                return;
-              }
-              addStickyNoteForRoom(roomMatch.room.id, command.noteText);
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'connect' && storeDoc !== null) {
-              const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
-              if (sourceRoomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.sourceRoomName));
-                return;
-              }
-              if (sourceRoomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.sourceRoomName));
-                return;
-              }
-
-              const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
-              if (targetRoomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
-                return;
-              }
-              if (targetRoomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.targetRoomName));
-                return;
-              }
-
-              connectRooms(
-                sourceRoomMatch.room.id,
-                command.sourceDirection,
-                targetRoomMatch.room.id,
-                {
-                  oneWay: command.oneWay,
-                  targetDirection: command.targetDirection,
-                },
-              );
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
-              const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
-              if (targetRoomMatch.kind === 'none') {
-                reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
-                return;
-              }
-              if (targetRoomMatch.kind === 'multiple') {
-                reportCliError(submittedInput, createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
-                return;
-              }
-
-              const plan = planCreateRoomFromCli(
-                storeDoc,
-                command.sourceRoomName,
-                { width: window.innerWidth, height: window.innerHeight },
-                mapPanOffset,
-              );
-              const result = createRoomAndConnect(
-                plan.roomName,
-                plan.position,
-                targetRoomMatch.room.id,
-                {
-                  sourceDirection: command.sourceDirection,
-                  oneWay: command.oneWay,
-                  targetDirection: command.targetDirection,
-                },
-              );
-              const nextDoc = useEditorStore.getState().doc;
-              const createdRoom = nextDoc?.rooms[result.roomId];
-              const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
-              if (createdRoom && targetRoom) {
-                setMapPanOffset({
-                  x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
-                  y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
-                });
-              }
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'undo') {
-              if (!canUndo) {
-                appendGameOutput([formatCliEcho(submittedInput), 'Nothing to undo.']);
-                cliInputRef.current?.select();
-                return;
-              }
-              undo();
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else if (command.kind === 'redo') {
-              if (!canRedo) {
-                appendGameOutput([formatCliEcho(submittedInput), 'Nothing to redo.']);
-                cliInputRef.current?.select();
-                return;
-              }
-              redo();
-              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-            } else {
-              const description = parseCliCommandDescription(submittedInput);
-              if (description === null) {
+        <div className="app-cli-bar">
+          <form
+            className="app-cli-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              let shouldSelectCliInput = true;
+              const submittedInput = cliCommand;
+              const command = parseCliCommand(submittedInput);
+              if (command === null) {
                 reportCliError(submittedInput, createParseCliError());
                 return;
               }
-              appendGameOutput([formatCliEcho(submittedInput), description]);
-            }
-            if (shouldSelectCliInput) {
-              cliInputRef.current?.select();
-            }
-          }}
-        >
-          <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
-          <div ref={cliInputShellRef} className="app-cli-input-shell">
-            <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
-            <input
-              id="app-cli-input"
-              className="app-cli-input"
-              type="text"
-              name="cli-command"
-              placeholder="Enter a command"
-              autoComplete="off"
-              spellCheck={false}
-              ref={cliInputRef}
-              value={cliCommand}
-              onChange={(event) => {
-                setCliCommand(event.target.value);
-              }}
-            />
-          </div>
-        </form>
+
+              if (command.kind === 'help') {
+                appendGameOutput([formatCliEcho(submittedInput), ...CLI_COMMAND_FORMS]);
+              } else if (command.kind === 'create' && storeDoc !== null) {
+                const plan = planCreateRoomFromCli(
+                  storeDoc,
+                  command.roomName,
+                  { width: window.innerWidth, height: window.innerHeight },
+                  mapPanOffset,
+                );
+                const roomId = addRoomAtPosition(plan.roomName, plan.position);
+                selectRoom(roomId);
+                setMapPanOffset({
+                  x: (window.innerWidth / 2) - plan.position.x,
+                  y: (window.innerHeight / 2) - plan.position.y,
+                });
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'delete' && storeDoc !== null) {
+                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+                if (roomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                  return;
+                }
+                if (roomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('delete', command.roomName));
+                  return;
+                }
+                removeRoom(roomMatch.room.id);
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'edit' && storeDoc !== null) {
+                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+                if (roomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                  return;
+                }
+                if (roomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('edit', command.roomName));
+                  return;
+                }
+                selectRoom(roomMatch.room.id);
+                setRequestedRoomEditorId(roomMatch.room.id);
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+                shouldSelectCliInput = false;
+              } else if (command.kind === 'show' && storeDoc !== null) {
+                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+                if (roomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                  return;
+                }
+                if (roomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('show', command.roomName));
+                  return;
+                }
+                selectRoom(roomMatch.room.id);
+                setRequestedRoomRevealId(roomMatch.room.id);
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'notate' && storeDoc !== null) {
+                const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+                if (roomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                  return;
+                }
+                if (roomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('notate', command.roomName));
+                  return;
+                }
+                addStickyNoteForRoom(roomMatch.room.id, command.noteText);
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'connect' && storeDoc !== null) {
+                const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
+                if (sourceRoomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.sourceRoomName));
+                  return;
+                }
+                if (sourceRoomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.sourceRoomName));
+                  return;
+                }
+
+                const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
+                if (targetRoomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
+                  return;
+                }
+                if (targetRoomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('connect', command.targetRoomName));
+                  return;
+                }
+
+                connectRooms(
+                  sourceRoomMatch.room.id,
+                  command.sourceDirection,
+                  targetRoomMatch.room.id,
+                  {
+                    oneWay: command.oneWay,
+                    targetDirection: command.targetDirection,
+                  },
+                );
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
+                const targetRoomMatch = resolveRoomByCliName(storeDoc, command.targetRoomName);
+                if (targetRoomMatch.kind === 'none') {
+                  reportCliError(submittedInput, createUnknownRoomCliError(command.targetRoomName));
+                  return;
+                }
+                if (targetRoomMatch.kind === 'multiple') {
+                  reportCliError(submittedInput, createAmbiguousRoomCliError('create-and-connect', command.targetRoomName));
+                  return;
+                }
+
+                const plan = planCreateRoomFromCli(
+                  storeDoc,
+                  command.sourceRoomName,
+                  { width: window.innerWidth, height: window.innerHeight },
+                  mapPanOffset,
+                );
+                const result = createRoomAndConnect(
+                  plan.roomName,
+                  plan.position,
+                  targetRoomMatch.room.id,
+                  {
+                    sourceDirection: command.sourceDirection,
+                    oneWay: command.oneWay,
+                    targetDirection: command.targetDirection,
+                  },
+                );
+                const nextDoc = useEditorStore.getState().doc;
+                const createdRoom = nextDoc?.rooms[result.roomId];
+                const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
+                if (createdRoom && targetRoom) {
+                  setMapPanOffset({
+                    x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
+                    y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
+                  });
+                }
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'undo') {
+                if (!canUndo) {
+                  appendGameOutput([formatCliEcho(submittedInput), 'Nothing to undo.']);
+                  cliInputRef.current?.select();
+                  return;
+                }
+                undo();
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else if (command.kind === 'redo') {
+                if (!canRedo) {
+                  appendGameOutput([formatCliEcho(submittedInput), 'Nothing to redo.']);
+                  cliInputRef.current?.select();
+                  return;
+                }
+                redo();
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+              } else {
+                const description = parseCliCommandDescription(submittedInput);
+                if (description === null) {
+                  reportCliError(submittedInput, createParseCliError());
+                  return;
+                }
+                appendGameOutput([formatCliEcho(submittedInput), description]);
+              }
+
+              if (shouldSelectCliInput) {
+                cliInputRef.current?.select();
+              }
+            }}
+          >
+            <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
+            <div className="app-cli-input-shell">
+              <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
+              <input
+                id="app-cli-input"
+                className="app-cli-input"
+                type="text"
+                name="cli-command"
+                placeholder="Enter a command"
+                autoComplete="off"
+                spellCheck={false}
+                ref={cliInputRef}
+                value={cliCommand}
+                onChange={(event) => {
+                  setCliCommand(event.target.value);
+                }}
+              />
+            </div>
+          </form>
+        </div>
       </div>
       <div className="app-controls app-controls--settings">
         {activeMap !== null && (

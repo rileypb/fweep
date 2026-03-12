@@ -52,9 +52,22 @@ body {
   background-color: #111827;
 }
 
-.app-game-output {
+.app-cli-stack {
   position: fixed;
+  left: 1rem;
+  bottom: 1rem;
   z-index: 5;
+  width: min(37.5vw, 27rem);
+  max-width: calc(100vw - 2rem);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+}
+
+.app-game-output {
+  position: static;
   pointer-events: auto;
   display: block;
   width: 100%;
@@ -68,14 +81,6 @@ body {
   resize: none;
 }
 
-.app-cli-stack-border {
-  position: fixed;
-  z-index: 4;
-  pointer-events: none;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-radius: 1rem;
-}
-
 .app-game-output:focus {
   outline: none;
 }
@@ -86,14 +91,10 @@ body {
 }
 
 .app-cli-bar {
-  position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  z-index: 6;
+  position: static;
   display: flex;
   align-items: flex-end;
-  width: fit-content;
-  max-width: min(calc(100vw - 2rem), 72rem);
+  width: 100%;
   pointer-events: none;
 }
 
@@ -109,17 +110,14 @@ body {
 
 .app-cli-form {
   pointer-events: auto;
-  flex: 0 1 auto;
-  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  width: 100%;
 }
 
 .app-cli-input-shell {
-  flex: 0 1 min(37.5vw, 27rem);
-  width: min(37.5vw, 27rem);
-  max-width: 100%;
+  flex: 1 1 auto;
+  width: 100%;
   height: calc(var(--app-title-size) * 0.6);
   display: flex;
   align-items: center;
@@ -127,7 +125,6 @@ body {
   padding: 0 0.4em;
   border-radius: 0.8rem;
   background: transparent;
-  transform: translateY(-0.3em);
 }
 
 .app-cli-prompt {
