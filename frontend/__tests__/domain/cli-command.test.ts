@@ -14,6 +14,10 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('edit Kitchen')).toBe('open the room editor for Kitchen');
   });
 
+  it('describes show commands', () => {
+    expect(parseCliCommandDescription('show Kitchen')).toBe('scroll the map to Kitchen');
+  });
+
   it('describes undo and redo commands', () => {
     expect(parseCliCommandDescription('undo')).toBe('undo the previous command');
     expect(parseCliCommandDescription('redo')).toBe('redo the previous command');

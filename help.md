@@ -5,6 +5,7 @@
 - `create <room name>` creates a new room.
 - `delete <room name>` deletes a room with that name.
 - `edit <room name>` opens the room editor for that room.
+- `show <room name>` scrolls that room into view.
 - `connect <room> <direction> to <room>` creates a two-way connection.
 - `connect <room> <direction> to <room> <direction>` creates a two-way connection with an explicit direction on both ends.
 - `connect <room> <direction> one-way to <room>` creates a one-way connection.

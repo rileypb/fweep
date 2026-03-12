@@ -125,6 +125,8 @@ export interface MapCanvasProps {
   onBack?: () => void;
   requestedRoomEditorId?: string | null;
   onRoomEditorRequestHandled?: () => void;
+  requestedRoomRevealId?: string | null;
+  onRoomRevealRequestHandled?: () => void;
 }
 
 export function MapCanvas({
@@ -132,6 +134,8 @@ export function MapCanvas({
   showGrid: initialShowGrid = true,
   requestedRoomEditorId = null,
   onRoomEditorRequestHandled,
+  requestedRoomRevealId = null,
+  onRoomRevealRequestHandled,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorId, setRoomEditorId] = useState<string | null>(null);
@@ -426,6 +430,18 @@ export function MapCanvas({
       y: prev.y + delta.y,
     }));
   }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
+
+  useEffect(() => {
+    if (requestedRoomRevealId === null) {
+      return;
+    }
+
+    const room = useEditorStore.getState().doc?.rooms[requestedRoomRevealId];
+    if (room) {
+      panRoomIntoView(room);
+    }
+    onRoomRevealRequestHandled?.();
+  }, [onRoomRevealRequestHandled, panRoomIntoView, requestedRoomRevealId]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },

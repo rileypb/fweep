@@ -4,6 +4,7 @@ export type CliCommand =
   | { readonly kind: 'create'; readonly roomName: string }
   | { readonly kind: 'delete'; readonly roomName: string }
   | { readonly kind: 'edit'; readonly roomName: string }
+  | { readonly kind: 'show'; readonly roomName: string }
   | {
     readonly kind: 'connect';
     readonly sourceRoomName: string;
@@ -354,6 +355,18 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
+  if (isTokenValue(tokens[0], 'show')) {
+    const roomName = readRoomName(tokens, 1, () => false);
+    if (roomName === null || roomName.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      kind: 'show',
+      roomName: roomName.value,
+    };
+  }
+
   return null;
 }
 
@@ -365,6 +378,8 @@ function describeCliCommand(command: CliCommand): string {
       return `delete the room called ${command.roomName}`;
     case 'edit':
       return `open the room editor for ${command.roomName}`;
+    case 'show':
+      return `scroll the map to ${command.roomName}`;
     case 'undo':
       return 'undo the previous command';
     case 'redo':

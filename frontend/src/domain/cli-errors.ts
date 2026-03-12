@@ -3,7 +3,7 @@ export type CliErrorCode =
   | 'unknown-room'
   | 'ambiguous-room';
 
-export type CliErrorCommandKind = 'delete' | 'edit' | 'connect' | 'create-and-connect' | null;
+export type CliErrorCommandKind = 'delete' | 'edit' | 'show' | 'connect' | 'create-and-connect' | null;
 
 export interface CliError {
   readonly code: CliErrorCode;
@@ -45,11 +45,15 @@ export function createAmbiguousRoomCliError(
     ? 'delete'
     : commandKind === 'edit'
       ? 'edit'
+      : commandKind === 'show'
+        ? 'show'
       : 'connect';
   const suggestion = commandKind === 'delete'
     ? 'Rename one of them first, or delete them directly in the map.'
     : commandKind === 'edit'
       ? 'Rename one of them first, or open the desired room from the map.'
+      : commandKind === 'show'
+        ? 'Rename one of them first, or select the desired room directly in the map.'
       : 'Rename one of them first, or make the connection directly in the map.';
 
   return {

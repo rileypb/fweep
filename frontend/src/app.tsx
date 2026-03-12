@@ -177,6 +177,7 @@ export function App(): React.JSX.Element {
   const [cliCommand, setCliCommand] = useState('');
   const [cliError, setCliError] = useState<CliError | null>(null);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
+  const [requestedRoomRevealId, setRequestedRoomRevealId] = useState<string | null>(null);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -279,6 +280,19 @@ export function App(): React.JSX.Element {
               setRequestedRoomEditorId(roomMatch.room.id);
               setCliError(null);
               shouldSelectCliInput = false;
+            } else if (command.kind === 'show' && storeDoc !== null) {
+              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+              if (roomMatch.kind === 'none') {
+                reportCliError(createUnknownRoomCliError(command.roomName));
+                return;
+              }
+              if (roomMatch.kind === 'multiple') {
+                reportCliError(createAmbiguousRoomCliError('show', command.roomName));
+                return;
+              }
+              selectRoom(roomMatch.room.id);
+              setRequestedRoomRevealId(roomMatch.room.id);
+              setCliError(null);
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);
               if (sourceRoomMatch.kind === 'none') {
@@ -540,6 +554,10 @@ export function App(): React.JSX.Element {
           requestedRoomEditorId={requestedRoomEditorId}
           onRoomEditorRequestHandled={() => {
             setRequestedRoomEditorId(null);
+          }}
+          requestedRoomRevealId={requestedRoomRevealId}
+          onRoomRevealRequestHandled={() => {
+            setRequestedRoomRevealId(null);
           }}
         />
       )}

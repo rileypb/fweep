@@ -262,6 +262,74 @@ describe('URL routing', () => {
     }
   });
 
+  it('selects and scrolls a room into view for the show CLI command', async () => {
+    jest.useFakeTimers();
+    let doc = createEmptyMap('CLI Show Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 1200, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      render(<App />);
+      await screen.findByText(/cli show map/i);
+
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'show kitchen' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
+      expect(screen.getByTestId('map-canvas-content').style.transform).not.toBe('translate(0px, 0px)');
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
+    } finally {
+      logSpy.mockRestore();
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
+  });
+
   it('reports an unknown room for edit when no matching room exists', async () => {
     const doc = createEmptyMap('CLI Edit Error Map');
     await saveMap(doc);
@@ -280,6 +348,29 @@ describe('URL routing', () => {
     expect(logSpy).not.toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+  });
+
+  it('reports an unknown room for show when no matching room exists', async () => {
+    const doc = createEmptyMap('CLI Show Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli show error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'show kitchen{enter}');
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Unknown room "kitchen".');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
 
@@ -336,6 +427,62 @@ describe('URL routing', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
     expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to edit.');
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    logSpy.mockRestore();
+  });
+
+  it('reports an error for show when multiple rooms have the same name', async () => {
+    let doc = createEmptyMap('CLI Duplicate Show Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        'room-2': {
+          id: 'room-2',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    render(<App />);
+    await screen.findByText(/cli duplicate show map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'show kitchen{enter}');
+
+    expect(logSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Multiple rooms are named "kitchen".');
+    expect(screen.getByRole('alert')).toHaveTextContent('The CLI cannot tell which one you want to show.');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
