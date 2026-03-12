@@ -216,6 +216,7 @@ export function App(): React.JSX.Element {
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isGameOutputCollapsed, setIsGameOutputCollapsed] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [requestedRoomEditorId, setRequestedRoomEditorId] = useState<string | null>(null);
@@ -263,12 +264,12 @@ export function App(): React.JSX.Element {
   }, [isHelpOpen]);
 
   useEffect(() => {
-    if (gameOutputRef.current === null) {
+    if (isGameOutputCollapsed || gameOutputRef.current === null) {
       return;
     }
 
     gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
-  }, [gameOutputLines]);
+  }, [gameOutputLines, isGameOutputCollapsed]);
 
   const appendGameOutput = (lines: readonly string[]) => {
     setGameOutputLines((previousLines) => [...previousLines, ...lines, '']);
@@ -282,15 +283,28 @@ export function App(): React.JSX.Element {
   return (
     <main className="app-shell">
       <div className="app-cli-stack">
-        <textarea
-          id="app-game-output"
-          className="app-game-output"
-          aria-label="Game output"
-          readOnly
-          rows={20}
-          ref={gameOutputRef}
-          value={gameOutputLines.join('\n')}
-        />
+        <button
+          type="button"
+          className={`app-game-output-toggle${isGameOutputCollapsed ? ' app-game-output-toggle--collapsed' : ''}`}
+          aria-label={isGameOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+          title={isGameOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+          onClick={() => {
+            setIsGameOutputCollapsed((previous) => !previous);
+          }}
+        >
+          {isGameOutputCollapsed ? '▲' : '▼'}
+        </button>
+        {!isGameOutputCollapsed && (
+          <textarea
+            id="app-game-output"
+            className="app-game-output"
+            aria-label="Game output"
+            readOnly
+            rows={20}
+            ref={gameOutputRef}
+            value={gameOutputLines.join('\n')}
+          />
+        )}
         <div className="app-cli-bar">
           <form
             className="app-cli-form"
