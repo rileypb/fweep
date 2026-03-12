@@ -170,6 +170,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'deleted.';
     case 'edit':
       return 'edited.';
+    case 'notate':
+      return 'notated.';
     case 'show':
       return 'shown.';
     case 'connect':
@@ -193,6 +195,7 @@ export function App(): React.JSX.Element {
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
+  const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const connectRooms = useEditorStore((s) => s.connectRooms);
@@ -372,6 +375,18 @@ export function App(): React.JSX.Element {
               }
               selectRoom(roomMatch.room.id);
               setRequestedRoomRevealId(roomMatch.room.id);
+              appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
+            } else if (command.kind === 'notate' && storeDoc !== null) {
+              const roomMatch = resolveRoomByCliName(storeDoc, command.roomName);
+              if (roomMatch.kind === 'none') {
+                reportCliError(submittedInput, createUnknownRoomCliError(command.roomName));
+                return;
+              }
+              if (roomMatch.kind === 'multiple') {
+                reportCliError(submittedInput, createAmbiguousRoomCliError('notate', command.roomName));
+                return;
+              }
+              addStickyNoteForRoom(roomMatch.room.id, command.noteText);
               appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
             } else if (command.kind === 'connect' && storeDoc !== null) {
               const sourceRoomMatch = resolveRoomByCliName(storeDoc, command.sourceRoomName);

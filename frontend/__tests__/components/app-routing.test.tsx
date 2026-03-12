@@ -359,6 +359,140 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('creates and selects a sticky note linked to the named room for the notate CLI command', async () => {
+    let doc = createEmptyMap('CLI Notate Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli notate map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'notate kitchen with this room has nice wallpaper{enter}');
+
+    const state = useEditorStore.getState();
+    const stickyNotes = Object.values(state.doc?.stickyNotes ?? {});
+    const stickyNoteLinks = Object.values(state.doc?.stickyNoteLinks ?? {});
+
+    expect(stickyNotes).toHaveLength(1);
+    expect(stickyNotes[0].text).toBe('this room has nice wallpaper');
+    expect(stickyNoteLinks).toHaveLength(1);
+    expect(stickyNoteLinks[0]).toMatchObject({
+      stickyNoteId: stickyNotes[0].id,
+      roomId: 'kitchen',
+    });
+    expect(state.selectedStickyNoteIds).toEqual([stickyNotes[0].id]);
+    expectGameOutputToContain('notate kitchen with this room has nice wallpaper', 'notated.');
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('accepts annotate as a synonym for the notate CLI command', async () => {
+    let doc = createEmptyMap('CLI Annotate Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli annotate map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'annotate kitchen with remember the wallpaper{enter}');
+
+    const stickyNotes = Object.values(useEditorStore.getState().doc?.stickyNotes ?? {});
+    expect(stickyNotes).toHaveLength(1);
+    expect(stickyNotes[0].text).toBe('remember the wallpaper');
+    expectGameOutputToContain('annotate kitchen with remember the wallpaper', 'notated.');
+  });
+
+  it('keeps pre-existing rooms fixed during notate prettification', async () => {
+    let doc = createEmptyMap('CLI Notate Prettify Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 520, y: 320 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli notate prettify map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'notate kitchen with this room has nice wallpaper{enter}');
+
+    const state = useEditorStore.getState();
+    expect(state.doc?.rooms.kitchen?.position).toEqual({ x: 240, y: 160 });
+    expect(state.doc?.rooms.pantry?.position).toEqual({ x: 520, y: 320 });
+  });
+
   it('reports an error for edit when multiple rooms have the same name', async () => {
     let doc = createEmptyMap('CLI Duplicate Edit Map');
     doc = {
@@ -466,6 +600,75 @@ describe('URL routing', () => {
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('reports an unknown room for notate when no matching room exists', async () => {
+    const doc = createEmptyMap('CLI Notate Error Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli notate error map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'notate kitchen with hello{enter}');
+
+    expectGameOutputToContain('notate kitchen with hello', 'Unknown room "kitchen".');
+    expect(Object.values(useEditorStore.getState().doc?.stickyNotes ?? {})).toHaveLength(0);
+  });
+
+  it('reports an error for notate when multiple rooms have the same name', async () => {
+    let doc = createEmptyMap('CLI Duplicate Notate Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        'room-2': {
+          id: 'room-2',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli duplicate notate map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'notate kitchen with hello{enter}');
+
+    expectGameOutputToContain(
+      'notate kitchen with hello',
+      'Multiple rooms are named "kitchen".',
+      'The CLI cannot tell which one you want to notate.',
+    );
+    expect(Object.values(useEditorStore.getState().doc?.stickyNotes ?? {})).toHaveLength(0);
   });
 
   it('creates and selects a one-way connection for the connect CLI command', async () => {

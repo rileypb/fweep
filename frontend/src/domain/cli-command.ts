@@ -5,6 +5,7 @@ export type CliCommand =
   | { readonly kind: 'delete'; readonly roomName: string }
   | { readonly kind: 'edit'; readonly roomName: string }
   | { readonly kind: 'show'; readonly roomName: string }
+  | { readonly kind: 'notate'; readonly roomName: string; readonly noteText: string }
   | {
     readonly kind: 'connect';
     readonly sourceRoomName: string;
@@ -367,6 +368,29 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
+  if (isTokenValue(tokens[0], 'notate') || isTokenValue(tokens[0], 'annotate')) {
+    const withIndex = tokens.findIndex((token, index) => index > 0 && isTokenValue(token, 'with'));
+    if (withIndex === -1) {
+      return null;
+    }
+
+    const roomName = readRoomName(tokens, 1, (token) => token === tokens[withIndex]);
+    if (roomName === null || roomName.nextIndex !== withIndex) {
+      return null;
+    }
+
+    const noteText = readRoomName(tokens, withIndex + 1, () => false);
+    if (noteText === null || noteText.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      kind: 'notate',
+      roomName: roomName.value,
+      noteText: noteText.value,
+    };
+  }
+
   return null;
 }
 
@@ -380,6 +404,8 @@ function describeCliCommand(command: CliCommand): string {
       return `open the room editor for ${command.roomName}`;
     case 'show':
       return `scroll the map to ${command.roomName}`;
+    case 'notate':
+      return `create a sticky note on ${command.roomName} saying ${command.noteText}`;
     case 'undo':
       return 'undo the previous command';
     case 'redo':

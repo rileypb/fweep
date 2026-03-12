@@ -21,6 +21,8 @@ command             ::= create-and-connect-command
                       | create-command
                       | delete-command
                       | edit-command
+                      | notate-command
+                      | show-command
                       | undo-command
                       | redo-command ;
 
@@ -29,6 +31,13 @@ create-command      ::= "create" wsp room-name ;
 delete-command      ::= "delete" wsp room-name ;
 
 edit-command        ::= "edit" wsp room-name ;
+
+notate-command      ::= notate-keyword wsp room-name wsp "with" wsp note-text ;
+
+notate-keyword      ::= "notate"
+                      | "annotate" ;
+
+show-command        ::= "show" wsp room-name ;
 
 undo-command        ::= "undo" ;
 
@@ -77,6 +86,9 @@ direction-alias     ::= "north"
                       | "d" ;
 
 room-name           ::= quoted-name
+                      | unquoted-name ;
+
+note-text           ::= quoted-name
                       | unquoted-name ;
 
 quoted-name         ::= dquote quoted-char* dquote ;
@@ -130,8 +142,12 @@ The following words are reserved when they appear unquoted:
 - `connect`
 - `delete`
 - `edit`
+- `notate`
+- `annotate`
+- `show`
 - `undo`
 - `redo`
+- `with`
 - `to`
 - `of`
 - `one-way`
@@ -166,5 +182,11 @@ Notes on ambiguous or unspecified behavior
    This includes malformed quoting, missing required terms, missing required arguments, and unexpected extra tokens after an otherwise valid command.
    If the input parses successfully but execution fails, the implementation should report a specific semantic error instead.
 
-8. This grammar models only the currently documented commands.
+8. In a `notate-command`:
+   - `annotate` is accepted as a synonym for `notate`
+   - the room named before `with` must resolve to exactly one existing room
+   - the note text is the full remaining text after `with`
+   - quoted note text uses the same escape rules as quoted room names
+
+9. This grammar models only the currently documented commands.
    It does not include autocomplete, history, quick reference, or any future item/description commands.

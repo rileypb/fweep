@@ -18,6 +18,15 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('show Kitchen')).toBe('scroll the map to Kitchen');
   });
 
+  it('describes notate commands', () => {
+    expect(parseCliCommandDescription('notate Kitchen with this room has nice wallpaper')).toBe(
+      'create a sticky note on Kitchen saying this room has nice wallpaper',
+    );
+    expect(parseCliCommandDescription('annotate Kitchen with this room has nice wallpaper')).toBe(
+      'create a sticky note on Kitchen saying this room has nice wallpaper',
+    );
+  });
+
   it('describes undo and redo commands', () => {
     expect(parseCliCommandDescription('undo')).toBe('undo the previous command');
     expect(parseCliCommandDescription('redo')).toBe('redo the previous command');

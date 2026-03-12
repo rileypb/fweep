@@ -24,6 +24,11 @@
 - room creation may be combined with connections, like so: `create and connect bedroom east to living room`.
 - `create and connect` also supports one-way connections, e.g. `create and connect bedroom east one-way to living room`.
 - `create <room name 1> <direction> of <room name 2>` is accepted as a synonym for `create and connect <room name 1> <opposite direction> to <room name 2>`. In this form, the direction describes where room 1 is relative to room 2. For example, `create kitchen east of hallway` means `create and connect kitchen west to hallway`.
+- `notate <room name> with <note text>` creates a sticky note linked to the indicated room.
+- `annotate <room name> with <note text>` is accepted as an exact synonym for `notate <room name> with <note text>`. For example:
+  - `notate kitchen with this room has nice wallpaper`
+  - `annotate kitchen with this room has nice wallpaper`
+  - `notate "machine room" with "check the humming noise here"`
 - parsing precedence: a word in a command that matches a keyword or a direction is considered a keyword or direction unless it is surrounded by double quotes. For instance `connect living room east to dining room west` parses the same as `connect "living room" east to "dining room" west`
 
 ## Behavior rules
@@ -37,6 +42,9 @@
   - If the user creates a new connection, temporarily lock all rooms except for the two involved in the connection and prettify the map. Then unlock anything that wasn't locked before.
   - Do not do any locking or prettification when a connection is from a room to itself. In other words, the connection's target room is the same as its source room.
 - `edit <room name>` opens the room editor overlay for the indicated room.
+- `show <room name>` scrolls the indicated room into view and selects it.
+- `notate <room name> with <note text>` creates a sticky note, links it to the indicated room, and selects the new note.
+- `annotate <room name> with <note text>` behaves identically.
 - direction inverses follow the compass, with down and up serving as inverses, as do in and out. Custom directions are not supported by the CLI.
 - A single CLI command is one undo/redo entry.
 - `Undo` and `Redo` undo and redo the previous command respectively.
@@ -56,6 +64,10 @@
 - If multiple rooms match the requested name for `delete`, abort the action and print the error "Multiple rooms have that name. You must delete them manually."
 - Attempting to edit an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
 - If multiple rooms match the requested name for `edit`, abort the action and print the error "Multiple rooms have that name. You must edit them manually."
+- Attempting to show an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
+- If multiple rooms match the requested name for `show`, abort the action and print the error "Multiple rooms have that name. You must show them manually."
+- Attempting to notate or annotate an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
+- If multiple rooms match the requested name for `notate` or `annotate`, abort the action and print the error "Multiple rooms have that name. You must notate them manually."
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.
   - Correspondingly, if the user types `connect bedroom east to living room west` and `connect kitchen east to living room west`, the first connection will be deleted and only the connection between kitchen and living room will remain.

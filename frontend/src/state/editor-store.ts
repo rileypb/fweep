@@ -27,6 +27,8 @@ import {
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
 import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
+import { getRoomNodeWidth } from '../graph/room-label-geometry';
+import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import { restoreBackgroundChunks, type RasterChunkHistoryEntry } from '../storage/map-store';
 
 /** Grid size in pixels used for snapping room positions. */
@@ -47,6 +49,21 @@ export function snapPosition(pos: Position): Position {
 
 function maybeSnapPosition(pos: Position, snapToGridEnabled: boolean): Position {
   return snapToGridEnabled ? snapPosition(pos) : pos;
+}
+
+function getStickyNotePlacementForRoom(
+  doc: MapDocument,
+  roomId: string,
+  text: string,
+  snapToGridEnabled: boolean,
+): Position {
+  const room = doc.rooms[roomId];
+  const noteHeight = getStickyNoteHeight(text);
+  const preferred = {
+    x: room.position.x + getRoomNodeWidth(room) + GRID_SIZE,
+    y: room.position.y + Math.round((36 - noteHeight) / 2),
+  };
+  return maybeSnapPosition(preferred, snapToGridEnabled);
 }
 
 /** State for an in-progress connection drag from a direction handle. */
@@ -215,6 +232,9 @@ export interface EditorState {
 
   /** Create a new sticky note at the given canvas position (snapped to grid). Returns the note ID. */
   addStickyNoteAtPosition: (text: string, position: Position) => string;
+
+  /** Create a sticky note linked to a room in a single history step. Returns the note ID. */
+  addStickyNoteForRoom: (roomId: string, text: string) => string;
 
   /** Create or replace a connection between two rooms and select it. */
   connectRooms: (
@@ -648,6 +668,12 @@ function prettifyCliConnectionResult(
   return domainSetRoomPositions(doc, roomPositions);
 }
 
+function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
+  const transientLockedRoomIds = new Set(Object.keys(doc.rooms));
+  const { stickyNotePositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
+  return domainSetStickyNotePositions(doc, stickyNotePositions);
+}
+
 function patchDocumentView(
   doc: MapDocument,
   state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
@@ -884,6 +910,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const stickyNote = { ...createStickyNote(text), position: snapped };
     const updatedDoc = addStickyNote(doc, stickyNote);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
+    return stickyNote.id;
+  },
+
+  addStickyNoteForRoom: (roomId, text) => {
+    const { doc, snapToGridEnabled } = get();
+    if (!doc) {
+      throw new Error('Cannot add a sticky note: no document is loaded.');
+    }
+    if (!doc.rooms[roomId]) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+
+    const stickyNote = {
+      ...createStickyNote(text),
+      position: getStickyNotePlacementForRoom(doc, roomId, text, snapToGridEnabled),
+    };
+    let updatedDoc = addStickyNote(doc, stickyNote);
+    updatedDoc = addStickyNoteLink(updatedDoc, createStickyNoteLink(stickyNote.id, roomId));
+    updatedDoc = prettifyCliStickyNoteResult(updatedDoc);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [stickyNote.id],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+    }));
     return stickyNote.id;
   },
 
