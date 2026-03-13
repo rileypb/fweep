@@ -230,6 +230,9 @@ export function App(): React.JSX.Element {
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
+  const [cliHistory, setCliHistory] = useState<string[]>([]);
+  const [cliHistoryIndex, setCliHistoryIndex] = useState<number | null>(null);
+  const [cliHistoryDraft, setCliHistoryDraft] = useState('');
   const [hasUsedCliInput, setHasUsedCliInput] = useState(false);
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
@@ -361,6 +364,11 @@ export function App(): React.JSX.Element {
               setHasUsedCliInput(true);
               let shouldSelectCliInput = true;
               const submittedInput = cliCommand;
+              if (submittedInput.trim().length > 0) {
+                setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
+              }
+              setCliHistoryIndex(null);
+              setCliHistoryDraft('');
               setCliCommand('');
               const command = parseCliCommand(submittedInput);
               if (command === null) {
@@ -552,9 +560,53 @@ export function App(): React.JSX.Element {
                 spellCheck={false}
                 ref={cliInputRef}
                 value={cliCommand}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+                    return;
+                  }
+
+                  if (cliHistory.length === 0) {
+                    return;
+                  }
+
+                  event.preventDefault();
+
+                  if (event.key === 'ArrowUp') {
+                    if (cliHistoryIndex === null) {
+                      setCliHistoryDraft(cliCommand);
+                      const nextIndex = cliHistory.length - 1;
+                      setCliHistoryIndex(nextIndex);
+                      setCliCommand(cliHistory[nextIndex]);
+                      return;
+                    }
+
+                    const nextIndex = Math.max(cliHistoryIndex - 1, 0);
+                    setCliHistoryIndex(nextIndex);
+                    setCliCommand(cliHistory[nextIndex]);
+                    return;
+                  }
+
+                  if (cliHistoryIndex === null) {
+                    return;
+                  }
+
+                  if (cliHistoryIndex >= cliHistory.length - 1) {
+                    setCliHistoryIndex(null);
+                    setCliCommand(cliHistoryDraft);
+                    return;
+                  }
+
+                  const nextIndex = cliHistoryIndex + 1;
+                  setCliHistoryIndex(nextIndex);
+                  setCliCommand(cliHistory[nextIndex]);
+                }}
                 onChange={(event) => {
                   if (!hasUsedCliInput && event.target.value.trim().length > 0) {
                     setHasUsedCliInput(true);
+                  }
+                  if (cliHistoryIndex !== null) {
+                    setCliHistoryIndex(null);
+                    setCliHistoryDraft(event.target.value);
                   }
                   setCliCommand(event.target.value);
                 }}

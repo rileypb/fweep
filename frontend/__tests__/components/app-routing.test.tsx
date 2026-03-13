@@ -67,6 +67,47 @@ describe('URL routing', () => {
     expect(input).toHaveAttribute('placeholder', 'Enter a command');
   });
 
+  it('navigates CLI command history with the up and down arrows', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.type(input, 'help{enter}');
+    await user.type(input, 'arrange{enter}');
+
+    expect(input).toHaveValue('');
+
+    await user.keyboard('{ArrowUp}');
+    expect(input).toHaveValue('arrange');
+
+    await user.keyboard('{ArrowUp}');
+    expect(input).toHaveValue('help');
+
+    await user.keyboard('{ArrowDown}');
+    expect(input).toHaveValue('arrange');
+
+    await user.keyboard('{ArrowDown}');
+    expect(input).toHaveValue('');
+  });
+
+  it('restores the in-progress CLI draft after leaving command history', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.type(input, 'help{enter}');
+    await user.type(input, 'arrange{enter}');
+    await user.type(input, 'sho');
+
+    await user.keyboard('{ArrowUp}');
+    expect(input).toHaveValue('arrange');
+
+    await user.keyboard('{ArrowDown}');
+    expect(input).toHaveValue('sho');
+  });
+
   it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
     const user = userEvent.setup();
 
