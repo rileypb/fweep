@@ -2699,7 +2699,7 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-arrow-${conn.id}-1`)).not.toBeInTheDocument();
     });
 
-    it('renders an up annotation as a centered parallel arrow and rotated label', () => {
+    it('renders an up annotation arrow pointing toward the visually higher end of the connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -2734,7 +2734,7 @@ describe('MapCanvas', () => {
       expect(annotationText.getAttribute('transform')).toBeNull();
     });
 
-    it('renders a down annotation arrow pointing toward the source room', () => {
+    it('renders a down annotation arrow pointing toward the visually lower end of the connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -2750,6 +2750,7 @@ describe('MapCanvas', () => {
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
       const lineY1 = Number(annotationLine.getAttribute('y1'));
       const lineY2 = Number(annotationLine.getAttribute('y2'));
 
@@ -2759,10 +2760,10 @@ describe('MapCanvas', () => {
       expect(Math.abs(lineY1 - lineY2)).toBeGreaterThan(25);
       expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
       expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
-      expect(arrowPoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowPoints[1][1]).toBeLessThan(arrowPoints[0][1]);
-      expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
-      expect(arrowPoints[2][1]).toBeLessThan(arrowPoints[0][1]);
+      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
+      expect(arrowBasePoints[0][1]).toBeLessThan(arrowPoints[0][1]);
+      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
+      expect(arrowBasePoints[1][1]).toBeLessThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('down');
       expect(annotationText.getAttribute('transform')).toBeNull();
     });
@@ -2779,8 +2780,15 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
 
-      expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
-      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+
+      expect(annotationLine).toBeInTheDocument();
+      expect(annotationArrow).toBeInTheDocument();
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
 
@@ -2796,8 +2804,15 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
 
-      expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
-      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+
+      expect(annotationLine).toBeInTheDocument();
+      expect(annotationArrow).toBeInTheDocument();
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
     });
 

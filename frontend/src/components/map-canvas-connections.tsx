@@ -118,6 +118,17 @@ function getLongestSegment(points: readonly VectorPoint[]): { start: VectorPoint
   return bestSegment;
 }
 
+function getVerticalAnnotationReverseDirection(
+  annotationKind: 'up' | 'down',
+  dy: number,
+): boolean {
+  if (dy === 0) {
+    return false;
+  }
+
+  return annotationKind === 'up' ? dy > 0 : dy < 0;
+}
+
 function getAnnotationGeometry(
   segment: { start: VectorPoint; end: VectorPoint },
   reverseDirection: boolean,
@@ -410,11 +421,21 @@ export function MapCanvasConnections({
     const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
+    const annotationReverseDirection = annotationKind === 'up' || annotationKind === 'down'
+      ? (annotationSegment
+        ? getVerticalAnnotationReverseDirection(annotationKind, annotationSegment.end.y - annotationSegment.start.y)
+        : (() => {
+          const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
+          return sample
+            ? getVerticalAnnotationReverseDirection(annotationKind, sample.tangent.y)
+            : false;
+        })())
+      : annotationKind === 'out';
     const annotationGeometry = geometry.kind === 'polyline'
       ? (annotationSegment
         ? getAnnotationGeometry(
           annotationSegment,
-          annotationKind === 'down' || annotationKind === 'out',
+          annotationReverseDirection,
           annotationLabel,
           usesCompactDirectionalArrow,
         )
@@ -422,7 +443,7 @@ export function MapCanvasConnections({
       : rendersDirectionalAnnotation && !isSelfConnection
         ? getAnnotationGeometryFromRenderGeometry(
           geometry,
-          annotationKind === 'down' || annotationKind === 'out',
+          annotationReverseDirection,
           annotationLabel,
           usesCompactDirectionalArrow,
         )
