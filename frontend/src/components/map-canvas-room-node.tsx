@@ -6,7 +6,11 @@ import { getHandleOffset, ROOM_HEIGHT } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { renderRoomShape } from './map-canvas-helpers';
-import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
+import {
+  getRoomLabelColor,
+  getRoomStrokeColor,
+  type ThemeMode,
+} from '../domain/room-color-palette';
 import type { PanOffset } from './use-map-viewport';
 import { PadlockGlyph } from './padlock-glyph';
 
@@ -132,6 +136,7 @@ export function MapCanvasRoomNode({
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
   const roomWidth = getRoomNodeWidth(room);
   const labelLayout = getRoomLabelLayout(room, roomWidth, ROOM_HEIGHT);
+  const roomLabelColor = getRoomLabelColor(theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
   const openRoomEditor = useCallback(() => {
@@ -287,6 +292,7 @@ export function MapCanvasRoomNode({
         y={labelLayout.textY}
         dominantBaseline="middle"
         textAnchor="middle"
+        style={{ fill: roomLabelColor }}
       >
         {room.name}
       </text>

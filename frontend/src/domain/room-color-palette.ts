@@ -84,3 +84,7 @@ export function getRoomStrokeColor(index: number, theme: ThemeMode): string {
   const entry = ROOM_STROKE_PALETTE[index] ?? ROOM_STROKE_PALETTE[DEFAULT_ROOM_STROKE_COLOR_INDEX];
   return theme === 'dark' ? entry.dark : entry.light;
 }
+
+export function getRoomLabelColor(theme: ThemeMode): string {
+  return theme === 'dark' ? '#f3f4f6' : '#111827';
+}

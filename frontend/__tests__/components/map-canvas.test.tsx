@@ -843,6 +843,18 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`room-lock-glyph-${room.id}`)).toBeInTheDocument();
     });
 
+    it('renders room labels with an explicit theme color', () => {
+      document.documentElement.setAttribute('data-theme', 'dark');
+
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByText('Kitchen')).toHaveStyle({ fill: '#f3f4f6' });
+    });
+
     it('renders no room nodes when document has no rooms', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);

@@ -72,6 +72,7 @@
 - `/`: focus the CLI input.
 - `Delete` / `Backspace`: delete the current mixed selection.
 - `Enter`: open the room editor when exactly one room is selected.
+- `L`: lock or unlock the selected room's position.
 - `Arrow keys`: move selection to the nearest room in that direction.
 - `Ctrl/Cmd+Z`: undo.
 - `Ctrl/Cmd+Y`: redo.
