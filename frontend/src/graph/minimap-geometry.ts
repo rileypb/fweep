@@ -1,4 +1,4 @@
-import type { Connection, Room } from '../domain/map-types';
+import type { Connection, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
 import {
   computeConnectionPath,
   getRoomPerimeterPointToward,
@@ -6,6 +6,7 @@ import {
   ROOM_WIDTH,
 } from './connection-geometry';
 import { getRoomNodeWidth as getSharedRoomNodeWidth } from './room-label-geometry';
+import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
 
 export interface CanvasSize {
   readonly width: number;
@@ -56,6 +57,13 @@ export interface RoomBounds {
   readonly height: number;
 }
 
+export interface StickyNoteBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export function getRoomNodeWidth(room: Pick<Room, 'name' | 'locked'> | string, locked: boolean = false): number {
   return Math.max(ROOM_WIDTH, getSharedRoomNodeWidth(room, locked));
 }
@@ -74,6 +82,15 @@ export function getRoomCenter(room: Room): Point {
   return {
     x: bounds.left + (bounds.width / 2),
     y: bounds.top + (bounds.height / 2),
+  };
+}
+
+export function getStickyNoteBounds(stickyNote: StickyNote): StickyNoteBounds {
+  return {
+    left: stickyNote.position.x,
+    top: stickyNote.position.y,
+    width: STICKY_NOTE_WIDTH,
+    height: getStickyNoteHeight(stickyNote.text),
   };
 }
 
@@ -192,6 +209,18 @@ export function getMinimapRoomRect(room: Room, transform: MinimapTransform): Roo
   };
 }
 
+export function getMinimapStickyNoteRect(stickyNote: StickyNote, transform: MinimapTransform): StickyNoteBounds {
+  const bounds = getStickyNoteBounds(stickyNote);
+  const topLeft = toMinimapPoint({ x: bounds.left, y: bounds.top }, transform);
+
+  return {
+    left: topLeft.x,
+    top: topLeft.y,
+    width: Math.max(bounds.width * transform.scale, 6),
+    height: Math.max(bounds.height * transform.scale, 6),
+  };
+}
+
 export function getMinimapConnectionPoints(
   rooms: Readonly<Record<string, Room>>,
   connection: Connection,
@@ -234,6 +263,24 @@ export function getMinimapConnectionPoints(
   }
 
   return minimapPoints.map((point) => toMinimapPoint(point, transform));
+}
+
+export function getMinimapStickyNoteLinkPoints(
+  rooms: Readonly<Record<string, Room>>,
+  stickyNotes: Readonly<Record<string, StickyNote>>,
+  stickyNoteLink: StickyNoteLink,
+  transform: MinimapTransform,
+): readonly Point[] {
+  const room = rooms[stickyNoteLink.roomId];
+  const stickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
+  if (!room || !stickyNote) {
+    return [];
+  }
+
+  return [
+    toMinimapPoint(getStickyNoteCenter(stickyNote), transform),
+    toMinimapPoint(getRoomCenter(room), transform),
+  ];
 }
 
 export function getMinimapViewportRect(

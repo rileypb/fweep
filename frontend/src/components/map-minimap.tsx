@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BACKGROUND_LAYER_CHUNK_SIZE, type BackgroundDocument, type Connection, type Room, type RoomShape } from '../domain/map-types';
+import {
+  BACKGROUND_LAYER_CHUNK_SIZE,
+  type BackgroundDocument,
+  type Connection,
+  type Room,
+  type RoomShape,
+  type StickyNote,
+  type StickyNoteLink,
+} from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import type { PanOffset } from './use-map-viewport';
 import {
   clampPointToMinimap,
-  computeWorldBounds,
   createMinimapTransform,
   fromMinimapPoint,
   getMinimapConnectionPoints,
+  getRoomBounds,
+  getMinimapStickyNoteLinkPoints,
+  getMinimapStickyNoteRect,
   getMinimapRoomRect,
+  getStickyNoteBounds,
   getMinimapViewportRect,
   mergeWorldBounds,
   toMinimapPoint,
@@ -31,8 +42,12 @@ export interface MapMinimapProps {
   readonly backgroundRevision?: number;
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
+  readonly stickyNotes?: Readonly<Record<string, StickyNote>>;
+  readonly stickyNoteLinks?: Readonly<Record<string, StickyNoteLink>>;
   readonly selectedRoomIds: readonly string[];
   readonly selectedConnectionIds: readonly string[];
+  readonly selectedStickyNoteIds?: readonly string[];
+  readonly selectedStickyNoteLinkIds?: readonly string[];
   readonly panOffset: PanOffset;
   readonly canvasRect: CanvasRectLike | null;
   readonly theme: ThemeMode;
@@ -55,8 +70,12 @@ export function MapMinimap({
   backgroundRevision = 0,
   rooms,
   connections,
+  stickyNotes = {},
+  stickyNoteLinks = {},
   selectedRoomIds,
   selectedConnectionIds,
+  selectedStickyNoteIds = [],
+  selectedStickyNoteLinkIds = [],
   panOffset,
   canvasRect,
   theme,
@@ -65,6 +84,7 @@ export function MapMinimap({
   onPanBy,
 }: MapMinimapProps): React.JSX.Element | null {
   const roomEntries = useMemo(() => Object.values(rooms), [rooms]);
+  const stickyNoteEntries = useMemo(() => Object.values(stickyNotes), [stickyNotes]);
   const [backgroundChunks, setBackgroundChunks] = useState<readonly MinimapBackgroundChunk[]>([]);
   const activeBackgroundLayerId = background.activeLayerId;
 
@@ -106,8 +126,27 @@ export function MapMinimap({
   }, [backgroundChunks]);
 
   const worldBounds = useMemo(() => {
-    if (roomEntries.length > 0) {
-      return computeWorldBounds(roomEntries);
+    if (roomEntries.length > 0 || stickyNoteEntries.length > 0) {
+      return mergeWorldBounds([
+        ...roomEntries.map((room) => {
+          const bounds = getRoomBounds(room);
+          return {
+            left: bounds.left,
+            top: bounds.top,
+            right: bounds.left + bounds.width,
+            bottom: bounds.top + bounds.height,
+          };
+        }),
+        ...stickyNoteEntries.map((stickyNote) => {
+          const bounds = getStickyNoteBounds(stickyNote);
+          return {
+            left: bounds.left,
+            top: bounds.top,
+            right: bounds.left + bounds.width,
+            bottom: bounds.top + bounds.height,
+          };
+        }),
+      ]);
     }
 
     const backgroundBounds = backgroundChunks.map((chunk) => ({
@@ -118,7 +157,7 @@ export function MapMinimap({
     }));
 
     return mergeWorldBounds(backgroundBounds);
-  }, [backgroundChunks, roomEntries]);
+  }, [backgroundChunks, roomEntries, stickyNoteEntries]);
   const transform = useMemo(
     () => worldBounds
       ? createMinimapTransform(worldBounds, { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT })
@@ -274,6 +313,24 @@ export function MapMinimap({
             />
           );
         })}
+        {Object.values(stickyNoteLinks).map((stickyNoteLink) => {
+          const points = getMinimapStickyNoteLinkPoints(rooms, stickyNotes, stickyNoteLink, transform);
+          if (points.length !== 2) {
+            return null;
+          }
+
+          const isSelected = selectedStickyNoteLinkIds.includes(stickyNoteLink.id);
+          return (
+            <line
+              key={stickyNoteLink.id}
+              className={`map-minimap__sticky-note-link${isSelected ? ' map-minimap__sticky-note-link--selected' : ''}`}
+              x1={points[0].x}
+              y1={points[0].y}
+              x2={points[1].x}
+              y2={points[1].y}
+            />
+          );
+        })}
         {roomEntries.map((room) => {
           const rect = getMinimapRoomRect(room, transform);
           const isSelected = selectedRoomIds.includes(room.id);
@@ -286,6 +343,22 @@ export function MapMinimap({
             >
               <path d={getMinimapShapePath(room.shape, rect.width, rect.height)} />
             </g>
+          );
+        })}
+        {stickyNoteEntries.map((stickyNote) => {
+          const rect = getMinimapStickyNoteRect(stickyNote, transform);
+          const isSelected = selectedStickyNoteIds.includes(stickyNote.id);
+
+          return (
+            <rect
+              key={stickyNote.id}
+              className={`map-minimap__sticky-note${isSelected ? ' map-minimap__sticky-note--selected' : ''}`}
+              x={rect.left}
+              y={rect.top}
+              width={rect.width}
+              height={rect.height}
+              rx="4"
+            />
           );
         })}
         <rect

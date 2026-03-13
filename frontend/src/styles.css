@@ -1225,19 +1225,53 @@ body {
   opacity: 1;
 }
 
+.map-minimap__sticky-note-link {
+  stroke: rgba(148, 163, 184, 0.8);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+  opacity: 0.75;
+}
+
+:root[data-theme='dark'] .map-minimap__sticky-note-link {
+  stroke: rgba(148, 163, 184, 0.7);
+}
+
+.map-minimap__sticky-note-link--selected {
+  stroke: #f59e0b;
+  stroke-width: 2;
+  opacity: 1;
+}
+
 .map-minimap__room path {
-  fill: rgba(148, 163, 184, 0.28);
+  fill: rgb(219, 234, 254);
   stroke: rgba(15, 23, 42, 0.42);
   stroke-width: 1.2;
 }
 
 :root[data-theme='dark'] .map-minimap__room path {
-  fill: rgba(71, 85, 105, 0.32);
+  fill: rgb(51, 65, 85);
   stroke: rgba(226, 232, 240, 0.4);
 }
 
 .map-minimap__room--selected path {
-  fill: rgba(245, 158, 11, 0.32);
+  fill: rgb(254, 215, 170);
+  stroke: #f59e0b;
+  stroke-width: 1.8;
+}
+
+.map-minimap__sticky-note {
+  fill: rgb(254, 249, 195);
+  stroke: rgba(180, 83, 9, 0.45);
+  stroke-width: 1.2;
+}
+
+:root[data-theme='dark'] .map-minimap__sticky-note {
+  fill: rgb(113, 63, 18);
+  stroke: rgba(253, 224, 71, 0.4);
+}
+
+.map-minimap__sticky-note--selected {
+  fill: rgb(254, 215, 170);
   stroke: #f59e0b;
   stroke-width: 1.8;
 }

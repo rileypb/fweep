@@ -1,7 +1,15 @@
+import type { ComponentProps } from 'react';
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MapMinimap } from '../../src/components/map-minimap';
-import { createBackgroundLayer, createConnection, createEmptyBackground, createRoom } from '../../src/domain/map-types';
+import {
+  createBackgroundLayer,
+  createConnection,
+  createEmptyBackground,
+  createRoom,
+  createStickyNote,
+  createStickyNoteLink,
+} from '../../src/domain/map-types';
 import { saveBackgroundChunks } from '../../src/storage/map-store';
 
 describe('MapMinimap', () => {
@@ -27,25 +35,37 @@ describe('MapMinimap', () => {
     });
   }
 
-  it('does not render when there are no rooms', () => {
-    const onPanToMapPoint = jest.fn<(point: { x: number; y: number }) => void>();
-    const onPanBy = jest.fn<(delta: { x: number; y: number }) => void>();
-
-    const { container } = render(
+  function renderMinimap(overrideProps: Partial<ComponentProps<typeof MapMinimap>> = {}) {
+    return render(
       <MapMinimap
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{}}
         connections={{}}
+        stickyNotes={{}}
+        stickyNoteLinks={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
+        selectedStickyNoteIds={[]}
+        selectedStickyNoteLinkIds={[]}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={{ width: 300, height: 200 }}
         theme="light"
-        onPanToMapPoint={onPanToMapPoint}
-        onPanBy={onPanBy}
+        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
+        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
+        {...overrideProps}
       />,
     );
+  }
+
+  it('does not render when there are no rooms', () => {
+    const onPanToMapPoint = jest.fn<(point: { x: number; y: number }) => void>();
+    const onPanBy = jest.fn<(delta: { x: number; y: number }) => void>();
+
+    const { container } = renderMinimap({
+      onPanToMapPoint,
+      onPanBy,
+    });
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -55,21 +75,12 @@ describe('MapMinimap', () => {
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
     const connection = createConnection(kitchen.id, hallway.id, true);
 
-    render(
-      <MapMinimap
-        mapId="map-1"
-        background={createEmptyBackground()}
-        rooms={{ [kitchen.id]: kitchen, [hallway.id]: hallway }}
-        connections={{ [connection.id]: connection }}
-        selectedRoomIds={[kitchen.id]}
-        selectedConnectionIds={[connection.id]}
-        panOffset={{ x: 0, y: 0 }}
-        canvasRect={{ width: 300, height: 200 }}
-        theme="light"
-        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
-        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
-      />,
-    );
+    renderMinimap({
+      rooms: { [kitchen.id]: kitchen, [hallway.id]: hallway },
+      connections: { [connection.id]: connection },
+      selectedRoomIds: [kitchen.id],
+      selectedConnectionIds: [connection.id],
+    });
 
     expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
     expect(screen.getByTestId('map-minimap-viewport')).toBeInTheDocument();
@@ -82,21 +93,10 @@ describe('MapMinimap', () => {
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
     const connection = createConnection(kitchen.id, hallway.id, false);
 
-    render(
-      <MapMinimap
-        mapId="map-1"
-        background={createEmptyBackground()}
-        rooms={{ [kitchen.id]: kitchen, [hallway.id]: hallway }}
-        connections={{ [connection.id]: connection }}
-        selectedRoomIds={[]}
-        selectedConnectionIds={[]}
-        panOffset={{ x: 0, y: 0 }}
-        canvasRect={{ width: 300, height: 200 }}
-        theme="light"
-        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
-        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
-      />,
-    );
+    renderMinimap({
+      rooms: { [kitchen.id]: kitchen, [hallway.id]: hallway },
+      connections: { [connection.id]: connection },
+    });
 
     const connectionLine = document.querySelector('.map-minimap__connection');
     expect(connectionLine).not.toBeNull();
@@ -113,21 +113,10 @@ describe('MapMinimap', () => {
     const cellar = { ...cellarBase, directions: { up: connection.id } };
     const attic = { ...atticBase, directions: { down: connection.id } };
 
-    render(
-      <MapMinimap
-        mapId="map-1"
-        background={createEmptyBackground()}
-        rooms={{ [cellar.id]: cellar, [attic.id]: attic }}
-        connections={{ [connection.id]: connection }}
-        selectedRoomIds={[]}
-        selectedConnectionIds={[]}
-        panOffset={{ x: 0, y: 0 }}
-        canvasRect={{ width: 300, height: 200 }}
-        theme="light"
-        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
-        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
-      />,
-    );
+    renderMinimap({
+      rooms: { [cellar.id]: cellar, [attic.id]: attic },
+      connections: { [connection.id]: connection },
+    });
 
     const connectionLine = document.querySelector('.map-minimap__connection');
     expect(connectionLine).not.toBeNull();
@@ -147,30 +136,18 @@ describe('MapMinimap', () => {
     const house = { ...createRoom('House'), position: { x: 840, y: 0 }, shape: 'house' as const };
     const box = { ...createRoom('Box'), position: { x: 980, y: 0 }, shape: 'box' as const };
 
-    render(
-      <MapMinimap
-        mapId="map-1"
-        background={createEmptyBackground()}
-        rooms={{
-          [rectangle.id]: rectangle,
-          [diamond.id]: diamond,
-          [oval.id]: oval,
-          [octagon.id]: octagon,
-          [pentagon.id]: pentagon,
-          [hexagon.id]: hexagon,
-          [house.id]: house,
-          [box.id]: box,
-        }}
-        connections={{}}
-        selectedRoomIds={[]}
-        selectedConnectionIds={[]}
-        panOffset={{ x: 0, y: 0 }}
-        canvasRect={{ width: 300, height: 200 }}
-        theme="light"
-        onPanToMapPoint={jest.fn<(point: { x: number; y: number }) => void>()}
-        onPanBy={jest.fn<(delta: { x: number; y: number }) => void>()}
-      />,
-    );
+    renderMinimap({
+      rooms: {
+        [rectangle.id]: rectangle,
+        [diamond.id]: diamond,
+        [oval.id]: oval,
+        [octagon.id]: octagon,
+        [pentagon.id]: pentagon,
+        [hexagon.id]: hexagon,
+        [house.id]: house,
+        [box.id]: box,
+      },
+    });
 
     const paths = Array.from(document.querySelectorAll('.map-minimap__room path')).map((path) => path.getAttribute('d'));
     expect(paths).toHaveLength(8);
@@ -179,6 +156,38 @@ describe('MapMinimap', () => {
     expect(paths.some((d) => d?.includes(`L ${0}`))).toBe(true);
     expect(paths.some((d) => (d?.match(/L/g) ?? []).length >= 5)).toBe(true);
     expect(paths.some((d) => (d?.match(/L/g) ?? []).length >= 6)).toBe(true);
+  });
+
+  it('renders sticky notes and keeps connection lines behind rooms and notes', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const note = { ...createStickyNote('Check desk'), position: { x: 240, y: 80 } };
+    const connection = createConnection(room.id, room.id, true);
+    const stickyNoteLink = createStickyNoteLink(note.id, room.id);
+
+    renderMinimap({
+      rooms: { [room.id]: room },
+      connections: { [connection.id]: connection },
+      stickyNotes: { [note.id]: note },
+      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+      selectedStickyNoteIds: [note.id],
+      selectedStickyNoteLinkIds: [stickyNoteLink.id],
+    });
+
+    const svg = screen.getByTestId('map-minimap-svg');
+    const children = Array.from(svg.children);
+    const connectionIndex = children.findIndex((child) => child.classList.contains('map-minimap__connection'));
+    const stickyNoteLinkIndex = children.findIndex((child) => child.classList.contains('map-minimap__sticky-note-link'));
+    const roomIndex = children.findIndex((child) => child.classList.contains('map-minimap__room'));
+    const stickyNoteIndex = children.findIndex((child) => child.classList.contains('map-minimap__sticky-note'));
+
+    expect(document.querySelectorAll('.map-minimap__sticky-note')).toHaveLength(1);
+    expect(document.querySelectorAll('.map-minimap__sticky-note-link')).toHaveLength(1);
+    expect(connectionIndex).toBeGreaterThan(-1);
+    expect(stickyNoteLinkIndex).toBeGreaterThan(-1);
+    expect(roomIndex).toBeGreaterThan(stickyNoteLinkIndex);
+    expect(stickyNoteIndex).toBeGreaterThan(stickyNoteLinkIndex);
+    expect(roomIndex).toBeGreaterThan(connectionIndex);
+    expect(stickyNoteIndex).toBeGreaterThan(connectionIndex);
   });
 
   it('skips connections whose rooms are missing', () => {

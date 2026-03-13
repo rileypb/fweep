@@ -1219,8 +1219,12 @@ export function MapCanvas({
             backgroundRevision={backgroundRevision}
             rooms={doc.rooms}
             connections={doc.connections}
+            stickyNotes={doc.stickyNotes}
+            stickyNoteLinks={doc.stickyNoteLinks}
             selectedRoomIds={selectedRoomIds}
             selectedConnectionIds={selectedConnectionIds}
+            selectedStickyNoteIds={selectedStickyNoteIds}
+            selectedStickyNoteLinkIds={selectedStickyNoteLinkIds}
             panOffset={panOffset}
             canvasRect={effectiveCanvasRect}
             theme={theme}
