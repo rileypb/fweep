@@ -54,6 +54,13 @@ const DEFAULT_SETTINGS_BY_SCOPE: Readonly<Record<ExportScope, ExportSettings>> =
   },
 };
 
+function isDrawingInterfaceEnabled(): boolean {
+  return (
+    (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
+      .__FWEEP_TEST_ENABLE_DRAWING_INTERFACE__
+  ) ?? false;
+}
+
 function getDefaultScope(hasSelection: boolean): ExportScope {
   return hasSelection ? 'selection' : 'entire-map';
 }
@@ -91,6 +98,7 @@ export function ExportPngDialog({
   const exportRegionDraft = useEditorStore((state) => state.exportRegionDraft);
   const clearExportRegion = useEditorStore((state) => state.clearExportRegion);
   const theme = useDocumentTheme();
+  const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const hasSelection = selectedRoomIds.length > 0
     || selectedStickyNoteIds.length > 0
     || selectedConnectionIds.length > 0
@@ -327,18 +335,20 @@ export function ExportPngDialog({
             </select>
           </label>
 
-          <label className="export-png-checkbox">
-            <input
-              type="checkbox"
-              aria-label="Include background drawing"
-              checked={settings.includeBackgroundDrawing}
-              onChange={(event) => setSettings((currentValue) => ({
-                ...currentValue,
-                includeBackgroundDrawing: event.target.checked,
-              }))}
-            />
-            <span>Include background drawing</span>
-          </label>
+          {drawingInterfaceEnabled && (
+            <label className="export-png-checkbox">
+              <input
+                type="checkbox"
+                aria-label="Include background drawing"
+                checked={settings.includeBackgroundDrawing}
+                onChange={(event) => setSettings((currentValue) => ({
+                  ...currentValue,
+                  includeBackgroundDrawing: event.target.checked,
+                }))}
+              />
+              <span>Include background drawing</span>
+            </label>
+          )}
 
           <label className="export-png-checkbox">
             <input

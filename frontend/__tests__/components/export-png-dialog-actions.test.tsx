@@ -33,6 +33,8 @@ describe('ExportPngDialog actions', () => {
   beforeEach(() => {
     resetStore();
     document.documentElement.setAttribute('data-theme', 'light');
+    (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
+      .__FWEEP_TEST_ENABLE_DRAWING_INTERFACE__ = true;
     mockRenderExportCanvas.mockReset();
     mockExportPngToDownload.mockReset();
   });
