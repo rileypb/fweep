@@ -361,6 +361,7 @@ export function App(): React.JSX.Element {
               setHasUsedCliInput(true);
               let shouldSelectCliInput = true;
               const submittedInput = cliCommand;
+              setCliCommand('');
               const command = parseCliCommand(submittedInput);
               if (command === null) {
                 reportCliError(submittedInput, createParseCliError());
