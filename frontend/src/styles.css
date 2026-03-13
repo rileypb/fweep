@@ -55,12 +55,27 @@ body {
   background-color: #111827;
 }
 
+.app-left-chrome-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)));
+  z-index: 5;
+  pointer-events: none;
+  background-color: #ffffff;
+}
+
+:root[data-theme='dark'] .app-left-chrome-backdrop {
+  background-color: #111827;
+}
+
 .app-cli-stack {
   position: fixed;
   left: var(--app-cli-stack-left);
   top: 1rem;
   bottom: 1rem;
-  z-index: 5;
+  z-index: 6;
   width: min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem));
   max-width: calc(100vw - var(--app-cli-stack-left) - 1rem);
   display: flex;
@@ -109,7 +124,7 @@ body {
   position: fixed;
   left: calc(var(--app-cli-stack-left) / 2);
   top: 50%;
-  z-index: 6;
+  z-index: 7;
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
@@ -195,7 +210,7 @@ body {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.5rem;
-  z-index: 6;
+  z-index: 7;
 }
 
 .app-controls--settings {
@@ -211,7 +226,7 @@ body {
   position: fixed;
   top: 1rem;
   left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + var(--app-cli-stack-gutter));
-  z-index: 6;
+  z-index: 7;
   max-width: calc(100vw - var(--app-cli-stack-left) - min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) - 2rem - var(--app-cli-stack-gutter));
 }
 

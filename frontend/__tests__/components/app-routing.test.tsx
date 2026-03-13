@@ -475,9 +475,17 @@ describe('URL routing', () => {
         jest.advanceTimersByTime(500);
       });
 
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
+
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
       expect(useEditorStore.getState().mapPanOffset).toEqual({
-        x: (300 / 2) - (1200 + (getRoomNodeWidth(doc.rooms['room-1']) / 2)),
+        x: visibleCenterX - (1200 + (getRoomNodeWidth(doc.rooms['room-1']) / 2)),
         y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
       });
       expectGameOutputToContain('show kitchen', 'shown');

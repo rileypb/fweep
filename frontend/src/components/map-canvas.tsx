@@ -120,6 +120,7 @@ export interface MapCanvasProps {
   mapName: string;
   showGrid?: boolean;
   onBack?: () => void;
+  visibleMapLeftInset?: number;
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
 }
@@ -132,6 +133,7 @@ interface RoomEditorState {
 export function MapCanvas({
   mapName,
   showGrid: initialShowGrid = true,
+  visibleMapLeftInset = 0,
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
 }: MapCanvasProps): React.JSX.Element {
@@ -379,13 +381,15 @@ export function MapCanvas({
     const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, nextCanvasRect);
     const roomCenterX = roomGeometry.centerX - nextCanvasRect.left;
     const roomTopY = roomGeometry.top - nextCanvasRect.top;
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
 
     startAutoPanAnimation();
     setPanOffset((prev) => ({
-      x: prev.x + ((canvasWidth / 2) - roomCenterX),
+      x: prev.x + (visibleCenterX - roomCenterX),
       y: prev.y + ((canvasHeight / 3) - roomTopY),
     }));
-  }, [canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
+  }, [canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset]);
 
   const panToRoomEditorPosition = useCallback((roomId: string) => {
     const room = useEditorStore.getState().doc?.rooms[roomId];
@@ -444,6 +448,8 @@ export function MapCanvas({
     const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
     const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
     const roomCenterY = (roomGeometry.top - (currentCanvasRect?.top ?? 0)) + (roomGeometry.height / 2);
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
 
     if (canvasWidth === 0 && canvasHeight === 0) {
       return;
@@ -451,10 +457,10 @@ export function MapCanvas({
 
     startAutoPanAnimation();
     setPanOffset((prev) => ({
-      x: prev.x + ((canvasWidth / 2) - roomCenterX),
+      x: prev.x + (visibleCenterX - roomCenterX),
       y: prev.y + ((canvasHeight / 2) - roomCenterY),
     }));
-  }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation]);
+  }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset]);
 
   useLayoutEffect(() => {
     if (requestedRoomRevealRequest === null) {
@@ -1368,6 +1374,7 @@ export function MapCanvas({
           initialPosition={roomEditorState.initialPosition}
           panOffset={panOffset}
           canvasRect={effectiveCanvasRect}
+          visibleMapLeftInset={visibleMapLeftInset}
           theme={theme}
           onClose={(savedRoomId) => {
             closeRoomEditor();
@@ -1382,6 +1389,7 @@ export function MapCanvas({
         <ConnectionEditorOverlay
           key={connectionEditorId}
           connectionId={connectionEditorId}
+          visibleMapLeftInset={visibleMapLeftInset}
           onClose={closeConnectionEditor}
           onBackdropClose={closeConnectionEditorFromBackdrop}
         />

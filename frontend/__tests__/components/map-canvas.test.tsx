@@ -1155,13 +1155,13 @@ describe('MapCanvas', () => {
       return screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
     }
 
-    it('pans the map to place the edited room horizontally centered and about one third from the top', async () => {
+    it('pans the map to place the edited room in the visible horizontal center and about one third from the top', async () => {
       const user = userEvent.setup();
       const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
       const doc = addRoom(createEmptyMap('Test'), room);
       useEditorStore.getState().loadDocument(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      render(<MapCanvas mapName="Test" visibleMapLeftInset={240} />);
 
       const canvas = screen.getByTestId('map-canvas');
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
@@ -1193,8 +1193,12 @@ describe('MapCanvas', () => {
 
       await user.dblClick(roomNode);
 
-      expect(content.style.transform).toBe('translate(370px, -120px)');
+      expect(content.style.transform).toBe('translate(490px, -120px)');
       expect(content).toHaveClass('map-canvas-content--animated');
+      expect(screen.getByTestId('room-editor-dialog')).toHaveStyle({
+        justifySelf: 'start',
+        marginLeft: '296px',
+      });
     });
 
     it('opens the room editor overlay on double-click', async () => {
@@ -2350,6 +2354,26 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('connection-editor-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('connection-editor-main')).toBeInTheDocument();
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
+    });
+
+    it('positions the connection editor in the visible horizontal center', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const conn = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, conn, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" visibleMapLeftInset={240} />);
+
+      fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
+
+      expect(screen.getByTestId('connection-editor-dialog')).toHaveStyle({
+        justifySelf: 'start',
+        marginLeft: '296px',
+      });
     });
 
     it('cancels the connection editor from the cancel button', async () => {

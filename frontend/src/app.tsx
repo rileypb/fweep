@@ -192,6 +192,15 @@ function describeCliOutcome(command: CliCommand): string {
   }
 }
 
+function getAppMapVisibleLeftInset(viewportWidth: number, rootFontSizePx: number): number {
+  const leftOffset = rootFontSizePx + (viewportWidth * 0.02);
+  const preferredStackWidth = viewportWidth <= 720
+    ? Math.min(viewportWidth * 0.52, rootFontSizePx * 18)
+    : Math.min(viewportWidth * 0.375, rootFontSizePx * 27);
+  const stackWidth = Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
+  return leftOffset + stackWidth;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -224,6 +233,12 @@ export function App(): React.JSX.Element {
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<{ roomId: string; requestId: number } | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<{ roomId: string; requestId: number } | null>(null);
   const [nextUiRequestId, setNextUiRequestId] = useState(1);
+  const rootFontSizePx = typeof window === 'undefined'
+    ? 16
+    : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+  const visibleMapLeftInset = typeof window === 'undefined'
+    ? 0
+    : getAppMapVisibleLeftInset(window.innerWidth, rootFontSizePx);
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -317,6 +332,7 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="app-shell">
+      <div className="app-left-chrome-backdrop" aria-hidden="true" />
       <div className="app-cli-stack">
         <textarea
           id="app-game-output"
@@ -675,6 +691,7 @@ export function App(): React.JSX.Element {
         <MapCanvas
           mapName={activeMap.metadata.name}
           onBack={closeMap}
+          visibleMapLeftInset={visibleMapLeftInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
         />
