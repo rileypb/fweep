@@ -18,6 +18,15 @@ function getGameOutputBox(): HTMLTextAreaElement {
   return screen.getByRole('textbox', { name: /game output/i }) as HTMLTextAreaElement;
 }
 
+async function renderAppWithOpenMap(mapName = 'Opened Map') {
+  const doc = createEmptyMap(mapName);
+  await saveMap(doc);
+  navigateTo(`#/map/${doc.metadata.id}`);
+  render(<App />);
+  await screen.findByLabelText(`Map name: ${mapName}`);
+  return doc;
+}
+
 function expectGameOutputToContain(...fragments: readonly string[]) {
   const value = getGameOutputBox().value;
   for (const fragment of fragments) {
@@ -45,10 +54,11 @@ describe('URL routing', () => {
   it('renders selection-screen controls', () => {
     render(<App />);
 
-    expect(screen.getByRole('button', { name: /disable grid snapping/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /switch to .+ mode/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /help/i })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /cli command/i })).toHaveAttribute('placeholder', 'Type help');
+    expect(screen.queryByRole('button', { name: /disable grid snapping/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /switch to .+ mode/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^help$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /cli command/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('fweep!')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();
@@ -56,7 +66,7 @@ describe('URL routing', () => {
 
   it('switches the CLI placeholder after the input has been used once', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI Placeholder Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     expect(input).toHaveAttribute('placeholder', 'Type help');
@@ -69,7 +79,7 @@ describe('URL routing', () => {
 
   it('navigates CLI command history with the up and down arrows', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI History Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
 
@@ -93,7 +103,7 @@ describe('URL routing', () => {
 
   it('restores the in-progress CLI draft after leaving command history', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI Draft Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
 
@@ -110,7 +120,7 @@ describe('URL routing', () => {
 
   it('focuses the CLI input when / is pressed outside a text editor', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI Focus Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     const helpButton = screen.getByRole('button', { name: /help/i });
@@ -127,7 +137,7 @@ describe('URL routing', () => {
 
   it('does not steal / from an already focused text input', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI Slash Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
 
@@ -138,17 +148,23 @@ describe('URL routing', () => {
     expect(input).toHaveValue('/');
   });
 
-  it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
+  it('executes a connect command from the CLI when the named rooms exist', async () => {
     const user = userEvent.setup();
-
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 40, y: 40 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 40 } };
+    let doc = createEmptyMap('CLI Connect Parse Map');
+    doc = addRoom(addRoom(doc, kitchen), hallway);
+    await saveMap(doc);
+    navigateTo(`#/map/${doc.metadata.id}`);
     render(<App />);
+    await screen.findByLabelText('Map name: CLI Connect Parse Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'connect Kitchen east to Hallway{enter}');
 
     expectGameOutputToContain(
       'connect Kitchen east to Hallway',
-      'create a two-way connection from Kitchen going east to Hallway going west',
+      'connected.',
     );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
@@ -1696,7 +1712,7 @@ describe('URL routing', () => {
 
   it('logs a syntax error for an invalid CLI command', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('CLI Syntax Error Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     await user.type(input, 'create{enter}');
@@ -1713,8 +1729,8 @@ describe('URL routing', () => {
     );
   });
 
-  it('retains the full game output history', () => {
-    render(<App />);
+  it('retains the full game output history', async () => {
+    await renderAppWithOpenMap('CLI Output History Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
     const form = input.closest('form') as HTMLFormElement;
@@ -1736,7 +1752,7 @@ describe('URL routing', () => {
 
   it('opens and closes the help dialog', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('Help Dialog Map');
 
     await user.click(screen.getByRole('button', { name: /help/i }));
     expect(screen.getByRole('dialog', { name: /help/i })).toBeInTheDocument();
@@ -1749,7 +1765,7 @@ describe('URL routing', () => {
 
   it('closes the help dialog from the backdrop and Escape key, and renders subheadings and rules', async () => {
     const user = userEvent.setup();
-    render(<App />);
+    await renderAppWithOpenMap('Help Escape Map');
 
     await user.click(screen.getByRole('button', { name: /help/i }));
     expect(screen.getByRole('heading', { name: /undo\/redo/i })).toBeInTheDocument();

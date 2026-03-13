@@ -277,6 +277,7 @@ export function App(): React.JSX.Element {
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
     : getAppMapVisibleLeftInset(window.innerWidth, rootFontSizePx);
+  const hasOpenMap = activeMap !== null;
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -402,21 +403,23 @@ export function App(): React.JSX.Element {
 
   return (
     <main className="app-shell">
-      <div className="app-left-chrome-backdrop" aria-hidden="true" />
-      <div className="app-cli-stack">
-        <textarea
-          id="app-game-output"
-          className="app-game-output"
-          aria-label="Game output"
-          readOnly
-          rows={20}
-          ref={gameOutputRef}
-          value={gameOutputLines.join('\n')}
-        />
-        <div className="app-cli-bar">
-          <form
-            className="app-cli-form"
-            onSubmit={(event) => {
+      {hasOpenMap && (
+        <>
+          <div className="app-left-chrome-backdrop" aria-hidden="true" />
+          <div className="app-cli-stack">
+            <textarea
+              id="app-game-output"
+              className="app-game-output"
+              aria-label="Game output"
+              readOnly
+              rows={20}
+              ref={gameOutputRef}
+              value={gameOutputLines.join('\n')}
+            />
+            <div className="app-cli-bar">
+              <form
+                className="app-cli-form"
+                onSubmit={(event) => {
               event.preventDefault();
               setHasUsedCliInput(true);
               let shouldSelectCliInput = true;
@@ -602,22 +605,22 @@ export function App(): React.JSX.Element {
               if (shouldSelectCliInput) {
                 cliInputRef.current?.select();
               }
-            }}
-          >
-            <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
-            <div className="app-cli-input-shell">
-              <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
-              <input
-                id="app-cli-input"
-                className="app-cli-input"
-                type="text"
-                name="cli-command"
-                placeholder={hasUsedCliInput ? '' : 'Type help'}
-                autoComplete="off"
-                spellCheck={false}
-                ref={cliInputRef}
-                value={cliCommand}
-                onKeyDown={(event) => {
+                }}
+              >
+                <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
+                <div className="app-cli-input-shell">
+                  <span className="app-cli-prompt" aria-hidden="true">&gt;</span>
+                  <input
+                    id="app-cli-input"
+                    className="app-cli-input"
+                    type="text"
+                    name="cli-command"
+                    placeholder={hasUsedCliInput ? '' : 'Type help'}
+                    autoComplete="off"
+                    spellCheck={false}
+                    ref={cliInputRef}
+                    value={cliCommand}
+                    onKeyDown={(event) => {
                   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
                     return;
                   }
@@ -656,8 +659,8 @@ export function App(): React.JSX.Element {
                   const nextIndex = cliHistoryIndex + 1;
                   setCliHistoryIndex(nextIndex);
                   setCliCommand(cliHistory[nextIndex]);
-                }}
-                onChange={(event) => {
+                    }}
+                    onChange={(event) => {
                   if (!hasUsedCliInput && event.target.value.trim().length > 0) {
                     setHasUsedCliInput(true);
                   }
@@ -666,84 +669,82 @@ export function App(): React.JSX.Element {
                     setCliHistoryDraft(event.target.value);
                   }
                   setCliCommand(event.target.value);
-                }}
-              />
+                    }}
+                  />
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
-      </div>
-      {activeMap !== null && (
-        <div
-          className="app-control-chip app-map-name-chip app-control-chip--plain"
-          aria-label={`Map name: ${activeMap.metadata.name}`}
-        >
-          {`Map: ${activeMap.metadata.name}`}
-        </div>
+          </div>
+          <div
+            className="app-control-chip app-map-name-chip app-control-chip--plain"
+            aria-label={`Map name: ${activeMap.metadata.name}`}
+          >
+            {`Map: ${activeMap.metadata.name}`}
+          </div>
+        </>
       )}
-      <div className="app-controls app-controls--settings">
-        {activeMap !== null && (
-          <button
-            type="button"
-            className="app-control-button app-control-button--plain"
-            aria-label="Back to maps"
-            title="Back to maps"
-            onClick={closeMap}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-              <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M5.5 8H13" strokeLinecap="round" />
-            </svg>
-          </button>
-        )}
-        {activeMap !== null && (
-          <button
-            type="button"
-            className="app-control-button"
-            aria-label="Toggle grid"
-            title="Toggle grid"
-            aria-pressed={showGridEnabled}
-            onClick={toggleShowGrid}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <line x1="0" y1="4" x2="16" y2="4" />
-              <line x1="0" y1="8" x2="16" y2="8" />
-              <line x1="0" y1="12" x2="16" y2="12" />
-              <line x1="4" y1="0" x2="4" y2="16" />
-              <line x1="8" y1="0" x2="8" y2="16" />
-              <line x1="12" y1="0" x2="12" y2="16" />
-            </svg>
-          </button>
-        )}
-        {activeMap !== null && (
-          <button
-            type="button"
-            className="app-control-button"
-            aria-label="Toggle polyline connections"
-            title="Toggle polyline connections"
-            aria-pressed={!useBezierConnectionsEnabled}
-            onClick={toggleUseBezierConnections}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-              <path d="M2 12h4L10 4h4" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="2" cy="12" r="1.2" fill="currentColor" stroke="none" />
-              <circle cx="10" cy="4" r="1.2" fill="currentColor" stroke="none" />
-              <circle cx="14" cy="4" r="1.2" fill="currentColor" stroke="none" />
-            </svg>
-          </button>
-        )}
-        <SnapToggle />
-        <ThemeToggle />
-        <button
-          type="button"
-          className="app-control-button"
-          aria-label="Help"
-          title="Help"
-          onClick={() => setIsHelpOpen(true)}
-        >
-          ?
-        </button>
-      </div>
-      <h1 className="app-title">fweep!</h1>
+      {hasOpenMap && (
+        <>
+          <div className="app-controls app-controls--settings">
+            <button
+              type="button"
+              className="app-control-button app-control-button--plain"
+              aria-label="Back to maps"
+              title="Back to maps"
+              onClick={closeMap}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M5.5 8H13" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label="Toggle grid"
+              title="Toggle grid"
+              aria-pressed={showGridEnabled}
+              onClick={toggleShowGrid}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <line x1="0" y1="4" x2="16" y2="4" />
+                <line x1="0" y1="8" x2="16" y2="8" />
+                <line x1="0" y1="12" x2="16" y2="12" />
+                <line x1="4" y1="0" x2="4" y2="16" />
+                <line x1="8" y1="0" x2="8" y2="16" />
+                <line x1="12" y1="0" x2="12" y2="16" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label="Toggle polyline connections"
+              title="Toggle polyline connections"
+              aria-pressed={!useBezierConnectionsEnabled}
+              onClick={toggleUseBezierConnections}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                <path d="M2 12h4L10 4h4" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="2" cy="12" r="1.2" fill="currentColor" stroke="none" />
+                <circle cx="10" cy="4" r="1.2" fill="currentColor" stroke="none" />
+                <circle cx="14" cy="4" r="1.2" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+            <SnapToggle />
+            <ThemeToggle />
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label="Help"
+              title="Help"
+              onClick={() => setIsHelpOpen(true)}
+            >
+              ?
+            </button>
+          </div>
+          <h1 className="app-title">fweep!</h1>
+        </>
+      )}
       {isHelpOpen && (
         <div className="help-overlay" data-testid="help-overlay">
           <div
