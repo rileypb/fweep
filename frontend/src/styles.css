@@ -3,6 +3,8 @@
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --app-title-size: clamp(2.5rem, 8vw, 4rem);
   --app-title-size-mobile: clamp(2rem, 12vw, 3rem);
+  --app-cli-stack-width: min(37.5vw, 27rem);
+  --app-cli-stack-gutter: 1rem;
   line-height: 1.5;
   font-weight: 400;
   color: #111827;
@@ -55,55 +57,31 @@ body {
 .app-cli-stack {
   position: fixed;
   left: 1rem;
+  top: 1rem;
   bottom: 1rem;
   z-index: 5;
-  width: min(37.5vw, 27rem);
+  width: min(var(--app-cli-stack-width), calc(100vw - 2rem));
   max-width: calc(100vw - 2rem);
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   pointer-events: none;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 1rem;
-}
-
-.app-game-output-toggle {
-  pointer-events: auto;
-  align-self: center;
-  width: 1.4rem;
-  height: 1.2rem;
-  margin-top: 0.15rem;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: color-mix(in srgb, currentColor 55%, transparent);
-  font-size: 0.7rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.app-game-output-toggle--collapsed {
-  margin-top: 0.25rem;
-}
-
-.app-game-output-toggle:focus {
-  outline: none;
-}
-
-.app-game-output-toggle:focus-visible {
-  border-radius: 0.5rem;
-  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+  overflow: hidden;
 }
 
 .app-game-output {
   position: static;
   pointer-events: auto;
   display: block;
+  flex: 1 1 auto;
   width: 100%;
   min-height: 0;
   padding: 0.8rem 0.9rem;
   border: none;
   border-radius: 0.9rem;
-  background: transparent;
+  background: #ffffff;
   color: color-mix(in srgb, currentColor 50%, transparent);
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   resize: none;
@@ -152,7 +130,12 @@ body {
   gap: 0.15rem;
   padding: 0 0.4em;
   border-radius: 0.8rem;
-  background: transparent;
+  background: #ffffff;
+}
+
+:root[data-theme='dark'] .app-game-output,
+:root[data-theme='dark'] .app-cli-input-shell {
+  background: #111827;
 }
 
 .app-cli-prompt {
@@ -209,9 +192,9 @@ body {
 
 .app-controls--settings {
   top: 1rem;
-  left: 1rem;
+  left: calc(1rem + min(var(--app-cli-stack-width), calc(100vw - 2rem)) + var(--app-cli-stack-gutter));
   align-items: center;
-  max-width: calc(100vw - 2rem);
+  max-width: calc(100vw - min(var(--app-cli-stack-width), calc(100vw - 2rem)) - 3rem);
 }
 
 .app-control-button {
@@ -283,6 +266,10 @@ body {
 }
 
 @media (max-width: 720px) {
+  :root {
+    --app-cli-stack-width: min(52vw, 18rem);
+  }
+
   .app-cli-bar {
     right: 1rem;
     align-items: stretch;
@@ -301,8 +288,8 @@ body {
   }
 
   .app-cli-input-shell {
-    flex-basis: min(52vw, 18rem);
-    width: min(52vw, 18rem);
+    flex-basis: var(--app-cli-stack-width);
+    width: var(--app-cli-stack-width);
     height: calc(var(--app-title-size-mobile) * 0.6);
   }
 }

@@ -1563,44 +1563,6 @@ describe('URL routing', () => {
     expect(outputLines[20]).toBe('');
   });
 
-  it('collapses and expands the output log', async () => {
-    const user = userEvent.setup();
-    const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'scrollHeight');
-    Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
-      configurable: true,
-      get() {
-        return 1234;
-      },
-    });
-
-    render(<App />);
-
-    try {
-      const input = screen.getByRole('textbox', { name: /cli command/i });
-      const form = input.closest('form') as HTMLFormElement;
-      fireEvent.change(input, { target: { value: 'blorb room 1' } });
-      fireEvent.submit(form);
-
-      expect(getGameOutputBox()).toBeInTheDocument();
-
-      await user.click(screen.getByRole('button', { name: /collapse output log/i }));
-      expect(screen.queryByRole('textbox', { name: /game output/i })).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /expand output log/i })).toBeInTheDocument();
-
-      await user.click(screen.getByRole('button', { name: /expand output log/i }));
-      const output = screen.getByRole('textbox', { name: /game output/i }) as HTMLTextAreaElement;
-      expect(output).toBeInTheDocument();
-      expect(output.scrollTop).toBe(1234);
-      expect(screen.getByRole('button', { name: /collapse output log/i })).toBeInTheDocument();
-    } finally {
-      if (originalScrollHeightDescriptor) {
-        Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', originalScrollHeightDescriptor);
-      } else {
-        delete (HTMLTextAreaElement.prototype as { scrollHeight?: number }).scrollHeight;
-      }
-    }
-  });
-
   it('opens and closes the help dialog', async () => {
     const user = userEvent.setup();
     render(<App />);
