@@ -3,6 +3,7 @@
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --app-title-size: clamp(2.5rem, 8vw, 4rem);
   --app-title-size-mobile: clamp(2rem, 12vw, 3rem);
+  --app-cli-stack-left: calc(1rem + 2vw);
   --app-cli-stack-width: min(37.5vw, 27rem);
   --app-cli-stack-gutter: 1rem;
   line-height: 1.5;
@@ -56,12 +57,12 @@ body {
 
 .app-cli-stack {
   position: fixed;
-  left: 1rem;
+  left: var(--app-cli-stack-left);
   top: 1rem;
   bottom: 1rem;
   z-index: 5;
-  width: min(var(--app-cli-stack-width), calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
+  width: min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem));
+  max-width: calc(100vw - var(--app-cli-stack-left) - 1rem);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -105,13 +106,20 @@ body {
 }
 
 .app-title {
+  position: fixed;
+  left: calc(var(--app-cli-stack-left) / 2);
+  top: 50%;
+  z-index: 6;
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: 100%;
   opacity: 0.4;
   user-select: none;
-  flex: 0 0 auto;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center;
+  pointer-events: none;
 }
 
 .app-cli-form {
@@ -192,9 +200,19 @@ body {
 
 .app-controls--settings {
   top: 1rem;
-  left: calc(1rem + min(var(--app-cli-stack-width), calc(100vw - 2rem)) + var(--app-cli-stack-gutter));
+  left: calc(var(--app-cli-stack-left) / 2);
+  flex-direction: column;
   align-items: center;
-  max-width: calc(100vw - min(var(--app-cli-stack-width), calc(100vw - 2rem)) - 3rem);
+  transform: translateX(-50%);
+  max-width: calc(var(--app-cli-stack-left) - 1rem);
+}
+
+.app-map-name-chip {
+  position: fixed;
+  top: 1rem;
+  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + var(--app-cli-stack-gutter));
+  z-index: 6;
+  max-width: calc(100vw - var(--app-cli-stack-left) - min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) - 2rem - var(--app-cli-stack-gutter));
 }
 
 .app-control-button {
@@ -236,6 +254,14 @@ body {
 .app-control-button--plain,
 .app-control-chip--plain {
   border-color: transparent;
+}
+
+.app-map-name-chip {
+  min-height: 2.5rem;
+  height: auto;
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  font-size: 1.9rem;
 }
 
 .app-control-button--active-history {

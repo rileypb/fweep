@@ -533,6 +533,14 @@ export function App(): React.JSX.Element {
           </form>
         </div>
       </div>
+      {activeMap !== null && (
+        <div
+          className="app-control-chip app-map-name-chip app-control-chip--plain"
+          aria-label={`Map name: ${activeMap.metadata.name}`}
+        >
+          {`Map: ${activeMap.metadata.name}`}
+        </div>
+      )}
       <div className="app-controls app-controls--settings">
         {activeMap !== null && (
           <button
@@ -547,14 +555,6 @@ export function App(): React.JSX.Element {
               <path d="M5.5 8H13" strokeLinecap="round" />
             </svg>
           </button>
-        )}
-        {activeMap !== null && (
-          <div
-            className="app-control-chip app-control-chip--plain"
-            aria-label={`Map name: ${activeMap.metadata.name}`}
-          >
-            {activeMap.metadata.name}
-          </div>
         )}
         {activeMap !== null && (
           <button
@@ -603,8 +603,8 @@ export function App(): React.JSX.Element {
         >
           ?
         </button>
-        <h1 className="app-title">fweep</h1>
       </div>
+      <h1 className="app-title">fweep</h1>
       {isHelpOpen && (
         <div className="help-overlay" data-testid="help-overlay">
           <div
