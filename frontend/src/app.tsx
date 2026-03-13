@@ -612,7 +612,7 @@ export function App(): React.JSX.Element {
                 className="app-cli-input"
                 type="text"
                 name="cli-command"
-                placeholder={hasUsedCliInput ? 'Enter a command' : 'Type help'}
+                placeholder={hasUsedCliInput ? '' : 'Type help'}
                 autoComplete="off"
                 spellCheck={false}
                 ref={cliInputRef}

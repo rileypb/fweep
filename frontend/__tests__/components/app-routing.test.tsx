@@ -64,7 +64,7 @@ describe('URL routing', () => {
     await user.type(input, 'help');
     await user.clear(input);
 
-    expect(input).toHaveAttribute('placeholder', 'Enter a command');
+    expect(input).toHaveAttribute('placeholder', '');
   });
 
   it('navigates CLI command history with the up and down arrows', async () => {
