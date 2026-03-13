@@ -29,25 +29,17 @@ export type CliCommand =
 
 export const CLI_COMMAND_FORMS = [
   'help',
-  'arrange',
-  'prettify',
+  'arrange/prettify',
   'create <room name>',
   'delete <room name>',
   'edit <room name>',
   'show <room name>',
-  'notate <room name> with <note text>',
-  'annotate <room name> with <note text>',
-  'connect <room name> <direction> one-way to <room name>',
-  'connect <room name> <direction> to <room name>',
-  'connect <room name> <direction> to <room name> <direction>',
-  'create and connect <room name> <direction> one-way to <room name>',
-  'create and connect <room name> <direction> to <room name>',
-  'create and connect <room name> <direction> to <room name> <direction>',
+  'notate/annotate <room name> with <note text>',
+  'connect <room name> <direction> [one-way] to <room name> [<direction>]',
+  'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
   'create <room name> <direction> of <room name>',
-  'create <room name> above <room name>',
-  'create <room name> below <room name>',
-  'undo',
-  'redo',
+  'create <room name> above/below <room name>',
+  'undo/redo',
 ] as const;
 
 interface Token {

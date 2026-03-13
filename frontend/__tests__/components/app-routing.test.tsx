@@ -169,18 +169,16 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'help',
-      'arrange',
-      'prettify',
+      'arrange/prettify',
       'create <room name>',
       'delete <room name>',
       'edit <room name>',
       'show <room name>',
-      'notate <room name> with <note text>',
-      'annotate <room name> with <note text>',
-      'connect <room name> <direction> one-way to <room name>',
-      'create and connect <room name> <direction> to <room name>',
-      'create <room name> above <room name>',
-      'redo',
+      'notate/annotate <room name> with <note text>',
+      'connect <room name> <direction> [one-way] to <room name> [<direction>]',
+      'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
+      'create <room name> above/below <room name>',
+      'undo/redo',
     );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
