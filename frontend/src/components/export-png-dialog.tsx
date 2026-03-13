@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { Position } from '../domain/map-types';
 import { useDocumentTheme } from './map-canvas-helpers';
 import { useEditorStore, type ExportRegionDraft } from '../state/editor-store';
@@ -82,17 +82,22 @@ export function ExportPngDialog({
 }: ExportPngDialogProps): React.JSX.Element | null {
   const doc = useEditorStore((state) => state.doc);
   const selectedRoomIds = useEditorStore((state) => state.selectedRoomIds);
+  const selectedStickyNoteIds = useEditorStore((state) => state.selectedStickyNoteIds);
   const selectedConnectionIds = useEditorStore((state) => state.selectedConnectionIds);
+  const selectedStickyNoteLinkIds = useEditorStore((state) => state.selectedStickyNoteLinkIds);
   const exportRegion = useEditorStore((state) => state.exportRegion);
   const exportRegionDraft = useEditorStore((state) => state.exportRegionDraft);
   const clearExportRegion = useEditorStore((state) => state.clearExportRegion);
   const theme = useDocumentTheme();
-  const hasSelection = selectedRoomIds.length > 0 || selectedConnectionIds.length > 0;
+  const hasSelection = selectedRoomIds.length > 0
+    || selectedStickyNoteIds.length > 0
+    || selectedConnectionIds.length > 0
+    || selectedStickyNoteLinkIds.length > 0;
   const [settings, setSettings] = useState<ExportSettings>(DEFAULT_SETTINGS_BY_SCOPE['entire-map']);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -145,12 +150,14 @@ export function ExportPngDialog({
       doc,
       settings,
       selectedRoomIds,
+      selectedStickyNoteIds,
       selectedConnectionIds,
+      selectedStickyNoteLinkIds,
       viewportSize: canvasViewportSize,
       mapPanOffset: panOffset,
       region: effectiveRegion,
     });
-  }, [canvasViewportSize, doc, effectiveRegion, panOffset, selectedConnectionIds, selectedRoomIds, settings]);
+  }, [canvasViewportSize, doc, effectiveRegion, panOffset, selectedConnectionIds, selectedRoomIds, selectedStickyNoteIds, selectedStickyNoteLinkIds, settings]);
 
   const sizeValidationError = useMemo(
     () => validateExportBounds(boundsResult.bounds, settings.scale),
@@ -205,7 +212,9 @@ export function ExportPngDialog({
         viewportSize: canvasViewportSize,
         mapPanOffset: panOffset,
         selectedRoomIds,
+        selectedStickyNoteIds,
         selectedConnectionIds,
+        selectedStickyNoteLinkIds,
       });
       await exportPngToDownload({
         mapName,
@@ -251,7 +260,7 @@ export function ExportPngDialog({
           </label>
 
           {!hasSelection && settings.scope === 'selection' && (
-            <p className="export-png-help">Select rooms or connections first.</p>
+            <p className="export-png-help">Select rooms, sticky notes, connections, or sticky-note links first.</p>
           )}
           {settings.scope === 'region' && (
             <div className="export-png-region-row">

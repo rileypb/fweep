@@ -146,6 +146,12 @@ describe('ExportPngDialog actions', () => {
     await waitFor(() => {
       expect(mockRenderExportCanvas).toHaveBeenCalledTimes(1);
     });
+    expect(mockRenderExportCanvas.mock.calls[0]?.[0]).toMatchObject({
+      settings: expect.objectContaining({
+        scope: 'selection',
+      }),
+      selectedRoomIds: ['room-1'],
+    });
     expect(mockExportPngToDownload).toHaveBeenCalledTimes(1);
     expect(mockExportPngToDownload.mock.calls[0]?.[0]).toEqual({
       mapName: 'Export Test',

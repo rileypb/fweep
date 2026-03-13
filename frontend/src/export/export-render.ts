@@ -1,4 +1,4 @@
-import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room } from '../domain/map-types';
+import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
 import { getRoomFillColor, getRoomStrokeColor } from '../domain/room-color-palette';
 import { blobToCanvas, createSizedCanvas } from '../components/map-background-raster';
 import { getRoomStrokeDasharray } from '../components/map-canvas-helpers';
@@ -17,6 +17,7 @@ import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
+import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
 import { validateExportBounds } from './export-bounds';
@@ -151,6 +152,76 @@ function drawRoomLabel(context: CanvasRenderingContext2D, room: Room, theme: Exp
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(room.name, room.position.x + labelLayout.textX, room.position.y + labelLayout.textY);
+}
+
+function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNote): void {
+  const width = STICKY_NOTE_WIDTH;
+  const height = getStickyNoteHeight(stickyNote.text);
+  const foldSize = 18;
+  const left = stickyNote.position.x;
+  const top = stickyNote.position.y;
+  const right = left + width;
+  const bottom = top + height;
+
+  context.beginPath();
+  context.moveTo(left, top);
+  context.lineTo(right, top);
+  context.lineTo(right, bottom - foldSize);
+  context.lineTo(right - foldSize, bottom);
+  context.lineTo(left, bottom);
+  context.closePath();
+  context.fillStyle = '#f1e67d';
+  context.strokeStyle = 'rgba(120, 105, 18, 0.34)';
+  context.lineWidth = 1;
+  context.fill();
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(right - foldSize, bottom);
+  context.lineTo(right - foldSize, bottom - foldSize);
+  context.lineTo(right, bottom - foldSize);
+  context.closePath();
+  context.fillStyle = 'rgba(196, 176, 54, 0.32)';
+  context.fill();
+
+  context.fillStyle = '#4c4312';
+  context.font = '500 15px Georgia, serif';
+  context.textAlign = 'left';
+  context.textBaseline = 'top';
+
+  const paddingLeft = 16;
+  const paddingTop = 16;
+  const lineHeight = 20;
+  stickyNote.text.split('\n').forEach((line, index) => {
+    context.fillText(line, left + paddingLeft, top + paddingTop + (index * lineHeight));
+  });
+}
+
+function drawStickyNoteLink(
+  context: CanvasRenderingContext2D,
+  doc: ExportRenderInput['doc'],
+  stickyNoteLink: StickyNoteLink,
+): void {
+  const stickyNote = doc.stickyNotes[stickyNoteLink.stickyNoteId];
+  const room = doc.rooms[stickyNoteLink.roomId];
+  if (!stickyNote || !room) {
+    return;
+  }
+
+  const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+  const roomCenter = {
+    x: room.position.x + (getRoomNodeWidth(room) / 2),
+    y: room.position.y + (ROOM_HEIGHT / 2),
+  };
+
+  context.beginPath();
+  context.moveTo(stickyNoteCenter.x, stickyNoteCenter.y);
+  context.lineTo(roomCenter.x, roomCenter.y);
+  context.strokeStyle = '#8a8156';
+  context.lineWidth = 2;
+  context.setLineDash([5, 4]);
+  context.stroke();
+  context.setLineDash([]);
 }
 
 function drawConnectionGeometry(context: CanvasRenderingContext2D, geometry: ConnectionRenderGeometry): void {
@@ -376,6 +447,26 @@ function getRenderableRooms(input: ExportRenderInput): readonly Room[] {
     .filter((room): room is Room => Boolean(room));
 }
 
+function getRenderableStickyNotes(input: ExportRenderInput): readonly StickyNote[] {
+  if (input.settings.scope !== 'selection') {
+    return Object.values(input.doc.stickyNotes);
+  }
+
+  return input.selectedStickyNoteIds
+    .map((stickyNoteId) => input.doc.stickyNotes[stickyNoteId])
+    .filter((stickyNote): stickyNote is StickyNote => Boolean(stickyNote));
+}
+
+function getRenderableStickyNoteLinks(input: ExportRenderInput): readonly StickyNoteLink[] {
+  if (input.settings.scope !== 'selection') {
+    return Object.values(input.doc.stickyNoteLinks);
+  }
+
+  return input.selectedStickyNoteLinkIds
+    .map((stickyNoteLinkId) => input.doc.stickyNoteLinks[stickyNoteLinkId])
+    .filter((stickyNoteLink): stickyNoteLink is StickyNoteLink => Boolean(stickyNoteLink));
+}
+
 export async function renderExportCanvas(input: ExportRenderInput): Promise<HTMLCanvasElement> {
   const validationError = validateExportBounds(input.bounds, input.settings.scale);
   if (validationError) {
@@ -404,6 +495,8 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   const renderableConnections = getRenderableConnections(input);
   const renderableRooms = getRenderableRooms(input);
+  const renderableStickyNotes = getRenderableStickyNotes(input);
+  const renderableStickyNoteLinks = getRenderableStickyNoteLinks(input);
 
   context.save();
   context.scale(input.settings.scale, input.settings.scale);
@@ -422,6 +515,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
     result: drawConnectionLine(context, input.doc, connection, input.theme),
   }));
 
+  renderableStickyNoteLinks.forEach((stickyNoteLink) => {
+    drawStickyNoteLink(context, input.doc, stickyNoteLink);
+  });
+
   renderableRooms.forEach((room) => {
     drawRoomShape(context, room, input.theme);
   });
@@ -438,6 +535,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   renderableRooms.forEach((room) => {
     drawRoomLabel(context, room, input.theme);
+  });
+
+  renderableStickyNotes.forEach((stickyNote) => {
+    drawStickyNote(context, stickyNote);
   });
 
   context.restore();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { createConnection, createEmptyMap, createRoom, createStickyNote } from '../../src/domain/map-types';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { getEntireMapExportBounds, getExportBounds, getRegionExportBounds, getSelectionExportBounds, getViewportExportBounds, validateExportBounds } from '../../src/export/export-bounds';
 import type { ExportSettings } from '../../src/export/export-types';
@@ -35,7 +35,7 @@ describe('export-bounds', () => {
   it('returns a selection-empty error when selection has no entities', () => {
     const doc = createEmptyMap('Test');
 
-    const result = getSelectionExportBounds(doc, [], [], 80);
+    const result = getSelectionExportBounds(doc, [], [], [], [], 80);
 
     expect(result.bounds).toBeNull();
     expect(result.validationError?.code).toBe('selection-empty');
@@ -50,7 +50,7 @@ describe('export-bounds', () => {
     doc = addRoom(doc, target);
     doc = addConnection(doc, connection, 'east');
 
-    const result = getSelectionExportBounds(doc, [], [connection.id], 0);
+    const result = getSelectionExportBounds(doc, [], [], [connection.id], [], 0);
 
     expect(result.validationError).toBeNull();
     expect(result.bounds).not.toBeNull();
@@ -66,7 +66,7 @@ describe('export-bounds', () => {
     doc = addRoom(doc, target);
     doc = addConnection(doc, connection, 'down');
 
-    const result = getSelectionExportBounds(doc, [], [connection.id], 0);
+    const result = getSelectionExportBounds(doc, [], [], [connection.id], [], 0);
 
     expect(result.validationError).toBeNull();
     expect(result.bounds).not.toBeNull();
@@ -82,6 +82,33 @@ describe('export-bounds', () => {
       right: 380,
       bottom: 340,
     });
+  });
+
+  it('includes sticky notes in entire-map and selection bounds', () => {
+    const stickyNote = {
+      ...createStickyNote('A note'),
+      id: 'sticky-note-1',
+      position: { x: 320, y: 160 },
+    };
+    const doc = {
+      ...createEmptyMap('Test'),
+      stickyNotes: {
+        [stickyNote.id]: stickyNote,
+      },
+    };
+
+    const entireMap = getEntireMapExportBounds(doc, 0);
+    const selection = getSelectionExportBounds(doc, [], [stickyNote.id], [], [], 0);
+
+    expect(entireMap.validationError).toBeNull();
+    expect(entireMap.bounds).toEqual({
+      left: 320,
+      top: 160,
+      right: 500,
+      bottom: 260,
+    });
+    expect(selection.validationError).toBeNull();
+    expect(selection.bounds).toEqual(entireMap.bounds);
   });
 
   it('normalizes region bounds regardless of drag direction', () => {
@@ -111,13 +138,58 @@ describe('export-bounds', () => {
     expect(error?.code).toBe('width-too-large');
   });
 
+  it('includes sticky-note links in entire-map and selection bounds', () => {
+    const room = { ...createRoom('Kitchen'), id: 'room-1', position: { x: 40, y: 80 } };
+    const stickyNote = {
+      ...createStickyNote('A note'),
+      id: 'sticky-note-1',
+      position: { x: 320, y: 160 },
+    };
+    const doc = {
+      ...createEmptyMap('Test'),
+      rooms: {
+        [room.id]: room,
+      },
+      stickyNotes: {
+        [stickyNote.id]: stickyNote,
+      },
+      stickyNoteLinks: {
+        'sticky-note-link-1': {
+          id: 'sticky-note-link-1',
+          stickyNoteId: stickyNote.id,
+          roomId: room.id,
+        },
+      },
+    };
+
+    const entireMap = getEntireMapExportBounds(doc, 0);
+    const selection = getSelectionExportBounds(doc, [], [], [], ['sticky-note-link-1'], 0);
+
+    expect(entireMap.validationError).toBeNull();
+    expect(entireMap.bounds).toEqual({
+      left: 40,
+      top: 80,
+      right: 500,
+      bottom: 260,
+    });
+    expect(selection.validationError).toBeNull();
+    expect(selection.bounds).toEqual({
+      left: 80,
+      top: 98,
+      right: 410,
+      bottom: 210,
+    });
+  });
+
   it('routes through getExportBounds for region scope', () => {
     const doc = createEmptyMap('Test');
     const result = getExportBounds({
       doc,
       settings: createBaseSettings('region'),
       selectedRoomIds: [],
+      selectedStickyNoteIds: [],
       selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
       region: { left: 20, top: 30, right: 90, bottom: 110 },
     });
 

@@ -156,6 +156,7 @@ export function MapCanvas({
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
   const selectedStickyNoteIds = useEditorStore((s) => s.selectedStickyNoteIds);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
+  const selectedStickyNoteLinkIds = useEditorStore((s) => s.selectedStickyNoteLinkIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addStickyNoteAtPosition = useEditorStore((s) => s.addStickyNoteAtPosition);
   const setSelection = useEditorStore((s) => s.setSelection);
@@ -207,6 +208,10 @@ export function MapCanvas({
 
   const rooms = doc ? Object.values(doc.rooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
+  const hasExportSelection = selectedRoomIds.length > 0
+    || selectedStickyNoteIds.length > 0
+    || selectedConnectionIds.length > 0
+    || selectedStickyNoteLinkIds.length > 0;
 
   useEffect(() => {
     if (drawingInterfaceEnabled) {
@@ -1329,7 +1334,8 @@ export function MapCanvas({
             title="Export PNG"
             onClick={() => {
               clearExportRegion();
-              setPreferredExportScope(null);
+              setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+              setExportScope(hasExportSelection ? 'selection' : 'entire-map');
               setIsExportDialogOpen(true);
             }}
           >

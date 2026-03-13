@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { createConnection, createEmptyMap, createRoom, createStickyNote } from '../../src/domain/map-types';
 import type { ExportRenderInput } from '../../src/export/export-types';
 import type { BackgroundChunkRecord } from '../../src/storage/map-store';
 
@@ -151,6 +151,20 @@ function createBaseInput(): ExportRenderInput {
   doc = addConnection(doc, twoWay, 'east', 'west');
   doc = {
     ...doc,
+    stickyNotes: {
+      'sticky-note-1': {
+        ...createStickyNote('remember this'),
+        id: 'sticky-note-1',
+        position: { x: 40, y: 120 },
+      },
+    },
+    stickyNoteLinks: {
+      'sticky-note-link-1': {
+        id: 'sticky-note-link-1',
+        stickyNoteId: 'sticky-note-1',
+        roomId: rectangleRoom.id,
+      },
+    },
     background: {
       activeLayerId: 'layer-1',
       layers: {
@@ -184,7 +198,9 @@ function createBaseInput(): ExportRenderInput {
       bottom: 240,
     },
     selectedRoomIds: [rectangleRoom.id],
+    selectedStickyNoteIds: ['sticky-note-1'],
     selectedConnectionIds: [oneWay.id],
+    selectedStickyNoteLinkIds: ['sticky-note-link-1'],
   };
 }
 
@@ -306,11 +322,14 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Oval', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Octagon', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('north', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('south', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('stairs', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('up', expect.any(Number), expect.any(Number));
     expect(context.setLineDash).toHaveBeenCalled();
+    expect(context.moveTo).toHaveBeenCalledWith(130, 170);
+    expect(context.lineTo).toHaveBeenCalledWith(40, 18);
     expect(mockListBackgroundChunksInBounds).toHaveBeenCalled();
   });
 
@@ -358,6 +377,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillRect).not.toHaveBeenCalled();
     expect(context.bezierCurveTo).toHaveBeenCalled();
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).not.toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
   });

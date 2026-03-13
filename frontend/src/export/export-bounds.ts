@@ -1,4 +1,4 @@
-import type { Connection, MapDocument, Position, Room } from '../domain/map-types';
+import type { Connection, MapDocument, Position, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
 import {
   createConnectionRenderGeometry,
   type Point,
@@ -8,6 +8,7 @@ import {
   sampleConnectionGeometryAtFraction,
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import type { ExportBoundsResult, ExportRegion, ExportSettings, ExportValidationError } from './export-types';
 
 const MAX_EXPORT_DIMENSION = 8192;
@@ -88,6 +89,36 @@ function getRoomBounds(room: Room): ExportRegion {
     top: room.position.y,
     right: room.position.x + getRoomNodeWidth(room),
     bottom: room.position.y + ROOM_HEIGHT,
+  };
+}
+
+function getStickyNoteBounds(stickyNote: StickyNote): ExportRegion {
+  return {
+    left: stickyNote.position.x,
+    top: stickyNote.position.y,
+    right: stickyNote.position.x + STICKY_NOTE_WIDTH,
+    bottom: stickyNote.position.y + getStickyNoteHeight(stickyNote.text),
+  };
+}
+
+function getStickyNoteLinkBounds(doc: MapDocument, stickyNoteLink: StickyNoteLink): ExportRegion | null {
+  const stickyNote = doc.stickyNotes[stickyNoteLink.stickyNoteId];
+  const room = doc.rooms[stickyNoteLink.roomId];
+  if (!stickyNote || !room) {
+    return null;
+  }
+
+  const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+  const roomCenter = {
+    x: room.position.x + (getRoomNodeWidth(room) / 2),
+    y: room.position.y + (ROOM_HEIGHT / 2),
+  };
+
+  return {
+    left: Math.min(stickyNoteCenter.x, roomCenter.x),
+    top: Math.min(stickyNoteCenter.y, roomCenter.y),
+    right: Math.max(stickyNoteCenter.x, roomCenter.x),
+    bottom: Math.max(stickyNoteCenter.y, roomCenter.y),
   };
 }
 
@@ -264,6 +295,20 @@ export function getEntireMapExportBounds(doc: MapDocument, padding: number): Exp
     hasContent = true;
   });
 
+  Object.values(doc.stickyNotes).forEach((stickyNote) => {
+    bounds = includeRect(bounds, getStickyNoteBounds(stickyNote));
+    hasContent = true;
+  });
+
+  Object.values(doc.stickyNoteLinks).forEach((stickyNoteLink) => {
+    const stickyNoteLinkBounds = getStickyNoteLinkBounds(doc, stickyNoteLink);
+    if (!stickyNoteLinkBounds) {
+      return;
+    }
+    bounds = includeRect(bounds, stickyNoteLinkBounds);
+    hasContent = true;
+  });
+
   if (!hasContent || !hasFiniteBounds(bounds)) {
     return {
       bounds: null,
@@ -301,7 +346,9 @@ export function getViewportExportBounds(
 export function getSelectionExportBounds(
   doc: MapDocument,
   selectedRoomIds: readonly string[],
+  selectedStickyNoteIds: readonly string[],
   selectedConnectionIds: readonly string[],
+  selectedStickyNoteLinkIds: readonly string[],
   padding: number,
 ): ExportBoundsResult {
   let bounds = createEmptyBounds();
@@ -313,6 +360,15 @@ export function getSelectionExportBounds(
       return;
     }
     bounds = includeRect(bounds, getRoomBounds(room));
+    hasContent = true;
+  });
+
+  selectedStickyNoteIds.forEach((stickyNoteId) => {
+    const stickyNote = doc.stickyNotes[stickyNoteId];
+    if (!stickyNote) {
+      return;
+    }
+    bounds = includeRect(bounds, getStickyNoteBounds(stickyNote));
     hasContent = true;
   });
 
@@ -329,12 +385,25 @@ export function getSelectionExportBounds(
     hasContent = true;
   });
 
+  selectedStickyNoteLinkIds.forEach((stickyNoteLinkId) => {
+    const stickyNoteLink = doc.stickyNoteLinks[stickyNoteLinkId];
+    if (!stickyNoteLink) {
+      return;
+    }
+    const stickyNoteLinkBounds = getStickyNoteLinkBounds(doc, stickyNoteLink);
+    if (!stickyNoteLinkBounds) {
+      return;
+    }
+    bounds = includeRect(bounds, stickyNoteLinkBounds);
+    hasContent = true;
+  });
+
   if (!hasContent || !hasFiniteBounds(bounds)) {
     return {
       bounds: null,
       validationError: {
         code: 'selection-empty',
-        message: 'Select rooms or connections first.',
+        message: 'Select rooms, sticky notes, connections, or sticky-note links first.',
       },
     };
   }
@@ -371,7 +440,9 @@ export function getExportBounds(args: {
   readonly doc: MapDocument;
   readonly settings: ExportSettings;
   readonly selectedRoomIds: readonly string[];
+  readonly selectedStickyNoteIds: readonly string[];
   readonly selectedConnectionIds: readonly string[];
+  readonly selectedStickyNoteLinkIds: readonly string[];
   readonly viewportSize?: { readonly width: number; readonly height: number };
   readonly mapPanOffset?: Position;
   readonly region?: ExportRegion | null;
@@ -392,7 +463,14 @@ export function getExportBounds(args: {
   }
 
   if (settings.scope === 'selection') {
-    return getSelectionExportBounds(doc, args.selectedRoomIds, args.selectedConnectionIds, settings.padding);
+    return getSelectionExportBounds(
+      doc,
+      args.selectedRoomIds,
+      args.selectedStickyNoteIds,
+      args.selectedConnectionIds,
+      args.selectedStickyNoteLinkIds,
+      settings.padding,
+    );
   }
 
   if (settings.scope === 'region') {
