@@ -7,6 +7,7 @@ import {
   computeGeometryArrowheadPoints,
   createConnectionRenderGeometry,
   findRoomDirectionForConnection,
+  getConnectionGeometryLength,
   ROOM_CORNER_RADIUS,
   ROOM_HEIGHT,
   sampleConnectionGeometryAtFraction,
@@ -29,7 +30,12 @@ const DARK_GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
 const LIGHT_FOREGROUND = '#111827';
 const DARK_FOREGROUND = '#f3f4f6';
 const CONNECTION_ANNOTATION_OFFSET = 8;
+const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
+const CONNECTION_ANNOTATION_ARROWHEAD_LENGTH = 10;
+const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
+const CONNECTION_ANNOTATION_PADDING = 12;
 
 function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
   const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
@@ -350,6 +356,35 @@ function drawConnectionLabels(
     return;
   }
 
+  context.font = '600 14px sans-serif';
+  context.textAlign = 'center';
+
+  if (annotationKind === 'up' || annotationKind === 'down' || annotationKind === 'in' || annotationKind === 'out') {
+    const directionalAnnotation = getDirectionalAnnotationGeometry(annotationKind, annotationLabel, geometry, points);
+    if (!directionalAnnotation) {
+      return;
+    }
+
+    context.beginPath();
+    context.moveTo(directionalAnnotation.lineStart.x, directionalAnnotation.lineStart.y);
+    context.lineTo(directionalAnnotation.lineEnd.x, directionalAnnotation.lineEnd.y);
+    context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
+    context.lineWidth = 2;
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(directionalAnnotation.arrowTip.x, directionalAnnotation.arrowTip.y);
+    context.lineTo(directionalAnnotation.arrowBaseA.x, directionalAnnotation.arrowBaseA.y);
+    context.lineTo(directionalAnnotation.arrowBaseB.x, directionalAnnotation.arrowBaseB.y);
+    context.closePath();
+    context.fillStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
+    context.fill();
+
+    context.fillStyle = getForegroundColor(theme);
+    context.fillText(annotationLabel, directionalAnnotation.textPosition.x, directionalAnnotation.textPosition.y);
+    return;
+  }
+
   const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
   if (!sample) {
     return;
@@ -360,10 +395,230 @@ function drawConnectionLabels(
   const normalY = sample.tangent.x / tangentLength;
   const textX = sample.point.x + (normalX * (CONNECTION_ANNOTATION_OFFSET + CONNECTION_ANNOTATION_TEXT_OFFSET));
   const textY = sample.point.y + (normalY * (CONNECTION_ANNOTATION_OFFSET + CONNECTION_ANNOTATION_TEXT_OFFSET));
-
-  context.font = '600 14px sans-serif';
-  context.textAlign = 'center';
   context.fillText(annotationLabel, textX, textY);
+}
+
+function getLongestSegment(points: readonly Point[]): { start: Point; end: Point } | null {
+  let bestSegment: { start: Point; end: Point } | null = null;
+  let bestLength = -1;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (length > bestLength) {
+      bestLength = length;
+      bestSegment = { start, end };
+    }
+  }
+
+  return bestSegment;
+}
+
+function normalizeAnnotationNormal(normal: Point, preferPositiveX: boolean): Point {
+  if (!preferPositiveX) {
+    return normal;
+  }
+
+  if (normal.x < 0 || (normal.x === 0 && normal.y < 0)) {
+    return {
+      x: -normal.x,
+      y: -normal.y,
+    };
+  }
+
+  return normal;
+}
+
+function getDirectionalAnnotationGeometry(
+  annotationKind: 'up' | 'down' | 'in' | 'out',
+  annotationLabel: string,
+  geometry: ConnectionRenderGeometry,
+  points: readonly Point[],
+): {
+  lineStart: Point;
+  lineEnd: Point;
+  arrowTip: Point;
+  arrowBaseA: Point;
+  arrowBaseB: Point;
+  textPosition: Point;
+} | null {
+  const compactLength = annotationKind === 'up' || annotationKind === 'down';
+  const reverseDirection = annotationKind === 'out';
+  const preferPositiveNormalX = annotationKind === 'up' || annotationKind === 'down';
+
+  if (geometry.kind === 'polyline') {
+    const segment = getLongestSegment(points);
+    if (!segment) {
+      return null;
+    }
+
+    const dy = segment.end.y - segment.start.y;
+    return getAnnotationGeometryFromSegment(
+      segment,
+      annotationKind === 'up' ? dy > 0 : annotationKind === 'down' ? dy < 0 : reverseDirection,
+      annotationLabel,
+      compactLength,
+      preferPositiveNormalX,
+    );
+  }
+
+  return getAnnotationGeometryFromRenderGeometry(
+    geometry,
+    annotationKind === 'up'
+      ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) > 0
+      : annotationKind === 'down'
+        ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) < 0
+        : reverseDirection,
+    annotationLabel,
+    compactLength,
+    preferPositiveNormalX,
+  );
+}
+
+function getAnnotationGeometryFromSegment(
+  segment: { start: Point; end: Point },
+  reverseDirection: boolean,
+  annotationLabel: string,
+  compactLength: boolean,
+  preferPositiveNormalX: boolean,
+): {
+  lineStart: Point;
+  lineEnd: Point;
+  arrowTip: Point;
+  arrowBaseA: Point;
+  arrowBaseB: Point;
+  textPosition: Point;
+} | null {
+  const dx = segment.end.x - segment.start.x;
+  const dy = segment.end.y - segment.start.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) {
+    return null;
+  }
+
+  const ux = dx / length;
+  const uy = dy / length;
+  const directionX = reverseDirection ? -ux : ux;
+  const directionY = reverseDirection ? -uy : uy;
+  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
+  const annotationCenterX = ((segment.start.x + segment.end.x) / 2) + (normal.x * CONNECTION_ANNOTATION_OFFSET);
+  const annotationCenterY = ((segment.start.y + segment.end.y) / 2) + (normal.y * CONNECTION_ANNOTATION_OFFSET);
+  const annotationLength = compactLength
+    ? Math.min(
+      length * CONNECTION_ANNOTATION_LENGTH_RATIO,
+      Math.max(
+        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
+        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
+      ),
+    )
+    : length * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const halfLength = annotationLength / 2;
+  const lineStart = {
+    x: annotationCenterX - (directionX * halfLength),
+    y: annotationCenterY - (directionY * halfLength),
+  };
+  const lineEnd = {
+    x: annotationCenterX + (directionX * halfLength),
+    y: annotationCenterY + (directionY * halfLength),
+  };
+  const arrowTip = lineEnd;
+  const arrowBaseCenter = {
+    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+  };
+
+  return {
+    lineStart,
+    lineEnd,
+    arrowTip,
+    arrowBaseA: {
+      x: arrowBaseCenter.x + (normal.x * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+      y: arrowBaseCenter.y + (normal.y * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    },
+    arrowBaseB: {
+      x: arrowBaseCenter.x - (normal.x * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+      y: arrowBaseCenter.y - (normal.y * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    },
+    textPosition: {
+      x: annotationCenterX + (normal.x * CONNECTION_ANNOTATION_TEXT_OFFSET),
+      y: annotationCenterY + (normal.y * CONNECTION_ANNOTATION_TEXT_OFFSET),
+    },
+  };
+}
+
+function getAnnotationGeometryFromRenderGeometry(
+  geometry: ConnectionRenderGeometry,
+  reverseDirection: boolean,
+  annotationLabel: string,
+  compactLength: boolean,
+  preferPositiveNormalX: boolean,
+): {
+  lineStart: Point;
+  lineEnd: Point;
+  arrowTip: Point;
+  arrowBaseA: Point;
+  arrowBaseB: Point;
+  textPosition: Point;
+} | null {
+  const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
+  if (!sample) {
+    return null;
+  }
+
+  const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
+  if (tangentLength === 0) {
+    return null;
+  }
+
+  const ux = sample.tangent.x / tangentLength;
+  const uy = sample.tangent.y / tangentLength;
+  const directionX = reverseDirection ? -ux : ux;
+  const directionY = reverseDirection ? -uy : uy;
+  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
+  const annotationCenterX = sample.point.x + (normal.x * CONNECTION_ANNOTATION_OFFSET);
+  const annotationCenterY = sample.point.y + (normal.y * CONNECTION_ANNOTATION_OFFSET);
+  const annotationLength = compactLength
+    ? Math.min(
+      getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO,
+      Math.max(
+        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
+        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
+      ),
+    )
+    : getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO;
+  const halfLength = annotationLength / 2;
+  const lineStart = {
+    x: annotationCenterX - (directionX * halfLength),
+    y: annotationCenterY - (directionY * halfLength),
+  };
+  const lineEnd = {
+    x: annotationCenterX + (directionX * halfLength),
+    y: annotationCenterY + (directionY * halfLength),
+  };
+  const arrowTip = lineEnd;
+  const arrowBaseCenter = {
+    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
+  };
+
+  return {
+    lineStart,
+    lineEnd,
+    arrowTip,
+    arrowBaseA: {
+      x: arrowBaseCenter.x + (normal.x * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+      y: arrowBaseCenter.y + (normal.y * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    },
+    arrowBaseB: {
+      x: arrowBaseCenter.x - (normal.x * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+      y: arrowBaseCenter.y - (normal.y * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
+    },
+    textPosition: {
+      x: annotationCenterX + (normal.x * CONNECTION_ANNOTATION_TEXT_OFFSET),
+      y: annotationCenterY + (normal.y * CONNECTION_ANNOTATION_TEXT_OFFSET),
+    },
+  };
 }
 
 function drawGrid(

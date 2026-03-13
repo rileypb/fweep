@@ -14,6 +14,7 @@ const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connect
 const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/graph/connection-geometry').computeGeometryArrowheadPoints>();
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
 const mockFindRoomDirectionForConnection = jest.fn<typeof import('../../src/graph/connection-geometry').findRoomDirectionForConnection>();
+const mockGetConnectionGeometryLength = jest.fn<typeof import('../../src/graph/connection-geometry').getConnectionGeometryLength>();
 const mockSampleConnectionGeometryAtFraction = jest.fn<typeof import('../../src/graph/connection-geometry').sampleConnectionGeometryAtFraction>();
 const mockGetRoomNodeWidth = jest.fn<typeof import('../../src/graph/minimap-geometry').getRoomNodeWidth>();
 const mockListBackgroundChunksInBounds = jest.fn<typeof import('../../src/storage/map-store').listBackgroundChunksInBounds>();
@@ -46,6 +47,7 @@ await jest.unstable_mockModule('../../src/graph/connection-geometry', async () =
     computeGeometryArrowheadPoints: mockComputeGeometryArrowheadPoints,
     createConnectionRenderGeometry: mockCreateConnectionRenderGeometry,
     findRoomDirectionForConnection: mockFindRoomDirectionForConnection,
+    getConnectionGeometryLength: mockGetConnectionGeometryLength,
     sampleConnectionGeometryAtFraction: mockSampleConnectionGeometryAtFraction,
   };
 });
@@ -266,6 +268,7 @@ describe('renderExportCanvas', () => {
       point: { x: 20, y: 10 },
       tangent: { x: 10, y: 0 },
     });
+    mockGetConnectionGeometryLength.mockReturnValue(40);
     mockFindRoomDirectionForConnection.mockImplementation((room, connectionId) => {
       const match = Object.entries(room.directions).find(([, candidateConnectionId]) => candidateConnectionId === connectionId);
       return match?.[0];
@@ -653,5 +656,51 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.fillText).toHaveBeenCalledWith('down', expect.any(Number), expect.any(Number));
+  });
+
+  it('renders arrow geometry for up annotations in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const input = createBaseInput();
+
+    await renderExportCanvas(input);
+
+    expect(context.moveTo).toHaveBeenCalledWith(7, 18);
+    expect(context.lineTo).toHaveBeenCalledWith(33, 18);
+    expect(context.moveTo).toHaveBeenCalledWith(33, 18);
+    expect(context.lineTo).toHaveBeenCalledWith(23, 22);
+    expect(context.lineTo).toHaveBeenCalledWith(23, 14);
+    expect(context.fillText).toHaveBeenCalledWith('up', 20, 30);
+  });
+
+  it('renders arrow geometry for out annotations in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        connections: {
+          'connection-two-way': {
+            ...baseInput.doc.connections['connection-two-way'],
+            annotation: { kind: 'out' },
+          },
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.moveTo).toHaveBeenCalledWith(36, 18);
+    expect(context.lineTo).toHaveBeenCalledWith(4, 18);
+    expect(context.moveTo).toHaveBeenCalledWith(4, 18);
+    expect(context.lineTo).toHaveBeenCalledWith(14, 22);
+    expect(context.lineTo).toHaveBeenCalledWith(14, 14);
+    expect(context.fillText).toHaveBeenCalledWith('in', 20, 30);
   });
 });
