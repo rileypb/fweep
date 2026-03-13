@@ -148,6 +148,70 @@ describe('URL routing', () => {
     expect(input).toHaveValue('/');
   });
 
+  it('opens the hidden script import input when the import button is clicked', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Script Button Map');
+
+    const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
+    const clickSpy = jest.spyOn(fileInput, 'click');
+
+    await user.click(screen.getByRole('button', { name: /import map script/i }));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('imports a script file by executing each CLI line in order', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Script Import Map');
+
+    const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
+    const scriptFile = new File(
+      ['create Kitchen\ncreate Hallway\nconnect Kitchen east to Hallway'],
+      'map-script.txt',
+      { type: 'text/plain' },
+    );
+
+    await user.upload(fileInput, scriptFile);
+
+    await waitFor(() => {
+      const state = useEditorStore.getState();
+      expect(Object.values(state.doc?.rooms ?? {})).toHaveLength(2);
+      expect(Object.values(state.doc?.connections ?? {})).toHaveLength(1);
+    });
+
+    expectGameOutputToContain(
+      'create Kitchen',
+      'create Hallway',
+      'connect Kitchen east to Hallway',
+      'Imported 3 commands from "map-script.txt".',
+    );
+  });
+
+  it('rolls back script import changes when a later line fails', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Script Rollback Map');
+
+    const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
+    const scriptFile = new File(
+      ['create Kitchen\nconnect Kitchen east to Hallway'],
+      'broken-script.txt',
+      { type: 'text/plain' },
+    );
+
+    await user.upload(fileInput, scriptFile);
+
+    await waitFor(() => {
+      expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+    });
+
+    expectGameOutputToContain(
+      'create Kitchen',
+      'connect Kitchen east to Hallway',
+      'Unknown room "Hallway".',
+      'Import aborted on line 2. Rolled back 1 successful command.',
+    );
+  });
+
   it('executes a connect command from the CLI when the named rooms exist', async () => {
     const user = userEvent.setup();
     const kitchen = { ...createRoom('Kitchen'), position: { x: 40, y: 40 } };

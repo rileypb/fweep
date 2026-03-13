@@ -1,0 +1,6 @@
+Create “West of House”
+Create and connect “North of House” w to “West of House” n
+Create and connect “Behind House” n to “North of House” e
+Create and connect “South of House” e to “Behind House” s
+Connect “South of House” w to “West of House” s
+Create Kitchen west of Behind House

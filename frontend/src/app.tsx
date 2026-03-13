@@ -9,6 +9,7 @@ import {
   parseCliCommandDescription,
   type CliCommand,
 } from './domain/cli-command';
+import { parseCliScript } from './domain/cli-script';
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
@@ -235,6 +236,23 @@ function isTextEditingElement(element: EventTarget | null): boolean {
   return false;
 }
 
+async function readTextFile(file: File): Promise<string> {
+  if (typeof file.text === 'function') {
+    return file.text();
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => {
+      reject(reader.error ?? new Error(`Unable to read "${file.name}".`));
+    };
+    reader.onload = () => {
+      resolve(typeof reader.result === 'string' ? reader.result : '');
+    };
+    reader.readAsText(file);
+  });
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -251,9 +269,6 @@ export function App(): React.JSX.Element {
   const connectRooms = useEditorStore((s) => s.connectRooms);
   const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
-  const mapPanOffset = useEditorStore((s) => s.mapPanOffset);
-  const canUndo = useEditorStore((s) => s.canUndo);
-  const canRedo = useEditorStore((s) => s.canRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
@@ -270,7 +285,10 @@ export function App(): React.JSX.Element {
   const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<{ roomId: string; requestId: number } | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<{ roomId: string; requestId: number } | null>(null);
-  const [nextUiRequestId, setNextUiRequestId] = useState(1);
+  const [isImportingScript, setIsImportingScript] = useState(false);
+  const cliPronounRoomIdRef = useRef<string | null>(null);
+  const nextUiRequestIdRef = useRef(1);
+  const cliImportInputRef = useRef<HTMLInputElement | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
@@ -282,10 +300,12 @@ export function App(): React.JSX.Element {
   // Sync the router's active map into the editor store.
   useEffect(() => {
     if (activeMap) {
+      cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = activeMap;
       loadDocument(activeMap);
     } else {
+      cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = null;
       unloadDocument();
@@ -359,14 +379,19 @@ export function App(): React.JSX.Element {
     setGameOutputLines((previousLines) => [...previousLines, ...lines, '']);
   };
 
+  const setCliPronounRoomReference = (roomId: string | null) => {
+    cliPronounRoomIdRef.current = roomId;
+    setCliPronounRoomId(roomId);
+  };
+
   const reportCliError = (submittedInput: string, error: CliError) => {
     appendGameOutput([formatCliEcho(submittedInput), formatCliError(error)]);
     cliInputRef.current?.select();
   };
 
   const issueUiRequestId = (): number => {
-    const requestId = nextUiRequestId;
-    setNextUiRequestId(requestId + 1);
+    const requestId = nextUiRequestIdRef.current;
+    nextUiRequestIdRef.current += 1;
     return requestId;
   };
 
@@ -401,6 +426,295 @@ export function App(): React.JSX.Element {
     return false;
   };
 
+  const runCliCommand = (submittedInput: string): { ok: boolean; shouldSelectCliInput: boolean } => {
+    let shouldSelectCliInput = true;
+    const trimmedInput = submittedInput.trim();
+    const liveEditorState = useEditorStore.getState();
+    const currentDoc = liveEditorState.doc;
+    const currentMapPanOffset = liveEditorState.mapPanOffset;
+    const currentCanUndo = liveEditorState.canUndo;
+    const currentCanRedo = liveEditorState.canRedo;
+    const currentPronounRoomId = cliPronounRoomIdRef.current;
+
+    const command = parseCliCommand(trimmedInput);
+    if (command === null) {
+      reportCliError(trimmedInput, createParseCliError());
+      return { ok: false, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'help') {
+      appendGameOutput([formatCliEcho(trimmedInput), ...CLI_COMMAND_FORMS]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'arrange' && currentDoc !== null) {
+      prettifyLayout();
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'create' && currentDoc !== null) {
+      const plan = planCreateRoomFromCli(
+        currentDoc,
+        command.roomName,
+        { width: window.innerWidth, height: window.innerHeight },
+        currentMapPanOffset,
+      );
+      const roomId = addRoomAtPosition(plan.roomName, plan.position);
+      setCliPronounRoomReference(roomId);
+      selectRoom(roomId);
+      setMapPanOffset({
+        x: (window.innerWidth / 2) - plan.position.x,
+        y: (window.innerHeight / 2) - plan.position.y,
+      });
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'delete' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'delete', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+      removeRoom(roomMatch.room.id);
+      setCliPronounRoomReference(currentPronounRoomId === roomMatch.room.id ? null : currentPronounRoomId);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'edit' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'edit', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+      selectRoom(roomMatch.room.id);
+      setCliPronounRoomReference(roomMatch.room.id);
+      setRequestedRoomEditorRequest({
+        roomId: roomMatch.room.id,
+        requestId: issueUiRequestId(),
+      });
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      shouldSelectCliInput = false;
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'show' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'show', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+      selectRoom(roomMatch.room.id);
+      setCliPronounRoomReference(roomMatch.room.id);
+      setRequestedRoomRevealRequest({
+        roomId: roomMatch.room.id,
+        requestId: issueUiRequestId(),
+      });
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'notate' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'notate', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+      addStickyNoteForRoom(roomMatch.room.id, command.noteText);
+      setCliPronounRoomReference(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'connect' && currentDoc !== null) {
+      const sourceRoomMatch = resolveRoomByCliReference(currentDoc, command.sourceRoom.text, command.sourceRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (sourceRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, targetRoomMatch, 'connect', command.targetRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (targetRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      connectRooms(
+        sourceRoomMatch.room.id,
+        command.sourceDirection,
+        targetRoomMatch.room.id,
+        {
+          oneWay: command.oneWay,
+          targetDirection: command.targetDirection,
+        },
+      );
+      if (!isCliPronounReference(command.targetRoom.text)) {
+        setCliPronounRoomReference(sourceRoomMatch.room.id);
+      }
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'create-and-connect' && currentDoc !== null) {
+      const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, targetRoomMatch, 'create-and-connect', command.targetRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (targetRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const plan = planCreateRoomFromCli(
+        currentDoc,
+        command.sourceRoomName,
+        { width: window.innerWidth, height: window.innerHeight },
+        currentMapPanOffset,
+      );
+      const result = createRoomAndConnect(
+        plan.roomName,
+        plan.position,
+        targetRoomMatch.room.id,
+        {
+          sourceDirection: command.sourceDirection,
+          oneWay: command.oneWay,
+          targetDirection: command.targetDirection,
+        },
+      );
+      const nextDoc = useEditorStore.getState().doc;
+      const createdRoom = nextDoc?.rooms[result.roomId];
+      const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
+      if (!isCliPronounReference(command.targetRoom.text)) {
+        setCliPronounRoomReference(result.roomId);
+      }
+      if (createdRoom && targetRoom) {
+        setMapPanOffset({
+          x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
+          y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
+        });
+      }
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'undo') {
+      if (!currentCanUndo) {
+        appendGameOutput([formatCliEcho(trimmedInput), 'Nothing to undo.']);
+        cliInputRef.current?.select();
+        return { ok: false, shouldSelectCliInput };
+      }
+      void undo();
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'redo') {
+      if (!currentCanRedo) {
+        appendGameOutput([formatCliEcho(trimmedInput), 'Nothing to redo.']);
+        cliInputRef.current?.select();
+        return { ok: false, shouldSelectCliInput };
+      }
+      void redo();
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    const description = parseCliCommandDescription(trimmedInput);
+    if (description === null) {
+      reportCliError(trimmedInput, createParseCliError());
+      return { ok: false, shouldSelectCliInput };
+    }
+    appendGameOutput([formatCliEcho(trimmedInput), description]);
+    return { ok: true, shouldSelectCliInput };
+  };
+
+  const handleCliSubmit = () => {
+    setHasUsedCliInput(true);
+    const submittedInput = cliCommand;
+    if (submittedInput.trim().length > 0) {
+      setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
+    }
+    setCliHistoryIndex(null);
+    setCliHistoryDraft('');
+    setCliCommand('');
+
+    const { shouldSelectCliInput } = runCliCommand(submittedInput);
+    if (shouldSelectCliInput) {
+      cliInputRef.current?.select();
+    }
+  };
+
+  const handleImportScript = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setIsImportingScript(true);
+    try {
+      const scriptText = await readTextFile(file);
+      const commands = parseCliScript(scriptText);
+
+      if (commands.length === 0) {
+        appendGameOutput([`No commands found in "${file.name}".`]);
+        cliInputRef.current?.select();
+        return;
+      }
+
+      const importSnapshot = {
+        editorState: useEditorStore.getState(),
+        cliPronounRoomId: cliPronounRoomIdRef.current,
+        requestedRoomEditorRequest,
+        requestedRoomRevealRequest,
+        nextUiRequestId: nextUiRequestIdRef.current,
+      };
+
+      let successfulCommands = 0;
+      for (const command of commands) {
+        const result = runCliCommand(command.commandText);
+        if (!result.ok) {
+          useEditorStore.setState(importSnapshot.editorState, true);
+          setCliPronounRoomReference(importSnapshot.cliPronounRoomId);
+          setRequestedRoomEditorRequest(importSnapshot.requestedRoomEditorRequest);
+          setRequestedRoomRevealRequest(importSnapshot.requestedRoomRevealRequest);
+          nextUiRequestIdRef.current = importSnapshot.nextUiRequestId;
+          appendGameOutput([
+            `Import aborted on line ${command.lineNumber}. Rolled back ${successfulCommands} successful command${successfulCommands === 1 ? '' : 's'}.`,
+          ]);
+          cliInputRef.current?.select();
+          return;
+        }
+        successfulCommands += 1;
+      }
+
+      appendGameOutput([
+        `Imported ${successfulCommands} command${successfulCommands === 1 ? '' : 's'} from "${file.name}".`,
+      ]);
+      cliInputRef.current?.select();
+    } catch (error: unknown) {
+      appendGameOutput([
+        `Unable to import "${file.name}": ${error instanceof Error ? error.message : String(error)}`,
+      ]);
+      cliInputRef.current?.select();
+    } finally {
+      event.target.value = '';
+      setIsImportingScript(false);
+    }
+  };
+
   return (
     <main className="app-shell">
       {hasOpenMap && (
@@ -420,191 +734,8 @@ export function App(): React.JSX.Element {
               <form
                 className="app-cli-form"
                 onSubmit={(event) => {
-              event.preventDefault();
-              setHasUsedCliInput(true);
-              let shouldSelectCliInput = true;
-              const submittedInput = cliCommand;
-              if (submittedInput.trim().length > 0) {
-                setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
-              }
-              setCliHistoryIndex(null);
-              setCliHistoryDraft('');
-              setCliCommand('');
-              const command = parseCliCommand(submittedInput);
-              if (command === null) {
-                reportCliError(submittedInput, createParseCliError());
-                return;
-              }
-
-              if (command.kind === 'help') {
-                appendGameOutput([formatCliEcho(submittedInput), ...CLI_COMMAND_FORMS]);
-              } else if (command.kind === 'arrange' && storeDoc !== null) {
-                prettifyLayout();
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'create' && storeDoc !== null) {
-                const plan = planCreateRoomFromCli(
-                  storeDoc,
-                  command.roomName,
-                  { width: window.innerWidth, height: window.innerHeight },
-                  mapPanOffset,
-                );
-                const roomId = addRoomAtPosition(plan.roomName, plan.position);
-                setCliPronounRoomId(roomId);
-                selectRoom(roomId);
-                setMapPanOffset({
-                  x: (window.innerWidth / 2) - plan.position.x,
-                  y: (window.innerHeight / 2) - plan.position.y,
-                });
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'delete' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliReference(storeDoc, command.room.text, command.room.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, roomMatch, 'delete', command.room.text)) {
-                  return;
-                }
-                if (roomMatch.kind !== 'one') {
-                  return;
-                }
-                removeRoom(roomMatch.room.id);
-                setCliPronounRoomId((previous) => (previous === roomMatch.room.id ? null : previous));
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'edit' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliReference(storeDoc, command.room.text, command.room.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, roomMatch, 'edit', command.room.text)) {
-                  return;
-                }
-                if (roomMatch.kind !== 'one') {
-                  return;
-                }
-                selectRoom(roomMatch.room.id);
-                setCliPronounRoomId(roomMatch.room.id);
-                setRequestedRoomEditorRequest({
-                  roomId: roomMatch.room.id,
-                  requestId: issueUiRequestId(),
-                });
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-                shouldSelectCliInput = false;
-              } else if (command.kind === 'show' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliReference(storeDoc, command.room.text, command.room.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, roomMatch, 'show', command.room.text)) {
-                  return;
-                }
-                if (roomMatch.kind !== 'one') {
-                  return;
-                }
-                selectRoom(roomMatch.room.id);
-                setCliPronounRoomId(roomMatch.room.id);
-                setRequestedRoomRevealRequest({
-                  roomId: roomMatch.room.id,
-                  requestId: issueUiRequestId(),
-                });
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'notate' && storeDoc !== null) {
-                const roomMatch = resolveRoomByCliReference(storeDoc, command.room.text, command.room.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, roomMatch, 'notate', command.room.text)) {
-                  return;
-                }
-                if (roomMatch.kind !== 'one') {
-                  return;
-                }
-                addStickyNoteForRoom(roomMatch.room.id, command.noteText);
-                setCliPronounRoomId(roomMatch.room.id);
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'connect' && storeDoc !== null) {
-                const sourceRoomMatch = resolveRoomByCliReference(storeDoc, command.sourceRoom.text, command.sourceRoom.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
-                  return;
-                }
-                if (sourceRoomMatch.kind !== 'one') {
-                  return;
-                }
-
-                const targetRoomMatch = resolveRoomByCliReference(storeDoc, command.targetRoom.text, command.targetRoom.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, targetRoomMatch, 'connect', command.targetRoom.text)) {
-                  return;
-                }
-                if (targetRoomMatch.kind !== 'one') {
-                  return;
-                }
-
-                connectRooms(
-                  sourceRoomMatch.room.id,
-                  command.sourceDirection,
-                  targetRoomMatch.room.id,
-                  {
-                    oneWay: command.oneWay,
-                    targetDirection: command.targetDirection,
-                  },
-                );
-                if (!isCliPronounReference(command.targetRoom.text)) {
-                  setCliPronounRoomId(sourceRoomMatch.room.id);
-                }
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'create-and-connect' && storeDoc !== null) {
-                const targetRoomMatch = resolveRoomByCliReference(storeDoc, command.targetRoom.text, command.targetRoom.exact, cliPronounRoomId);
-                if (reportRoomReferenceError(submittedInput, targetRoomMatch, 'create-and-connect', command.targetRoom.text)) {
-                  return;
-                }
-                if (targetRoomMatch.kind !== 'one') {
-                  return;
-                }
-
-                const plan = planCreateRoomFromCli(
-                  storeDoc,
-                  command.sourceRoomName,
-                  { width: window.innerWidth, height: window.innerHeight },
-                  mapPanOffset,
-                );
-                const result = createRoomAndConnect(
-                  plan.roomName,
-                  plan.position,
-                  targetRoomMatch.room.id,
-                  {
-                    sourceDirection: command.sourceDirection,
-                    oneWay: command.oneWay,
-                    targetDirection: command.targetDirection,
-                  },
-                );
-                const nextDoc = useEditorStore.getState().doc;
-                const createdRoom = nextDoc?.rooms[result.roomId];
-                const targetRoom = nextDoc?.rooms[targetRoomMatch.room.id];
-                if (!isCliPronounReference(command.targetRoom.text)) {
-                  setCliPronounRoomId(result.roomId);
-                }
-                if (createdRoom && targetRoom) {
-                  setMapPanOffset({
-                    x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
-                    y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
-                  });
-                }
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'undo') {
-                if (!canUndo) {
-                  appendGameOutput([formatCliEcho(submittedInput), 'Nothing to undo.']);
-                  cliInputRef.current?.select();
-                  return;
-                }
-                undo();
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else if (command.kind === 'redo') {
-                if (!canRedo) {
-                  appendGameOutput([formatCliEcho(submittedInput), 'Nothing to redo.']);
-                  cliInputRef.current?.select();
-                  return;
-                }
-                redo();
-                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
-              } else {
-                const description = parseCliCommandDescription(submittedInput);
-                if (description === null) {
-                  reportCliError(submittedInput, createParseCliError());
-                  return;
-                }
-                appendGameOutput([formatCliEcho(submittedInput), description]);
-              }
-
-              if (shouldSelectCliInput) {
-                cliInputRef.current?.select();
-              }
+                  event.preventDefault();
+                  void handleCliSubmit();
                 }}
               >
                 <label className="sr-only" htmlFor="app-cli-input">CLI command</label>
@@ -621,6 +752,12 @@ export function App(): React.JSX.Element {
                     ref={cliInputRef}
                     value={cliCommand}
                     onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                    event.preventDefault();
+                    void handleCliSubmit();
+                    return;
+                  }
+
                   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
                     return;
                   }
@@ -671,6 +808,26 @@ export function App(): React.JSX.Element {
                   setCliCommand(event.target.value);
                     }}
                   />
+                  <input
+                    ref={cliImportInputRef}
+                    className="app-cli-import-input"
+                    type="file"
+                    accept=".txt,text/plain"
+                    tabIndex={-1}
+                    onChange={(event) => {
+                      void handleImportScript(event);
+                    }}
+                  />
+                  <button
+                    className="app-cli-import-button"
+                    type="button"
+                    aria-label="Import map script"
+                    title="Import map script"
+                    disabled={isImportingScript}
+                    onClick={() => cliImportInputRef.current?.click()}
+                  >
+                    {isImportingScript ? 'Importing…' : 'Import'}
+                  </button>
                 </div>
               </form>
             </div>
