@@ -357,6 +357,55 @@ describe('URL routing', () => {
     expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Living Room');
   });
 
+  it('treats quoted room references as exact matches instead of partial matches', async () => {
+    let doc = createEmptyMap('CLI Exact Quote Map');
+    doc = {
+      ...doc,
+      rooms: {
+        path: {
+          id: 'path',
+          name: 'path',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        gate: {
+          id: 'gate',
+          name: 'path through the iron gate',
+          description: '',
+          position: { x: 480, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    render(<App />);
+    await screen.findByText(/cli exact quote map/i);
+
+    await submitCliCommand('connect "path through the iron gate" w to "path"');
+
+    const connection = Object.values(useEditorStore.getState().doc?.connections ?? {})[0];
+    expect(connection).toMatchObject({
+      sourceRoomId: 'gate',
+      targetRoomId: 'path',
+    });
+  });
+
   it('reports an error when it is unbound', async () => {
     const doc = createEmptyMap('CLI Pronoun Error Map');
     await saveMap(doc);

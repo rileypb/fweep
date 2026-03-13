@@ -123,12 +123,13 @@ wsp                 ::= " " ;
 Semantic constraints
 
 - Room references are resolved semantically, not purely syntactically:
-  - matching is case-insensitive
-  - matching is by whole-word token containment
-  - word order is ignored
+  - unquoted room references are matched case-insensitively
+  - unquoted matching is by whole-word token containment
+  - unquoted word order is ignored
   - repeated query words are ignored
-  - punctuation is treated as a token separator for matching
+  - punctuation is treated as a token separator for unquoted matching
   - partial word fragments do not match
+  - quoted room references match the quoted name exactly after the normal whitespace normalization and case folding rules
   - if multiple rooms match, the reference is ambiguous and execution fails
 
 - In a `connect-command`:

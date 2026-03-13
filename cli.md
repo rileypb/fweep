@@ -18,15 +18,15 @@
 	- `connect bedroom east one-way to living room` creates a one-way connection from the bedroom to the living room, going east from the bedroom.
 - `n`, `s`, `e`, `w`, `u`, and `d` are accepted as synonyms for `north`, `south`, `east`, `west`, `up`, and `down` respectively.
 - `oneway` and `one way` are accepted as synonyms for `one-way`.
-- double quotes serve to group words together for disambiguation: 
-  - `connect "living room east" east to dining room`
+- double quotes make a room reference exact rather than partial:
+  - `connect "path through the iron gate" east to "path"` matches those exact room names
 - double quotes may contain keywords and directions. Legal escape sequences inside double quotes are `\"` for a literal double quote and `\\` for a literal backslash.
 - room references are matched by whole-word token containment, ignoring word order. For example:
   - `delete living` matches `living room`
   - `edit room living` matches `living room`
-  - `delete "living second room"` matches `second living room`
   - repeated query words are ignored when matching
   - partial word fragments do not match: `liv` does not match `living room`
+  - quoted room references do not use this partial/reordered matching; they match the quoted name exactly after the normal whitespace and case folding rules
 - room creation may be combined with connections, like so: `create and connect bedroom east to living room`.
 - `create and connect` also supports one-way connections, e.g. `create and connect bedroom east one-way to living room`.
 - `create <room name 1> <direction> of <room name 2>` is accepted as a synonym for `create and connect <room name 1> <opposite direction> to <room name 2>`. In this form, the direction describes where room 1 is relative to room 2. For example, `create kitchen east of hallway` means `create and connect kitchen west to hallway`.

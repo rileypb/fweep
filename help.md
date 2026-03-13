@@ -16,7 +16,8 @@
 - `undo` / `redo` steps backward or forward through command history.
 - Room names can be quoted, for example `create "Machine Room"`.
 - In quoted names, `\"` inserts a literal quote.
-- Room references in commands may be partial and may use words in any order. For example, `edit living` matches `Living Room`, and `edit room living` also matches `Living Room`.
+- Unquoted room references in commands may be partial and may use words in any order. For example, `edit living` matches `Living Room`, and `edit room living` also matches `Living Room`.
+- Quoted room references are taken as exact names instead. For example, `connect "path through the iron gate" e to "path"` matches those two room names exactly rather than using partial-name matching.
 - Short direction aliases also work in the CLI, such as `n`, `s`, `e`, `w`, `u`, and `d`.
 - If a two-way `connect` command omits the target direction, fweep uses the opposite direction by default.
 - After a successful command, the direct object becomes `it` for later commands such as `edit it` or `show it`.

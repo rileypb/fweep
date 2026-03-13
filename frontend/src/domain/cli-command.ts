@@ -1,18 +1,23 @@
 import { normalizeDirection, oppositeDirection } from './directions';
 
+export interface CliRoomReference {
+  readonly text: string;
+  readonly exact: boolean;
+}
+
 export type CliCommand =
   | { readonly kind: 'help' }
   | { readonly kind: 'arrange' }
   | { readonly kind: 'create'; readonly roomName: string }
-  | { readonly kind: 'delete'; readonly roomName: string }
-  | { readonly kind: 'edit'; readonly roomName: string }
-  | { readonly kind: 'show'; readonly roomName: string }
-  | { readonly kind: 'notate'; readonly roomName: string; readonly noteText: string }
+  | { readonly kind: 'delete'; readonly room: CliRoomReference }
+  | { readonly kind: 'edit'; readonly room: CliRoomReference }
+  | { readonly kind: 'show'; readonly room: CliRoomReference }
+  | { readonly kind: 'notate'; readonly room: CliRoomReference; readonly noteText: string }
   | {
     readonly kind: 'connect';
-    readonly sourceRoomName: string;
+    readonly sourceRoom: CliRoomReference;
     readonly sourceDirection: string;
-    readonly targetRoomName: string;
+    readonly targetRoom: CliRoomReference;
     readonly targetDirection: string | null;
     readonly oneWay: boolean;
   }
@@ -20,7 +25,7 @@ export type CliCommand =
     readonly kind: 'create-and-connect';
     readonly sourceRoomName: string;
     readonly sourceDirection: string;
-    readonly targetRoomName: string;
+    readonly targetRoom: CliRoomReference;
     readonly targetDirection: string | null;
     readonly oneWay: boolean;
   }
@@ -145,12 +150,18 @@ function isOneWayMarker(tokens: readonly Token[], index: number): { matched: boo
   return { matched: false, nextIndex: index };
 }
 
-function readRoomName(tokens: readonly Token[], startIndex: number, stopAt: (token: Token) => boolean): { value: string; nextIndex: number } | null {
+function readRoomName(
+  tokens: readonly Token[],
+  startIndex: number,
+  stopAt: (token: Token) => boolean,
+): { reference: CliRoomReference; nextIndex: number } | null {
   const parts: string[] = [];
+  let exact = false;
   let index = startIndex;
 
   while (index < tokens.length && !stopAt(tokens[index])) {
     parts.push(tokens[index].value);
+    exact ||= tokens[index].quoted;
     index += 1;
   }
 
@@ -159,12 +170,23 @@ function readRoomName(tokens: readonly Token[], startIndex: number, stopAt: (tok
   }
 
   return {
-    value: normalizeCliWhitespace(parts.join(' ')),
+    reference: {
+      text: normalizeCliWhitespace(parts.join(' ')),
+      exact,
+    },
     nextIndex: index,
   };
 }
 
-function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Extract<CliCommand, { kind: 'connect' | 'create-and-connect' }>, 'kind'> | null {
+interface ParsedConnectTail {
+  readonly sourceRoom: CliRoomReference;
+  readonly sourceDirection: string;
+  readonly targetRoom: CliRoomReference;
+  readonly targetDirection: string | null;
+  readonly oneWay: boolean;
+}
+
+function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedConnectTail | null {
   const sourceRoom = readRoomName(tokens, startIndex, isDirectionToken);
   if (sourceRoom === null) {
     return null;
@@ -192,9 +214,9 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Ex
     }
 
     return {
-      sourceRoomName: sourceRoom.value,
+      sourceRoom: sourceRoom.reference,
       sourceDirection,
-      targetRoomName: targetRoom.value,
+      targetRoom: targetRoom.reference,
       targetDirection: null,
       oneWay: true,
     };
@@ -218,9 +240,9 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): Omit<Ex
   }
 
   return {
-    sourceRoomName: sourceRoom.value,
+    sourceRoom: sourceRoom.reference,
     sourceDirection,
-    targetRoomName: targetRoom.value,
+    targetRoom: targetRoom.reference,
     targetDirection: targetDirection ?? oppositeDirection(sourceDirection) ?? null,
     oneWay: false,
   };
@@ -243,9 +265,9 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
 
     return {
       kind: 'create-and-connect',
-      sourceRoomName: sourceRoom.value,
+      sourceRoomName: sourceRoom.reference.text,
       sourceDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'down' : 'up',
-      targetRoomName: targetRoom.value,
+      targetRoom: targetRoom.reference,
       targetDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'up' : 'down',
       oneWay: false,
     };
@@ -279,9 +301,9 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
 
   return {
     kind: 'create-and-connect',
-    sourceRoomName: sourceRoom.value,
+    sourceRoomName: sourceRoom.reference.text,
     sourceDirection,
-    targetRoomName: targetRoom.value,
+    targetRoom: targetRoom.reference,
     targetDirection: relationDirection,
     oneWay: false,
   };
@@ -322,7 +344,11 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'create-and-connect',
-      ...tail,
+      sourceRoomName: tail.sourceRoom.text,
+      sourceDirection: tail.sourceDirection,
+      targetRoom: tail.targetRoom,
+      targetDirection: tail.targetDirection,
+      oneWay: tail.oneWay,
     };
   }
 
@@ -353,7 +379,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'create',
-      roomName: roomName.value,
+      roomName: roomName.reference.text,
     };
   }
 
@@ -365,7 +391,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'delete',
-      roomName: roomName.value,
+      room: roomName.reference,
     };
   }
 
@@ -377,7 +403,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'edit',
-      roomName: roomName.value,
+      room: roomName.reference,
     };
   }
 
@@ -389,7 +415,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'show',
-      roomName: roomName.value,
+      room: roomName.reference,
     };
   }
 
@@ -411,8 +437,8 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'notate',
-      roomName: roomName.value,
-      noteText: noteText.value,
+      room: roomName.reference,
+      noteText: noteText.reference.text,
     };
   }
 
@@ -428,29 +454,29 @@ function describeCliCommand(command: CliCommand): string {
     case 'create':
       return `create a room called ${command.roomName}`;
     case 'delete':
-      return `delete the room called ${command.roomName}`;
+      return `delete the room called ${command.room.text}`;
     case 'edit':
-      return `open the room editor for ${command.roomName}`;
+      return `open the room editor for ${command.room.text}`;
     case 'show':
-      return `scroll the map to ${command.roomName}`;
+      return `scroll the map to ${command.room.text}`;
     case 'notate':
-      return `create a sticky note on ${command.roomName} saying ${command.noteText}`;
+      return `create a sticky note on ${command.room.text} saying ${command.noteText}`;
     case 'undo':
       return 'undo the previous command';
     case 'redo':
       return 'redo the previous command';
     case 'connect':
       if (command.oneWay) {
-        return `create a one-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoomName}`;
+        return `create a one-way connection from ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}`;
       }
 
-      return `create a two-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoomName} going ${command.targetDirection}`;
+      return `create a two-way connection from ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
     case 'create-and-connect':
       if (command.oneWay) {
-        return `create a room called ${command.sourceRoomName} and create a one-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoomName}`;
+        return `create a room called ${command.sourceRoomName} and create a one-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text}`;
       }
 
-      return `create a room called ${command.sourceRoomName} and create a two-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoomName} going ${command.targetDirection}`;
+      return `create a room called ${command.sourceRoomName} and create a two-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
   }
 }
 

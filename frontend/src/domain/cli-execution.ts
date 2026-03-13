@@ -35,6 +35,19 @@ export function isCliPronounReference(requestedName: string): boolean {
 }
 
 export function findRoomsByCliName(doc: MapDocument, requestedName: string): readonly Room[] {
+  return findRoomsByCliNameWithMode(doc, requestedName, false);
+}
+
+function findRoomsByCliNameWithMode(doc: MapDocument, requestedName: string, exact: boolean): readonly Room[] {
+  if (exact) {
+    const normalizedRequestedName = normalizeCliName(requestedName);
+    if (normalizedRequestedName.length === 0) {
+      return [];
+    }
+
+    return Object.values(doc.rooms).filter((room) => normalizeCliName(room.name) === normalizedRequestedName);
+  }
+
   const requestedWordSet = getCliNameWordSet(requestedName);
   if (requestedWordSet.size === 0) {
     return [];
@@ -46,8 +59,8 @@ export function findRoomsByCliName(doc: MapDocument, requestedName: string): rea
   });
 }
 
-export function resolveRoomByCliName(doc: MapDocument, requestedName: string): CliRoomMatch {
-  const matches = findRoomsByCliName(doc, requestedName);
+export function resolveRoomByCliName(doc: MapDocument, requestedName: string, exact = false): CliRoomMatch {
+  const matches = findRoomsByCliNameWithMode(doc, requestedName, exact);
   if (matches.length === 0) {
     return { kind: 'none' };
   }
@@ -61,10 +74,11 @@ export function resolveRoomByCliName(doc: MapDocument, requestedName: string): C
 export function resolveRoomByCliReference(
   doc: MapDocument,
   requestedName: string,
+  exact: boolean,
   pronounRoomId: string | null,
 ): CliRoomMatch {
   if (!isCliPronounReference(requestedName)) {
-    return resolveRoomByCliName(doc, requestedName);
+    return resolveRoomByCliName(doc, requestedName, exact);
   }
 
   if (pronounRoomId === null) {

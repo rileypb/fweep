@@ -120,6 +120,31 @@ describe('resolveRoomByCliName', () => {
     const matches = findRoomsByCliName(doc, 'living');
     expect(resolveRoomByCliName(doc, 'living')).toEqual({ kind: 'multiple', rooms: matches });
   });
+
+  it('treats quoted references as exact-name matches instead of partial matches', () => {
+    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Path'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Path Through the Iron Gate'), position: { x: 80, y: 0 } });
+
+    expect(resolveRoomByCliName(doc, 'path', true)).toEqual({ kind: 'one', room: doc.rooms[Object.keys(doc.rooms)[0]!] });
+    expect(resolveRoomByCliName(doc, 'path through the iron gate', true)).toEqual({
+      kind: 'one',
+      room: doc.rooms[Object.keys(doc.rooms)[1]!],
+    });
+  });
+
+  it('keeps quoted exact references unambiguous when an unquoted partial would collide', () => {
+    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Path'), id: 'path', position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Path Through the Iron Gate'), id: 'iron-gate', position: { x: 80, y: 0 } });
+
+    expect(resolveRoomByCliName(doc, 'path')).toEqual({
+      kind: 'multiple',
+      rooms: [doc.rooms.path, doc.rooms['iron-gate']],
+    });
+    expect(resolveRoomByCliName(doc, 'path', true)).toEqual({
+      kind: 'one',
+      room: doc.rooms.path,
+    });
+  });
 });
 
 describe('resolveRoomByCliReference', () => {
@@ -127,13 +152,13 @@ describe('resolveRoomByCliReference', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 0, y: 0 } };
     const doc = addRoom(createEmptyMap('Test Map'), room);
 
-    expect(resolveRoomByCliReference(doc, 'it', room.id)).toEqual({ kind: 'one', room });
+    expect(resolveRoomByCliReference(doc, 'it', false, room.id)).toEqual({ kind: 'one', room });
   });
 
   it('reports an unbound pronoun when it has no room binding', () => {
     const doc = createEmptyMap('Test Map');
 
-    expect(resolveRoomByCliReference(doc, 'it', null)).toEqual({ kind: 'pronoun-unbound' });
+    expect(resolveRoomByCliReference(doc, 'it', false, null)).toEqual({ kind: 'pronoun-unbound' });
   });
 });
 
