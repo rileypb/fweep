@@ -34,6 +34,7 @@ export interface MapCanvasBackgroundProps {
   readonly mapId: string;
   readonly background: BackgroundDocument;
   readonly panOffset: { x: number; y: number };
+  readonly zoom?: number;
   readonly canvasRect: DOMRect | null;
   readonly backgroundRevision: number;
 }
@@ -42,6 +43,7 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
   mapId,
   background,
   panOffset,
+  zoom = 1,
   canvasRect,
   backgroundRevision,
 }, ref) {
@@ -55,10 +57,10 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
       return null;
     }
 
-    const minWorldX = -panOffset.x;
-    const minWorldY = -panOffset.y;
-    const maxWorldX = minWorldX + canvasRect.width;
-    const maxWorldY = minWorldY + canvasRect.height;
+    const minWorldX = -panOffset.x / zoom;
+    const minWorldY = -panOffset.y / zoom;
+    const maxWorldX = minWorldX + (canvasRect.width / zoom);
+    const maxWorldY = minWorldY + (canvasRect.height / zoom);
     const margin = 1;
 
     return {
@@ -67,7 +69,7 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
       minChunkY: Math.floor(minWorldY / BACKGROUND_LAYER_CHUNK_SIZE) - margin,
       maxChunkY: Math.floor(maxWorldY / BACKGROUND_LAYER_CHUNK_SIZE) + margin,
     };
-  }, [canvasRect, panOffset.x, panOffset.y]);
+  }, [canvasRect, panOffset.x, panOffset.y, zoom]);
 
   const paintChunkBlobIntoCanvas = useCallback(async (chunk: StoredVisibleChunk) => {
     if (livePreviewChunkKeysRef.current.has(chunk.key)) {
@@ -181,7 +183,14 @@ export const MapCanvasBackground = forwardRef<MapCanvasBackgroundHandle, MapCanv
   }
 
   return (
-    <div className="map-canvas-background-layer" data-testid="map-canvas-background">
+    <div
+      className="map-canvas-background-layer"
+      data-testid="map-canvas-background"
+      style={{
+        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+        transformOrigin: '0 0',
+      }}
+    >
       {visibleChunks.map((chunk) => (
         <canvas
           key={chunk.key}

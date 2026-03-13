@@ -251,7 +251,7 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0, shiftKey: true });
       fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
 
-      expect(content.style.transform).toBe('translate(60px, 60px)');
+      expect(content.style.transform).toBe('translate(60px, 60px) scale(1)');
       expect(canvas).toHaveClass('map-canvas--panning');
 
       fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
@@ -429,7 +429,7 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
       fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
 
-      expect(content.style.transform).toBe('translate(0px, 0px)');
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
       expect(canvas).not.toHaveClass('map-canvas--panning');
     });
 
@@ -444,10 +444,10 @@ describe('MapCanvas', () => {
 
       fireEvent.wheel(canvas, { deltaX: 20, deltaY: 30 });
 
-      expect(content.style.transform).toBe('translate(-20px, -30px)');
+      expect(content.style.transform).toBe('translate(-20px, -30px) scale(1)');
     });
 
-    it('does not pan the map on ctrl-wheel gestures', () => {
+    it('zooms the map on ctrl-wheel gestures', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -455,10 +455,54 @@ describe('MapCanvas', () => {
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
 
-      fireEvent.wheel(canvas, { deltaX: 20, deltaY: 30, ctrlKey: true });
+      fireEvent.wheel(canvas, { clientX: 150, clientY: 100, deltaX: 20, deltaY: -30, ctrlKey: true });
 
-      expect(content.style.transform).toBe('translate(0px, 0px)');
+      expect(content.style.transform).toContain('scale(1.1)');
+      expect(content.style.transform).toContain('translate(-15');
+    });
+
+    it('zooms the map with keyboard shortcuts and resets with 0', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: '+' });
+      expect(content.style.transform).toContain('scale(1.1)');
+
+      fireEvent.keyDown(canvas, { key: '-' });
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+
+      fireEvent.keyDown(canvas, { key: '+' });
+      fireEvent.keyDown(canvas, { key: '0' });
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
     });
 
     it('does not create a sticky note when shift-dragging to pan', () => {
@@ -1043,7 +1087,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'ArrowRight' });
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
-      expect(content.style.transform).toBe('translate(-390px, -38px)');
+      expect(content.style.transform).toBe('translate(-390px, -38px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
@@ -1097,7 +1141,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'Enter' });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
-      expect(content.style.transform).toBe('translate(370px, -120px)');
+      expect(content.style.transform).toBe('translate(370px, -120px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
@@ -1193,7 +1237,7 @@ describe('MapCanvas', () => {
 
       await user.dblClick(roomNode);
 
-      expect(content.style.transform).toBe('translate(490px, -120px)');
+      expect(content.style.transform).toBe('translate(490px, -120px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
       expect(screen.getByTestId('room-editor-dialog')).toHaveStyle({
         justifySelf: 'start',
@@ -1527,7 +1571,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(window, { key: 'r' });
       fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
-      expect(content.style.transform).toBe('translate(310px, 100px)');
+      expect(content.style.transform).toBe('translate(310px, 100px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });

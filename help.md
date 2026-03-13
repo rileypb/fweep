@@ -31,6 +31,10 @@
 - `Drag` empty canvas: marquee-select rooms, connections, sticky notes, and sticky-note links.
 - `Shift-drag` empty canvas: pan the map.
 - Two-finger trackpad scroll over the canvas: pan the map.
+- Hold `Ctrl` or `Cmd` and scroll over the canvas: zoom the map.
+- `+` or `=`: zoom in.
+- `-`: zoom out.
+- `0`: reset zoom.
 - `Click` minimap: recenter the map.
 - `Drag` minimap viewport: pan the map.
 

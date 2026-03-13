@@ -301,6 +301,7 @@ export interface RoomEditorOverlayProps {
   roomId?: string;
   initialPosition?: Position;
   panOffset: PanOffset;
+  zoom?: number;
   canvasRect: DOMRect | null;
   visibleMapLeftInset?: number;
   theme: ThemeMode;
@@ -312,6 +313,7 @@ export function RoomEditorOverlay({
   roomId,
   initialPosition,
   panOffset,
+  zoom = 1,
   canvasRect,
   visibleMapLeftInset = 0,
   theme,
@@ -405,7 +407,7 @@ export function RoomEditorOverlay({
     strokeColorIndex: draft.strokeColorIndex,
     strokeStyle: draft.strokeStyle,
   };
-  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect);
+  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect, zoom);
   const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
   const panelWidth = Math.min(42 * 16, Math.max(viewportWidth - 32, 0));
   const panelHalfWidth = panelWidth / 2;

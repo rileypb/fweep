@@ -53,17 +53,19 @@ export function getRoomScreenGeometry(
   room: Room,
   panOffset: PanOffset,
   canvasRect: DOMRect | null,
+  zoom: number = 1,
 ): RoomScreenGeometry {
   const width = getRoomNodeWidth(room);
-  const left = (canvasRect?.left ?? 0) + room.position.x + panOffset.x;
-  const top = (canvasRect?.top ?? 0) + room.position.y + panOffset.y;
+  const scaledWidth = width * zoom;
+  const left = (canvasRect?.left ?? 0) + (room.position.x * zoom) + panOffset.x;
+  const top = (canvasRect?.top ?? 0) + (room.position.y * zoom) + panOffset.y;
 
   return {
     left,
     top,
-    width,
-    height: ROOM_HEIGHT,
-    centerX: left + (width / 2),
+    width: scaledWidth,
+    height: ROOM_HEIGHT * zoom,
+    centerX: left + (scaledWidth / 2),
   };
 }
 
@@ -83,6 +85,7 @@ export function getRoomsWithinSelectionBox(
   panOffset: PanOffset,
   canvasRect: DOMRect | null,
   selectionBox: SelectionBox,
+  zoom: number = 1,
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
   const boxRight = bounds.left + bounds.width;
@@ -90,7 +93,7 @@ export function getRoomsWithinSelectionBox(
 
   return rooms
     .filter((room) => {
-      const geometry = getRoomScreenGeometry(room, panOffset, canvasRect);
+      const geometry = getRoomScreenGeometry(room, panOffset, canvasRect, zoom);
       const roomLeft = geometry.left - (canvasRect?.left ?? 0);
       const roomTop = geometry.top - (canvasRect?.top ?? 0);
       const roomRight = roomLeft + geometry.width;
@@ -109,6 +112,7 @@ export function getStickyNotesWithinSelectionBox(
   panOffset: PanOffset,
   _canvasRect: DOMRect | null,
   selectionBox: SelectionBox,
+  zoom: number = 1,
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
   const boxRight = bounds.left + bounds.width;
@@ -116,10 +120,10 @@ export function getStickyNotesWithinSelectionBox(
 
   return stickyNotes
     .filter((stickyNote) => {
-      const noteLeft = stickyNote.position.x + panOffset.x;
-      const noteTop = stickyNote.position.y + panOffset.y;
-      const noteRight = noteLeft + STICKY_NOTE_WIDTH;
-      const noteBottom = noteTop + getStickyNoteHeight(stickyNote.text);
+      const noteLeft = (stickyNote.position.x * zoom) + panOffset.x;
+      const noteTop = (stickyNote.position.y * zoom) + panOffset.y;
+      const noteRight = noteLeft + (STICKY_NOTE_WIDTH * zoom);
+      const noteBottom = noteTop + (getStickyNoteHeight(stickyNote.text) * zoom);
 
       return noteLeft <= boxRight
         && noteRight >= bounds.left
@@ -211,6 +215,7 @@ export function getConnectionsWithinSelectionBox(
   connections: Readonly<Record<string, Connection>>,
   panOffset: PanOffset,
   selectionBox: SelectionBox,
+  zoom: number = 1,
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
 
@@ -232,8 +237,8 @@ export function getConnectionsWithinSelectionBox(
         sourceDimensions,
         targetDimensions,
       ).map((point) => ({
-        x: point.x + panOffset.x,
-        y: point.y + panOffset.y,
+        x: (point.x * zoom) + panOffset.x,
+        y: (point.y * zoom) + panOffset.y,
       }));
 
       return doesPolylineIntersectBounds(points, bounds);
@@ -247,6 +252,7 @@ export function getStickyNoteLinksWithinSelectionBox(
   stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>,
   panOffset: PanOffset,
   selectionBox: SelectionBox,
+  zoom: number = 1,
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
 
@@ -265,12 +271,12 @@ export function getStickyNoteLinksWithinSelectionBox(
       };
       const points = [
         {
-          x: stickyNoteCenter.x + panOffset.x,
-          y: stickyNoteCenter.y + panOffset.y,
+          x: (stickyNoteCenter.x * zoom) + panOffset.x,
+          y: (stickyNoteCenter.y * zoom) + panOffset.y,
         },
         {
-          x: roomCenter.x + panOffset.x,
-          y: roomCenter.y + panOffset.y,
+          x: (roomCenter.x * zoom) + panOffset.x,
+          y: (roomCenter.y * zoom) + panOffset.y,
         },
       ];
 
@@ -346,8 +352,9 @@ export function getPanDeltaToRevealRoom(
   room: Room,
   panOffset: PanOffset,
   canvasRect: DOMRect | null,
+  zoom: number = 1,
 ): PanOffset {
-  const roomGeometry = getRoomScreenGeometry(room, panOffset, canvasRect);
+  const roomGeometry = getRoomScreenGeometry(room, panOffset, canvasRect, zoom);
   const canvasWidth = canvasRect?.width ?? 0;
   const canvasHeight = canvasRect?.height ?? 0;
   const roomLeft = roomGeometry.left - (canvasRect?.left ?? 0);

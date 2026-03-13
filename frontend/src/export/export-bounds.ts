@@ -329,12 +329,14 @@ export function getViewportExportBounds(
   viewportSize: { readonly width: number; readonly height: number },
   panOffset: Position,
   padding: number,
+  zoom: number = 1,
 ): ExportBoundsResult {
+  const safeZoom = zoom > 0 ? zoom : 1;
   const bounds = applyPadding({
     left: -panOffset.x,
     top: -panOffset.y,
-    right: -panOffset.x + viewportSize.width,
-    bottom: -panOffset.y + viewportSize.height,
+    right: -panOffset.x + (viewportSize.width / safeZoom),
+    bottom: -panOffset.y + (viewportSize.height / safeZoom),
   }, padding);
 
   return {
@@ -445,6 +447,7 @@ export function getExportBounds(args: {
   readonly selectedStickyNoteLinkIds: readonly string[];
   readonly viewportSize?: { readonly width: number; readonly height: number };
   readonly mapPanOffset?: Position;
+  readonly viewportZoom?: number;
   readonly region?: ExportRegion | null;
 }): ExportBoundsResult {
   const { doc, settings } = args;
@@ -459,7 +462,7 @@ export function getExportBounds(args: {
         },
       };
     }
-    return getViewportExportBounds(args.viewportSize, args.mapPanOffset, settings.padding);
+    return getViewportExportBounds(args.viewportSize, args.mapPanOffset, settings.padding, args.viewportZoom ?? 1);
   }
 
   if (settings.scope === 'selection') {

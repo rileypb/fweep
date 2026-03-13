@@ -13,6 +13,7 @@ export interface ExportPngDialogProps {
   readonly onClose: () => void;
   readonly canvasViewportSize: { readonly width: number; readonly height: number };
   readonly panOffset: Position;
+  readonly zoom?: number;
   readonly onScopeChange: (scope: ExportScope) => void;
   readonly onRequestRegionSelection: () => void;
   readonly preferredInitialScope?: ExportScope | null;
@@ -76,6 +77,7 @@ export function ExportPngDialog({
   onClose,
   canvasViewportSize,
   panOffset,
+  zoom = 1,
   onScopeChange,
   onRequestRegionSelection,
   preferredInitialScope = null,
@@ -155,9 +157,10 @@ export function ExportPngDialog({
       selectedStickyNoteLinkIds,
       viewportSize: canvasViewportSize,
       mapPanOffset: panOffset,
+      viewportZoom: zoom,
       region: effectiveRegion,
     });
-  }, [canvasViewportSize, doc, effectiveRegion, panOffset, selectedConnectionIds, selectedRoomIds, selectedStickyNoteIds, selectedStickyNoteLinkIds, settings]);
+  }, [canvasViewportSize, doc, effectiveRegion, panOffset, selectedConnectionIds, selectedRoomIds, selectedStickyNoteIds, selectedStickyNoteLinkIds, settings, zoom]);
 
   const sizeValidationError = useMemo(
     () => validateExportBounds(boundsResult.bounds, settings.scale),
@@ -211,6 +214,7 @@ export function ExportPngDialog({
         bounds,
         viewportSize: canvasViewportSize,
         mapPanOffset: panOffset,
+        viewportZoom: zoom,
         selectedRoomIds,
         selectedStickyNoteIds,
         selectedConnectionIds,

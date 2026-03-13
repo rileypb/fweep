@@ -49,6 +49,7 @@ export interface MapMinimapProps {
   readonly selectedStickyNoteIds?: readonly string[];
   readonly selectedStickyNoteLinkIds?: readonly string[];
   readonly panOffset: PanOffset;
+  readonly zoom?: number;
   readonly canvasRect: CanvasRectLike | null;
   readonly theme: ThemeMode;
   readonly disabled?: boolean;
@@ -77,6 +78,7 @@ export function MapMinimap({
   selectedStickyNoteIds = [],
   selectedStickyNoteLinkIds = [],
   panOffset,
+  zoom = 1,
   canvasRect,
   theme,
   disabled = false,
@@ -166,9 +168,9 @@ export function MapMinimap({
   );
   const viewportRect = useMemo(
     () => transform && canvasRect
-      ? getMinimapViewportRect(panOffset, { width: canvasRect.width, height: canvasRect.height }, transform)
+      ? getMinimapViewportRect(panOffset, { width: canvasRect.width, height: canvasRect.height }, transform, zoom)
       : null,
-    [canvasRect, panOffset, transform],
+    [canvasRect, panOffset, transform, zoom],
   );
   const dragStateRef = useRef<{ previousX: number; previousY: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);

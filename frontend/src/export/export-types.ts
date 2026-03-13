@@ -44,6 +44,7 @@ export interface ExportRenderInput {
   readonly bounds: ExportRegion;
   readonly viewportSize?: { readonly width: number; readonly height: number };
   readonly mapPanOffset?: Position;
+  readonly viewportZoom?: number;
   readonly selectedRoomIds: readonly string[];
   readonly selectedStickyNoteIds: readonly string[];
   readonly selectedConnectionIds: readonly string[];
