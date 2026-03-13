@@ -131,7 +131,7 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--pan-ready');
   });
 
-  it('uses the move cursor over sticky notes in map mode unless Alt is held', () => {
+  it('uses the move cursor over sticky notes in map mode', () => {
     const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
     useEditorStore.getState().loadDocument({
       ...createEmptyMap('Test'),
@@ -141,10 +141,6 @@ describe('MapCanvas', () => {
     render(<MapCanvas mapName="Test" />);
 
     expect(screen.getByTestId('sticky-note')).toHaveStyle({ cursor: 'move' });
-
-    fireEvent.keyDown(window, { key: 'Alt', altKey: true });
-
-    expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ cursor: 'move' });
   });
 
   it('hides the background drawing layer', () => {
@@ -1622,7 +1618,7 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('sticky-note-selection-outline')).toBeInTheDocument();
     });
 
-    it('creates a sticky-note link when alt-dragging from a note to a room', () => {
+    it('creates a sticky-note link when dragging from a note link handle to a room', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
@@ -1632,10 +1628,10 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(window, { key: 'n' });
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120 });
 
-      const stickyNote = screen.getByTestId('sticky-note');
+      const linkHandle = screen.getByTestId('sticky-note-link-handle');
       const roomNode = screen.getByTestId('room-node');
 
-      fireEvent.mouseDown(stickyNote, { clientX: 100, clientY: 140, button: 0, altKey: true });
+      fireEvent.mouseDown(linkHandle, { clientX: 100, clientY: 140, button: 0 });
       fireEvent.mouseMove(document, { clientX: 240, clientY: 140 });
       expect(screen.getByTestId('sticky-note-link-preview')).toBeInTheDocument();
       fireEvent.mouseUp(roomNode, { clientX: 260, clientY: 140, button: 0 });

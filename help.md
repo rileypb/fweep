@@ -51,8 +51,8 @@
 - `Click` sticky note: select the note.
 - `Shift-click` sticky note: add the note to selection.
 - `Drag` sticky note: move all selected rooms and sticky notes.
+- `Drag` the small `+` handle on a sticky note to a room: create a sticky-note link.
 - `Double-click` sticky note: edit note text.
-- `Alt`/`Option-drag` from a sticky note to a room: create a sticky-note link.
 
 ## Sticky-Note Links
 

@@ -19,7 +19,6 @@ export interface MapCanvasStickyNoteProps {
   readonly stickyNote: StickyNote;
   readonly isSelected: boolean;
   readonly isEditing: boolean;
-  readonly isAltKeyDown: boolean;
   readonly toMapPoint: (clientX: number, clientY: number) => PanOffset;
   readonly onOpenEditor: (stickyNoteId: string) => void;
   readonly onCloseEditor: () => void;
@@ -29,7 +28,6 @@ export function MapCanvasStickyNote({
   stickyNote,
   isSelected,
   isEditing,
-  isAltKeyDown,
   toMapPoint,
   onOpenEditor,
   onCloseEditor,
@@ -50,7 +48,7 @@ export function MapCanvasStickyNote({
   const cancelStickyNoteLinkDrag = useEditorStore((s) => s.cancelStickyNoteLinkDrag);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const interactionsDisabled = canvasInteractionMode === 'draw';
-  const noteCursor = !interactionsDisabled && !isEditing && !isAltKeyDown ? 'move' : undefined;
+  const noteCursor = !interactionsDisabled && !isEditing ? 'move' : undefined;
 
   const height = getStickyNoteHeight(stickyNote.text);
   const isDragging = selectionDrag !== null && selectionDrag.stickyNoteIds.includes(stickyNote.id);
@@ -74,6 +72,47 @@ export function MapCanvasStickyNote({
         pointerEvents: interactionsDisabled ? 'none' : undefined,
       }}
     >
+      {!isEditing && (
+        <button
+          type="button"
+          className="sticky-note-link-handle"
+          data-testid="sticky-note-link-handle"
+          aria-label="Create sticky-note link"
+          onMouseDown={(event) => {
+            if (event.button !== 0) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const startPoint = toMapPoint(event.clientX, event.clientY);
+            startStickyNoteLinkDrag(stickyNote.id, startPoint.x, startPoint.y);
+
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+              updateStickyNoteLinkDrag(cursorPoint.x, cursorPoint.y);
+            };
+
+            const handleMouseUp = (upEvent: MouseEvent) => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+
+              const roomEl = (upEvent.target as Element | null)?.closest?.('[data-room-id]') as HTMLElement | null;
+              if (roomEl) {
+                completeStickyNoteLinkDrag(roomEl.getAttribute('data-room-id')!);
+              } else {
+                cancelStickyNoteLinkDrag();
+              }
+            };
+
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+        >
+          +
+        </button>
+      )}
       {isSelected && (
         <svg
           className="sticky-note-selection-outline"
@@ -117,32 +156,6 @@ export function MapCanvasStickyNote({
 
           event.preventDefault();
           event.stopPropagation();
-
-          if (event.altKey) {
-            const startPoint = toMapPoint(event.clientX, event.clientY);
-            startStickyNoteLinkDrag(stickyNote.id, startPoint.x, startPoint.y);
-
-            const handleMouseMove = (moveEvent: MouseEvent) => {
-              const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
-              updateStickyNoteLinkDrag(cursorPoint.x, cursorPoint.y);
-            };
-
-            const handleMouseUp = (upEvent: MouseEvent) => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-
-              const roomEl = (upEvent.target as Element | null)?.closest?.('[data-room-id]') as HTMLElement | null;
-              if (roomEl) {
-                completeStickyNoteLinkDrag(roomEl.getAttribute('data-room-id')!);
-              } else {
-                cancelStickyNoteLinkDrag();
-              }
-            };
-
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-            return;
-          }
 
           const startX = event.clientX;
           const startY = event.clientY;

@@ -1306,6 +1306,34 @@ body {
   overflow: visible;
 }
 
+.sticky-note-link-handle {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(120, 105, 18, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 251, 214, 0.95);
+  color: #6a5a12;
+  font: 700 15px/1 Georgia, serif;
+  cursor: crosshair;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(108, 93, 18, 0.18);
+}
+
+.sticky-note-link-handle:hover {
+  background: rgba(255, 247, 184, 0.98);
+}
+
+.sticky-note-link-handle:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: 1px;
+}
+
 .sticky-note {
   position: relative;
   box-sizing: border-box;
@@ -1350,6 +1378,16 @@ body {
 .sticky-note-link,
 .sticky-note-link-preview {
   pointer-events: none;
+}
+
+:root[data-theme='dark'] .sticky-note-link-handle {
+  border-color: rgba(226, 211, 133, 0.45);
+  background: rgba(65, 59, 21, 0.96);
+  color: #f3e9a7;
+}
+
+:root[data-theme='dark'] .sticky-note-link-handle:hover {
+  background: rgba(87, 79, 28, 0.98);
 }
 
 /* ---- Direction handles ---- */
