@@ -71,6 +71,7 @@ type FakeContext = {
   readonly restore: ReturnType<typeof jest.fn>;
   readonly scale: ReturnType<typeof jest.fn>;
   readonly translate: ReturnType<typeof jest.fn>;
+  readonly rotate: ReturnType<typeof jest.fn>;
   readonly beginPath: ReturnType<typeof jest.fn>;
   readonly moveTo: ReturnType<typeof jest.fn>;
   readonly lineTo: ReturnType<typeof jest.fn>;
@@ -102,6 +103,7 @@ function createFakeContext(): FakeContext {
     restore: jest.fn(),
     scale: jest.fn(),
     translate: jest.fn(),
+    rotate: jest.fn(),
     beginPath: jest.fn(),
     moveTo: jest.fn(),
     lineTo: jest.fn(),
@@ -316,7 +318,6 @@ describe('renderExportCanvas', () => {
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, 1280, 480);
     expect(context.scale).toHaveBeenCalledWith(2, 2);
-    expect(context.translate).toHaveBeenCalledTimes(1);
     expect(context.drawImage).toHaveBeenCalledTimes(1);
     expect(context.quadraticCurveTo).toHaveBeenCalled();
     expect(context.lineTo).toHaveBeenCalled();
@@ -328,11 +329,13 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('north', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('south', expect.any(Number), expect.any(Number));
-    expect(context.fillText).toHaveBeenCalledWith('stairs', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
     expect(context.fillText).toHaveBeenCalledWith('up', expect.any(Number), expect.any(Number));
     expect(context.setLineDash).toHaveBeenCalled();
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
     expect(context.lineTo).toHaveBeenCalledWith(40, 18);
+    expect(context.translate).toHaveBeenCalledWith(80, 20);
+    expect(context.rotate.mock.calls.some(([angle]) => Math.abs(angle) < 1e-9)).toBe(true);
     expect(mockListBackgroundChunksInBounds).toHaveBeenCalled();
   });
 
@@ -512,7 +515,7 @@ describe('renderExportCanvas', () => {
     await renderExportCanvas(input);
 
     expect(context.save).toHaveBeenCalled();
-    expect(context.translate).toHaveBeenCalledTimes(2);
+    expect(context.translate).toHaveBeenCalled();
     expect(context.arc).toHaveBeenCalled();
     expect(context.restore).toHaveBeenCalled();
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
@@ -672,7 +675,9 @@ describe('renderExportCanvas', () => {
     expect(context.moveTo).toHaveBeenCalledWith(33, 18);
     expect(context.lineTo).toHaveBeenCalledWith(23, 22);
     expect(context.lineTo).toHaveBeenCalledWith(23, 14);
-    expect(context.fillText).toHaveBeenCalledWith('up', 20, 30);
+    expect(context.translate).toHaveBeenCalledWith(20, 30);
+    expect(context.rotate.mock.calls.some(([angle]) => Math.abs((angle as number) - 0) < 1e-9)).toBe(true);
+    expect(context.fillText).toHaveBeenCalledWith('up', 0, 0);
   });
 
   it('renders arrow geometry for out annotations in exported PNGs', async () => {
@@ -701,6 +706,52 @@ describe('renderExportCanvas', () => {
     expect(context.moveTo).toHaveBeenCalledWith(4, 18);
     expect(context.lineTo).toHaveBeenCalledWith(14, 22);
     expect(context.lineTo).toHaveBeenCalledWith(14, 14);
-    expect(context.fillText).toHaveBeenCalledWith('in', 20, 30);
+    expect(context.translate).toHaveBeenCalledWith(20, 30);
+    expect(context.rotate.mock.calls.some(([angle]) => Math.abs(angle as number) < 1e-9)).toBe(true);
+    expect(context.fillText).toHaveBeenCalledWith('in', 0, 0);
+  });
+
+  it('renders free-text annotations rotated to follow the connection in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        connections: {
+          'connection-two-way': {
+            ...baseInput.doc.connections['connection-two-way'],
+            annotation: { kind: 'text', text: 'stairs' },
+          },
+        },
+      },
+      selectedConnectionIds: ['connection-two-way'],
+      selectedRoomIds: ['room-oval', 'room-octagon'],
+      settings: {
+        ...baseInput.settings,
+        scope: 'selection',
+      },
+    };
+
+    mockComputeConnectionPath.mockReturnValue([
+      { x: 140, y: 200 },
+      { x: 140, y: 36 },
+    ]);
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'polyline',
+      points: [
+        { x: 140, y: 200 },
+        { x: 140, y: 36 },
+      ],
+    });
+
+    await renderExportCanvas(input);
+
+    expect(context.translate).toHaveBeenCalledWith(160, 118);
+    expect(context.rotate).toHaveBeenCalledWith(Math.PI / 2);
+    expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
   });
 });

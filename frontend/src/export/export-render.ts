@@ -358,6 +358,7 @@ function drawConnectionLabels(
 
   context.font = '600 14px sans-serif';
   context.textAlign = 'center';
+  context.textBaseline = 'middle';
 
   if (annotationKind === 'up' || annotationKind === 'down' || annotationKind === 'in' || annotationKind === 'out') {
     const directionalAnnotation = getDirectionalAnnotationGeometry(annotationKind, annotationLabel, geometry, points);
@@ -381,7 +382,31 @@ function drawConnectionLabels(
     context.fill();
 
     context.fillStyle = getForegroundColor(theme);
-    context.fillText(annotationLabel, directionalAnnotation.textPosition.x, directionalAnnotation.textPosition.y);
+    context.save();
+    context.translate(directionalAnnotation.textPosition.x, directionalAnnotation.textPosition.y);
+    context.rotate((normalizeReadableTextRotation(directionalAnnotation.rotationDegrees) * Math.PI) / 180);
+    context.fillText(annotationLabel, 0, 0);
+    context.restore();
+    return;
+  }
+
+  if (annotationKind === 'text') {
+    const textAnnotationGeometry = geometry.kind === 'polyline'
+      ? (() => {
+        const segment = getLongestSegment(points);
+        return segment ? getAnnotationGeometryFromSegment(segment, false, annotationLabel, false, false) : null;
+      })()
+      : getAnnotationGeometryFromRenderGeometry(geometry, false, annotationLabel, false, false);
+
+    if (!textAnnotationGeometry) {
+      return;
+    }
+
+    context.save();
+    context.translate(textAnnotationGeometry.textPosition.x, textAnnotationGeometry.textPosition.y);
+    context.rotate((normalizeReadableTextRotation(textAnnotationGeometry.rotationDegrees) * Math.PI) / 180);
+    context.fillText(annotationLabel, 0, 0);
+    context.restore();
     return;
   }
 
@@ -396,6 +421,16 @@ function drawConnectionLabels(
   const textX = sample.point.x + (normalX * (CONNECTION_ANNOTATION_OFFSET + CONNECTION_ANNOTATION_TEXT_OFFSET));
   const textY = sample.point.y + (normalY * (CONNECTION_ANNOTATION_OFFSET + CONNECTION_ANNOTATION_TEXT_OFFSET));
   context.fillText(annotationLabel, textX, textY);
+}
+
+function normalizeReadableTextRotation(rotationDegrees: number): number {
+  if (rotationDegrees > 90) {
+    return rotationDegrees - 180;
+  }
+  if (rotationDegrees <= -90) {
+    return rotationDegrees + 180;
+  }
+  return rotationDegrees;
 }
 
 function getLongestSegment(points: readonly Point[]): { start: Point; end: Point } | null {
@@ -442,6 +477,7 @@ function getDirectionalAnnotationGeometry(
   arrowBaseA: Point;
   arrowBaseB: Point;
   textPosition: Point;
+  rotationDegrees: number;
 } | null {
   const compactLength = annotationKind === 'up' || annotationKind === 'down';
   const reverseDirection = annotationKind === 'out';
@@ -489,6 +525,7 @@ function getAnnotationGeometryFromSegment(
   arrowBaseA: Point;
   arrowBaseB: Point;
   textPosition: Point;
+  rotationDegrees: number;
 } | null {
   const dx = segment.end.x - segment.start.x;
   const dy = segment.end.y - segment.start.y;
@@ -544,6 +581,7 @@ function getAnnotationGeometryFromSegment(
       x: annotationCenterX + (normal.x * CONNECTION_ANNOTATION_TEXT_OFFSET),
       y: annotationCenterY + (normal.y * CONNECTION_ANNOTATION_TEXT_OFFSET),
     },
+    rotationDegrees: (Math.atan2(directionY, directionX) * 180) / Math.PI,
   };
 }
 
@@ -560,6 +598,7 @@ function getAnnotationGeometryFromRenderGeometry(
   arrowBaseA: Point;
   arrowBaseB: Point;
   textPosition: Point;
+  rotationDegrees: number;
 } | null {
   const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
   if (!sample) {
@@ -618,6 +657,7 @@ function getAnnotationGeometryFromRenderGeometry(
       x: annotationCenterX + (normal.x * CONNECTION_ANNOTATION_TEXT_OFFSET),
       y: annotationCenterY + (normal.y * CONNECTION_ANNOTATION_TEXT_OFFSET),
     },
+    rotationDegrees: (Math.atan2(directionY, directionX) * 180) / Math.PI,
   };
 }
 
