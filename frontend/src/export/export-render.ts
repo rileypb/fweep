@@ -36,6 +36,19 @@ const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
+const PASS_THROUGH_GAP_PADDING = 6;
+const PASS_THROUGH_CROSSBAR_LENGTH = 10;
+
+interface VisibleConnectionSegment {
+  readonly start: Point;
+  readonly end: Point;
+}
+
+interface VisibleConnectionSegmentsResult {
+  readonly segments: readonly VisibleConnectionSegment[];
+  readonly crossbars: readonly VisibleConnectionSegment[];
+  readonly hasGap: boolean;
+}
 
 function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
   const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
@@ -260,6 +273,181 @@ function drawConnectionGeometry(context: CanvasRenderingContext2D, geometry: Con
   );
 }
 
+function getRoomBounds(room: Room): { left: number; right: number; top: number; bottom: number } {
+  const roomWidth = getRoomNodeWidth(room);
+  return {
+    left: room.position.x - PASS_THROUGH_GAP_PADDING,
+    right: room.position.x + roomWidth + PASS_THROUGH_GAP_PADDING,
+    top: room.position.y - PASS_THROUGH_GAP_PADDING,
+    bottom: room.position.y + ROOM_HEIGHT + PASS_THROUGH_GAP_PADDING,
+  };
+}
+
+function getSegmentGapIntervals(
+  start: Point,
+  end: Point,
+  roomsToSkipAcross: readonly Room[],
+): readonly { start: number; end: number }[] {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) {
+    return [];
+  }
+
+  const intervals = roomsToSkipAcross.flatMap((room) => {
+    const bounds = getRoomBounds(room);
+    let tMin = 0;
+    let tMax = 1;
+
+    if (dx === 0) {
+      if (start.x < bounds.left || start.x > bounds.right) {
+        return [];
+      }
+    } else {
+      const tx1 = (bounds.left - start.x) / dx;
+      const tx2 = (bounds.right - start.x) / dx;
+      tMin = Math.max(tMin, Math.min(tx1, tx2));
+      tMax = Math.min(tMax, Math.max(tx1, tx2));
+    }
+
+    if (dy === 0) {
+      if (start.y < bounds.top || start.y > bounds.bottom) {
+        return [];
+      }
+    } else {
+      const ty1 = (bounds.top - start.y) / dy;
+      const ty2 = (bounds.bottom - start.y) / dy;
+      tMin = Math.max(tMin, Math.min(ty1, ty2));
+      tMax = Math.min(tMax, Math.max(ty1, ty2));
+    }
+
+    if (tMax <= 0 || tMin >= 1 || tMin >= tMax) {
+      return [];
+    }
+
+    return [{
+      start: Math.max(0, tMin),
+      end: Math.min(1, tMax),
+    }];
+  });
+
+  if (intervals.length === 0) {
+    return [];
+  }
+
+  const sortedIntervals = [...intervals].sort((left, right) => left.start - right.start);
+  const mergedIntervals: Array<{ start: number; end: number }> = [];
+
+  sortedIntervals.forEach((interval) => {
+    const previous = mergedIntervals[mergedIntervals.length - 1];
+    if (!previous || interval.start > previous.end) {
+      mergedIntervals.push({ ...interval });
+      return;
+    }
+
+    previous.end = Math.max(previous.end, interval.end);
+  });
+
+  return mergedIntervals;
+}
+
+function getVisibleConnectionSegments(
+  connection: Connection,
+  points: readonly Point[],
+  rooms: Readonly<Record<string, Room>>,
+): VisibleConnectionSegmentsResult {
+  if (points.length < 2) {
+    return { segments: [], crossbars: [], hasGap: false };
+  }
+
+  const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
+  const visibleSegments: VisibleConnectionSegment[] = [];
+  const crossbars: VisibleConnectionSegment[] = [];
+  let hasGap = false;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms);
+
+    if (gapIntervals.length === 0) {
+      visibleSegments.push({ start, end });
+      continue;
+    }
+
+    hasGap = true;
+    const segmentLength = Math.hypot(dx, dy);
+    const normalX = segmentLength === 0 ? 0 : -dy / segmentLength;
+    const normalY = segmentLength === 0 ? 0 : dx / segmentLength;
+    const halfCrossbarLength = PASS_THROUGH_CROSSBAR_LENGTH / 2;
+
+    let cursor = 0;
+    gapIntervals.forEach((interval) => {
+      const gapStartPoint = {
+        x: start.x + (dx * interval.start),
+        y: start.y + (dy * interval.start),
+      };
+      const gapEndPoint = {
+        x: start.x + (dx * interval.end),
+        y: start.y + (dy * interval.end),
+      };
+
+      crossbars.push({
+        start: {
+          x: gapStartPoint.x - (normalX * halfCrossbarLength),
+          y: gapStartPoint.y - (normalY * halfCrossbarLength),
+        },
+        end: {
+          x: gapStartPoint.x + (normalX * halfCrossbarLength),
+          y: gapStartPoint.y + (normalY * halfCrossbarLength),
+        },
+      });
+      crossbars.push({
+        start: {
+          x: gapEndPoint.x - (normalX * halfCrossbarLength),
+          y: gapEndPoint.y - (normalY * halfCrossbarLength),
+        },
+        end: {
+          x: gapEndPoint.x + (normalX * halfCrossbarLength),
+          y: gapEndPoint.y + (normalY * halfCrossbarLength),
+        },
+      });
+
+      if (interval.start > cursor) {
+        visibleSegments.push({
+          start: {
+            x: start.x + (dx * cursor),
+            y: start.y + (dy * cursor),
+          },
+          end: {
+            x: start.x + (dx * interval.start),
+            y: start.y + (dy * interval.start),
+          },
+        });
+      }
+      cursor = Math.max(cursor, interval.end);
+    });
+
+    if (cursor < 1) {
+      visibleSegments.push({
+        start: {
+          x: start.x + (dx * cursor),
+          y: start.y + (dy * cursor),
+        },
+        end,
+      });
+    }
+  }
+
+  return {
+    segments: visibleSegments.filter((segment) => Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y) > 0.1),
+    crossbars: crossbars.filter((segment) => Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y) > 0.1),
+    hasGap,
+  };
+}
+
 function drawConnectionLine(
   context: CanvasRenderingContext2D,
   doc: ExportRenderInput['doc'],
@@ -282,11 +470,32 @@ function drawConnectionLine(
     connection.sourceRoomId === connection.targetRoomId,
   );
 
-  drawConnectionGeometry(context, geometry);
   context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
-  context.stroke();
+  if (geometry.kind === 'polyline' && connection.sourceRoomId !== connection.targetRoomId) {
+    const visiblePolylineResult = getVisibleConnectionSegments(connection, points, doc.rooms);
+    if (visiblePolylineResult.hasGap) {
+      visiblePolylineResult.segments.forEach((segment) => {
+        context.beginPath();
+        context.moveTo(segment.start.x, segment.start.y);
+        context.lineTo(segment.end.x, segment.end.y);
+        context.stroke();
+      });
+      visiblePolylineResult.crossbars.forEach((segment) => {
+        context.beginPath();
+        context.moveTo(segment.start.x, segment.start.y);
+        context.lineTo(segment.end.x, segment.end.y);
+        context.stroke();
+      });
+    } else {
+      drawConnectionGeometry(context, geometry);
+      context.stroke();
+    }
+  } else {
+    drawConnectionGeometry(context, geometry);
+    context.stroke();
+  }
   context.setLineDash([]);
 
   if (!connection.isBidirectional) {

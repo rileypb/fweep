@@ -754,4 +754,54 @@ describe('renderExportCanvas', () => {
     expect(context.rotate).toHaveBeenCalledWith(Math.PI / 2);
     expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
   });
+
+  it('renders pass-through gaps and crossbars for room crossings in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Below'), id: 'room-below', position: { x: 120, y: 220 } };
+    const blocker = { ...createRoom('Kitchen'), id: 'room-blocker', position: { x: 80, y: 120 } };
+    const target = { ...createRoom('Above'), id: 'room-above', position: { x: 120, y: 20 } };
+    let doc = createEmptyMap('Export Gap');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, blocker);
+    doc = addRoom(doc, target);
+    const connection = { ...createConnection(source.id, target.id, false), id: 'connection-gap' };
+    doc = addConnection(doc, connection, 'north');
+
+    mockComputeConnectionPath.mockReturnValue([
+      { x: 120, y: 220 },
+      { x: 120, y: 20 },
+    ]);
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'polyline',
+      points: [
+        { x: 120, y: 220 },
+        { x: 120, y: 20 },
+      ],
+    });
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [source.id, blocker.id, target.id],
+      selectedConnectionIds: [connection.id],
+      selectedStickyNoteIds: [],
+      selectedStickyNoteLinkIds: [],
+      settings: {
+        ...createBaseInput().settings,
+        scope: 'selection',
+      },
+    });
+
+    expect(context.moveTo).toHaveBeenCalledWith(120, 220);
+    expect(context.lineTo).toHaveBeenCalledWith(120, 162);
+    expect(context.moveTo).toHaveBeenCalledWith(120, 114);
+    expect(context.lineTo).toHaveBeenCalledWith(120, 20);
+    expect(context.moveTo).toHaveBeenCalledWith(115, 162);
+    expect(context.lineTo).toHaveBeenCalledWith(125, 162);
+    expect(context.moveTo).toHaveBeenCalledWith(115, 114);
+    expect(context.lineTo).toHaveBeenCalledWith(125, 114);
+  });
 });

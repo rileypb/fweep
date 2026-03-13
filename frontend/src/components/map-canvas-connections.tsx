@@ -34,6 +34,8 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
+const PASS_THROUGH_GAP_PADDING = 6;
+const PASS_THROUGH_CROSSBAR_LENGTH = 10;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -74,6 +76,17 @@ interface ConnectionLabelGeometry {
   readonly x: number;
   readonly y: number;
   readonly textAnchor: 'start' | 'middle';
+}
+
+interface VisibleConnectionSegment {
+  readonly start: VectorPoint;
+  readonly end: VectorPoint;
+}
+
+interface VisibleConnectionSegmentsResult {
+  readonly segments: readonly VisibleConnectionSegment[];
+  readonly crossbars: readonly VisibleConnectionSegment[];
+  readonly hasGap: boolean;
 }
 
 interface AnnotationGeometryBase {
@@ -139,6 +152,181 @@ function getLongestSegment(points: readonly VectorPoint[]): { start: VectorPoint
   }
 
   return bestSegment;
+}
+
+function getRoomBounds(room: Room): { left: number; right: number; top: number; bottom: number } {
+  const roomWidth = getRoomNodeWidth(room);
+  return {
+    left: room.position.x - PASS_THROUGH_GAP_PADDING,
+    right: room.position.x + roomWidth + PASS_THROUGH_GAP_PADDING,
+    top: room.position.y - PASS_THROUGH_GAP_PADDING,
+    bottom: room.position.y + ROOM_HEIGHT + PASS_THROUGH_GAP_PADDING,
+  };
+}
+
+function getSegmentGapIntervals(
+  start: VectorPoint,
+  end: VectorPoint,
+  roomsToSkipAcross: readonly Room[],
+): readonly { start: number; end: number }[] {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) {
+    return [];
+  }
+
+  const intervals = roomsToSkipAcross.flatMap((room) => {
+    const bounds = getRoomBounds(room);
+    let tMin = 0;
+    let tMax = 1;
+
+    if (dx === 0) {
+      if (start.x < bounds.left || start.x > bounds.right) {
+        return [];
+      }
+    } else {
+      const tx1 = (bounds.left - start.x) / dx;
+      const tx2 = (bounds.right - start.x) / dx;
+      tMin = Math.max(tMin, Math.min(tx1, tx2));
+      tMax = Math.min(tMax, Math.max(tx1, tx2));
+    }
+
+    if (dy === 0) {
+      if (start.y < bounds.top || start.y > bounds.bottom) {
+        return [];
+      }
+    } else {
+      const ty1 = (bounds.top - start.y) / dy;
+      const ty2 = (bounds.bottom - start.y) / dy;
+      tMin = Math.max(tMin, Math.min(ty1, ty2));
+      tMax = Math.min(tMax, Math.max(ty1, ty2));
+    }
+
+    if (tMax <= 0 || tMin >= 1 || tMin >= tMax) {
+      return [];
+    }
+
+    return [{
+      start: Math.max(0, tMin),
+      end: Math.min(1, tMax),
+    }];
+  });
+
+  if (intervals.length === 0) {
+    return [];
+  }
+
+  const sortedIntervals = [...intervals].sort((left, right) => left.start - right.start);
+  const mergedIntervals: Array<{ start: number; end: number }> = [];
+
+  sortedIntervals.forEach((interval) => {
+    const previous = mergedIntervals[mergedIntervals.length - 1];
+    if (!previous || interval.start > previous.end) {
+      mergedIntervals.push({ ...interval });
+      return;
+    }
+
+    previous.end = Math.max(previous.end, interval.end);
+  });
+
+  return mergedIntervals;
+}
+
+function getVisibleConnectionSegments(
+  connection: Connection,
+  points: readonly VectorPoint[],
+  rooms: Readonly<Record<string, Room>>,
+): VisibleConnectionSegmentsResult {
+  if (points.length < 2) {
+    return { segments: [], crossbars: [], hasGap: false };
+  }
+
+  const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
+  const visibleSegments: VisibleConnectionSegment[] = [];
+  const crossbars: VisibleConnectionSegment[] = [];
+  let hasGap = false;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms);
+
+    if (gapIntervals.length === 0) {
+      visibleSegments.push({ start, end });
+      continue;
+    }
+
+    hasGap = true;
+    const segmentLength = Math.hypot(dx, dy);
+    const normalX = segmentLength === 0 ? 0 : -dy / segmentLength;
+    const normalY = segmentLength === 0 ? 0 : dx / segmentLength;
+    const halfCrossbarLength = PASS_THROUGH_CROSSBAR_LENGTH / 2;
+
+    let cursor = 0;
+    gapIntervals.forEach((interval) => {
+      const gapStartPoint = {
+        x: start.x + (dx * interval.start),
+        y: start.y + (dy * interval.start),
+      };
+      const gapEndPoint = {
+        x: start.x + (dx * interval.end),
+        y: start.y + (dy * interval.end),
+      };
+
+      crossbars.push({
+        start: {
+          x: gapStartPoint.x - (normalX * halfCrossbarLength),
+          y: gapStartPoint.y - (normalY * halfCrossbarLength),
+        },
+        end: {
+          x: gapStartPoint.x + (normalX * halfCrossbarLength),
+          y: gapStartPoint.y + (normalY * halfCrossbarLength),
+        },
+      });
+      crossbars.push({
+        start: {
+          x: gapEndPoint.x - (normalX * halfCrossbarLength),
+          y: gapEndPoint.y - (normalY * halfCrossbarLength),
+        },
+        end: {
+          x: gapEndPoint.x + (normalX * halfCrossbarLength),
+          y: gapEndPoint.y + (normalY * halfCrossbarLength),
+        },
+      });
+
+      if (interval.start > cursor) {
+        visibleSegments.push({
+          start: {
+            x: start.x + (dx * cursor),
+            y: start.y + (dy * cursor),
+          },
+          end: {
+            x: start.x + (dx * interval.start),
+            y: start.y + (dy * interval.start),
+          },
+        });
+      }
+      cursor = Math.max(cursor, interval.end);
+    });
+
+    if (cursor < 1) {
+      visibleSegments.push({
+        start: {
+          x: start.x + (dx * cursor),
+          y: start.y + (dy * cursor),
+        },
+        end,
+      });
+    }
+  }
+
+  return {
+    segments: visibleSegments.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
+    crossbars: crossbars.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
+    hasGap,
+  };
 }
 
 function getVerticalAnnotationReverseDirection(
@@ -531,6 +719,12 @@ export function MapCanvasConnections({
         : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
     const pathData = geometry.kind === 'polyline' ? null : connectionGeometryToSvgPath(geometry);
+    const visiblePolylineResult = geometry.kind === 'polyline'
+      ? getVisibleConnectionSegments(conn, points, rooms)
+      : { segments: [], crossbars: [], hasGap: false };
+    const usesGapRendering = geometry.kind === 'polyline'
+      && conn.sourceRoomId !== conn.targetRoomId
+      && visiblePolylineResult.hasGap;
 
     return (
       <>
@@ -559,30 +753,103 @@ export function MapCanvasConnections({
                 onOpenConnectionEditor(conn.id);
               }}
             />
-            <polyline
-              data-testid={`connection-line-${conn.id}`}
-              className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
-              points={pointsToSvgString(points)}
-              fill="none"
-              style={{
-                stroke: connectionStroke,
-                strokeWidth: isSelected ? 6 : 2,
-                strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-                pointerEvents: 'none',
-              }}
-            />
-            {isSelected && (
-              <polyline
-                data-testid={`connection-selection-inner-${conn.id}`}
-                className="connection-line connection-line--selected-inner"
-                points={pointsToSvgString(points)}
-                fill="none"
-                style={{
-                  stroke: '#f59e0b',
-                  strokeWidth: 2,
-                  pointerEvents: 'none',
-                }}
-              />
+            {usesGapRendering ? (
+              <>
+                {visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-line-segment-${conn.id}-${index}`}
+                    data-testid={`connection-line-segment-${conn.id}-${index}`}
+                    className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: connectionStroke,
+                      strokeWidth: isSelected ? 6 : 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {visiblePolylineResult.crossbars.map((segment, index) => (
+                  <line
+                    key={`connection-gap-crossbar-${conn.id}-${index}`}
+                    data-testid={`connection-gap-crossbar-${conn.id}-${index}`}
+                    className={baseClassName}
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: connectionStroke,
+                      strokeWidth: isSelected ? 6 : 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-inner"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.crossbars.map((segment, index) => (
+                  <line
+                    key={`connection-gap-crossbar-inner-${conn.id}-${index}`}
+                    data-testid={`connection-gap-crossbar-inner-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-inner"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
+                <polyline
+                  data-testid={`connection-line-${conn.id}`}
+                  className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                  points={pointsToSvgString(points)}
+                  fill="none"
+                  style={{
+                    stroke: connectionStroke,
+                    strokeWidth: isSelected ? 6 : 2,
+                    strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                    pointerEvents: 'none',
+                  }}
+                />
+                {isSelected && (
+                  <polyline
+                    data-testid={`connection-selection-inner-${conn.id}`}
+                    className="connection-line connection-line--selected-inner"
+                    points={pointsToSvgString(points)}
+                    fill="none"
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         ) : (
