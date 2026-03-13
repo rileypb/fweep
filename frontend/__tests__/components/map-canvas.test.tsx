@@ -2737,6 +2737,32 @@ describe('MapCanvas', () => {
       expect(connectionLine.getAttribute('points')).toBe('170,200 170,180 120,56 120,36');
     });
 
+    it('renders a pass-through overlay when an unrelated connection crosses a room', () => {
+      const doc = createEmptyMap('Test');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      let d = addRoom(doc, northOfHouse);
+      d = addRoom(d, kitchen);
+      d = addRoom(d, westOfHouse);
+      d = addRoom(d, attic);
+      const westNorthConnection = createConnection(westOfHouse.id, northOfHouse.id, true);
+      const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
+      d = addConnection(d, westNorthConnection, 'north', 'west');
+      d = addConnection(d, kitchenAtticConnection, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const passThroughOverlay = screen.getByTestId(`connection-pass-through-${westNorthConnection.id}-${kitchen.id}`);
+      const passThroughMask = screen.getByTestId(`connection-pass-through-mask-${westNorthConnection.id}-${kitchen.id}`);
+      expect(passThroughOverlay).toBeInTheDocument();
+      expect(passThroughOverlay).toHaveAttribute('clip-path', `url(#room-pass-through-clip-${kitchen.id})`);
+      expect(passThroughMask).toHaveAttribute('stroke-opacity', '0.5');
+      expect(screen.queryByTestId(`connection-pass-through-${kitchenAtticConnection.id}-${kitchen.id}`)).not.toBeInTheDocument();
+    });
+
     it('does not render an arrowhead for a bidirectional connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };

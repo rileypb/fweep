@@ -5,7 +5,11 @@ import {
   type StickyNote,
   type StickyNoteLink,
 } from '../domain/map-types';
-import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
+import {
+  getRoomFillColor,
+  getRoomStrokeColor,
+  type ThemeMode,
+} from '../domain/room-color-palette';
 import {
   type ConnectionRenderGeometry,
   connectionGeometryToSvgPath,
@@ -24,6 +28,7 @@ import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
 import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
 import { PadlockGlyph } from './padlock-glyph';
+import { getRoomShapePath } from '../graph/room-shape-geometry';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -34,6 +39,9 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
+const ROOM_CORNER_RADIUS = 12;
+const PASS_THROUGH_MASK_STROKE_WIDTH = 10;
+const PASS_THROUGH_MASK_OPACITY = 0.5;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -74,6 +82,13 @@ interface ConnectionLabelGeometry {
   readonly x: number;
   readonly y: number;
   readonly textAnchor: 'start' | 'middle';
+}
+
+interface ConnectionPassThroughSegment {
+  readonly roomId: string;
+  readonly room: Room;
+  readonly start: VectorPoint;
+  readonly end: VectorPoint;
 }
 
 interface AnnotationGeometryBase {
@@ -435,6 +450,113 @@ function getStubLabelGeometry(
   };
 }
 
+function segmentOverlapsRoomBounds(
+  start: VectorPoint,
+  end: VectorPoint,
+  room: Room,
+): boolean {
+  const roomWidth = getRoomNodeWidth(room);
+  const roomLeft = room.position.x;
+  const roomRight = room.position.x + roomWidth;
+  const roomTop = room.position.y;
+  const roomBottom = room.position.y + ROOM_HEIGHT;
+
+  const segmentLeft = Math.min(start.x, end.x);
+  const segmentRight = Math.max(start.x, end.x);
+  const segmentTop = Math.min(start.y, end.y);
+  const segmentBottom = Math.max(start.y, end.y);
+
+  if (segmentRight < roomLeft || segmentLeft > roomRight || segmentBottom < roomTop || segmentTop > roomBottom) {
+    return false;
+  }
+
+  const startInside = start.x >= roomLeft && start.x <= roomRight && start.y >= roomTop && start.y <= roomBottom;
+  const endInside = end.x >= roomLeft && end.x <= roomRight && end.y >= roomTop && end.y <= roomBottom;
+  if (startInside || endInside) {
+    return true;
+  }
+
+  const rectEdges = [
+    [{ x: roomLeft, y: roomTop }, { x: roomRight, y: roomTop }],
+    [{ x: roomRight, y: roomTop }, { x: roomRight, y: roomBottom }],
+    [{ x: roomRight, y: roomBottom }, { x: roomLeft, y: roomBottom }],
+    [{ x: roomLeft, y: roomBottom }, { x: roomLeft, y: roomTop }],
+  ] as const;
+
+  const cross = (origin: VectorPoint, p1: VectorPoint, p2: VectorPoint): number => (
+    ((p1.x - origin.x) * (p2.y - origin.y)) - ((p1.y - origin.y) * (p2.x - origin.x))
+  );
+  const onSegment = (a: VectorPoint, p: VectorPoint, b: VectorPoint): boolean => (
+    p.x >= Math.min(a.x, b.x)
+    && p.x <= Math.max(a.x, b.x)
+    && p.y >= Math.min(a.y, b.y)
+    && p.y <= Math.max(a.y, b.y)
+  );
+  const segmentsIntersect = (aStart: VectorPoint, aEnd: VectorPoint, bStart: VectorPoint, bEnd: VectorPoint): boolean => {
+    const d1 = cross(aStart, aEnd, bStart);
+    const d2 = cross(aStart, aEnd, bEnd);
+    const d3 = cross(bStart, bEnd, aStart);
+    const d4 = cross(bStart, bEnd, aEnd);
+
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+      return true;
+    }
+
+    if (d1 === 0 && onSegment(aStart, bStart, aEnd)) return true;
+    if (d2 === 0 && onSegment(aStart, bEnd, aEnd)) return true;
+    if (d3 === 0 && onSegment(bStart, aStart, bEnd)) return true;
+    if (d4 === 0 && onSegment(bStart, aEnd, bEnd)) return true;
+    return false;
+  };
+
+  return rectEdges.some(([edgeStart, edgeEnd]) => segmentsIntersect(start, end, edgeStart, edgeEnd));
+}
+
+function getConnectionPassThroughSegments(
+  connection: Connection,
+  points: readonly VectorPoint[],
+  rooms: Readonly<Record<string, Room>>,
+): readonly ConnectionPassThroughSegment[] {
+  if (points.length < 2) {
+    return [];
+  }
+
+  const passThroughSegments: ConnectionPassThroughSegment[] = [];
+  const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    unrelatedRooms.forEach((room) => {
+      if (!segmentOverlapsRoomBounds(start, end, room)) {
+        return;
+      }
+
+      passThroughSegments.push({
+        roomId: room.id,
+        room,
+        start,
+        end,
+      });
+    });
+  }
+
+  return passThroughSegments;
+}
+
+function renderRoomClipPath(room: Room): React.JSX.Element {
+  const roomWidth = getRoomNodeWidth(room);
+
+  return (
+    <clipPath id={`room-pass-through-clip-${room.id}`} key={`room-pass-through-clip-${room.id}`}>
+      <path
+        d={getRoomShapePath(room.shape, roomWidth, ROOM_HEIGHT, ROOM_CORNER_RADIUS)}
+        transform={`translate(${room.position.x} ${room.position.y})`}
+      />
+    </clipPath>
+  );
+}
+
 export interface MapCanvasConnectionsProps {
   rooms: Readonly<Record<string, Room>>;
   connections: Readonly<Record<string, Connection>>;
@@ -466,6 +588,8 @@ export function MapCanvasConnections({
   const interactionsDisabled = canvasInteractionMode === 'draw';
   const entries = Object.values(connections);
   const stickyNoteLinkEntries = Object.values(stickyNoteLinks);
+  const passThroughRooms = new Map<string, Room>();
+  const passThroughOverlays: React.JSX.Element[] = [];
 
   const renderConnectionLine = (
     conn: Connection,
@@ -810,6 +934,65 @@ export function MapCanvasConnections({
             useBezierConnectionsEnabled,
             conn.sourceRoomId === conn.targetRoomId,
           );
+          const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
+          getConnectionPassThroughSegments(conn, points, rooms).forEach((segment, segmentIndex) => {
+            passThroughRooms.set(segment.roomId, segment.room);
+            const roomFill = getRoomFillColor(segment.room.fillColorIndex, theme);
+            const clipPathId = `room-pass-through-clip-${segment.roomId}`;
+            const dashArray = getRoomStrokeDasharray(conn.strokeStyle);
+            const isSelected = selectedConnectionIds.includes(conn.id);
+            passThroughOverlays.push(
+              <g
+                key={`connection-pass-through-${conn.id}-${segment.roomId}-${segmentIndex}`}
+                data-testid={`connection-pass-through-${conn.id}-${segment.roomId}`}
+                clipPath={`url(#${clipPathId})`}
+              >
+                {isSelected && (
+                  <line
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    stroke="#ef4444"
+                    strokeWidth="6"
+                    pointerEvents="none"
+                  />
+                )}
+                <line
+                  data-testid={`connection-pass-through-mask-${conn.id}-${segment.roomId}`}
+                  x1={segment.start.x}
+                  y1={segment.start.y}
+                  x2={segment.end.x}
+                  y2={segment.end.y}
+                  stroke={roomFill}
+                  strokeWidth={PASS_THROUGH_MASK_STROKE_WIDTH}
+                  strokeOpacity={PASS_THROUGH_MASK_OPACITY}
+                  pointerEvents="none"
+                />
+                <line
+                  x1={segment.start.x}
+                  y1={segment.start.y}
+                  x2={segment.end.x}
+                  y2={segment.end.y}
+                  stroke={connectionStroke}
+                  strokeWidth={isSelected ? 6 : 2}
+                  strokeDasharray={dashArray}
+                  pointerEvents="none"
+                />
+                {isSelected && (
+                  <line
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    stroke="#f59e0b"
+                    strokeWidth="2"
+                    pointerEvents="none"
+                  />
+                )}
+              </g>,
+            );
+          });
           const arrowPointSets = !conn.isBidirectional ? computeGeometryArrowheadPoints(geometry) : [];
 
           return (
@@ -976,6 +1159,10 @@ export function MapCanvasConnections({
           zIndex: 6,
         }}
       >
+        <defs>
+          {[...passThroughRooms.values()].map((room) => renderRoomClipPath(room))}
+        </defs>
+        {passThroughOverlays}
         {entries.map((conn) => {
           const rawSrc = rooms[conn.sourceRoomId];
           const rawTgt = rooms[conn.targetRoomId];
