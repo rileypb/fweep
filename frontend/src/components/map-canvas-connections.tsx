@@ -76,6 +76,29 @@ interface ConnectionLabelGeometry {
   readonly textAnchor: 'start' | 'middle';
 }
 
+interface AnnotationGeometryBase {
+  readonly reverseDirection: boolean;
+  readonly preferPositiveNormalX: boolean;
+}
+
+interface AnnotationSegmentSample {
+  readonly kind: 'segment';
+  readonly segment: { start: VectorPoint; end: VectorPoint };
+}
+
+interface AnnotationCurveSample {
+  readonly kind: 'curve';
+  readonly geometry: ConnectionRenderGeometry;
+}
+
+type AnnotationPositionSample = AnnotationSegmentSample | AnnotationCurveSample;
+
+interface DirectionalAnnotationRenderIntent extends AnnotationGeometryBase {
+  readonly label: 'up' | 'down' | 'in';
+  readonly compactLength: boolean;
+  readonly positionSample: AnnotationPositionSample | null;
+}
+
 function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
   const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
   const targetDirection = connection.isBidirectional
@@ -127,6 +150,38 @@ function getVerticalAnnotationReverseDirection(
   }
 
   return annotationKind === 'up' ? dy > 0 : dy < 0;
+}
+
+function getDirectionalAnnotationRenderIntent(
+  annotationKind: 'up' | 'down' | 'in' | 'out',
+  geometry: ConnectionRenderGeometry,
+  longestSegment: { start: VectorPoint; end: VectorPoint } | null,
+): DirectionalAnnotationRenderIntent {
+  const positionSample: AnnotationPositionSample | null = geometry.kind === 'polyline'
+    ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
+    : { kind: 'curve', geometry };
+
+  if (annotationKind === 'up' || annotationKind === 'down') {
+    const dy = positionSample?.kind === 'segment'
+      ? positionSample.segment.end.y - positionSample.segment.start.y
+      : sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0;
+
+    return {
+      label: annotationKind,
+      compactLength: true,
+      reverseDirection: getVerticalAnnotationReverseDirection(annotationKind, dy),
+      preferPositiveNormalX: true,
+      positionSample,
+    };
+  }
+
+  return {
+    label: 'in',
+    compactLength: false,
+    reverseDirection: annotationKind === 'out',
+    preferPositiveNormalX: false,
+    positionSample,
+  };
 }
 
 function normalizeAnnotationNormal(
@@ -429,50 +484,33 @@ export function MapCanvasConnections({
       || annotationKind === 'in'
       || annotationKind === 'out';
     const rendersTextAnnotation = annotationKind === 'text' && annotationText.length > 0;
-    const annotationLabel = annotationKind === 'up' || annotationKind === 'down'
-      ? annotationKind
-      : annotationKind === 'in' || annotationKind === 'out'
-        ? 'in'
-        : annotationText;
-    const usesCompactDirectionalArrow = annotationKind === 'up' || annotationKind === 'down';
+    const directionalAnnotationIntent = rendersDirectionalAnnotation
+      ? getDirectionalAnnotationRenderIntent(annotationKind, geometry, geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null)
+      : null;
+    const annotationLabel = directionalAnnotationIntent?.label ?? annotationText;
     const rendersDoorAnnotation = annotationKind === 'door';
     const rendersLockedDoorAnnotation = annotationKind === 'locked door';
-    const annotationSegment = geometry.kind === 'polyline' && rendersDirectionalAnnotation && !isSelfConnection
-      ? getLongestSegment(points)
-      : null;
     const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
-    const prefersPositiveNormalX = annotationKind === 'up' || annotationKind === 'down';
-    const annotationReverseDirection = annotationKind === 'up' || annotationKind === 'down'
-      ? (annotationSegment
-        ? getVerticalAnnotationReverseDirection(annotationKind, annotationSegment.end.y - annotationSegment.start.y)
-        : (() => {
-          const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
-          return sample
-            ? getVerticalAnnotationReverseDirection(annotationKind, sample.tangent.y)
-            : false;
-        })())
-      : annotationKind === 'out';
-    const annotationGeometry = geometry.kind === 'polyline'
-      ? (annotationSegment
-        ? getAnnotationGeometry(
-          annotationSegment,
-          annotationReverseDirection,
-          annotationLabel,
-          usesCompactDirectionalArrow,
-          prefersPositiveNormalX,
-        )
-        : null)
-      : rendersDirectionalAnnotation && !isSelfConnection
-        ? getAnnotationGeometryFromRenderGeometry(
-          geometry,
-          annotationReverseDirection,
-          annotationLabel,
-          usesCompactDirectionalArrow,
-          prefersPositiveNormalX,
-        )
-        : null;
+    let annotationGeometry: ReturnType<typeof getAnnotationGeometry> = null;
+    if (directionalAnnotationIntent?.positionSample?.kind === 'segment') {
+      annotationGeometry = getAnnotationGeometry(
+        directionalAnnotationIntent.positionSample.segment,
+        directionalAnnotationIntent.reverseDirection,
+        annotationLabel,
+        directionalAnnotationIntent.compactLength,
+        directionalAnnotationIntent.preferPositiveNormalX,
+      );
+    } else if (directionalAnnotationIntent?.positionSample?.kind === 'curve') {
+      annotationGeometry = getAnnotationGeometryFromRenderGeometry(
+        directionalAnnotationIntent.positionSample.geometry,
+        directionalAnnotationIntent.reverseDirection,
+        annotationLabel,
+        directionalAnnotationIntent.compactLength,
+        directionalAnnotationIntent.preferPositiveNormalX,
+      );
+    }
     const textAnnotationGeometry = geometry.kind === 'polyline'
       ? (textAnnotationSegment ? getAnnotationGeometry(textAnnotationSegment, false, annotationLabel, false) : null)
       : rendersTextAnnotation
