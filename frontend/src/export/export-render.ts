@@ -17,7 +17,7 @@ import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
-import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
+import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
 import { validateExportBounds } from './export-bounds';
@@ -192,7 +192,7 @@ function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNot
   const paddingLeft = 16;
   const paddingTop = 16;
   const lineHeight = 20;
-  stickyNote.text.split('\n').forEach((line, index) => {
+  getStickyNoteWrappedLines(stickyNote.text).forEach((line, index) => {
     context.fillText(line, left + paddingLeft, top + paddingTop + (index * lineHeight));
   });
 }

@@ -382,6 +382,85 @@ describe('renderExportCanvas', () => {
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
   });
 
+  it('wraps long sticky-note lines in the exported PNG', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        stickyNotes: {
+          'sticky-note-1': {
+            ...baseInput.doc.stickyNotes['sticky-note-1'],
+            text: 'This sticky note line is definitely much longer than twenty characters.',
+          },
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.fillText).toHaveBeenCalledWith('This sticky note', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('line is definitely', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('much longer than', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('twenty characters.', expect.any(Number), expect.any(Number));
+  });
+
+  it('falls back to character wrapping for a single long sticky-note word', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        stickyNotes: {
+          'sticky-note-1': {
+            ...baseInput.doc.stickyNotes['sticky-note-1'],
+            text: 'supercalifragilisticexpialidocious',
+          },
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.fillText).toHaveBeenCalledWith('supercalifragilistic', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('expialidocious', expect.any(Number), expect.any(Number));
+    expect(context.fillText).not.toHaveBeenCalledWith('supercalifragilisticexpialidocious', expect.any(Number), expect.any(Number));
+  });
+
+  it('preserves blank lines in sticky-note exports', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        stickyNotes: {
+          'sticky-note-1': {
+            ...baseInput.doc.stickyNotes['sticky-note-1'],
+            text: 'alpha\n\nbeta',
+          },
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.fillText).toHaveBeenCalledWith('alpha', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('beta', expect.any(Number), expect.any(Number));
+  });
+
   it('fills a white background when requested', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
