@@ -123,6 +123,7 @@ export interface MapCanvasProps {
   visibleMapLeftInset?: number;
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
+  requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
 }
 
 interface RoomEditorState {
@@ -136,6 +137,7 @@ export function MapCanvas({
   visibleMapLeftInset = 0,
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
+  requestedViewportFocusRequest = null,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorState, setRoomEditorState] = useState<RoomEditorState | null>(null);
@@ -464,11 +466,51 @@ export function MapCanvas({
     }
 
     startAutoPanAnimation();
-    setPanOffset((prev) => ({
-      x: prev.x + (visibleCenterX - roomCenterX),
-      y: prev.y + ((canvasHeight / 2) - roomCenterY),
-    }));
-  }, [canvasRect, canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+    const nextPanOffset = {
+      x: panOffsetRef.current.x + (visibleCenterX - roomCenterX),
+      y: panOffsetRef.current.y + ((canvasHeight / 2) - roomCenterY),
+    };
+    panOffsetRef.current = nextPanOffset;
+    setPanOffset(nextPanOffset);
+    setMapPanOffset(nextPanOffset);
+  }, [canvasRect, canvasRef, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+
+  const centerRoomsOnScreen = useCallback((targetRooms: readonly Room[]) => {
+    if (targetRooms.length === 0) {
+      return;
+    }
+
+    if (targetRooms.length === 1) {
+      centerRoomOnScreen(targetRooms[0]);
+      return;
+    }
+
+    const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    const canvasWidth = currentCanvasRect?.width ?? canvasRef.current?.clientWidth ?? 0;
+    const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
+    if (canvasWidth === 0 && canvasHeight === 0) {
+      return;
+    }
+
+    const screenBounds = targetRooms.map((room) => getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current));
+    const groupLeft = Math.min(...screenBounds.map((room) => room.left - (currentCanvasRect?.left ?? 0)));
+    const groupRight = Math.max(...screenBounds.map((room) => (room.left - (currentCanvasRect?.left ?? 0)) + room.width));
+    const groupTop = Math.min(...screenBounds.map((room) => room.top - (currentCanvasRect?.top ?? 0)));
+    const groupBottom = Math.max(...screenBounds.map((room) => (room.top - (currentCanvasRect?.top ?? 0)) + room.height));
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
+    const groupCenterX = (groupLeft + groupRight) / 2;
+    const groupCenterY = (groupTop + groupBottom) / 2;
+
+    startAutoPanAnimation();
+    const nextPanOffset = {
+      x: panOffsetRef.current.x + (visibleCenterX - groupCenterX),
+      y: panOffsetRef.current.y + ((canvasHeight / 2) - groupCenterY),
+    };
+    panOffsetRef.current = nextPanOffset;
+    setPanOffset(nextPanOffset);
+    setMapPanOffset(nextPanOffset);
+  }, [canvasRect, canvasRef, centerRoomOnScreen, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
 
   useLayoutEffect(() => {
     if (requestedRoomRevealRequest === null) {
@@ -480,6 +522,20 @@ export function MapCanvas({
       centerRoomOnScreen(room);
     }
   }, [centerRoomOnScreen, requestedRoomRevealRequest]);
+
+  useLayoutEffect(() => {
+    if (requestedViewportFocusRequest === null) {
+      return;
+    }
+
+    const roomsToFocus = requestedViewportFocusRequest.roomIds
+      .map((roomId) => useEditorStore.getState().doc?.rooms[roomId] ?? null)
+      .filter((room): room is Room => room !== null);
+
+    if (roomsToFocus.length > 0) {
+      centerRoomsOnScreen(roomsToFocus);
+    }
+  }, [centerRoomsOnScreen, requestedViewportFocusRequest]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },

@@ -319,28 +319,128 @@ describe('URL routing', () => {
     await saveMap(doc);
 
     navigateTo(`#/map/${doc.metadata.id}`);
+    jest.useFakeTimers();
 
-    const user = userEvent.setup();
+    try {
+      render(<App />);
+      await screen.findByText(/cli map/i);
 
-    render(<App />);
-    await screen.findByText(/cli map/i);
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
-    await user.type(input, 'create Kitchen{enter}');
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'create Kitchen' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+        jest.advanceTimersByTime(200);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
 
-    const state = useEditorStore.getState();
-    const rooms = Object.values(state.doc?.rooms ?? {});
+      const state = useEditorStore.getState();
+      const rooms = Object.values(state.doc?.rooms ?? {});
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
 
-    expect(rooms).toHaveLength(1);
-    expect(rooms[0].name).toBe('Kitchen');
-    expect(state.selectedRoomIds).toEqual([rooms[0].id]);
-    expect(state.mapPanOffset).toEqual({
-      x: (window.innerWidth / 2) - rooms[0].position.x,
-      y: (window.innerHeight / 2) - rooms[0].position.y,
-    });
-    expectGameOutputToContain('create Kitchen', 'created');
-    expect(input.selectionStart).toBe(0);
-    expect(input.selectionEnd).toBe(input.value.length);
+      expect(rooms).toHaveLength(1);
+      expect(rooms[0].name).toBe('Kitchen');
+      expect(state.selectedRoomIds).toEqual([rooms[0].id]);
+      expect(state.mapPanOffset.x).toBeCloseTo(
+        visibleCenterX - (rooms[0].position.x + (getRoomNodeWidth(rooms[0]) / 2)),
+      );
+      expect(state.mapPanOffset.y).toBeCloseTo(
+        (200 / 2) - (rooms[0].position.y + (ROOM_HEIGHT / 2)),
+      );
+      expectGameOutputToContain('create Kitchen', 'created');
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
+  });
+
+  it('centers a created room correctly after zooming out', async () => {
+    const doc = createEmptyMap('CLI Zoomed Create Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    jest.useFakeTimers();
+
+    try {
+      render(<App />);
+      await screen.findByText(/cli zoomed create map/i);
+
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      await act(async () => {
+        fireEvent.wheel(canvas, { ctrlKey: true, deltaY: 100, clientX: 150, clientY: 100 });
+        jest.advanceTimersByTime(200);
+      });
+
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'create Kitchen' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+        jest.advanceTimersByTime(200);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      const state = useEditorStore.getState();
+      const room = Object.values(state.doc?.rooms ?? {})[0];
+      const zoom = 1 / 1.1;
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
+
+      expect(room).toBeDefined();
+      expect(state.mapPanOffset.x).toBeCloseTo(
+        visibleCenterX - ((room.position.x + (getRoomNodeWidth(room) / 2)) * zoom),
+      );
+      expect(state.mapPanOffset.y).toBeCloseTo(
+        (200 / 2) - ((room.position.y + (ROOM_HEIGHT / 2)) * zoom),
+      );
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
   });
 
   it('supports it as a pronoun for the last direct-object room across commands', async () => {
@@ -1530,6 +1630,96 @@ describe('URL routing', () => {
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
     expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
     expectGameOutputToContain('undo', 'undone');
+  });
+
+  it('centers create-and-connect results correctly after zooming out', async () => {
+    let doc = createEmptyMap('CLI Zoomed Create Connect Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    jest.useFakeTimers();
+
+    try {
+      render(<App />);
+      await screen.findByText(/cli zoomed create connect map/i);
+
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      await act(async () => {
+        fireEvent.wheel(canvas, { ctrlKey: true, deltaY: 100, clientX: 150, clientY: 100 });
+        jest.advanceTimersByTime(200);
+      });
+
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'create and connect Kitchen east to Hallway' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+        jest.advanceTimersByTime(200);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      const state = useEditorStore.getState();
+      const createdRoom = Object.values(state.doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
+      const hallway = state.doc?.rooms.hallway;
+      const zoom = 1 / 1.1;
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
+
+      expect(createdRoom).toBeDefined();
+      expect(hallway).toBeDefined();
+
+      const left = Math.min(createdRoom!.position.x, hallway!.position.x);
+      const right = Math.max(
+        createdRoom!.position.x + getRoomNodeWidth(createdRoom!),
+        hallway!.position.x + getRoomNodeWidth(hallway!),
+      );
+      const top = Math.min(createdRoom!.position.y, hallway!.position.y);
+      const bottom = Math.max(createdRoom!.position.y + ROOM_HEIGHT, hallway!.position.y + ROOM_HEIGHT);
+
+      expect(state.mapPanOffset.x).toBeCloseTo(visibleCenterX - (((left + right) / 2) * zoom));
+      expect(state.mapPanOffset.y).toBeCloseTo((200 / 2) - (((top + bottom) / 2) * zoom));
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
   });
 
   it('supports relative create-and-connect syntax', async () => {

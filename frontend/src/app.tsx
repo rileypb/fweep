@@ -282,9 +282,10 @@ export function App(): React.JSX.Element {
   const [cliHistoryDraft, setCliHistoryDraft] = useState('');
   const [hasUsedCliInput, setHasUsedCliInput] = useState(false);
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
-  const [cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
+  const [_cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<{ roomId: string; requestId: number } | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<{ roomId: string; requestId: number } | null>(null);
+  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<{ roomIds: readonly string[]; requestId: number } | null>(null);
   const [isImportingScript, setIsImportingScript] = useState(false);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
@@ -463,9 +464,9 @@ export function App(): React.JSX.Element {
       const roomId = addRoomAtPosition(plan.roomName, plan.position);
       setCliPronounRoomReference(roomId);
       selectRoom(roomId);
-      setMapPanOffset({
-        x: (window.innerWidth / 2) - plan.position.x,
-        y: (window.innerHeight / 2) - plan.position.y,
+      setRequestedViewportFocusRequest({
+        roomIds: [roomId],
+        requestId: issueUiRequestId(),
       });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
@@ -600,12 +601,10 @@ export function App(): React.JSX.Element {
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(result.roomId);
       }
-      if (createdRoom && targetRoom) {
-        setMapPanOffset({
-          x: (window.innerWidth / 2) - ((createdRoom.position.x + targetRoom.position.x) / 2),
-          y: (window.innerHeight / 2) - ((createdRoom.position.y + targetRoom.position.y) / 2),
-        });
-      }
+      setRequestedViewportFocusRequest({
+        roomIds: [result.roomId, targetRoomMatch.room.id],
+        requestId: issueUiRequestId(),
+      });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }
@@ -679,6 +678,7 @@ export function App(): React.JSX.Element {
         cliPronounRoomId: cliPronounRoomIdRef.current,
         requestedRoomEditorRequest,
         requestedRoomRevealRequest,
+        requestedViewportFocusRequest,
         nextUiRequestId: nextUiRequestIdRef.current,
       };
 
@@ -690,6 +690,7 @@ export function App(): React.JSX.Element {
           setCliPronounRoomReference(importSnapshot.cliPronounRoomId);
           setRequestedRoomEditorRequest(importSnapshot.requestedRoomEditorRequest);
           setRequestedRoomRevealRequest(importSnapshot.requestedRoomRevealRequest);
+          setRequestedViewportFocusRequest(importSnapshot.requestedViewportFocusRequest);
           nextUiRequestIdRef.current = importSnapshot.nextUiRequestId;
           appendGameOutput([
             `Import aborted on line ${command.lineNumber}. Rolled back ${successfulCommands} successful command${successfulCommands === 1 ? '' : 's'}.`,
@@ -975,6 +976,7 @@ export function App(): React.JSX.Element {
           visibleMapLeftInset={visibleMapLeftInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
+          requestedViewportFocusRequest={requestedViewportFocusRequest}
         />
       )}
     </main>
