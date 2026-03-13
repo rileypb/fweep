@@ -6,6 +6,11 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('help')).toBe('list the available CLI command forms');
   });
 
+  it('describes arrange commands', () => {
+    expect(parseCliCommandDescription('arrange')).toBe('rearrange the map layout');
+    expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
+  });
+
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
   });

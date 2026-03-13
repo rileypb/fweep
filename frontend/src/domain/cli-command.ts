@@ -2,6 +2,7 @@ import { normalizeDirection, oppositeDirection } from './directions';
 
 export type CliCommand =
   | { readonly kind: 'help' }
+  | { readonly kind: 'arrange' }
   | { readonly kind: 'create'; readonly roomName: string }
   | { readonly kind: 'delete'; readonly roomName: string }
   | { readonly kind: 'edit'; readonly roomName: string }
@@ -28,6 +29,8 @@ export type CliCommand =
 
 export const CLI_COMMAND_FORMS = [
   'help',
+  'arrange',
+  'prettify',
   'create <room name>',
   'delete <room name>',
   'edit <room name>',
@@ -315,6 +318,10 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'help' };
   }
 
+  if (tokens.length === 1 && (isTokenValue(tokens[0], 'arrange') || isTokenValue(tokens[0], 'prettify'))) {
+    return { kind: 'arrange' };
+  }
+
   if (isTokenValue(tokens[0], 'create') && isTokenValue(tokens[1], 'and') && isTokenValue(tokens[2], 'connect')) {
     const tail = parseConnectTail(tokens, 3);
     if (tail === null) {
@@ -424,6 +431,8 @@ function describeCliCommand(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
       return 'list the available CLI command forms';
+    case 'arrange':
+      return 'rearrange the map layout';
     case 'create':
       return `create a room called ${command.roomName}`;
     case 'delete':

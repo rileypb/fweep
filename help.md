@@ -16,6 +16,8 @@
 - `notate <room name> with <note text>` creates a new sticky note linked to that room.
 - `annotate <room name> with <note text>` does the same thing as `notate`.
 - `help` lists the available CLI command forms.
+- `arrange` runs the automatic layout.
+- `prettify` does the same thing as `arrange`.
 - `undo` undoes the previous command.
 - `redo` redoes the previously undone command.
 - Room names can be quoted, for example `create "Machine Room"`.

@@ -23,6 +23,7 @@ command             ::= create-and-connect-command
                       | edit-command
                       | notate-command
                       | show-command
+                      | arrange-command
                       | undo-command
                       | redo-command ;
 
@@ -38,6 +39,9 @@ notate-keyword      ::= "notate"
                       | "annotate" ;
 
 show-command        ::= "show" wsp room-name ;
+
+arrange-command     ::= "arrange"
+                      | "prettify" ;
 
 undo-command        ::= "undo" ;
 

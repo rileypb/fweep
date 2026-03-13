@@ -171,6 +171,8 @@ function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
       return 'listed available commands.';
+    case 'arrange':
+      return 'arranged.';
     case 'create':
       return 'created.';
     case 'delete':
@@ -222,6 +224,7 @@ export function App(): React.JSX.Element {
   const canRedo = useEditorStore((s) => s.canRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -359,6 +362,9 @@ export function App(): React.JSX.Element {
 
               if (command.kind === 'help') {
                 appendGameOutput([formatCliEcho(submittedInput), ...CLI_COMMAND_FORMS]);
+              } else if (command.kind === 'arrange' && storeDoc !== null) {
+                prettifyLayout();
+                appendGameOutput([formatCliEcho(submittedInput), describeCliOutcome(command)]);
               } else if (command.kind === 'create' && storeDoc !== null) {
                 const plan = planCreateRoomFromCli(
                   storeDoc,

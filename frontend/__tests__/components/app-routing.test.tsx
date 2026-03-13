@@ -1,7 +1,8 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createEmptyMap } from '../../src/domain/map-types';
+import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
 import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
@@ -97,6 +98,8 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'help',
+      'arrange',
+      'prettify',
       'create <room name>',
       'delete <room name>',
       'edit <room name>',
@@ -108,6 +111,56 @@ describe('URL routing', () => {
       'create <room name> above <room name>',
       'redo',
     );
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('rearranges the map for the arrange CLI command', async () => {
+    const roomA = { ...createRoom('A'), position: { x: 320, y: 320 } };
+    const roomB = { ...createRoom('B'), position: { x: 40, y: 40 } };
+    let doc = createEmptyMap('CLI Arrange Map');
+    doc = addRoom(addRoom(doc, roomA), roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'north', 'south');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli arrange map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'arrange{enter}');
+
+    const updatedDoc = useEditorStore.getState().doc!;
+    expect(updatedDoc.rooms[roomB.id].position.x).toBe(updatedDoc.rooms[roomA.id].position.x);
+    expect(updatedDoc.rooms[roomB.id].position.y).toBeLessThan(updatedDoc.rooms[roomA.id].position.y);
+    expectGameOutputToContain('arrange', 'arranged.');
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('accepts prettify as a synonym for the arrange CLI command', async () => {
+    const roomA = { ...createRoom('A'), position: { x: 320, y: 320 } };
+    const roomB = { ...createRoom('B'), position: { x: 40, y: 40 } };
+    let doc = createEmptyMap('CLI Prettify Map');
+    doc = addRoom(addRoom(doc, roomA), roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'north', 'south');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli prettify map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'prettify{enter}');
+
+    const updatedDoc = useEditorStore.getState().doc!;
+    expect(updatedDoc.rooms[roomB.id].position.x).toBe(updatedDoc.rooms[roomA.id].position.x);
+    expect(updatedDoc.rooms[roomB.id].position.y).toBeLessThan(updatedDoc.rooms[roomA.id].position.y);
+    expectGameOutputToContain('prettify', 'arranged.');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
   });
