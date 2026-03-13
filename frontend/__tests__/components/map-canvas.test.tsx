@@ -2785,9 +2785,13 @@ describe('MapCanvas', () => {
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const lineY1 = Number(annotationLine.getAttribute('y1'));
       const lineY2 = Number(annotationLine.getAttribute('y2'));
+      const lineX1 = Number(annotationLine.getAttribute('x1'));
+      const lineX2 = Number(annotationLine.getAttribute('x2'));
 
       expect(annotationLine).toBeInTheDocument();
       expect(annotationArrow).toBeInTheDocument();
+      expect(lineX1).toBeGreaterThan(120);
+      expect(lineX2).toBeGreaterThan(120);
       expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
@@ -2809,9 +2813,13 @@ describe('MapCanvas', () => {
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const lineY1 = Number(annotationLine.getAttribute('y1'));
       const lineY2 = Number(annotationLine.getAttribute('y2'));
+      const lineX1 = Number(annotationLine.getAttribute('x1'));
+      const lineX2 = Number(annotationLine.getAttribute('x2'));
 
       expect(annotationLine).toBeInTheDocument();
       expect(annotationArrow).toBeInTheDocument();
+      expect(lineX1).toBeGreaterThan(120);
+      expect(lineX2).toBeGreaterThan(120);
       expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
     });

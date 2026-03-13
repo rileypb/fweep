@@ -129,11 +129,30 @@ function getVerticalAnnotationReverseDirection(
   return annotationKind === 'up' ? dy > 0 : dy < 0;
 }
 
+function normalizeAnnotationNormal(
+  normal: VectorPoint,
+  preferPositiveX: boolean,
+): VectorPoint {
+  if (!preferPositiveX) {
+    return normal;
+  }
+
+  if (normal.x < 0 || (normal.x === 0 && normal.y < 0)) {
+    return {
+      x: -normal.x,
+      y: -normal.y,
+    };
+  }
+
+  return normal;
+}
+
 function getAnnotationGeometry(
   segment: { start: VectorPoint; end: VectorPoint },
   reverseDirection: boolean,
   annotationLabel: string,
   compactLength: boolean,
+  preferPositiveNormalX = false,
 ): {
   lineStart: VectorPoint;
   lineEnd: VectorPoint;
@@ -154,8 +173,9 @@ function getAnnotationGeometry(
   const uy = dy / length;
   const directionX = reverseDirection ? -ux : ux;
   const directionY = reverseDirection ? -uy : uy;
-  const normalX = -uy;
-  const normalY = ux;
+  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
+  const normalX = normal.x;
+  const normalY = normal.y;
   const centerX = (segment.start.x + segment.end.x) / 2;
   const centerY = (segment.start.y + segment.end.y) / 2;
   const annotationCenterX = centerX + (normalX * CONNECTION_ANNOTATION_OFFSET);
@@ -251,6 +271,7 @@ function getAnnotationGeometryFromRenderGeometry(
   reverseDirection: boolean,
   annotationLabel: string,
   compactLength: boolean,
+  preferPositiveNormalX = false,
 ): {
   lineStart: VectorPoint;
   lineEnd: VectorPoint;
@@ -274,8 +295,9 @@ function getAnnotationGeometryFromRenderGeometry(
   const uy = sample.tangent.y / tangentLength;
   const directionX = reverseDirection ? -ux : ux;
   const directionY = reverseDirection ? -uy : uy;
-  const normalX = -uy;
-  const normalY = ux;
+  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
+  const normalX = normal.x;
+  const normalY = normal.y;
   const annotationCenterX = sample.point.x + (normalX * CONNECTION_ANNOTATION_OFFSET);
   const annotationCenterY = sample.point.y + (normalY * CONNECTION_ANNOTATION_OFFSET);
   const annotationLength = compactLength
@@ -421,6 +443,7 @@ export function MapCanvasConnections({
     const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
+    const prefersPositiveNormalX = annotationKind === 'up' || annotationKind === 'down';
     const annotationReverseDirection = annotationKind === 'up' || annotationKind === 'down'
       ? (annotationSegment
         ? getVerticalAnnotationReverseDirection(annotationKind, annotationSegment.end.y - annotationSegment.start.y)
@@ -438,6 +461,7 @@ export function MapCanvasConnections({
           annotationReverseDirection,
           annotationLabel,
           usesCompactDirectionalArrow,
+          prefersPositiveNormalX,
         )
         : null)
       : rendersDirectionalAnnotation && !isSelfConnection
@@ -446,6 +470,7 @@ export function MapCanvasConnections({
           annotationReverseDirection,
           annotationLabel,
           usesCompactDirectionalArrow,
+          prefersPositiveNormalX,
         )
         : null;
     const textAnnotationGeometry = geometry.kind === 'polyline'
