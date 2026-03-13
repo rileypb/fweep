@@ -626,7 +626,7 @@ export function App(): React.JSX.Element {
           ?
         </button>
       </div>
-      <h1 className="app-title">fweep</h1>
+      <h1 className="app-title">fweep!</h1>
       {isHelpOpen && (
         <div className="help-overlay" data-testid="help-overlay">
           <div
