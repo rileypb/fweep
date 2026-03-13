@@ -108,6 +108,36 @@ describe('URL routing', () => {
     expect(input).toHaveValue('sho');
   });
 
+  it('focuses the CLI input when / is pressed outside a text editor', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const helpButton = screen.getByRole('button', { name: /help/i });
+
+    helpButton.focus();
+    expect(document.activeElement).toBe(helpButton);
+
+    await user.keyboard('/');
+
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('does not steal / from an already focused text input', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.click(input);
+    await user.keyboard('/');
+
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveValue('/');
+  });
+
   it('logs the parsed CLI action when the user presses Enter for an unimplemented command', async () => {
     const user = userEvent.setup();
 

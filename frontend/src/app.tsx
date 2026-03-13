@@ -203,6 +203,38 @@ function getAppMapVisibleLeftInset(viewportWidth: number, rootFontSizePx: number
   return leftOffset + stackWidth;
 }
 
+function isTextEditingElement(element: EventTarget | null): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (element.isContentEditable) {
+    return true;
+  }
+
+  if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+    return true;
+  }
+
+  if (element instanceof HTMLInputElement) {
+    const nonTextInputTypes = new Set([
+      'button',
+      'checkbox',
+      'color',
+      'file',
+      'hidden',
+      'image',
+      'radio',
+      'range',
+      'reset',
+      'submit',
+    ]);
+    return !nonTextInputTypes.has(element.type);
+  }
+
+  return false;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -288,6 +320,31 @@ export function App(): React.JSX.Element {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isHelpOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== '/') {
+        return;
+      }
+
+      if (event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      if (isTextEditingElement(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      cliInputRef.current?.focus();
+      cliInputRef.current?.select();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     if (gameOutputRef.current === null) {
