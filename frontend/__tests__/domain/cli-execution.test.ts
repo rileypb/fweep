@@ -64,18 +64,61 @@ describe('resolveRoomByCliName', () => {
     expect(resolveRoomByCliName(doc, 'Great   Hall')).toEqual({ kind: 'one', room });
   });
 
+  it('matches partial room names by whole-word token containment', () => {
+    const room = { ...createRoom('Living Room'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'living')).toEqual({ kind: 'one', room });
+  });
+
+  it('matches room names regardless of word order', () => {
+    const room = { ...createRoom('Living Room'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'room living')).toEqual({ kind: 'one', room });
+  });
+
+  it('normalizes punctuation as token separators', () => {
+    const room = { ...createRoom('Second-Living Room'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'living second room')).toEqual({ kind: 'one', room });
+  });
+
+  it('ignores repeated query words when matching', () => {
+    const room = { ...createRoom('Living Room'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'living living room')).toEqual({ kind: 'one', room });
+  });
+
+  it('does not match partial fragments inside a word', () => {
+    const room = { ...createRoom('Living Room'), position: { x: 0, y: 0 } };
+    const doc = addRoom(createEmptyMap('Test Map'), room);
+
+    expect(resolveRoomByCliName(doc, 'liv')).toEqual({ kind: 'none' });
+  });
+
   it('returns null for an unknown room', () => {
     const doc = createEmptyMap('Test Map');
 
     expect(resolveRoomByCliName(doc, 'Kitchen')).toEqual({ kind: 'none' });
   });
 
-  it('reports multiple matches when duplicate room names exist', () => {
-    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
-    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 80, y: 0 } });
+  it('reports multiple matches when a partial token matches multiple rooms', () => {
+    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Living Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Dining Room'), position: { x: 80, y: 0 } });
 
-    const matches = findRoomsByCliName(doc, 'kitchen');
-    expect(resolveRoomByCliName(doc, 'kitchen')).toEqual({ kind: 'multiple', rooms: matches });
+    const matches = findRoomsByCliName(doc, 'room');
+    expect(resolveRoomByCliName(doc, 'room')).toEqual({ kind: 'multiple', rooms: matches });
+  });
+
+  it('treats exact and partial matches alike, so exact-name collisions remain ambiguous', () => {
+    let doc = addRoom(createEmptyMap('Test Map'), { ...createRoom('Living'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 80, y: 0 } });
+
+    const matches = findRoomsByCliName(doc, 'living');
+    expect(resolveRoomByCliName(doc, 'living')).toEqual({ kind: 'multiple', rooms: matches });
   });
 });
 

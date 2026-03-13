@@ -18,13 +18,32 @@ function normalizeCliName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function tokenizeCliNameWords(name: string): string[] {
+  return normalizeCliName(name)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function getCliNameWordSet(name: string): Set<string> {
+  return new Set(tokenizeCliNameWords(name));
+}
+
 export function isCliPronounReference(requestedName: string): boolean {
   return normalizeCliName(requestedName) === 'it';
 }
 
 export function findRoomsByCliName(doc: MapDocument, requestedName: string): readonly Room[] {
-  const normalizedRequestedName = normalizeCliName(requestedName);
-  return Object.values(doc.rooms).filter((room) => normalizeCliName(room.name) === normalizedRequestedName);
+  const requestedWordSet = getCliNameWordSet(requestedName);
+  if (requestedWordSet.size === 0) {
+    return [];
+  }
+
+  return Object.values(doc.rooms).filter((room) => {
+    const roomWordSet = getCliNameWordSet(room.name);
+    return [...requestedWordSet].every((requestedWord) => roomWordSet.has(requestedWord));
+  });
 }
 
 export function resolveRoomByCliName(doc: MapDocument, requestedName: string): CliRoomMatch {

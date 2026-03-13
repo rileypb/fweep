@@ -22,6 +22,7 @@
 - `redo` redoes the previously undone command.
 - Room names can be quoted, for example `create "Machine Room"`.
 - In quoted names, `\"` inserts a literal quote.
+- Room references in commands may be partial and may use words in any order. For example, `edit living` matches `Living Room`, and `edit room living` also matches `Living Room`.
 - Short direction aliases also work in the CLI, such as `n`, `s`, `e`, `w`, `u`, and `d`.
 - If a two-way `connect` command omits the target direction, fweep uses the opposite direction by default.
 - After a successful command, the direct object becomes `it` for later commands such as `edit it` or `show it`.

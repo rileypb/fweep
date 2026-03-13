@@ -326,7 +326,14 @@ export function App(): React.JSX.Element {
     }
 
     if (roomMatch.kind === 'multiple') {
-      reportCliError(submittedInput, createAmbiguousRoomCliError(commandKind, roomName));
+      reportCliError(
+        submittedInput,
+        createAmbiguousRoomCliError(
+          commandKind,
+          roomName,
+          roomMatch.rooms.map((room) => room.name),
+        ),
+      );
       return true;
     }
 

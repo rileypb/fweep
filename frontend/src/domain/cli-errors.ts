@@ -41,6 +41,7 @@ export function createUnknownRoomCliError(roomName: string): CliError {
 export function createAmbiguousRoomCliError(
   commandKind: Exclude<CliErrorCommandKind, null>,
   roomName: string,
+  matchingRoomNames: readonly string[],
 ): CliError {
   const action = commandKind === 'delete'
     ? 'delete'
@@ -61,11 +62,18 @@ export function createAmbiguousRoomCliError(
         ? 'Rename one of them first, or add the note directly in the map.'
       : 'Rename one of them first, or make the connection directly in the map.';
 
+  const uniqueMatchingRoomNames = matchingRoomNames.filter((name, index, names) =>
+    names.findIndex((candidate) => candidate.trim().toLowerCase() === name.trim().toLowerCase()) === index,
+  );
+  const matchingRoomsDetail = uniqueMatchingRoomNames.length === 0
+    ? null
+    : ` Matching rooms: ${uniqueMatchingRoomNames.map(quoteCliValue).join(', ')}.`;
+
   return {
     code: 'ambiguous-room',
     commandKind,
     message: `Multiple rooms are named ${quoteCliValue(roomName)}.`,
-    detail: `The CLI cannot tell which one you want to ${action}.`,
+    detail: `The CLI cannot tell which one you want to ${action}.${matchingRoomsDetail ?? ''}`,
     suggestion,
   };
 }

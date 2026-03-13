@@ -21,6 +21,12 @@
 - double quotes serve to group words together for disambiguation: 
   - `connect "living room east" east to dining room`
 - double quotes may contain keywords and directions. Legal escape sequences inside double quotes are `\"` for a literal double quote and `\\` for a literal backslash.
+- room references are matched by whole-word token containment, ignoring word order. For example:
+  - `delete living` matches `living room`
+  - `edit room living` matches `living room`
+  - `delete "living second room"` matches `second living room`
+  - repeated query words are ignored when matching
+  - partial word fragments do not match: `liv` does not match `living room`
 - room creation may be combined with connections, like so: `create and connect bedroom east to living room`.
 - `create and connect` also supports one-way connections, e.g. `create and connect bedroom east one-way to living room`.
 - `create <room name 1> <direction> of <room name 2>` is accepted as a synonym for `create and connect <room name 1> <opposite direction> to <room name 2>`. In this form, the direction describes where room 1 is relative to room 2. For example, `create kitchen east of hallway` means `create and connect kitchen west to hallway`.
@@ -69,15 +75,15 @@
 - `create and connect bedroom east to living room` results in an error if living room doesn't exist.
 - `create and connect bedroom east to living room` creates bedroom 2 (or higher) if bedroom exists.
 - Attempting to connect to an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
-- If multiple rooms match a requested room name for `connect`, abort the action and print the error "Multiple rooms have that name. You must connect them manually."
+- If multiple rooms match a requested room name for `connect`, abort the action and print an ambiguity error listing the unique matching room names.
 - Attempting to delete an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
-- If multiple rooms match the requested name for `delete`, abort the action and print the error "Multiple rooms have that name. You must delete them manually."
+- If multiple rooms match the requested name for `delete`, abort the action and print an ambiguity error listing the unique matching room names.
 - Attempting to edit an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
-- If multiple rooms match the requested name for `edit`, abort the action and print the error "Multiple rooms have that name. You must edit them manually."
+- If multiple rooms match the requested name for `edit`, abort the action and print an ambiguity error listing the unique matching room names.
 - Attempting to show an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
-- If multiple rooms match the requested name for `show`, abort the action and print the error "Multiple rooms have that name. You must show them manually."
+- If multiple rooms match the requested name for `show`, abort the action and print an ambiguity error listing the unique matching room names.
 - Attempting to notate or annotate an unknown room is an error. Abort the action and print the error "Unknown room <room name>".
-- If multiple rooms match the requested name for `notate` or `annotate`, abort the action and print the error "Multiple rooms have that name. You must notate them manually."
+- If multiple rooms match the requested name for `notate` or `annotate`, abort the action and print an ambiguity error listing the unique matching room names.
 - Attempting to use `it` when no room is currently bound to it is an error. Abort the action and print the error `Nothing is currently bound to "it".`
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.

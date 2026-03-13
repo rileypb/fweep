@@ -122,6 +122,15 @@ wsp                 ::= " " ;
 
 Semantic constraints
 
+- Room references are resolved semantically, not purely syntactically:
+  - matching is case-insensitive
+  - matching is by whole-word token containment
+  - word order is ignored
+  - repeated query words are ignored
+  - punctuation is treated as a token separator for matching
+  - partial word fragments do not match
+  - if multiple rooms match, the reference is ambiguous and execution fails
+
 - In a `connect-command`:
   - if `one-way` is present, no target direction is allowed
   - if `one-way` is absent and no target direction is supplied, the target direction defaults to the inverse of the source direction
