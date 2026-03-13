@@ -363,7 +363,6 @@ describe('URL routing', () => {
     expectGameOutputToContain(
       'delete kitchen',
       'Unknown room "kitchen".',
-      'No room with that name exists in the current map.',
     );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
@@ -416,8 +415,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'delete kitchen',
-      'Multiple rooms are named "kitchen".',
-      'The CLI cannot tell which one you want to delete.',
+      'The name "kitchen" is ambiguous. It could match "Kitchen".',
     );
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
@@ -769,8 +767,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'edit kitchen',
-      'Multiple rooms are named "kitchen".',
-      'The CLI cannot tell which one you want to edit.',
+      'The name "kitchen" is ambiguous. It could match "Kitchen".',
     );
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
@@ -824,8 +821,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'show kitchen',
-      'Multiple rooms are named "kitchen".',
-      'The CLI cannot tell which one you want to show.',
+      'The name "kitchen" is ambiguous. It could match "Kitchen".',
     );
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
@@ -895,8 +891,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'notate kitchen with hello',
-      'Multiple rooms are named "kitchen".',
-      'The CLI cannot tell which one you want to notate.',
+      'The name "kitchen" is ambiguous. It could match "Kitchen".',
     );
     expect(Object.values(useEditorStore.getState().doc?.stickyNotes ?? {})).toHaveLength(0);
   });
@@ -1175,8 +1170,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'connect kitchen east to hallway',
-      'Multiple rooms are named "kitchen".',
-      'The CLI cannot tell which one you want to connect.',
+      'The name "kitchen" is ambiguous. It could match "Kitchen".',
     );
   });
 
@@ -1592,14 +1586,12 @@ describe('URL routing', () => {
     expectGameOutputToContain(
       'create',
       "I didn't understand you.",
-      'The command does not match any supported CLI syntax.',
     );
 
     await user.type(input, 'x');
     expectGameOutputToContain(
       'create',
       "I didn't understand you.",
-      'The command does not match any supported CLI syntax.',
     );
   });
 
