@@ -188,6 +188,29 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 160, y: -40 });
       expect(useEditorStore.getState().doc?.view.pan).toEqual({ x: 160, y: -40 });
     });
+
+    it('stores and updates the background reference image and its zoom', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().setBackgroundReferenceImage({
+        id: 'background-image-1',
+        name: 'overlay.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AAAA',
+        sourceUrl: 'https://example.com/overlay.png',
+        width: 640,
+        height: 480,
+        zoom: 1,
+      });
+      useEditorStore.getState().setBackgroundReferenceImageZoom(1.75);
+
+      expect(useEditorStore.getState().doc?.background.referenceImage).toMatchObject({
+        id: 'background-image-1',
+        zoom: 1.75,
+        width: 640,
+        height: 480,
+      });
+    });
   });
 
   describe('room locking', () => {
@@ -1020,6 +1043,7 @@ describe('useEditorStore', () => {
             },
           },
           activeLayerId: null,
+          referenceImage: null,
         },
       });
 

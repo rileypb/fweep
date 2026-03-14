@@ -7,6 +7,7 @@ import {
   ROOM_STROKE_STYLES,
   type BackgroundDocument,
   type BackgroundLayer,
+  type BackgroundReferenceImage,
   type Connection,
   type Item,
   type MapDocument,
@@ -310,6 +311,7 @@ function parseBackground(value: unknown, issues: ValidationIssue[]): BackgroundD
     return {
       layers: {},
       activeLayerId: null,
+      referenceImage: null,
     };
   }
 
@@ -318,6 +320,7 @@ function parseBackground(value: unknown, issues: ValidationIssue[]): BackgroundD
     return {
       layers: {},
       activeLayerId: null,
+      referenceImage: null,
     };
   }
 
@@ -336,9 +339,62 @@ function parseBackground(value: unknown, issues: ValidationIssue[]): BackgroundD
     pushIssue(issues, 'error', 'map', 'root', 'background.activeLayerId', 'Active background layer must reference an existing layer.');
   }
 
+  const referenceImage = parseBackgroundReferenceImage(background.referenceImage, issues);
+
   return {
     layers,
     activeLayerId,
+    referenceImage,
+  };
+}
+
+function parseBackgroundReferenceImage(
+  value: unknown,
+  issues: ValidationIssue[],
+): BackgroundReferenceImage | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const referenceImage = asRecord(value, issues, 'background.referenceImage', 'map', 'root');
+  if (!referenceImage) {
+    return null;
+  }
+
+  const id = requireString(referenceImage.id, issues, 'background.referenceImage.id', 'map', 'root');
+  const name = requireString(referenceImage.name, issues, 'background.referenceImage.name', 'map', 'root');
+  const mimeType = requireString(referenceImage.mimeType, issues, 'background.referenceImage.mimeType', 'map', 'root');
+  const dataUrl = requireString(referenceImage.dataUrl, issues, 'background.referenceImage.dataUrl', 'map', 'root');
+  const sourceUrl = referenceImage.sourceUrl === undefined || referenceImage.sourceUrl === null
+    ? null
+    : requireString(referenceImage.sourceUrl, issues, 'background.referenceImage.sourceUrl', 'map', 'root');
+  const width = requireFiniteNumber(referenceImage.width, issues, 'background.referenceImage.width', 'map', 'root');
+  const height = requireFiniteNumber(referenceImage.height, issues, 'background.referenceImage.height', 'map', 'root');
+  const zoom = requireFiniteNumber(referenceImage.zoom, issues, 'background.referenceImage.zoom', 'map', 'root');
+
+  if (id === null || name === null || mimeType === null || dataUrl === null || width === null || height === null || zoom === null) {
+    return null;
+  }
+
+  if (width <= 0) {
+    pushIssue(issues, 'error', 'map', 'root', 'background.referenceImage.width', 'Background image width must be greater than 0.');
+  }
+  if (height <= 0) {
+    pushIssue(issues, 'error', 'map', 'root', 'background.referenceImage.height', 'Background image height must be greater than 0.');
+  }
+  if (zoom <= 0) {
+    pushIssue(issues, 'error', 'map', 'root', 'background.referenceImage.zoom', 'Background image zoom must be greater than 0.');
+  }
+
+  return {
+    id,
+    name,
+    mimeType,
+    dataUrl,
+    sourceUrl,
+    width,
+    height,
+    zoom,
   };
 }
 

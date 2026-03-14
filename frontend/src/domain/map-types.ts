@@ -38,9 +38,21 @@ export interface BackgroundLayer {
   readonly chunkSize: number;
 }
 
+export interface BackgroundReferenceImage {
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly dataUrl: string;
+  readonly sourceUrl: string | null;
+  readonly width: number;
+  readonly height: number;
+  readonly zoom: number;
+}
+
 export interface BackgroundDocument {
   readonly layers: Readonly<Record<string, BackgroundLayer>>;
   readonly activeLayerId: string | null;
+  readonly referenceImage: BackgroundReferenceImage | null;
 }
 
 /* ---- Room ---- */
@@ -136,6 +148,7 @@ export function createEmptyBackground(): BackgroundDocument {
   return {
     layers: {},
     activeLayerId: null,
+    referenceImage: null,
   };
 }
 

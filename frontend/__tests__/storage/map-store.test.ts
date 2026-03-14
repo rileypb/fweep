@@ -247,6 +247,7 @@ describe('map-store', () => {
 
       expect(loaded?.background).toEqual({
         activeLayerId: null,
+        referenceImage: null,
         layers: {
           'layer-1': {
             id: 'layer-1',
@@ -278,6 +279,31 @@ describe('map-store', () => {
       });
       expect(loaded?.stickyNotes).toEqual({});
       expect(loaded?.stickyNoteLinks).toEqual({});
+    });
+
+    it('persists and retrieves a stored background reference image', async () => {
+      const doc = createEmptyMap('Background Image');
+      const storedDoc = {
+        ...doc,
+        background: {
+          ...doc.background,
+          referenceImage: {
+            id: 'background-image-1',
+            name: 'overlay.png',
+            mimeType: 'image/png',
+            dataUrl: 'data:image/png;base64,AAAA',
+            sourceUrl: 'https://example.com/overlay.png',
+            width: 800,
+            height: 600,
+            zoom: 1.25,
+          },
+        },
+      };
+
+      await saveMap(storedDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.background.referenceImage).toEqual(storedDoc.background.referenceImage);
     });
 
     it('maps legacy direct room colors to palette indices when loading saved maps', async () => {

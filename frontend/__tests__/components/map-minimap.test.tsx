@@ -449,6 +449,7 @@ describe('MapMinimap', () => {
         background={{
           layers: { [backgroundLayer.id]: backgroundLayer },
           activeLayerId: backgroundLayer.id,
+          referenceImage: null,
         }}
         rooms={{ [kitchen.id]: kitchen }}
         connections={{}}
@@ -491,6 +492,7 @@ describe('MapMinimap', () => {
         background={{
           layers: { [backgroundLayer.id]: backgroundLayer },
           activeLayerId: backgroundLayer.id,
+          referenceImage: null,
         }}
         rooms={{}}
         connections={{}}

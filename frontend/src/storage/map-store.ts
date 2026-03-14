@@ -102,10 +102,39 @@ function normalizeBackground(doc: MapDocument): MapDocument['background'] {
   const activeLayerId = background.activeLayerId && background.activeLayerId in layers
     ? background.activeLayerId
     : null;
+  const referenceImage = (
+    background.referenceImage
+    && typeof background.referenceImage.id === 'string'
+    && typeof background.referenceImage.name === 'string'
+    && typeof background.referenceImage.mimeType === 'string'
+    && typeof background.referenceImage.dataUrl === 'string'
+    && (typeof background.referenceImage.sourceUrl === 'string' || background.referenceImage.sourceUrl === null || background.referenceImage.sourceUrl === undefined)
+    && typeof background.referenceImage.width === 'number'
+    && Number.isFinite(background.referenceImage.width)
+    && background.referenceImage.width > 0
+    && typeof background.referenceImage.height === 'number'
+    && Number.isFinite(background.referenceImage.height)
+    && background.referenceImage.height > 0
+    && typeof background.referenceImage.zoom === 'number'
+    && Number.isFinite(background.referenceImage.zoom)
+    && background.referenceImage.zoom > 0
+  )
+    ? {
+      id: background.referenceImage.id,
+      name: background.referenceImage.name,
+      mimeType: background.referenceImage.mimeType,
+      dataUrl: background.referenceImage.dataUrl,
+      sourceUrl: background.referenceImage.sourceUrl ?? null,
+      width: background.referenceImage.width,
+      height: background.referenceImage.height,
+      zoom: background.referenceImage.zoom,
+    }
+    : null;
 
   return {
     layers,
     activeLayerId,
+    referenceImage,
   };
 }
 

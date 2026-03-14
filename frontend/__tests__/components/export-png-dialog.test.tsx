@@ -59,6 +59,39 @@ describe('ExportPngDialog', () => {
     expect(screen.getByLabelText('Scope')).toHaveValue('selection');
   });
 
+  it('defaults the background image export option to enabled', () => {
+    useEditorStore.getState().loadDocument({
+      ...createEmptyMap('Test'),
+      background: {
+        ...createEmptyMap('Test').background,
+        referenceImage: {
+          id: 'background-image-1',
+          name: 'overlay.png',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 640,
+          height: 480,
+          zoom: 1,
+        },
+      },
+    });
+
+    render(
+      <ExportPngDialog
+        isOpen
+        mapName="Test"
+        onClose={() => {}}
+        canvasViewportSize={{ width: 800, height: 600 }}
+        panOffset={{ x: 0, y: 0 }}
+        onScopeChange={() => {}}
+        onRequestRegionSelection={() => {}}
+      />,
+    );
+
+    expect(screen.getByLabelText('Include background image')).toBeChecked();
+  });
+
   it('disables export for region before a region is chosen', async () => {
     const user = userEvent.setup();
     const onRequestRegionSelection = jest.fn<() => void>();

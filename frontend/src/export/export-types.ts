@@ -17,6 +17,7 @@ export interface ExportSettings {
   readonly padding: number;
   readonly scale: 1 | 2 | 4;
   readonly background: ExportBackground;
+  readonly includeBackgroundImage: boolean;
   readonly includeBackgroundDrawing: boolean;
   readonly includeGrid: boolean;
 }

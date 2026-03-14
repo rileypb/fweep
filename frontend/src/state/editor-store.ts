@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
+import type { BackgroundReferenceImage, ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
 import { createBackgroundLayer, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
 import type { ExportRegion } from '../export/export-types';
 import {
@@ -49,6 +49,10 @@ export function snapPosition(pos: Position): Position {
 
 function maybeSnapPosition(pos: Position, snapToGridEnabled: boolean): Position {
   return snapToGridEnabled ? snapPosition(pos) : pos;
+}
+
+function clampBackgroundReferenceImageZoom(zoom: number): number {
+  return Math.min(Math.max(zoom, 0.05), 20);
 }
 
 function getStickyNotePlacementForRoom(
@@ -417,6 +421,15 @@ export interface EditorState {
 
   /** Persist the current map pan offset without adding a history entry. */
   setMapPanOffset: (position: Position) => void;
+
+  /** Replace the current background reference image. */
+  setBackgroundReferenceImage: (image: BackgroundReferenceImage) => void;
+
+  /** Clear the current background reference image. */
+  clearBackgroundReferenceImage: () => void;
+
+  /** Update the current background reference image zoom. */
+  setBackgroundReferenceImageZoom: (zoom: number) => void;
 
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
@@ -1467,6 +1480,67 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
+  setBackgroundReferenceImage: (image) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set a background image: no document is loaded.');
+    }
+
+    const updatedDoc = {
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          ...image,
+          sourceUrl: image.sourceUrl ?? null,
+          zoom: clampBackgroundReferenceImageZoom(image.zoom),
+        },
+      },
+    };
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  clearBackgroundReferenceImage: () => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot clear a background image: no document is loaded.');
+    }
+    if (doc.background.referenceImage === null) {
+      return;
+    }
+
+    const updatedDoc = {
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: null,
+      },
+    };
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setBackgroundReferenceImageZoom: (zoom) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot update the background image zoom: no document is loaded.');
+    }
+    if (doc.background.referenceImage === null) {
+      throw new Error('Cannot update the background image zoom: no background image is set.');
+    }
+
+    const updatedDoc = {
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          ...doc.background.referenceImage,
+          zoom: clampBackgroundReferenceImageZoom(zoom),
+        },
+      },
+    };
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
   moveRoom: (roomId, position) => {
     const { doc } = get();
     if (!doc) {
@@ -1883,6 +1957,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const updatedDoc = {
       ...doc,
       background: {
+        ...doc.background,
         layers: {
           ...doc.background.layers,
           [layer.id]: layer,

@@ -149,6 +149,7 @@ describe('MapCanvas', () => {
       ...doc,
       background: {
         activeLayerId: 'layer-1',
+        referenceImage: null,
         layers: {
           'layer-1': {
             id: 'layer-1',
@@ -166,6 +167,36 @@ describe('MapCanvas', () => {
 
     expect(screen.queryByTestId('map-drawing-toolbar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('map-canvas-background')).not.toBeInTheDocument();
+  });
+
+  it('renders a stored background reference image centered on the map origin', () => {
+    const doc = createEmptyMap('Test');
+    useEditorStore.getState().loadDocument({
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          id: 'background-image-1',
+          name: 'overlay.png',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 400,
+          height: 200,
+          zoom: 1.5,
+        },
+      },
+    });
+
+    render(<MapCanvas mapName="Test" />);
+
+    const image = screen.getByTestId('map-canvas-reference-image');
+    expect(image).toHaveStyle({
+      left: '-300px',
+      top: '-150px',
+      width: '600px',
+      height: '300px',
+    });
   });
 
   it('hides the background grid when showGrid is false', () => {

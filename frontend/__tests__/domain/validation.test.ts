@@ -221,6 +221,7 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.background).toEqual({
       layers: {},
       activeLayerId: null,
+      referenceImage: null,
     });
   });
 
@@ -271,6 +272,7 @@ describe('parseUntrustedMapDocument', () => {
           },
         },
         activeLayerId: 'layer1',
+        referenceImage: null,
       },
     };
 
@@ -293,6 +295,7 @@ describe('parseUntrustedMapDocument', () => {
           },
         },
         activeLayerId: 'missing-layer',
+        referenceImage: null,
       },
     };
 

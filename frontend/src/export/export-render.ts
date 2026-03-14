@@ -456,6 +456,39 @@ function drawGrid(
   context.stroke();
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, payload = ''] = dataUrl.split(',', 2);
+  const mimeMatch = /^data:([^;]+)(;base64)?$/i.exec(header);
+  const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
+  const isBase64 = Boolean(mimeMatch?.[2]);
+  const decoded = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  const bytes = new Uint8Array(decoded.length);
+
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function drawBackgroundReferenceImage(
+  context: CanvasRenderingContext2D,
+  input: ExportRenderInput,
+): Promise<void> {
+  const referenceImage = input.doc.background.referenceImage;
+  if (!referenceImage) {
+    return;
+  }
+
+  const imageCanvas = await blobToCanvas(dataUrlToBlob(referenceImage.dataUrl));
+  const width = referenceImage.width * referenceImage.zoom;
+  const height = referenceImage.height * referenceImage.zoom;
+  const left = -(width / 2);
+  const top = -(height / 2);
+
+  context.drawImage(imageCanvas, left, top, width, height);
+}
+
 async function drawBackgroundRaster(
   context: CanvasRenderingContext2D,
   input: ExportRenderInput,
@@ -566,6 +599,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   context.save();
   context.scale(input.settings.scale, input.settings.scale);
   context.translate(-input.bounds.left, -input.bounds.top);
+
+  if (input.settings.includeBackgroundImage) {
+    await drawBackgroundReferenceImage(context, input);
+  }
 
   if (input.settings.includeGrid) {
     drawGrid(context, input.bounds, input.theme);

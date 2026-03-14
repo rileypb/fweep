@@ -38,6 +38,7 @@ describe('createEmptyMap', () => {
     expect(doc.background).toEqual({
       layers: {},
       activeLayerId: null,
+      referenceImage: null,
     });
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});

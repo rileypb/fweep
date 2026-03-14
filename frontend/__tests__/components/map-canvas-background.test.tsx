@@ -81,6 +81,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}
@@ -101,6 +102,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}
@@ -136,6 +138,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}
@@ -166,6 +169,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}
@@ -202,6 +206,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}
@@ -238,6 +243,7 @@ describe('MapCanvasBackground', () => {
         background={{
           layers: { [layer.id]: layer },
           activeLayerId: layer.id,
+          referenceImage: null,
         }}
         panOffset={{ x: 0, y: 0 }}
         canvasRect={makeRect(300, 200)}

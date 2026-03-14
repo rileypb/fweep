@@ -10,6 +10,7 @@ function createBaseSettings(scope: ExportSettings['scope']): ExportSettings {
     padding: 0,
     scale: 2,
     background: 'theme-canvas',
+    includeBackgroundImage: true,
     includeBackgroundDrawing: true,
     includeGrid: false,
   };

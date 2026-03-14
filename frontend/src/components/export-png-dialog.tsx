@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS_BY_SCOPE: Readonly<Record<ExportScope, ExportSettings>> =
     padding: 80,
     scale: 2,
     background: 'theme-canvas',
+    includeBackgroundImage: true,
     includeBackgroundDrawing: true,
     includeGrid: false,
   },
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS_BY_SCOPE: Readonly<Record<ExportScope, ExportSettings>> =
     padding: 0,
     scale: 2,
     background: 'theme-canvas',
+    includeBackgroundImage: true,
     includeBackgroundDrawing: true,
     includeGrid: false,
   },
@@ -41,6 +43,7 @@ const DEFAULT_SETTINGS_BY_SCOPE: Readonly<Record<ExportScope, ExportSettings>> =
     padding: 80,
     scale: 2,
     background: 'theme-canvas',
+    includeBackgroundImage: true,
     includeBackgroundDrawing: true,
     includeGrid: false,
   },
@@ -49,6 +52,7 @@ const DEFAULT_SETTINGS_BY_SCOPE: Readonly<Record<ExportScope, ExportSettings>> =
     padding: 0,
     scale: 2,
     background: 'theme-canvas',
+    includeBackgroundImage: true,
     includeBackgroundDrawing: true,
     includeGrid: false,
   },
@@ -199,6 +203,7 @@ export function ExportPngDialog({
       ...DEFAULT_SETTINGS_BY_SCOPE[scope],
       scale: currentValue.scale,
       background: currentValue.background,
+      includeBackgroundImage: currentValue.includeBackgroundImage,
       includeBackgroundDrawing: currentValue.includeBackgroundDrawing,
       includeGrid: currentValue.includeGrid,
     }));
@@ -334,6 +339,21 @@ export function ExportPngDialog({
               <option value="transparent">Transparent</option>
             </select>
           </label>
+
+          {doc?.background.referenceImage && (
+            <label className="export-png-checkbox">
+              <input
+                type="checkbox"
+                aria-label="Include background image"
+                checked={settings.includeBackgroundImage}
+                onChange={(event) => setSettings((currentValue) => ({
+                  ...currentValue,
+                  includeBackgroundImage: event.target.checked,
+                }))}
+              />
+              <span>Include background image</span>
+            </label>
+          )}
 
           {drawingInterfaceEnabled && (
             <label className="export-png-checkbox">

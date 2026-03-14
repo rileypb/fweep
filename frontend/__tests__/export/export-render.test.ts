@@ -171,6 +171,16 @@ function createBaseInput(): ExportRenderInput {
     },
     background: {
       activeLayerId: 'layer-1',
+      referenceImage: {
+        id: 'background-image-1',
+        name: 'overlay.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AAAA',
+        sourceUrl: null,
+        width: 320,
+        height: 180,
+        zoom: 1.5,
+      },
       layers: {
         'layer-1': {
           id: 'layer-1',
@@ -192,6 +202,7 @@ function createBaseInput(): ExportRenderInput {
       padding: 0,
       scale: 2,
       background: 'theme-canvas',
+      includeBackgroundImage: true,
       includeBackgroundDrawing: true,
       includeGrid: true,
     },
@@ -318,7 +329,7 @@ describe('renderExportCanvas', () => {
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, 1280, 480);
     expect(context.scale).toHaveBeenCalledWith(2, 2);
-    expect(context.drawImage).toHaveBeenCalledTimes(1);
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
     expect(context.quadraticCurveTo).toHaveBeenCalled();
     expect(context.lineTo).toHaveBeenCalled();
     expect(context.ellipse).toHaveBeenCalled();
@@ -336,6 +347,13 @@ describe('renderExportCanvas', () => {
     expect(context.lineTo).toHaveBeenCalledWith(40, 18);
     expect(context.translate).toHaveBeenCalledWith(80, 20);
     expect(context.rotate.mock.calls.some(([angle]) => Math.abs(angle) < 1e-9)).toBe(true);
+    expect(context.drawImage).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 64, height: 64 }),
+      -240,
+      -135,
+      480,
+      270,
+    );
     expect(mockListBackgroundChunksInBounds).toHaveBeenCalled();
   });
 
@@ -355,6 +373,7 @@ describe('renderExportCanvas', () => {
         },
         background: {
           activeLayerId: 'hidden-layer',
+          referenceImage: baseInput.doc.background.referenceImage,
           layers: {
             'hidden-layer': {
               id: 'hidden-layer',
@@ -372,6 +391,7 @@ describe('renderExportCanvas', () => {
         scope: 'selection',
         scale: 1,
         background: 'transparent',
+        includeBackgroundImage: false,
         includeGrid: false,
         includeBackgroundDrawing: false,
       },
@@ -386,6 +406,26 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).not.toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
+  });
+
+  it('skips background image rendering when disabled', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      settings: {
+        ...baseInput.settings,
+        includeBackgroundImage: false,
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
+    expect(mockListBackgroundChunksInBounds).toHaveBeenCalledTimes(1);
   });
 
   it('wraps long sticky-note lines in the exported PNG', async () => {
@@ -479,6 +519,7 @@ describe('renderExportCanvas', () => {
         ...baseInput.settings,
         scale: 1,
         background: 'white',
+        includeBackgroundImage: false,
         includeGrid: false,
         includeBackgroundDrawing: false,
       },
@@ -533,6 +574,7 @@ describe('renderExportCanvas', () => {
         ...baseInput.doc,
         background: {
           activeLayerId: null,
+          referenceImage: baseInput.doc.background.referenceImage,
           layers: baseInput.doc.background.layers,
         },
       },
@@ -541,7 +583,7 @@ describe('renderExportCanvas', () => {
     await renderExportCanvas(input);
 
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
-    expect(context.drawImage).not.toHaveBeenCalled();
+    expect(context.drawImage).toHaveBeenCalledTimes(1);
   });
 
   it('renders vertical endpoint labels and skips annotation text when no midpoint sample is available', async () => {

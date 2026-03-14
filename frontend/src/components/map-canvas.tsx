@@ -23,7 +23,9 @@ import { MapCanvasRoomNode } from './map-canvas-room-node';
 import { MapCanvasStickyNote } from './map-canvas-sticky-note';
 import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
+import { MapCanvasReferenceImage } from './map-canvas-reference-image';
 import { MapDrawingToolbar } from './map-drawing-toolbar';
+import { BackgroundImageControls } from './background-image-controls';
 import { ExportPngDialog } from './export-png-dialog';
 import { PrettifyButton } from './prettify-button';
 import { RedoButton } from './redo-button';
@@ -209,6 +211,7 @@ export function MapCanvas({
   const minimapBackground = drawingInterfaceEnabled && doc ? doc.background : {
     activeLayerId: null,
     layers: {},
+    referenceImage: null,
   };
 
   const rooms = doc ? Object.values(doc.rooms) : [];
@@ -1279,6 +1282,13 @@ export function MapCanvas({
       onKeyDown={handleCanvasKeyDown}
       tabIndex={-1}
     >
+        {doc?.background.referenceImage && (
+          <MapCanvasReferenceImage
+            image={doc.background.referenceImage}
+            panOffset={panOffset}
+            zoom={zoom}
+          />
+        )}
         {drawingInterfaceEnabled && doc && (
           <MapCanvasBackground
             ref={backgroundRef}
@@ -1428,6 +1438,7 @@ export function MapCanvas({
           <UndoButton />
           <RedoButton />
           <PrettifyButton />
+          <BackgroundImageControls />
           <button
             className="app-control-button"
             type="button"
