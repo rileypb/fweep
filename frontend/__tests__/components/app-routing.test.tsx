@@ -2100,6 +2100,75 @@ describe('URL routing', () => {
     expect(getGameOutputBox().textContent ?? '').toContain('create <room name>');
   });
 
+  it('does not reopen a stale edit request after returning to the map list and reopening the map', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Stale Edit Request Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    render(<App />);
+    await screen.findByText(/stale edit request map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create room{enter}');
+    await user.type(input, 'edit room{enter}');
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.click(screen.getByText('Stale Edit Request Map').closest('button') as HTMLButtonElement);
+    await screen.findByText(/stale edit request map/i);
+
+    expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the room editor after creating a room and then editing it from the CLI', async () => {
+    jest.useFakeTimers();
+    const doc = createEmptyMap('Create Then Edit Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    try {
+      render(<App />);
+      await screen.findByText(/create then edit map/i);
+
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'create room' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+        jest.advanceTimersByTime(200);
+      });
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'edit room' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('room');
+      expectGameOutputToContain('create room', 'created', 'edit room', 'edited');
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
+  });
+
   it('returns to the selection screen from the map header back button', async () => {
     const doc = createEmptyMap('Return Map');
     await saveMap(doc);

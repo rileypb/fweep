@@ -32,6 +32,12 @@ interface UseAppCliOptions {
   readonly activeMap: MapDocument | null;
   readonly loadDocument: (doc: MapDocument) => void;
   readonly unloadDocument: () => void;
+  readonly requestedRoomEditorRequest: RoomUiRequest | null;
+  readonly requestedRoomRevealRequest: RoomUiRequest | null;
+  readonly requestedViewportFocusRequest: ViewportFocusRequest | null;
+  readonly setRequestedRoomEditorRequest: (request: RoomUiRequest | null) => void;
+  readonly setRequestedRoomRevealRequest: (request: RoomUiRequest | null) => void;
+  readonly setRequestedViewportFocusRequest: (request: ViewportFocusRequest | null) => void;
 }
 
 interface UseAppCliResult {
@@ -45,9 +51,6 @@ interface UseAppCliResult {
   readonly cliHistoryDraft: string;
   readonly gameOutputLines: readonly string[];
   readonly isImportingScript: boolean;
-  readonly requestedRoomEditorRequest: RoomUiRequest | null;
-  readonly requestedRoomRevealRequest: RoomUiRequest | null;
-  readonly requestedViewportFocusRequest: ViewportFocusRequest | null;
   readonly handleCliSubmit: () => void;
   readonly handleCliCommandChange: (value: string) => void;
   readonly handleCliHistoryNavigate: (direction: 'up' | 'down') => void;
@@ -143,6 +146,12 @@ export function useAppCli({
   activeMap,
   loadDocument,
   unloadDocument,
+  requestedRoomEditorRequest,
+  requestedRoomRevealRequest,
+  requestedViewportFocusRequest,
+  setRequestedRoomEditorRequest,
+  setRequestedRoomRevealRequest,
+  setRequestedViewportFocusRequest,
 }: UseAppCliOptions): UseAppCliResult {
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
@@ -166,9 +175,6 @@ export function useAppCli({
   const [hasUsedCliInput, setHasUsedCliInput] = useState(false);
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [_cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
-  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<RoomUiRequest | null>(null);
-  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<RoomUiRequest | null>(null);
-  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
   const [isImportingScript, setIsImportingScript] = useState(false);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
@@ -662,9 +668,6 @@ export function useAppCli({
     cliHistoryDraft,
     gameOutputLines,
     isImportingScript,
-    requestedRoomEditorRequest,
-    requestedRoomRevealRequest,
-    requestedViewportFocusRequest,
     handleCliSubmit,
     handleCliCommandChange,
     handleCliHistoryNavigate,

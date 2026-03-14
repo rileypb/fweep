@@ -75,7 +75,10 @@ export function AppCliPanel({
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
                   event.preventDefault();
-                  onSubmit();
+                  event.stopPropagation();
+                  queueMicrotask(() => {
+                    onSubmit();
+                  });
                   return;
                 }
 

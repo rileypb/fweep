@@ -126,6 +126,9 @@ export interface MapCanvasProps {
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
+  onRequestedRoomEditorHandled?: (requestId: number) => void;
+  onRequestedRoomRevealHandled?: (requestId: number) => void;
+  onRequestedViewportFocusHandled?: (requestId: number) => void;
 }
 
 interface RoomEditorState {
@@ -140,6 +143,9 @@ export function MapCanvas({
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
   requestedViewportFocusRequest = null,
+  onRequestedRoomEditorHandled,
+  onRequestedRoomRevealHandled,
+  onRequestedViewportFocusHandled,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorState, setRoomEditorState] = useState<RoomEditorState | null>(null);
@@ -470,7 +476,8 @@ export function MapCanvas({
     }
 
     openRoomEditor(requestedRoomEditorRequest.roomId);
-  }, [openRoomEditor, requestedRoomEditorRequest]);
+    onRequestedRoomEditorHandled?.(requestedRoomEditorRequest.requestId);
+  }, [onRequestedRoomEditorHandled, openRoomEditor, requestedRoomEditorRequest]);
 
   const openConnectionEditor = useCallback((connectionId: string) => {
     setStickyNoteEditorId(null);
@@ -558,7 +565,8 @@ export function MapCanvas({
     if (room) {
       centerRoomOnScreen(room);
     }
-  }, [centerRoomOnScreen, requestedRoomRevealRequest]);
+    onRequestedRoomRevealHandled?.(requestedRoomRevealRequest.requestId);
+  }, [centerRoomOnScreen, onRequestedRoomRevealHandled, requestedRoomRevealRequest]);
 
   useLayoutEffect(() => {
     if (requestedViewportFocusRequest === null) {
@@ -572,7 +580,8 @@ export function MapCanvas({
     if (roomsToFocus.length > 0) {
       centerRoomsOnScreen(roomsToFocus);
     }
-  }, [centerRoomsOnScreen, requestedViewportFocusRequest]);
+    onRequestedViewportFocusHandled?.(requestedViewportFocusRequest.requestId);
+  }, [centerRoomsOnScreen, onRequestedViewportFocusHandled, requestedViewportFocusRequest]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },

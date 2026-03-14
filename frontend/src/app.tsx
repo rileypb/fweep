@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppCliPanel } from './components/app-cli-panel';
 import { HelpDialog } from './components/help-dialog';
 import { MapCanvas } from './components/map-canvas';
@@ -28,8 +28,10 @@ export function App(): React.JSX.Element {
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
-  const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
+  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
+  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
@@ -48,9 +50,6 @@ export function App(): React.JSX.Element {
     cliHistoryDraft,
     gameOutputLines,
     isImportingScript,
-    requestedRoomEditorRequest,
-    requestedRoomRevealRequest,
-    requestedViewportFocusRequest,
     handleCliSubmit,
     handleCliCommandChange,
     handleCliHistoryNavigate,
@@ -60,7 +59,35 @@ export function App(): React.JSX.Element {
     activeMap,
     loadDocument,
     unloadDocument,
+    requestedRoomEditorRequest,
+    requestedRoomRevealRequest,
+    requestedViewportFocusRequest,
+    setRequestedRoomEditorRequest,
+    setRequestedRoomRevealRequest,
+    setRequestedViewportFocusRequest,
   });
+
+  useEffect(() => {
+    if (activeMap !== null) {
+      return;
+    }
+
+    setRequestedRoomEditorRequest(null);
+    setRequestedRoomRevealRequest(null);
+    setRequestedViewportFocusRequest(null);
+  }, [activeMap]);
+
+  const handleRequestedRoomEditorHandled = useCallback((requestId: number) => {
+    setRequestedRoomEditorRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
+
+  const handleRequestedRoomRevealHandled = useCallback((requestId: number) => {
+    setRequestedRoomRevealRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
+
+  const handleRequestedViewportFocusHandled = useCallback((requestId: number) => {
+    setRequestedViewportFocusRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
 
   useEffect(() => {
     if (!isHelpOpen) {
@@ -198,6 +225,9 @@ export function App(): React.JSX.Element {
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}
+          onRequestedRoomEditorHandled={handleRequestedRoomEditorHandled}
+          onRequestedRoomRevealHandled={handleRequestedRoomRevealHandled}
+          onRequestedViewportFocusHandled={handleRequestedViewportFocusHandled}
         />
       )}
     </main>
