@@ -33,17 +33,17 @@ export type CliCommand =
   | { readonly kind: 'redo' };
 
 export const CLI_COMMAND_FORMS = [
-  'help',
-  'arrange/prettify',
-  'create <room name>',
-  'delete <room name>',
-  'edit <room name>',
-  'show <room name>',
-  'notate/annotate <room name> with <note text>',
-  'connect <room name> <direction> [one-way] to <room name> [<direction>]',
+  'help/h',
+  'arrange/arr/prettify',
+  'create/c <room name>',
+  'delete/d/del <room name>',
+  'edit/e/ed <room name>',
+  'show/s <room name>',
+  'notate/annotate/ann <room name> with <note text>',
+  'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
-  'create <room name> <direction> of <room name>',
-  'create <room name> above/below <room name>',
+  'create/c <room name> <direction> of <room name>',
+  'create/c <room name> above/below <room name>',
   'undo/redo',
 ] as const;
 
@@ -132,6 +132,10 @@ function tokenizeCliInput(input: string): Token[] | null {
 
 function isTokenValue(token: Token | undefined, expected: string): boolean {
   return token !== undefined && token.value.toLowerCase() === expected;
+}
+
+function isFirstWordAlias(token: Token | undefined, ...acceptedValues: readonly string[]): boolean {
+  return token !== undefined && acceptedValues.some((acceptedValue) => token.value.toLowerCase() === acceptedValue);
 }
 
 function isDirectionToken(token: Token | undefined): boolean {
@@ -335,15 +339,15 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'redo' };
   }
 
-  if (tokens.length === 1 && isTokenValue(tokens[0], 'help')) {
+  if (tokens.length === 1 && isFirstWordAlias(tokens[0], 'help', 'h')) {
     return { kind: 'help' };
   }
 
-  if (tokens.length === 1 && (isTokenValue(tokens[0], 'arrange') || isTokenValue(tokens[0], 'prettify'))) {
+  if (tokens.length === 1 && (isFirstWordAlias(tokens[0], 'arrange', 'arr') || isTokenValue(tokens[0], 'prettify'))) {
     return { kind: 'arrange' };
   }
 
-  if (isTokenValue(tokens[0], 'create') && isTokenValue(tokens[1], 'and') && isTokenValue(tokens[2], 'connect')) {
+  if (isFirstWordAlias(tokens[0], 'create', 'c') && isTokenValue(tokens[1], 'and') && isFirstWordAlias(tokens[2], 'connect', 'con')) {
     const tail = parseConnectTail(tokens, 3);
     if (tail === null) {
       return null;
@@ -359,14 +363,14 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'create')) {
+  if (isFirstWordAlias(tokens[0], 'create', 'c')) {
     const relativeCommand = parseCreateRelativeCommand(tokens);
     if (relativeCommand !== null) {
       return relativeCommand;
     }
   }
 
-  if (isTokenValue(tokens[0], 'connect')) {
+  if (isFirstWordAlias(tokens[0], 'connect', 'con')) {
     const tail = parseConnectTail(tokens, 1);
     if (tail === null) {
       return null;
@@ -378,7 +382,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'create')) {
+  if (isFirstWordAlias(tokens[0], 'create', 'c')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
@@ -390,7 +394,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'delete')) {
+  if (isFirstWordAlias(tokens[0], 'delete', 'd', 'del')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
@@ -402,7 +406,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'edit')) {
+  if (isFirstWordAlias(tokens[0], 'edit', 'e', 'ed')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
@@ -414,7 +418,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'show')) {
+  if (isFirstWordAlias(tokens[0], 'show', 's')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
@@ -426,7 +430,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isTokenValue(tokens[0], 'notate') || isTokenValue(tokens[0], 'annotate')) {
+  if (isFirstWordAlias(tokens[0], 'notate', 'annotate', 'ann')) {
     const withIndex = tokens.findIndex((token, index) => index > 0 && isTokenValue(token, 'with'));
     if (withIndex === -1) {
       return null;

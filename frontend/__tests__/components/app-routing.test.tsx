@@ -264,16 +264,16 @@ describe('URL routing', () => {
     await user.type(input, 'help{enter}');
 
     expectGameOutputToContain(
-      'help',
-      'arrange/prettify',
-      'create <room name>',
-      'delete <room name>',
-      'edit <room name>',
-      'show <room name>',
-      'notate/annotate <room name> with <note text>',
-      'connect <room name> <direction> [one-way] to <room name> [<direction>]',
+      'help/h',
+      'arrange/arr/prettify',
+      'create/c <room name>',
+      'delete/d/del <room name>',
+      'edit/e/ed <room name>',
+      'show/s <room name>',
+      'notate/annotate/ann <room name> with <note text>',
+      'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
       'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
-      'create <room name> above/below <room name>',
+      'create/c <room name> above/below <room name>',
       'undo/redo',
     );
     expect(input.selectionStart).toBe(0);

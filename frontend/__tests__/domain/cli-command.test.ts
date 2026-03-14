@@ -4,27 +4,35 @@ import { parseCliCommandDescription } from '../../src/domain/cli-command';
 describe('parseCliCommandDescription', () => {
   it('describes help commands', () => {
     expect(parseCliCommandDescription('help')).toBe('list the available CLI command forms');
+    expect(parseCliCommandDescription('h')).toBe('list the available CLI command forms');
   });
 
   it('describes arrange commands', () => {
     expect(parseCliCommandDescription('arrange')).toBe('rearrange the map layout');
+    expect(parseCliCommandDescription('arr')).toBe('rearrange the map layout');
     expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
   });
 
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
+    expect(parseCliCommandDescription('c Kitchen')).toBe('create a room called Kitchen');
   });
 
   it('describes delete commands', () => {
     expect(parseCliCommandDescription('delete Kitchen')).toBe('delete the room called Kitchen');
+    expect(parseCliCommandDescription('d Kitchen')).toBe('delete the room called Kitchen');
+    expect(parseCliCommandDescription('del Kitchen')).toBe('delete the room called Kitchen');
   });
 
   it('describes edit commands', () => {
     expect(parseCliCommandDescription('edit Kitchen')).toBe('open the room editor for Kitchen');
+    expect(parseCliCommandDescription('e Kitchen')).toBe('open the room editor for Kitchen');
+    expect(parseCliCommandDescription('ed Kitchen')).toBe('open the room editor for Kitchen');
   });
 
   it('describes show commands', () => {
     expect(parseCliCommandDescription('show Kitchen')).toBe('scroll the map to Kitchen');
+    expect(parseCliCommandDescription('s Kitchen')).toBe('scroll the map to Kitchen');
   });
 
   it('describes notate commands', () => {
@@ -32,6 +40,9 @@ describe('parseCliCommandDescription', () => {
       'create a sticky note on Kitchen saying this room has nice wallpaper',
     );
     expect(parseCliCommandDescription('annotate Kitchen with this room has nice wallpaper')).toBe(
+      'create a sticky note on Kitchen saying this room has nice wallpaper',
+    );
+    expect(parseCliCommandDescription('ann Kitchen with this room has nice wallpaper')).toBe(
       'create a sticky note on Kitchen saying this room has nice wallpaper',
     );
   });
@@ -43,6 +54,9 @@ describe('parseCliCommandDescription', () => {
 
   it('describes one-way connections', () => {
     expect(parseCliCommandDescription('connect Kitchen east one-way to Hallway')).toBe(
+      'create a one-way connection from Kitchen going east to Hallway',
+    );
+    expect(parseCliCommandDescription('con Kitchen east one-way to Hallway')).toBe(
       'create a one-way connection from Kitchen going east to Hallway',
     );
   });
@@ -79,6 +93,15 @@ describe('parseCliCommandDescription', () => {
 
   it('describes create-and-connect commands', () => {
     expect(parseCliCommandDescription('create and connect Kitchen east to Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
+    );
+    expect(parseCliCommandDescription('c and connect Kitchen east to Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
+    );
+    expect(parseCliCommandDescription('create and con Kitchen east to Hallway')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
+    );
+    expect(parseCliCommandDescription('c and con Kitchen east to Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
     );
   });
