@@ -240,6 +240,7 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.view).toEqual({
       pan: { x: 0, y: 0 },
       zoom: 1,
+      visualStyle: 'default',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -255,6 +256,57 @@ describe('parseUntrustedMapDocument', () => {
     };
 
     expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
+  it('falls back to the default visual style for legacy maps without one', () => {
+    const doc = validMap();
+    const legacyDoc = {
+      ...doc,
+      view: {
+        pan: { x: 12, y: -8 },
+        zoom: 1.5,
+        showGrid: false,
+        snapToGrid: false,
+        useBezierConnections: true,
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(legacyDoc);
+
+    expect(parsed.view).toEqual({
+      pan: { x: 12, y: -8 },
+      zoom: 1.5,
+      visualStyle: 'default',
+      showGrid: false,
+      snapToGrid: false,
+      useBezierConnections: true,
+    });
+  });
+
+  it('rejects unsupported map visual styles', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'circle-city',
+      },
+    };
+
+    try {
+      parseUntrustedMapDocument(broken);
+      throw new Error('Expected parseUntrustedMapDocument to throw.');
+    } catch (error) {
+      expect(error).toBeInstanceOf(MapValidationError);
+      expect((error as MapValidationError).issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'view.visualStyle',
+            message: 'view.visualStyle must be a supported map visual style.',
+          }),
+        ]),
+      );
+    }
   });
 
   it('rejects malformed background layers', () => {

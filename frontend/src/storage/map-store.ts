@@ -1,5 +1,6 @@
 import {
   BACKGROUND_LAYER_CHUNK_SIZE,
+  MAP_VISUAL_STYLES,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
@@ -229,6 +230,7 @@ function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
       y: typeof view?.pan?.y === 'number' ? view.pan.y : 0,
     },
     zoom: typeof view?.zoom === 'number' && Number.isFinite(view.zoom) ? view.zoom : 1,
+    visualStyle: view?.visualStyle && MAP_VISUAL_STYLES.includes(view.visualStyle) ? view.visualStyle : 'default',
     showGrid: typeof view?.showGrid === 'boolean' ? view.showGrid : true,
     snapToGrid: typeof view?.snapToGrid === 'boolean' ? view.snapToGrid : true,
     useBezierConnections: typeof view?.useBezierConnections === 'boolean' ? view.useBezierConnections : false,

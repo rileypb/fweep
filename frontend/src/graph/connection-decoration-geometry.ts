@@ -1,12 +1,11 @@
-import type { Connection, Room } from '../domain/map-types';
+import type { Connection, MapVisualStyle, Room } from '../domain/map-types';
 import {
   getConnectionGeometryLength,
-  ROOM_HEIGHT,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
   type Point,
 } from './connection-geometry';
-import { getRoomNodeWidth } from './minimap-geometry';
+import { getRoomNodeDimensions } from './room-label-geometry';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -43,13 +42,16 @@ function getSegmentLength(start: Point, end: Point): number {
   return Math.hypot(end.x - start.x, end.y - start.y);
 }
 
-function getRoomBounds(room: Room): { left: number; right: number; top: number; bottom: number } {
-  const roomWidth = getRoomNodeWidth(room);
+function getRoomBounds(
+  room: Room,
+  visualStyle: MapVisualStyle = 'default',
+): { left: number; right: number; top: number; bottom: number } {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
   return {
     left: room.position.x - PASS_THROUGH_GAP_PADDING,
-    right: room.position.x + roomWidth + PASS_THROUGH_GAP_PADDING,
+    right: room.position.x + dimensions.width + PASS_THROUGH_GAP_PADDING,
     top: room.position.y - PASS_THROUGH_GAP_PADDING,
-    bottom: room.position.y + ROOM_HEIGHT + PASS_THROUGH_GAP_PADDING,
+    bottom: room.position.y + dimensions.height + PASS_THROUGH_GAP_PADDING,
   };
 }
 
@@ -57,6 +59,7 @@ function getSegmentGapIntervals(
   start: Point,
   end: Point,
   roomsToSkipAcross: readonly Room[],
+  visualStyle: MapVisualStyle = 'default',
 ): readonly { start: number; end: number }[] {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -65,7 +68,7 @@ function getSegmentGapIntervals(
   }
 
   const intervals = roomsToSkipAcross.flatMap((room) => {
-    const bounds = getRoomBounds(room);
+    const bounds = getRoomBounds(room, visualStyle);
     let tMin = 0;
     let tMax = 1;
 
@@ -177,6 +180,7 @@ export function getVisibleConnectionSegments(
   connection: Connection,
   points: readonly Point[],
   rooms: Readonly<Record<string, Room>>,
+  visualStyle: MapVisualStyle = 'default',
 ): VisibleConnectionSegmentsResult {
   if (points.length < 2) {
     return { segments: [], crossbars: [], hasGap: false };
@@ -192,7 +196,7 @@ export function getVisibleConnectionSegments(
     const end = points[index + 1];
     const dx = end.x - start.x;
     const dy = end.y - start.y;
-    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms);
+    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms, visualStyle);
 
     if (gapIntervals.length === 0) {
       visibleSegments.push({ start, end });

@@ -927,7 +927,7 @@ describe('MapCanvas', () => {
 
       render(<MapCanvas mapName="Test" />);
 
-      expect(screen.getByText('Kitchen')).toHaveStyle({ fill: '#f3f4f6' });
+      expect(screen.getByTestId('room-node').querySelector('text')).toHaveStyle({ fill: '#f3f4f6' });
     });
 
     it('renders no room nodes when document has no rooms', () => {
@@ -1421,6 +1421,26 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-node')).toHaveAttribute('data-room-shape', 'diamond');
       expect(screen.getByTestId('room-node').querySelector('polygon.room-node-shape')).not.toBeNull();
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+    });
+
+    it('hides room-shape editing and wraps labels in square-classic mode', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      act(() => {
+        useEditorStore.getState().setMapVisualStyle('square-classic');
+        useEditorStore.getState().renameRoom(Object.values(useEditorStore.getState().doc!.rooms)[0].id, 'A very long kitchen name');
+      });
+
+      const renderedRoomNode = screen.getByTestId('room-node');
+      expect(renderedRoomNode).toHaveAttribute('data-map-visual-style', 'square-classic');
+      expect(renderedRoomNode.querySelector('rect.room-node-shape')).not.toBeNull();
+      expect(renderedRoomNode.querySelectorAll('text tspan').length).toBeGreaterThan(1);
+
+      await user.dblClick(roomNode);
+
+      expect(screen.queryByTestId('room-shape-option-diamond')).not.toBeInTheDocument();
+      expect(screen.getByTestId('room-editor-room-node')).toHaveAttribute('data-map-visual-style', 'square-classic');
     });
 
     it('previews room style options in the room editor without applying them immediately', async () => {

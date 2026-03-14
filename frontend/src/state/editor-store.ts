@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BackgroundReferenceImage, ConnectionAnnotation, MapDocument, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
+import type { BackgroundReferenceImage, ConnectionAnnotation, MapDocument, MapVisualStyle, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
 import { createBackgroundLayer, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
 import type { ExportRegion } from '../export/export-types';
 import {
@@ -194,6 +194,9 @@ export interface EditorState {
 
   /** The persisted zoom level for the current map. */
   mapZoom: number;
+
+  /** The persisted visual style for the current map. */
+  mapVisualStyle: MapVisualStyle;
 
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
@@ -427,6 +430,9 @@ export interface EditorState {
 
   /** Persist the current map zoom without adding a history entry. */
   setMapZoom: (zoom: number) => void;
+
+  /** Persist the current map visual style without adding a history entry. */
+  setMapVisualStyle: (visualStyle: MapVisualStyle) => void;
 
   /** Replace the current background reference image. */
   setBackgroundReferenceImage: (image: BackgroundReferenceImage) => void;
@@ -707,13 +713,14 @@ function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
 
 function patchDocumentView(
   doc: MapDocument,
-  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
+  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
 ): MapDocument {
   return {
     ...doc,
     view: {
       pan: state.mapPanOffset,
       zoom: state.mapZoom,
+      visualStyle: state.mapVisualStyle,
       showGrid: state.showGridEnabled,
       snapToGrid: state.snapToGridEnabled,
       useBezierConnections: state.useBezierConnectionsEnabled,
@@ -737,6 +744,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   useBezierConnectionsEnabled: false,
   mapPanOffset: { x: 0, y: 0 },
   mapZoom: 1,
+  mapVisualStyle: 'default',
   connectionDrag: null,
   stickyNoteLinkDrag: null,
   selectionDrag: null,
@@ -761,6 +769,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     doc: patchDocumentView(doc, {
       mapPanOffset: doc.view.pan,
       mapZoom: doc.view.zoom,
+      mapVisualStyle: doc.view.visualStyle,
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
       useBezierConnectionsEnabled: doc.view.useBezierConnections,
@@ -779,6 +788,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     useBezierConnectionsEnabled: doc.view.useBezierConnections,
     mapPanOffset: doc.view.pan,
     mapZoom: doc.view.zoom,
+    mapVisualStyle: doc.view.visualStyle,
     connectionDrag: null,
     stickyNoteLinkDrag: null,
     selectionDrag: null,
@@ -805,6 +815,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     useBezierConnectionsEnabled: false,
     mapPanOffset: { x: 0, y: 0 },
     mapZoom: 1,
+    mapVisualStyle: 'default',
     connectionDrag: null,
     stickyNoteLinkDrag: null,
     selectionDrag: null,
@@ -1503,6 +1514,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         : state.doc,
       mapZoom: zoom,
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setMapVisualStyle: (visualStyle) => {
+    set((state) => ({
+      doc: state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            visualStyle,
+          },
+        }
+        : state.doc,
+      mapVisualStyle: visualStyle,
       lastHistoryMergeKey: null,
     }));
   },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   type Connection,
+  type MapVisualStyle,
   type Room,
   type RoomShape,
   type RoomStrokeStyle,
@@ -15,14 +16,13 @@ import {
 import {
   computeConnectionPath,
   ROOM_CORNER_RADIUS,
-  ROOM_HEIGHT,
 } from '../graph/connection-geometry';
+import { getRoomForVisualStyle, getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { STICKY_NOTE_WIDTH, getStickyNoteCenter, getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import {
   getRoomShapePath,
   getRoomShapePolygonVertices,
 } from '../graph/room-shape-geometry';
-import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import type { PanOffset } from './use-map-viewport';
 
 const ROOM_VISIBILITY_PADDING = 24;
@@ -54,8 +54,10 @@ export function getRoomScreenGeometry(
   panOffset: PanOffset,
   canvasRect: DOMRect | null,
   zoom: number = 1,
+  visualStyle: MapVisualStyle = 'default',
 ): RoomScreenGeometry {
-  const width = getRoomNodeWidth(room);
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const width = dimensions.width;
   const scaledWidth = width * zoom;
   const left = (canvasRect?.left ?? 0) + (room.position.x * zoom) + panOffset.x;
   const top = (canvasRect?.top ?? 0) + (room.position.y * zoom) + panOffset.y;
@@ -64,7 +66,7 @@ export function getRoomScreenGeometry(
     left,
     top,
     width: scaledWidth,
-    height: ROOM_HEIGHT * zoom,
+    height: dimensions.height * zoom,
     centerX: left + (scaledWidth / 2),
   };
 }
@@ -86,6 +88,7 @@ export function getRoomsWithinSelectionBox(
   canvasRect: DOMRect | null,
   selectionBox: SelectionBox,
   zoom: number = 1,
+  visualStyle: MapVisualStyle = 'default',
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
   const boxRight = bounds.left + bounds.width;
@@ -93,7 +96,7 @@ export function getRoomsWithinSelectionBox(
 
   return rooms
     .filter((room) => {
-      const geometry = getRoomScreenGeometry(room, panOffset, canvasRect, zoom);
+      const geometry = getRoomScreenGeometry(room, panOffset, canvasRect, zoom, visualStyle);
       const roomLeft = geometry.left - (canvasRect?.left ?? 0);
       const roomTop = geometry.top - (canvasRect?.top ?? 0);
       const roomRight = roomLeft + geometry.width;
@@ -216,6 +219,7 @@ export function getConnectionsWithinSelectionBox(
   panOffset: PanOffset,
   selectionBox: SelectionBox,
   zoom: number = 1,
+  visualStyle: MapVisualStyle = 'default',
 ): string[] {
   const bounds = getSelectionBounds(selectionBox);
 
@@ -227,11 +231,13 @@ export function getConnectionsWithinSelectionBox(
         return false;
       }
 
-      const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
-      const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
+      const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, visualStyle);
+      const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, visualStyle);
+      const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, visualStyle);
+      const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, visualStyle);
       const points = computeConnectionPath(
-        sourceRoom,
-        targetRoom,
+        effectiveSourceRoom,
+        effectiveTargetRoom,
         connection,
         undefined,
         sourceDimensions,
@@ -265,9 +271,10 @@ export function getStickyNoteLinksWithinSelectionBox(
       }
 
       const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+      const roomDimensions = getRoomNodeDimensions(room);
       const roomCenter = {
-        x: room.position.x + (getRoomNodeWidth(room) / 2),
-        y: room.position.y + (ROOM_HEIGHT / 2),
+        x: room.position.x + (roomDimensions.width / 2),
+        y: room.position.y + (roomDimensions.height / 2),
       };
       const points = [
         {
@@ -286,9 +293,10 @@ export function getStickyNoteLinksWithinSelectionBox(
 }
 
 function getRoomCenter(room: Room): RoomCenter {
+  const dimensions = getRoomNodeDimensions(room);
   return {
-    x: room.position.x + (getRoomNodeWidth(room) / 2),
-    y: room.position.y + (ROOM_HEIGHT / 2),
+    x: room.position.x + (dimensions.width / 2),
+    y: room.position.y + (dimensions.height / 2),
   };
 }
 
@@ -434,6 +442,7 @@ export function renderRoomShape(
   height: number,
   roomStyle: Pick<Room, 'fillColorIndex' | 'strokeColorIndex' | 'strokeStyle'> | undefined,
   theme: ThemeMode = 'light',
+  visualStyle: MapVisualStyle = 'default',
 ): React.JSX.Element {
   const shapeStyleProps = roomStyle ? {
     style: {
@@ -442,6 +451,19 @@ export function renderRoomShape(
       strokeDasharray: getRoomStrokeDasharray(roomStyle.strokeStyle),
     },
   } : undefined;
+
+  if (visualStyle === 'square-classic') {
+    return (
+      <rect
+        className="room-node-shape"
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+        {...shapeStyleProps}
+      />
+    );
+  }
 
   if (shape === 'oval') {
     return (

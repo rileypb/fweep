@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import { normalizeDirection } from '../domain/directions';
-import { type Room, type RoomShape } from '../domain/map-types';
-import { getHandleOffset, ROOM_HEIGHT } from '../graph/connection-geometry';
-import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { type MapVisualStyle, type Room, type RoomShape } from '../domain/map-types';
+import { getHandleOffset } from '../graph/connection-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
+import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { renderRoomShape } from './map-canvas-helpers';
 import {
   getRoomLabelColor,
@@ -22,6 +22,7 @@ interface DirectionHandlesProps {
   roomWidth: number;
   roomHeight: number;
   roomShape: RoomShape;
+  visualStyle: MapVisualStyle;
   labelY: number;
   onHandleMouseDown?: (direction: string, e: React.MouseEvent) => void;
 }
@@ -29,13 +30,22 @@ interface DirectionHandlesProps {
 function getVerticalHandleOffset(
   direction: 'up' | 'down',
   roomWidth: number,
+  roomHeight: number,
   labelY: number,
+  visualStyle: MapVisualStyle,
 ): { x: number; y: number } {
+  if (visualStyle === 'square-classic') {
+    return {
+      x: roomWidth / 2,
+      y: direction === 'up' ? 10 : roomHeight - 10,
+    };
+  }
+
   return {
     x: roomWidth / 2,
     y: direction === 'up'
       ? Math.max(8, labelY - 9)
-      : Math.min(ROOM_HEIGHT - 8, labelY + 9),
+      : Math.min(roomHeight - 8, labelY + 9),
   };
 }
 
@@ -43,13 +53,15 @@ function DirectionHandles({
   roomWidth,
   roomHeight,
   roomShape,
+  visualStyle,
   labelY,
   onHandleMouseDown,
 }: DirectionHandlesProps): React.JSX.Element {
   return (
     <>
       {DIRECTION_HANDLES.map((dir) => {
-        const handleOffset = getHandleOffset(normalizeDirection(dir), { width: roomWidth, height: roomHeight }, roomShape);
+        const effectiveShape = visualStyle === 'square-classic' ? 'rectangle' : roomShape;
+        const handleOffset = getHandleOffset(normalizeDirection(dir), { width: roomWidth, height: roomHeight }, effectiveShape);
         if (!handleOffset) {
           return null;
         }
@@ -73,7 +85,7 @@ function DirectionHandles({
         );
       })}
       {(['up', 'down'] as const).map((dir) => {
-        const handleOffset = getVerticalHandleOffset(dir, roomWidth, labelY);
+        const handleOffset = getVerticalHandleOffset(dir, roomWidth, roomHeight, labelY, visualStyle);
 
         return (
           <circle
@@ -128,14 +140,17 @@ export function MapCanvasRoomNode({
   const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
   const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
+  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const interactionsDisabled = canvasInteractionMode === 'draw';
 
   const isDragging = selectionDrag !== null && selectionDrag.roomIds.includes(room.id);
   const dragOffset = isDragging ? selectionDrag : null;
   const visualX = dragOffset ? room.position.x + dragOffset.dx : room.position.x;
   const visualY = dragOffset ? room.position.y + dragOffset.dy : room.position.y;
-  const roomWidth = getRoomNodeWidth(room);
-  const labelLayout = getRoomLabelLayout(room, roomWidth, ROOM_HEIGHT);
+  const roomDimensions = getRoomNodeDimensions(room, mapVisualStyle);
+  const roomWidth = roomDimensions.width;
+  const roomHeight = roomDimensions.height;
+  const labelLayout = getRoomLabelLayout(room, roomWidth, roomHeight, mapVisualStyle);
   const roomLabelColor = getRoomLabelColor(theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
@@ -258,8 +273,9 @@ export function MapCanvasRoomNode({
       data-testid="room-node"
       data-room-id={room.id}
       data-room-shape={room.shape}
+      data-map-visual-style={mapVisualStyle}
       width={roomWidth}
-      height={ROOM_HEIGHT}
+      height={roomHeight}
       style={{
         transform: `translate(${visualX}px, ${visualY}px)`,
         pointerEvents: interactionsDisabled ? 'none' : undefined,
@@ -280,21 +296,29 @@ export function MapCanvasRoomNode({
           x={-4}
           y={-4}
           width={roomWidth + 8}
-          height={ROOM_HEIGHT + 8}
+          height={roomHeight + 8}
           rx={12}
           ry={12}
         />
       )}
-      {renderRoomShape(room.shape, roomWidth, ROOM_HEIGHT, room, theme)}
+      {renderRoomShape(room.shape, roomWidth, roomHeight, room, theme, mapVisualStyle)}
       <text
         className="room-node-name"
         x={labelLayout.textX}
-        y={labelLayout.textY}
+        y={labelLayout.firstLineY}
         dominantBaseline="middle"
         textAnchor="middle"
         style={{ fill: roomLabelColor }}
       >
-        {room.name}
+        {labelLayout.lines.map((line, index) => (
+          <tspan
+            key={`${room.id}-line-${index}`}
+            x={labelLayout.textX}
+            y={labelLayout.firstLineY + (index * labelLayout.lineHeight)}
+          >
+            {line}
+          </tspan>
+        ))}
       </text>
       {room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null && (
         <g
@@ -311,9 +335,10 @@ export function MapCanvasRoomNode({
       {hovered && !isDragging && !isRoomEditorOpen && !interactionsDisabled && (
         <DirectionHandles
           roomWidth={roomWidth}
-          roomHeight={ROOM_HEIGHT}
+          roomHeight={roomHeight}
           roomShape={room.shape}
-          labelY={labelLayout.textY}
+          visualStyle={mapVisualStyle}
+          labelY={labelLayout.firstLineY}
           onHandleMouseDown={handleDirectionMouseDown}
         />
       )}

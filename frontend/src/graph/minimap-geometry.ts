@@ -1,11 +1,11 @@
-import type { Connection, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
+import type { Connection, MapVisualStyle, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
 import {
   computeConnectionPath,
   getRoomPerimeterPointToward,
   ROOM_HEIGHT,
   ROOM_WIDTH,
 } from './connection-geometry';
-import { getRoomNodeWidth as getSharedRoomNodeWidth } from './room-label-geometry';
+import { getRoomForVisualStyle, getRoomNodeDimensions } from './room-label-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
 
 export interface CanvasSize {
@@ -64,21 +64,26 @@ export interface StickyNoteBounds {
   readonly height: number;
 }
 
-export function getRoomNodeWidth(room: Pick<Room, 'name' | 'locked'> | string, locked: boolean = false): number {
-  return Math.max(ROOM_WIDTH, getSharedRoomNodeWidth(room, locked));
+export function getRoomNodeWidth(
+  room: Pick<Room, 'name' | 'locked'> | string,
+  locked: boolean = false,
+  visualStyle: MapVisualStyle = 'default',
+): number {
+  return getRoomNodeDimensions(room, visualStyle, locked).width;
 }
 
-export function getRoomBounds(room: Room): RoomBounds {
+export function getRoomBounds(room: Room, visualStyle: MapVisualStyle = 'default'): RoomBounds {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
   return {
     left: room.position.x,
     top: room.position.y,
-    width: getRoomNodeWidth(room),
-    height: ROOM_HEIGHT,
+    width: dimensions.width,
+    height: dimensions.height,
   };
 }
 
-export function getRoomCenter(room: Room): Point {
-  const bounds = getRoomBounds(room);
+export function getRoomCenter(room: Room, visualStyle: MapVisualStyle = 'default'): Point {
+  const bounds = getRoomBounds(room, visualStyle);
   return {
     x: bounds.left + (bounds.width / 2),
     y: bounds.top + (bounds.height / 2),
@@ -197,8 +202,12 @@ export function clampPointToMinimap(point: Point, transform: MinimapTransform): 
   };
 }
 
-export function getMinimapRoomRect(room: Room, transform: MinimapTransform): RoomBounds {
-  const bounds = getRoomBounds(room);
+export function getMinimapRoomRect(
+  room: Room,
+  transform: MinimapTransform,
+  visualStyle: MapVisualStyle = 'default',
+): RoomBounds {
+  const bounds = getRoomBounds(room, visualStyle);
   const topLeft = toMinimapPoint({ x: bounds.left, y: bounds.top }, transform);
 
   return {
@@ -225,6 +234,7 @@ export function getMinimapConnectionPoints(
   rooms: Readonly<Record<string, Room>>,
   connection: Connection,
   transform: MinimapTransform,
+  visualStyle: MapVisualStyle = 'default',
 ): Point[] {
   const sourceRoom = rooms[connection.sourceRoomId];
   const targetRoom = rooms[connection.targetRoomId];
@@ -232,33 +242,42 @@ export function getMinimapConnectionPoints(
     return [];
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
+  const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, visualStyle);
+  const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, visualStyle);
+  const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, visualStyle);
+  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, visualStyle);
 
-  const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
+  const points = computeConnectionPath(
+    effectiveSourceRoom,
+    effectiveTargetRoom,
+    connection,
+    undefined,
+    sourceDimensions,
+    targetDimensions,
+  );
   if (connection.sourceRoomId === connection.targetRoomId || points.length < 2) {
     return points.map((point) => toMinimapPoint(point, transform));
   }
 
   const minimapPoints = [...points];
-  const sourceCenter = getRoomCenter(sourceRoom);
+  const sourceCenter = getRoomCenter(effectiveSourceRoom, visualStyle);
   if (minimapPoints[0].x === sourceCenter.x && minimapPoints[0].y === sourceCenter.y) {
     minimapPoints[0] = getRoomPerimeterPointToward(
-      sourceRoom.position,
+      effectiveSourceRoom.position,
       minimapPoints[1],
       sourceDimensions,
-      sourceRoom.shape,
+      effectiveSourceRoom.shape,
     );
   }
 
-  const targetCenter = getRoomCenter(targetRoom);
+  const targetCenter = getRoomCenter(effectiveTargetRoom, visualStyle);
   const targetPointIndex = minimapPoints.length - 1;
   if (minimapPoints[targetPointIndex].x === targetCenter.x && minimapPoints[targetPointIndex].y === targetCenter.y) {
     minimapPoints[targetPointIndex] = getRoomPerimeterPointToward(
-      targetRoom.position,
+      effectiveTargetRoom.position,
       minimapPoints[targetPointIndex - 1],
       targetDimensions,
-      targetRoom.shape,
+      effectiveTargetRoom.shape,
     );
   }
 
@@ -270,6 +289,7 @@ export function getMinimapStickyNoteLinkPoints(
   stickyNotes: Readonly<Record<string, StickyNote>>,
   stickyNoteLink: StickyNoteLink,
   transform: MinimapTransform,
+  visualStyle: MapVisualStyle = 'default',
 ): readonly Point[] {
   const room = rooms[stickyNoteLink.roomId];
   const stickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
@@ -279,7 +299,7 @@ export function getMinimapStickyNoteLinkPoints(
 
   return [
     toMinimapPoint(getStickyNoteCenter(stickyNote), transform),
-    toMinimapPoint(getRoomCenter(room), transform),
+    toMinimapPoint(getRoomCenter(room, visualStyle), transform),
   ];
 }
 

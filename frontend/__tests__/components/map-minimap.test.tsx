@@ -158,6 +158,18 @@ describe('MapMinimap', () => {
     expect(paths.some((d) => (d?.match(/L/g) ?? []).length >= 6)).toBe(true);
   });
 
+  it('renders square-classic rooms as rectangles in the minimap', () => {
+    const diamond = { ...createRoom('Diamond'), position: { x: 0, y: 0 }, shape: 'diamond' as const };
+
+    renderMinimap({
+      rooms: { [diamond.id]: diamond },
+      visualStyle: 'square-classic',
+    });
+
+    const path = document.querySelector('.map-minimap__room path')?.getAttribute('d') ?? '';
+    expect(path).toContain('Q');
+  });
+
   it('renders sticky notes and keeps connection lines behind rooms and notes', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const note = { ...createStickyNote('Check desk'), position: { x: 240, y: 80 } };

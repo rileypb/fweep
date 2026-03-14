@@ -1,6 +1,7 @@
 import { useEditorStore } from '../state/editor-store';
 import {
   type Connection,
+  type MapVisualStyle,
   type Room,
   type StickyNote,
   type StickyNoteLink,
@@ -17,10 +18,10 @@ import {
   getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
   pointsToSvgString,
-  ROOM_HEIGHT,
   type Point,
 } from '../graph/connection-geometry';
-import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { getRoomNodeDimensions } from '../graph/room-label-geometry';
+import { getRoomForVisualStyle } from '../graph/room-label-geometry';
 import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
 import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
@@ -214,6 +215,7 @@ export interface MapCanvasConnectionsProps {
   stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
   onOpenConnectionEditor: (connectionId: string) => void;
   theme: ThemeMode;
+  visualStyle: MapVisualStyle;
 }
 
 export function MapCanvasConnections({
@@ -223,6 +225,7 @@ export function MapCanvasConnections({
   stickyNoteLinks,
   onOpenConnectionEditor,
   theme,
+  visualStyle,
 }: MapCanvasConnectionsProps): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const stickyNoteLinkDrag = useEditorStore((s) => s.stickyNoteLinkDrag);
@@ -308,7 +311,14 @@ export function MapCanvasConnections({
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
     const pathData = geometry.kind === 'polyline' ? null : connectionGeometryToSvgPath(geometry);
     const visiblePolylineResult = geometry.kind === 'polyline'
-      ? getVisibleConnectionSegments(conn, points, rooms)
+      ? getVisibleConnectionSegments(
+        conn,
+        points,
+        Object.fromEntries(
+          Object.entries(rooms).map(([roomId, room]) => [roomId, getRoomForVisualStyle(room, visualStyle)]),
+        ),
+        visualStyle,
+      )
       : { segments: [], crossbars: [], hasGap: false };
     const usesGapRendering = geometry.kind === 'polyline'
       && conn.sourceRoomId !== conn.targetRoomId
@@ -655,10 +665,10 @@ export function MapCanvasConnections({
           const rawTgt = rooms[conn.targetRoomId];
           if (!rawSrc || !rawTgt) return null;
 
-          const src = applyDragOffset(rawSrc, selectionDrag);
-          const tgt = applyDragOffset(rawTgt, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(src), height: ROOM_HEIGHT };
-          const tgtDimensions = { width: getRoomNodeWidth(tgt), height: ROOM_HEIGHT };
+          const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
+          const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
+          const srcDimensions = getRoomNodeDimensions(src, visualStyle);
+          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
           const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
           const geometry = createConnectionRenderGeometry(
             points,
@@ -694,8 +704,8 @@ export function MapCanvasConnections({
           const room = applyDragOffset(rawRoom, selectionDrag);
           const stickyNoteCenter = getStickyNoteCenter(stickyNote);
           const roomCenter = {
-            x: room.position.x + (getRoomNodeWidth(room) / 2),
-            y: room.position.y + (ROOM_HEIGHT / 2),
+            x: room.position.x + (getRoomNodeDimensions(room, visualStyle).width / 2),
+            y: room.position.y + (getRoomNodeDimensions(room, visualStyle).height / 2),
           };
           const isSelected = selectedStickyNoteLinkIds.includes(stickyNoteLink.id);
 
@@ -752,8 +762,8 @@ export function MapCanvasConnections({
         {connectionDrag && (() => {
           const srcRoom = rooms[connectionDrag.sourceRoomId];
           if (!srcRoom) return null;
-          const adjustedSrc = applyDragOffset(srcRoom, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(adjustedSrc), height: ROOM_HEIGHT };
+          const adjustedSrc = getRoomForVisualStyle(applyDragOffset(srcRoom, selectionDrag), visualStyle);
+          const srcDimensions = getRoomNodeDimensions(adjustedSrc, visualStyle);
           const points = computePreviewPath(
             adjustedSrc,
             connectionDrag.sourceDirection,
@@ -838,10 +848,11 @@ export function MapCanvasConnections({
           if (!rawSrc || !rawTgt) return null;
 
           const src = applyDragOffset(rawSrc, selectionDrag);
-          const tgt = applyDragOffset(rawTgt, selectionDrag);
-          const srcDimensions = { width: getRoomNodeWidth(src), height: ROOM_HEIGHT };
-          const tgtDimensions = { width: getRoomNodeWidth(tgt), height: ROOM_HEIGHT };
-          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
+          const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
+          const effectiveSrc = getRoomForVisualStyle(src, visualStyle);
+          const srcDimensions = getRoomNodeDimensions(effectiveSrc, visualStyle);
+          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const points = computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions);
 
           return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;
         })}

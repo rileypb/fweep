@@ -1,6 +1,7 @@
 import {
   BACKGROUND_LAYER_CHUNK_SIZE,
   CURRENT_SCHEMA_VERSION,
+  MAP_VISUAL_STYLES,
   type ConnectionAnnotation,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
@@ -219,6 +220,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     return {
       pan: { x: 0, y: 0 },
       zoom: 1,
+      visualStyle: 'default',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -230,6 +232,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     return {
       pan: { x: 0, y: 0 },
       zoom: 1,
+      visualStyle: 'default',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -242,6 +245,9 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const zoom = view.zoom === undefined
     ? 1
     : requireFiniteNumber(view.zoom, issues, 'view.zoom', 'map', 'root');
+  const visualStyleValue = view.visualStyle === undefined
+    ? 'default'
+    : requireString(view.visualStyle, issues, 'view.visualStyle', 'map', 'root');
   const showGrid = view.showGrid === undefined
     ? true
     : requireBoolean(view.showGrid, issues, 'view.showGrid', 'map', 'root');
@@ -251,6 +257,13 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const useBezierConnections = view.useBezierConnections === undefined
     ? false
     : requireBoolean(view.useBezierConnections, issues, 'view.useBezierConnections', 'map', 'root');
+  if (visualStyleValue !== null && !MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])) {
+    pushIssue(issues, 'error', 'map', 'root', 'view.visualStyle', 'view.visualStyle must be a supported map visual style.');
+  }
+
+  const visualStyle = visualStyleValue !== null && MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])
+    ? visualStyleValue as typeof MAP_VISUAL_STYLES[number]
+    : 'default';
 
   return {
     pan: {
@@ -258,6 +271,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       y: panY ?? 0,
     },
     zoom: zoom ?? 1,
+    visualStyle,
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
     useBezierConnections: useBezierConnections ?? false,

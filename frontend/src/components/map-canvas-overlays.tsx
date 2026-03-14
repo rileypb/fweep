@@ -321,6 +321,7 @@ export function RoomEditorOverlay({
   onBackdropClose,
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => (roomId === undefined ? null : (s.doc?.rooms[roomId] ?? null)));
+  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -407,7 +408,7 @@ export function RoomEditorOverlay({
     strokeColorIndex: draft.strokeColorIndex,
     strokeStyle: draft.strokeStyle,
   };
-  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect, zoom);
+  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect, zoom, mapVisualStyle);
   const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
   const panelWidth = Math.min(42 * 16, Math.max(viewportWidth - 32, 0));
   const panelHalfWidth = panelWidth / 2;
@@ -425,6 +426,7 @@ export function RoomEditorOverlay({
         className="room-node room-editor-room-node"
         data-testid="room-editor-room-node"
         data-room-shape={draft.shape}
+        data-map-visual-style={mapVisualStyle}
         style={{
           transform: `translate(${roomGeometry.centerX}px, ${roomGeometry.top}px) translateX(-50%)`,
           width: `${roomGeometry.width}px`,
@@ -437,7 +439,7 @@ export function RoomEditorOverlay({
           width={roomGeometry.width}
           height={roomGeometry.height}
         >
-          {renderRoomShape(draft.shape, roomGeometry.width, roomGeometry.height, draftRoom, theme)}
+          {renderRoomShape(draft.shape, roomGeometry.width, roomGeometry.height, draftRoom, theme, mapVisualStyle)}
         </svg>
         <input
           ref={nameInputRef}
@@ -521,27 +523,29 @@ export function RoomEditorOverlay({
           </aside>
 
           <div className="room-editor-main">
-            <div className="room-editor-field">
-              <span className="room-editor-label">Shape</span>
-              <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
-                {ROOM_SHAPES.map((shape) => (
-                  <button
-                    key={shape}
-                    type="button"
-                    role="radio"
-                    aria-checked={draft.shape === shape}
-                    className={`room-shape-option${draft.shape === shape ? ' room-shape-option--selected' : ''}`}
-                    data-testid={`room-shape-option-${shape}`}
-                    onClick={() => setDraft((current) => current === null ? current : { ...current, shape })}
-                  >
-                    <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
-                      {renderRoomShape(shape, 44, 28, draftRoom, theme)}
-                    </svg>
-                    <span>{shape}</span>
-                  </button>
-                ))}
+            {mapVisualStyle === 'default' && (
+              <div className="room-editor-field">
+                <span className="room-editor-label">Shape</span>
+                <div className="room-shape-picker" role="radiogroup" aria-label="Room shape">
+                  {ROOM_SHAPES.map((shape) => (
+                    <button
+                      key={shape}
+                      type="button"
+                      role="radio"
+                      aria-checked={draft.shape === shape}
+                      className={`room-shape-option${draft.shape === shape ? ' room-shape-option--selected' : ''}`}
+                      data-testid={`room-shape-option-${shape}`}
+                      onClick={() => setDraft((current) => current === null ? current : { ...current, shape })}
+                    >
+                      <svg className="room-shape-option-preview" width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
+                        {renderRoomShape(shape, 44, 28, draftRoom, theme, 'default')}
+                      </svg>
+                      <span>{shape}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="room-editor-actions">
               <button

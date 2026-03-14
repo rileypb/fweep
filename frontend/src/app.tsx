@@ -260,8 +260,10 @@ export function App(): React.JSX.Element {
   const storeDoc = useEditorStore((s) => s.doc);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
+  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
+  const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
@@ -889,6 +891,21 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
             <SnapToggle />
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label="Toggle map visual style"
+              title="Toggle map visual style"
+              aria-pressed={mapVisualStyle === 'square-classic'}
+              onClick={() => setMapVisualStyle(mapVisualStyle === 'default' ? 'square-classic' : 'default')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <rect x="2.5" y="2.5" width="4" height="4" />
+                <rect x="9.5" y="2.5" width="4" height="4" rx="1.5" />
+                <rect x="2.5" y="9.5" width="4" height="4" transform="rotate(45 4.5 11.5)" />
+                <rect x="9.5" y="9.5" width="4" height="4" />
+              </svg>
+            </button>
             <ThemeToggle />
             <button
               type="button"

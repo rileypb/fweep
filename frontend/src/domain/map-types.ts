@@ -21,10 +21,14 @@ export interface Position {
 export interface MapView {
   readonly pan: Position;
   readonly zoom: number;
+  readonly visualStyle: MapVisualStyle;
   readonly showGrid: boolean;
   readonly snapToGrid: boolean;
   readonly useBezierConnections: boolean;
 }
+
+export const MAP_VISUAL_STYLES = ['default', 'square-classic'] as const;
+export type MapVisualStyle = (typeof MAP_VISUAL_STYLES)[number];
 
 /* ---- Background ---- */
 
@@ -180,6 +184,7 @@ export function createEmptyMap(name: string): MapDocument {
     view: {
       pan: { x: 0, y: 0 },
       zoom: 1,
+      visualStyle: 'default',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,

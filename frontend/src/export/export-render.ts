@@ -8,14 +8,12 @@ import {
   createConnectionRenderGeometry,
   findRoomDirectionForConnection,
   ROOM_CORNER_RADIUS,
-  ROOM_HEIGHT,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
   type Point,
 } from '../graph/connection-geometry';
-import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
-import { getRoomLabelLayout } from '../graph/room-label-geometry';
+import { getRoomForVisualStyle, getRoomLabelLayout, getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import {
@@ -64,13 +62,23 @@ function setDashArray(context: CanvasRenderingContext2D, strokeStyle: Connection
   context.setLineDash(dash ? dash.split(' ').map((segment) => Number(segment)) : []);
 }
 
-function drawRoomShape(context: CanvasRenderingContext2D, room: Room, theme: ExportRenderInput['theme']): void {
-  const width = getRoomNodeWidth(room);
+function drawRoomShape(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
+): void {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const width = dimensions.width;
   const left = room.position.x;
   const top = room.position.y;
 
   context.beginPath();
-  traceRoomShapePath(context, room.shape, left, top, width, ROOM_HEIGHT, ROOM_CORNER_RADIUS);
+  if (visualStyle === 'square-classic') {
+    traceRoomShapePath(context, 'rectangle', left, top, width, dimensions.height, 0);
+  } else {
+    traceRoomShapePath(context, room.shape, left, top, width, dimensions.height, ROOM_CORNER_RADIUS);
+  }
 
   context.fillStyle = getRoomFillColor(room.fillColorIndex, theme);
   context.strokeStyle = getRoomStrokeColor(room.strokeColorIndex, theme);
@@ -81,9 +89,15 @@ function drawRoomShape(context: CanvasRenderingContext2D, room: Room, theme: Exp
   context.setLineDash([]);
 }
 
-function drawRoomLabel(context: CanvasRenderingContext2D, room: Room, theme: ExportRenderInput['theme']): void {
-  const width = getRoomNodeWidth(room);
-  const labelLayout = getRoomLabelLayout(room, width, ROOM_HEIGHT);
+function drawRoomLabel(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
+): void {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const width = dimensions.width;
+  const labelLayout = getRoomLabelLayout(room, width, dimensions.height, visualStyle);
   const foreground = getForegroundColor(theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
@@ -139,7 +153,13 @@ function drawRoomLabel(context: CanvasRenderingContext2D, room: Room, theme: Exp
   context.font = '600 13px sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(room.name, room.position.x + labelLayout.textX, room.position.y + labelLayout.textY);
+  labelLayout.lines.forEach((line, index) => {
+    context.fillText(
+      line,
+      room.position.x + labelLayout.textX,
+      room.position.y + labelLayout.firstLineY + (index * labelLayout.lineHeight),
+    );
+  });
 }
 
 function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNote): void {
@@ -198,8 +218,8 @@ function drawStickyNoteLink(
 
   const stickyNoteCenter = getStickyNoteCenter(stickyNote);
   const roomCenter = {
-    x: room.position.x + (getRoomNodeWidth(room) / 2),
-    y: room.position.y + (ROOM_HEIGHT / 2),
+    x: room.position.x + (getRoomNodeDimensions(room, doc.view.visualStyle).width / 2),
+    y: room.position.y + (getRoomNodeDimensions(room, doc.view.visualStyle).height / 2),
   };
 
   context.beginPath();
@@ -255,9 +275,19 @@ function drawConnectionLine(
     return null;
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
-  const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
+  const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, doc.view.visualStyle);
+  const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, doc.view.visualStyle);
+
+  const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
+  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
+  const points = computeConnectionPath(
+    effectiveSourceRoom,
+    effectiveTargetRoom,
+    connection,
+    undefined,
+    sourceDimensions,
+    targetDimensions,
+  );
   const geometry = createConnectionRenderGeometry(
     points,
     connection.isBidirectional,
@@ -269,7 +299,7 @@ function drawConnectionLine(
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
   if (geometry.kind === 'polyline' && connection.sourceRoomId !== connection.targetRoomId) {
-    const visiblePolylineResult = getVisibleConnectionSegments(connection, points, doc.rooms);
+    const visiblePolylineResult = getVisibleConnectionSegments(connection, points, doc.rooms, doc.view.visualStyle);
     if (visiblePolylineResult.hasGap) {
       visiblePolylineResult.segments.forEach((segment) => {
         context.beginPath();
@@ -622,7 +652,7 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   });
 
   renderableRooms.forEach((room) => {
-    drawRoomShape(context, room, input.theme);
+    drawRoomShape(context, room, input.theme, input.doc.view.visualStyle);
   });
 
   renderedConnectionGeometry.forEach(({ connection, result }) => {
@@ -636,7 +666,7 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   });
 
   renderableRooms.forEach((room) => {
-    drawRoomLabel(context, room, input.theme);
+    drawRoomLabel(context, room, input.theme, input.doc.view.visualStyle);
   });
 
   renderableStickyNotes.forEach((stickyNote) => {

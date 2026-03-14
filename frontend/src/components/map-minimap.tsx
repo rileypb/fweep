@@ -3,6 +3,7 @@ import {
   BACKGROUND_LAYER_CHUNK_SIZE,
   type BackgroundDocument,
   type Connection,
+  type MapVisualStyle,
   type Room,
   type RoomShape,
   type StickyNote,
@@ -50,6 +51,7 @@ export interface MapMinimapProps {
   readonly selectedStickyNoteLinkIds?: readonly string[];
   readonly panOffset: PanOffset;
   readonly zoom?: number;
+  readonly visualStyle?: MapVisualStyle;
   readonly canvasRect: CanvasRectLike | null;
   readonly theme: ThemeMode;
   readonly disabled?: boolean;
@@ -63,6 +65,10 @@ interface MinimapBackgroundChunk extends BackgroundChunkRecord {
 
 function getMinimapShapePath(shape: RoomShape, width: number, height: number): string {
   return getRoomShapePath(shape, width, height, 8);
+}
+
+function getEffectiveMinimapShape(shape: RoomShape, visualStyle: MapVisualStyle): RoomShape {
+  return visualStyle === 'square-classic' ? 'rectangle' : shape;
 }
 
 export function MapMinimap({
@@ -79,6 +85,7 @@ export function MapMinimap({
   selectedStickyNoteLinkIds = [],
   panOffset,
   zoom = 1,
+  visualStyle = 'default',
   canvasRect,
   theme,
   disabled = false,
@@ -131,7 +138,7 @@ export function MapMinimap({
     if (roomEntries.length > 0 || stickyNoteEntries.length > 0) {
       return mergeWorldBounds([
         ...roomEntries.map((room) => {
-          const bounds = getRoomBounds(room);
+          const bounds = getRoomBounds(room, visualStyle);
           return {
             left: bounds.left,
             top: bounds.top,
@@ -159,7 +166,7 @@ export function MapMinimap({
     }));
 
     return mergeWorldBounds(backgroundBounds);
-  }, [backgroundChunks, roomEntries, stickyNoteEntries]);
+  }, [backgroundChunks, roomEntries, stickyNoteEntries, visualStyle]);
   const transform = useMemo(
     () => worldBounds
       ? createMinimapTransform(worldBounds, { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT })
@@ -297,7 +304,7 @@ export function MapMinimap({
           );
         })}
         {Object.values(connections).map((connection) => {
-          const points = getMinimapConnectionPoints(rooms, connection, transform);
+          const points = getMinimapConnectionPoints(rooms, connection, transform, visualStyle);
           if (points.length === 0) {
             return null;
           }
@@ -316,7 +323,7 @@ export function MapMinimap({
           );
         })}
         {Object.values(stickyNoteLinks).map((stickyNoteLink) => {
-          const points = getMinimapStickyNoteLinkPoints(rooms, stickyNotes, stickyNoteLink, transform);
+          const points = getMinimapStickyNoteLinkPoints(rooms, stickyNotes, stickyNoteLink, transform, visualStyle);
           if (points.length !== 2) {
             return null;
           }
@@ -334,7 +341,7 @@ export function MapMinimap({
           );
         })}
         {roomEntries.map((room) => {
-          const rect = getMinimapRoomRect(room, transform);
+          const rect = getMinimapRoomRect(room, transform, visualStyle);
           const isSelected = selectedRoomIds.includes(room.id);
 
           return (
@@ -343,7 +350,7 @@ export function MapMinimap({
               className={`map-minimap__room${isSelected ? ' map-minimap__room--selected' : ''}`}
               transform={`translate(${rect.left} ${rect.top})`}
             >
-              <path d={getMinimapShapePath(room.shape, rect.width, rect.height)} />
+              <path d={getMinimapShapePath(getEffectiveMinimapShape(room.shape, visualStyle), rect.width, rect.height)} />
             </g>
           );
         })}

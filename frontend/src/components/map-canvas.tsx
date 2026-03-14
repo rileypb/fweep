@@ -181,6 +181,7 @@ export function MapCanvas({
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const persistedZoom = useEditorStore((s) => s.mapZoom);
+  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setMapZoom = useEditorStore((s) => s.setMapZoom);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
@@ -424,7 +425,7 @@ export function MapCanvas({
     const nextCanvasRect = canvasEl.getBoundingClientRect();
     const canvasWidth = nextCanvasRect.width || canvasEl.clientWidth;
     const canvasHeight = nextCanvasRect.height || canvasEl.clientHeight;
-    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, nextCanvasRect, zoomRef.current);
+    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, nextCanvasRect, zoomRef.current, mapVisualStyle);
     const roomCenterX = roomGeometry.centerX - nextCanvasRect.left;
     const roomTopY = roomGeometry.top - nextCanvasRect.top;
     const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
@@ -435,7 +436,7 @@ export function MapCanvas({
       x: prev.x + (visibleCenterX - roomCenterX),
       y: prev.y + ((canvasHeight / 3) - roomTopY),
     }));
-  }, [canvasRef, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRef, mapVisualStyle, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
 
   const panToRoomEditorPosition = useCallback((roomId: string) => {
     const room = useEditorStore.getState().doc?.rooms[roomId];
@@ -489,7 +490,7 @@ export function MapCanvas({
 
   const centerRoomOnScreen = useCallback((room: Room) => {
     const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
-    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current);
+    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current, mapVisualStyle);
     const canvasWidth = currentCanvasRect?.width ?? canvasRef.current?.clientWidth ?? 0;
     const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
     const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
@@ -509,7 +510,7 @@ export function MapCanvas({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRect, canvasRef, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
 
   const centerRoomsOnScreen = useCallback((targetRooms: readonly Room[]) => {
     if (targetRooms.length === 0) {
@@ -528,7 +529,7 @@ export function MapCanvas({
       return;
     }
 
-    const screenBounds = targetRooms.map((room) => getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current));
+    const screenBounds = targetRooms.map((room) => getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current, mapVisualStyle));
     const groupLeft = Math.min(...screenBounds.map((room) => room.left - (currentCanvasRect?.left ?? 0)));
     const groupRight = Math.max(...screenBounds.map((room) => (room.left - (currentCanvasRect?.left ?? 0)) + room.width));
     const groupTop = Math.min(...screenBounds.map((room) => room.top - (currentCanvasRect?.top ?? 0)));
@@ -546,7 +547,7 @@ export function MapCanvas({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, centerRoomOnScreen, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRect, canvasRef, centerRoomOnScreen, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
 
   useLayoutEffect(() => {
     if (requestedRoomRevealRequest === null) {
@@ -1008,9 +1009,9 @@ export function MapCanvas({
 
       const updateSelection = (nextSelectionBox: SelectionBox) => {
         setSelection(
-          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle),
           getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
-          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
           doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
         );
       };
@@ -1363,6 +1364,7 @@ export function MapCanvas({
             selectedStickyNoteLinkIds={selectedStickyNoteLinkIds}
             panOffset={panOffset}
             zoom={zoom}
+            visualStyle={mapVisualStyle}
             canvasRect={effectiveCanvasRect}
             theme={theme}
             disabled={roomEditorId !== null || connectionEditorId !== null}
@@ -1394,6 +1396,7 @@ export function MapCanvas({
               stickyNoteLinks={doc.stickyNoteLinks}
               onOpenConnectionEditor={openConnectionEditor}
               theme={theme}
+              visualStyle={mapVisualStyle}
             />
           )}
 

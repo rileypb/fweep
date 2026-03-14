@@ -4,10 +4,9 @@ import {
   type Point,
   computeConnectionPath,
   findRoomDirectionForConnection,
-  ROOM_HEIGHT,
   sampleConnectionGeometryAtFraction,
 } from '../graph/connection-geometry';
-import { getRoomNodeWidth } from '../graph/minimap-geometry';
+import { getRoomForVisualStyle, getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import type { ExportBoundsResult, ExportRegion, ExportSettings, ExportValidationError } from './export-types';
 
@@ -83,12 +82,13 @@ function applyPadding(bounds: ExportRegion, padding: number): ExportRegion {
   };
 }
 
-function getRoomBounds(room: Room): ExportRegion {
+function getRoomBounds(room: Room, doc: MapDocument): ExportRegion {
+  const dimensions = getRoomNodeDimensions(room, doc.view.visualStyle);
   return {
     left: room.position.x,
     top: room.position.y,
-    right: room.position.x + getRoomNodeWidth(room),
-    bottom: room.position.y + ROOM_HEIGHT,
+    right: room.position.x + dimensions.width,
+    bottom: room.position.y + dimensions.height,
   };
 }
 
@@ -109,9 +109,10 @@ function getStickyNoteLinkBounds(doc: MapDocument, stickyNoteLink: StickyNoteLin
   }
 
   const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+  const roomDimensions = getRoomNodeDimensions(room, doc.view.visualStyle);
   const roomCenter = {
-    x: room.position.x + (getRoomNodeWidth(room) / 2),
-    y: room.position.y + (ROOM_HEIGHT / 2),
+    x: room.position.x + (roomDimensions.width / 2),
+    y: room.position.y + (roomDimensions.height / 2),
   };
 
   return {
@@ -219,9 +220,18 @@ function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRe
     return null;
   }
 
-  const sourceDimensions = { width: getRoomNodeWidth(sourceRoom), height: ROOM_HEIGHT };
-  const targetDimensions = { width: getRoomNodeWidth(targetRoom), height: ROOM_HEIGHT };
-  const points = computeConnectionPath(sourceRoom, targetRoom, connection, undefined, sourceDimensions, targetDimensions);
+  const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, doc.view.visualStyle);
+  const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, doc.view.visualStyle);
+  const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
+  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
+  const points = computeConnectionPath(
+    effectiveSourceRoom,
+    effectiveTargetRoom,
+    connection,
+    undefined,
+    sourceDimensions,
+    targetDimensions,
+  );
   let bounds = createEmptyBounds();
 
   points.forEach((point) => {
@@ -282,7 +292,7 @@ export function getEntireMapExportBounds(doc: MapDocument, padding: number): Exp
   let hasContent = false;
 
   Object.values(doc.rooms).forEach((room) => {
-    bounds = includeRect(bounds, getRoomBounds(room));
+    bounds = includeRect(bounds, getRoomBounds(room, doc));
     hasContent = true;
   });
 
@@ -361,7 +371,7 @@ export function getSelectionExportBounds(
     if (!room) {
       return;
     }
-    bounds = includeRect(bounds, getRoomBounds(room));
+    bounds = includeRect(bounds, getRoomBounds(room, doc));
     hasContent = true;
   });
 
