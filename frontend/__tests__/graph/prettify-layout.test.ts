@@ -260,4 +260,15 @@ describe('computePrettifiedRoomPositions', () => {
 
     expect(stickyNotePositions[stickyNoteA.id]).not.toEqual(stickyNotePositions[stickyNoteB.id]);
   });
+
+  it('computes three bend points for a prettified connection', () => {
+    const { doc } = createTwoWayConnectionDoc();
+
+    const { connectionBendPoints } = computePrettifiedLayoutPositions(doc);
+    const [connectionId] = Object.keys(doc.connections);
+    const bendPoints = connectionBendPoints[connectionId];
+
+    expect(bendPoints).toHaveLength(3);
+    expect(bendPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))).toBe(true);
+  });
 });

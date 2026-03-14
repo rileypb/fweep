@@ -1,4 +1,5 @@
-import type { MapDocument, Position, Room, StickyNote } from '../domain/map-types';
+import type { Connection, MapDocument, Position, Room, StickyNote } from '../domain/map-types';
+import { computeConnectionPath } from './connection-geometry';
 import { getRoomNodeWidth } from './room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
 const ROOM_HEIGHT = 36;
@@ -11,10 +12,17 @@ export const PRETTIFY_HORIZONTAL_SPACING = 160;
 export const PRETTIFY_VERTICAL_SPACING = 120;
 
 const RELAXATION_ITERATIONS = 80;
+const CONNECTION_WEIGHT_ITERATIONS = 90;
 const SPRING_STRENGTH = 0.14;
 const ANCHOR_STRENGTH = 0.035;
 const REPULSION_STRENGTH = 18_000;
 const MAX_STEP = 18;
+const CONNECTION_WEIGHT_ATTRACTION = 0;
+const CONNECTION_WEIGHT_ROOM_ATTRACTION = 0;
+const CONNECTION_WEIGHT_REPULSION = 0;
+const CONNECTION_WEIGHT_ROOM_REPULSION = 4_000;
+const CONNECTION_WEIGHT_MAX_STEP = 14;
+const CONNECTION_WEIGHT_ROOM_REPULSION_MAX_DISTANCE = ROOM_HEIGHT;
 
 interface Vector {
   x: number;
@@ -30,6 +38,17 @@ interface DirectionConstraint {
 interface PrettifiedLayoutPositions {
   readonly roomPositions: Readonly<Record<string, Position>>;
   readonly stickyNotePositions: Readonly<Record<string, Position>>;
+  readonly connectionBendPoints: Readonly<Record<string, readonly Position[]>>;
+}
+
+interface ConnectionWeight {
+  readonly connectionId: string;
+  readonly index: number;
+  readonly sourceRoomId: string;
+  readonly targetRoomId: string;
+  readonly anchorStart: Vector;
+  readonly anchorEnd: Vector;
+  readonly homePosition: Vector;
 }
 
 const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
@@ -785,6 +804,208 @@ function computePrettifiedStickyNotePositions(
   return Object.fromEntries(placedStickyNotes.entries());
 }
 
+function toPointVector(point: Position): Vector {
+  return { x: point.x, y: point.y };
+}
+
+function buildDocWithRoomPositions(doc: MapDocument, roomPositions: Readonly<Record<string, Position>>): MapDocument {
+  return {
+    ...doc,
+    rooms: Object.fromEntries(
+      Object.entries(doc.rooms).map(([roomId, room]) => [
+        roomId,
+        roomPositions[roomId] ? { ...room, position: roomPositions[roomId] } : room,
+      ]),
+    ),
+  };
+}
+
+function getConnectionMainSegment(points: readonly Position[]): { start: Vector; end: Vector } | null {
+  if (points.length < 2) {
+    return null;
+  }
+
+  const start = points.length > 2 ? points[1] : points[0];
+  const end = points.length > 2 ? points[points.length - 2] : points[points.length - 1];
+  if (start.x === end.x && start.y === end.y) {
+    return null;
+  }
+
+  return {
+    start: toPointVector(start),
+    end: toPointVector(end),
+  };
+}
+
+function limitWeightStep(value: number): number {
+  return Math.max(-CONNECTION_WEIGHT_MAX_STEP, Math.min(CONNECTION_WEIGHT_MAX_STEP, value));
+}
+
+function getRoomCenterForPosition(room: Room, position: Position): Vector {
+  return toRoomCenter(room, position);
+}
+
+function computePrettifiedConnectionBendPoints(
+  doc: MapDocument,
+  roomPositions: Readonly<Record<string, Position>>,
+): Readonly<Record<string, readonly Position[]>> {
+  const positionedDoc = buildDocWithRoomPositions(doc, roomPositions);
+  const connectionWeights: ConnectionWeight[] = [];
+  const weightPositions = new Map<string, Vector>();
+
+  Object.values(positionedDoc.connections).forEach((connection) => {
+    if (connection.sourceRoomId === connection.targetRoomId) {
+      return;
+    }
+
+    const sourceRoom = positionedDoc.rooms[connection.sourceRoomId];
+    const targetRoom = positionedDoc.rooms[connection.targetRoomId];
+    if (!sourceRoom || !targetRoom) {
+      return;
+    }
+
+    const points = computeConnectionPath(
+      sourceRoom,
+      targetRoom,
+      { ...connection, bendPoints: undefined },
+      undefined,
+      { width: estimateRoomWidth(sourceRoom), height: ROOM_HEIGHT },
+      { width: estimateRoomWidth(targetRoom), height: ROOM_HEIGHT },
+    );
+    const mainSegment = getConnectionMainSegment(points);
+    if (!mainSegment) {
+      return;
+    }
+
+    for (let index = 0; index < 3; index += 1) {
+      const fraction = (index + 1) / 4;
+      const homePosition = {
+        x: mainSegment.start.x + ((mainSegment.end.x - mainSegment.start.x) * fraction),
+        y: mainSegment.start.y + ((mainSegment.end.y - mainSegment.start.y) * fraction),
+      };
+      const weight: ConnectionWeight = {
+        connectionId: connection.id,
+        index,
+        sourceRoomId: connection.sourceRoomId,
+        targetRoomId: connection.targetRoomId,
+        anchorStart: mainSegment.start,
+        anchorEnd: mainSegment.end,
+        homePosition,
+      };
+      const weightKey = `${connection.id}:${index}`;
+      connectionWeights.push(weight);
+      weightPositions.set(weightKey, { ...homePosition });
+    }
+  });
+
+  for (let iteration = 0; iteration < CONNECTION_WEIGHT_ITERATIONS; iteration += 1) {
+    const forces = new Map<string, Vector>();
+    connectionWeights.forEach((weight) => {
+      forces.set(`${weight.connectionId}:${weight.index}`, { x: 0, y: 0 });
+    });
+
+    for (let index = 0; index < connectionWeights.length; index += 1) {
+      const weight = connectionWeights[index];
+      const weightKey = `${weight.connectionId}:${weight.index}`;
+      const weightPosition = weightPositions.get(weightKey)!;
+
+      if (weight.index > 0) {
+        const previousKey = `${weight.connectionId}:${weight.index - 1}`;
+        const previousPosition = weightPositions.get(previousKey)!;
+        const dx = previousPosition.x - weightPosition.x;
+        const dy = previousPosition.y - weightPosition.y;
+        forces.get(weightKey)!.x += dx * CONNECTION_WEIGHT_ATTRACTION;
+        forces.get(weightKey)!.y += dy * CONNECTION_WEIGHT_ATTRACTION;
+      } else {
+        forces.get(weightKey)!.x += (weight.anchorStart.x - weightPosition.x) * CONNECTION_WEIGHT_ATTRACTION;
+        forces.get(weightKey)!.y += (weight.anchorStart.y - weightPosition.y) * CONNECTION_WEIGHT_ATTRACTION;
+      }
+
+      if (weight.index < 2) {
+        const nextKey = `${weight.connectionId}:${weight.index + 1}`;
+        const nextPosition = weightPositions.get(nextKey)!;
+        const dx = nextPosition.x - weightPosition.x;
+        const dy = nextPosition.y - weightPosition.y;
+        forces.get(weightKey)!.x += dx * CONNECTION_WEIGHT_ATTRACTION;
+        forces.get(weightKey)!.y += dy * CONNECTION_WEIGHT_ATTRACTION;
+      } else {
+        forces.get(weightKey)!.x += (weight.anchorEnd.x - weightPosition.x) * CONNECTION_WEIGHT_ATTRACTION;
+        forces.get(weightKey)!.y += (weight.anchorEnd.y - weightPosition.y) * CONNECTION_WEIGHT_ATTRACTION;
+      }
+
+      const sourceCenter = getRoomCenterForPosition(positionedDoc.rooms[weight.sourceRoomId], roomPositions[weight.sourceRoomId]);
+      const targetCenter = getRoomCenterForPosition(positionedDoc.rooms[weight.targetRoomId], roomPositions[weight.targetRoomId]);
+      forces.get(weightKey)!.x += ((sourceCenter.x - weightPosition.x) + (targetCenter.x - weightPosition.x)) * CONNECTION_WEIGHT_ROOM_ATTRACTION;
+      forces.get(weightKey)!.y += ((sourceCenter.y - weightPosition.y) + (targetCenter.y - weightPosition.y)) * CONNECTION_WEIGHT_ROOM_ATTRACTION;
+
+      forces.get(weightKey)!.x += (weight.homePosition.x - weightPosition.x) * ANCHOR_STRENGTH;
+      forces.get(weightKey)!.y += (weight.homePosition.y - weightPosition.y) * ANCHOR_STRENGTH;
+
+      for (const [roomId, room] of Object.entries(positionedDoc.rooms)) {
+        if (roomId === weight.sourceRoomId || roomId === weight.targetRoomId) {
+          continue;
+        }
+        const roomCenter = getRoomCenterForPosition(room, roomPositions[roomId]);
+        const dx = roomCenter.x - weightPosition.x;
+        const dy = roomCenter.y - weightPosition.y;
+        const distanceSquared = Math.max((dx * dx) + (dy * dy), 1);
+        const distance = Math.sqrt(distanceSquared);
+        if (distance > CONNECTION_WEIGHT_ROOM_REPULSION_MAX_DISTANCE) {
+          continue;
+        }
+        const repulsion = CONNECTION_WEIGHT_ROOM_REPULSION / distanceSquared;
+        forces.get(weightKey)!.x -= (dx / distance) * repulsion;
+        forces.get(weightKey)!.y -= (dy / distance) * repulsion;
+      }
+
+      for (let otherIndex = index + 1; otherIndex < connectionWeights.length; otherIndex += 1) {
+        const otherWeight = connectionWeights[otherIndex];
+        if (otherWeight.connectionId === weight.connectionId) {
+          continue;
+        }
+
+        const otherKey = `${otherWeight.connectionId}:${otherWeight.index}`;
+        const otherPosition = weightPositions.get(otherKey)!;
+        const dx = otherPosition.x - weightPosition.x;
+        const dy = otherPosition.y - weightPosition.y;
+        const distanceSquared = Math.max((dx * dx) + (dy * dy), 1);
+        const distance = Math.sqrt(distanceSquared);
+        const repulsion = CONNECTION_WEIGHT_REPULSION / distanceSquared;
+        const forceX = (dx / distance) * repulsion;
+        const forceY = (dy / distance) * repulsion;
+        forces.get(weightKey)!.x -= forceX;
+        forces.get(weightKey)!.y -= forceY;
+        forces.get(otherKey)!.x += forceX;
+        forces.get(otherKey)!.y += forceY;
+      }
+    }
+
+    connectionWeights.forEach((weight) => {
+      const weightKey = `${weight.connectionId}:${weight.index}`;
+      const position = weightPositions.get(weightKey)!;
+      const force = forces.get(weightKey)!;
+      position.x += limitWeightStep(force.x);
+      position.y += limitWeightStep(force.y);
+    });
+  }
+
+  const bendPointsByConnectionId = new Map<string, Position[]>();
+  connectionWeights.forEach((weight) => {
+    const weightKey = `${weight.connectionId}:${weight.index}`;
+    const position = weightPositions.get(weightKey)!;
+    const bendPoints = bendPointsByConnectionId.get(weight.connectionId) ?? [];
+    bendPoints[weight.index] = { x: position.x, y: position.y };
+    bendPointsByConnectionId.set(weight.connectionId, bendPoints);
+  });
+
+  return Object.fromEntries(
+    Object.values(positionedDoc.connections).map((connection) => [
+      connection.id,
+      bendPointsByConnectionId.get(connection.id) ?? [],
+    ]),
+  );
+}
+
 function recenterUnlockedComponents(
   components: readonly string[][],
   targetCentroids: ReadonlyMap<string, Vector>,
@@ -931,5 +1152,6 @@ export function computePrettifiedLayoutPositions(
   return {
     roomPositions,
     stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions),
+    connectionBendPoints: computePrettifiedConnectionBendPoints(doc, roomPositions),
   };
 }

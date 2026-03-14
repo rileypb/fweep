@@ -19,6 +19,7 @@ import {
   setRoomShape as domainSetRoomShape,
   setRoomStyle as domainSetRoomStyle,
   setConnectionAnnotation as domainSetConnectionAnnotation,
+  setConnectionBendPoints as domainSetConnectionBendPoints,
   setConnectionLabels as domainSetConnectionLabels,
   setConnectionStyle as domainSetConnectionStyle,
   setRoomsLocked as domainSetRoomsLocked,
@@ -1546,9 +1547,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    const { roomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+    const { roomPositions, stickyNotePositions, connectionBendPoints } = computePrettifiedLayoutPositions(doc);
     const roomsUpdatedDoc = domainSetRoomPositions(doc, roomPositions);
-    const updatedDoc = domainSetStickyNotePositions(roomsUpdatedDoc, stickyNotePositions);
+    const stickyNotesUpdatedDoc = domainSetStickyNotePositions(roomsUpdatedDoc, stickyNotePositions);
+    const updatedDoc = domainSetConnectionBendPoints(stickyNotesUpdatedDoc, connectionBendPoints);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 

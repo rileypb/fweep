@@ -94,6 +94,7 @@ export interface Connection {
   readonly sourceRoomId: string;
   readonly targetRoomId: string;
   readonly isBidirectional: boolean;
+  readonly bendPoints?: readonly Position[];
   readonly annotation: ConnectionAnnotation | null;
   readonly startLabel: string;
   readonly endLabel: string;

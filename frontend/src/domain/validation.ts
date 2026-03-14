@@ -658,11 +658,26 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     );
   }
 
+  let bendPoints: Position[] | undefined;
+  if (connection.bendPoints !== undefined) {
+    if (!Array.isArray(connection.bendPoints)) {
+      pushIssue(issues, 'error', 'connection', entryKey, `connections.${entryKey}.bendPoints`, 'Connection bendPoints must be an array.');
+    } else {
+      const parsedBendPoints = connection.bendPoints.map((bendPoint, index) => (
+        parsePosition(bendPoint, issues, `${entryKey}.bendPoints.${index}`)
+      ));
+      if (parsedBendPoints.every((bendPoint): bendPoint is Position => bendPoint !== null)) {
+        bendPoints = parsedBendPoints;
+      }
+    }
+  }
+
   return {
     id,
     sourceRoomId,
     targetRoomId,
     isBidirectional,
+    bendPoints,
     annotation: parseConnectionAnnotation(connection.annotation, issues, entryKey),
     startLabel: parseOptionalString(
       connection.startLabel,

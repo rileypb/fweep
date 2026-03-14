@@ -609,6 +609,38 @@ export function setConnectionLabels(
   });
 }
 
+export function setConnectionBendPoints(
+  doc: MapDocument,
+  bendPointsByConnectionId: Readonly<Record<string, readonly Position[] | undefined>>,
+): MapDocument {
+  let changed = false;
+  const connections = { ...doc.connections };
+
+  for (const [connectionId, bendPoints] of Object.entries(bendPointsByConnectionId)) {
+    const connection = connections[connectionId];
+    if (!connection) {
+      throw new Error(`Connection "${connectionId}" not found.`);
+    }
+
+    const currentBendPoints = connection.bendPoints ?? [];
+    const nextBendPoints = bendPoints ?? [];
+    const isSameLength = currentBendPoints.length === nextBendPoints.length;
+    const isSame = isSameLength && currentBendPoints.every((point, index) => (
+      point.x === nextBendPoints[index]?.x && point.y === nextBendPoints[index]?.y
+    ));
+    if (isSame) {
+      continue;
+    }
+
+    connections[connectionId] = nextBendPoints.length === 0
+      ? { ...connection, bendPoints: undefined }
+      : { ...connection, bendPoints: nextBendPoints.map((point) => ({ ...point })) };
+    changed = true;
+  }
+
+  return changed ? touch({ ...doc, connections }) : doc;
+}
+
 /* ------------------------------------------------------------------ */
 /*  describeItem                                                       */
 /* ------------------------------------------------------------------ */

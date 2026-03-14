@@ -348,6 +348,33 @@ describe('computeConnectionPath', () => {
     expect(points[2]).toEqual(getRoomCenter(tgtRoom.position));
   });
 
+  it('inserts bend points between the fixed stubs and endpoint', () => {
+    const connId = 'conn-bendy';
+    const srcRoom = roomAt('A', 0, 200, { north: connId });
+    const tgtRoom = roomAt('B', 0, 0, { south: connId });
+    const conn = {
+      ...createConnection(srcRoom.id, tgtRoom.id, true),
+      id: connId,
+      bendPoints: [
+        { x: 120, y: 140 },
+        { x: 140, y: 100 },
+        { x: 120, y: 60 },
+      ],
+    };
+
+    const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
+
+    expect(points).toEqual([
+      getHandlePosition(srcRoom.position, 'north'),
+      { x: 40, y: 180 },
+      { x: 120, y: 140 },
+      { x: 140, y: 100 },
+      { x: 120, y: 60 },
+      { x: 40, y: 56 },
+      getHandlePosition(tgtRoom.position, 'south'),
+    ]);
+  });
+
   it('draws a one-way connection to the target room center even when the target has a compass binding', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { north: connId });

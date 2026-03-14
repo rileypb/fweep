@@ -629,6 +629,10 @@ export function computeConnectionPath(
     if (stub) points.push(stub);
   }
 
+  if (conn.bendPoints && conn.bendPoints.length > 0) {
+    points.push(...conn.bendPoints);
+  }
+
   // Target stub (in reverse — the stub extends outward from the target handle)
   if (tgtDir && tgtHandlePosition) {
     const stub = getStubEndpointForRoom(tgtEnd, tgtDir, stubLength, tgtRoomDimensions, tgtRoom.shape);
@@ -771,7 +775,7 @@ export function createConnectionRenderGeometry(
   useBezierConnections: boolean,
   isSelfConnection: boolean,
 ): ConnectionRenderGeometry {
-  if (!useBezierConnections || isSelfConnection) {
+  if (!useBezierConnections || isSelfConnection || points.length > 4) {
     return { kind: 'polyline', points };
   }
 
