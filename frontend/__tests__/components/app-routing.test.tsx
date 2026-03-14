@@ -2318,6 +2318,26 @@ describe('URL routing', () => {
     }));
   });
 
+  it('persists a room added immediately before the app unmounts', async () => {
+    const doc = createEmptyMap('Immediate Refresh Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    const rendered = render(<App />);
+
+    await screen.findByText(/immediate refresh map/i);
+
+    act(() => {
+      useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
+    });
+
+    rendered.unmount();
+
+    await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
+      expect(Object.values(persisted?.rooms ?? {}).map((room) => room.name)).toContain('Kitchen');
+    }));
+  });
+
   it('updates the URL when a map is selected from the dialog', async () => {
     const doc = createEmptyMap('Clickable Map');
     await saveMap(doc);

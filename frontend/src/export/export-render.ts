@@ -486,7 +486,14 @@ function drawConnectionLabels(
   context.textBaseline = 'middle';
 
   if (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down' || directionalAnnotationKind === 'in' || directionalAnnotationKind === 'out') {
-    const directionalAnnotation = getDirectionalAnnotationGeometry(directionalAnnotationKind, annotationLabel, geometry, points);
+    const directionalAnnotation = getDirectionalAnnotationGeometry(
+      directionalAnnotationKind,
+      annotationLabel,
+      geometry,
+      points,
+      sourceDirection,
+      targetDirection,
+    );
     if (!directionalAnnotation) {
       return;
     }

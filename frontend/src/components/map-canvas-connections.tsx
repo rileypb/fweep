@@ -29,6 +29,7 @@ import { PadlockGlyph } from './padlock-glyph';
 import {
   getAnnotationGeometryFromRenderGeometry,
   getAnnotationGeometryFromSegment,
+  getDirectionalAnnotationReverseDirection,
   getDerivedVerticalAnnotationKind,
   getLongestSegment,
   getVisibleConnectionSegments,
@@ -119,12 +120,19 @@ function getDirectionalAnnotationRenderIntent(
   annotationKind: 'up' | 'down' | 'in' | 'out',
   geometry: ConnectionRenderGeometry,
   longestSegment: { start: Point; end: Point } | null,
+  sourceDirection: string | null,
+  targetDirection: string | null,
 ): DirectionalAnnotationRenderIntent {
   const positionSample: AnnotationPositionSample | null = geometry.kind === 'polyline'
     ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
     : { kind: 'curve', geometry };
 
   if (annotationKind === 'up' || annotationKind === 'down') {
+    const semanticReverseDirection = getDirectionalAnnotationReverseDirection(
+      annotationKind,
+      sourceDirection,
+      targetDirection,
+    );
     const dy = positionSample?.kind === 'segment'
       ? positionSample.segment.end.y - positionSample.segment.start.y
       : sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0;
@@ -132,7 +140,7 @@ function getDirectionalAnnotationRenderIntent(
     return {
       label: annotationKind,
       compactLength: true,
-      reverseDirection: getVerticalAnnotationReverseDirection(annotationKind, dy),
+      reverseDirection: semanticReverseDirection ?? getVerticalAnnotationReverseDirection(annotationKind, dy),
       preferPositiveNormalX: true,
       positionSample,
     };
@@ -271,7 +279,13 @@ export function MapCanvasConnections({
       || directionalAnnotationKind === 'out';
     const rendersTextAnnotation = explicitAnnotationKind === 'text' && annotationText.length > 0;
     const directionalAnnotationIntent = rendersDirectionalAnnotation
-      ? getDirectionalAnnotationRenderIntent(directionalAnnotationKind, geometry, geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null)
+      ? getDirectionalAnnotationRenderIntent(
+        directionalAnnotationKind,
+        geometry,
+        geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null,
+        sourceDirection,
+        targetDirection,
+      )
       : null;
     const annotationLabel = directionalAnnotationIntent?.label ?? annotationText;
     const rendersDoorAnnotation = explicitAnnotationKind === 'door';

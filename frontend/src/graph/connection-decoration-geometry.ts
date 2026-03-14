@@ -169,6 +169,26 @@ export function getDerivedVerticalAnnotationKind(
   return null;
 }
 
+export function getDirectionalAnnotationReverseDirection(
+  annotationKind: 'up' | 'down' | 'in' | 'out',
+  sourceDirection: string | null,
+  targetDirection: string | null,
+): boolean | null {
+  if (annotationKind === 'out') {
+    return true;
+  }
+
+  if (annotationKind === 'up' || annotationKind === 'down') {
+    const sourceMatches = sourceDirection === annotationKind;
+    const targetMatches = targetDirection === annotationKind;
+    if (sourceMatches !== targetMatches) {
+      return targetMatches;
+    }
+  }
+
+  return null;
+}
+
 export function getLongestSegment(points: readonly Point[]): { start: Point; end: Point } | null {
   let bestSegment: { start: Point; end: Point } | null = null;
   let bestLength = -1;
@@ -497,10 +517,13 @@ export function getDirectionalAnnotationGeometry(
   annotationLabel: string,
   geometry: ConnectionRenderGeometry,
   points: readonly Point[],
+  sourceDirection: string | null = null,
+  targetDirection: string | null = null,
 ): ConnectionAnnotationGeometry | null {
   const compactLength = annotationKind === 'up' || annotationKind === 'down';
   const reverseDirection = annotationKind === 'out';
   const preferPositiveNormalX = annotationKind === 'up' || annotationKind === 'down';
+  const semanticReverseDirection = getDirectionalAnnotationReverseDirection(annotationKind, sourceDirection, targetDirection);
 
   if (geometry.kind === 'polyline') {
     const segment = getLongestSegment(points);
@@ -511,7 +534,7 @@ export function getDirectionalAnnotationGeometry(
     const dy = segment.end.y - segment.start.y;
     return getAnnotationGeometryFromSegment(
       segment,
-      annotationKind === 'up' ? dy > 0 : annotationKind === 'down' ? dy < 0 : reverseDirection,
+      semanticReverseDirection ?? (annotationKind === 'up' ? dy > 0 : annotationKind === 'down' ? dy < 0 : reverseDirection),
       annotationLabel,
       compactLength,
       preferPositiveNormalX,
@@ -520,11 +543,13 @@ export function getDirectionalAnnotationGeometry(
 
   return getAnnotationGeometryFromRenderGeometry(
     geometry,
-    annotationKind === 'up'
-      ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) > 0
-      : annotationKind === 'down'
-        ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) < 0
-        : reverseDirection,
+    semanticReverseDirection ?? (
+      annotationKind === 'up'
+        ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) > 0
+        : annotationKind === 'down'
+          ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) < 0
+          : reverseDirection
+    ),
     annotationLabel,
     compactLength,
     preferPositiveNormalX,

@@ -178,6 +178,9 @@ export function useAppCli({
   const [isImportingScript, setIsImportingScript] = useState(false);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
+  const latestGameOutputLinesRef = useRef<readonly string[]>([]);
+  const latestStoreDocRef = useRef<MapDocument | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const hasOpenMap = activeMap !== null;
 
   const focusCliInput = () => {
@@ -191,6 +194,27 @@ export function useAppCli({
     }
 
     gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
+  };
+
+  useEffect(() => {
+    latestGameOutputLinesRef.current = gameOutputLines;
+  }, [gameOutputLines]);
+
+  useEffect(() => {
+    latestStoreDocRef.current = storeDoc;
+  }, [storeDoc]);
+
+  const queueSave = (doc: MapDocument) => {
+    const snapshot = {
+      ...doc,
+      cliOutputLines: [...latestGameOutputLinesRef.current],
+    };
+
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await saveMap(snapshot);
+      });
   };
 
   useEffect(() => {
@@ -212,33 +236,42 @@ export function useAppCli({
   }, [activeMap, loadDocument, unloadDocument]);
 
   useEffect(() => {
-    if (!storeDoc) {
-      return;
-    }
+    const unsubscribe = useEditorStore.subscribe((state, previousState) => {
+      if (state.doc === previousState.doc || state.doc === null) {
+        return;
+      }
 
-    if (pendingInitialSaveSkipDocRef.current === storeDoc) {
-      if (pendingInitialGameOutputSkipRef.current !== null) {
-        if (pendingInitialGameOutputSkipRef.current.length === gameOutputLines.length
-          && pendingInitialGameOutputSkipRef.current.every((line, index) => line === gameOutputLines[index])) {
-          pendingInitialSaveSkipDocRef.current = null;
-          pendingInitialGameOutputSkipRef.current = null;
-          return;
-        }
+      latestStoreDocRef.current = state.doc;
 
+      if (pendingInitialSaveSkipDocRef.current === state.doc) {
+        pendingInitialSaveSkipDocRef.current = null;
         return;
       }
 
       pendingInitialSaveSkipDocRef.current = null;
+      queueSave(state.doc);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const currentDoc = latestStoreDocRef.current;
+    if (!currentDoc) {
       return;
     }
 
-    pendingInitialSaveSkipDocRef.current = null;
-    pendingInitialGameOutputSkipRef.current = null;
-    void saveMap({
-      ...storeDoc,
-      cliOutputLines: gameOutputLines,
-    });
-  }, [gameOutputLines, storeDoc]);
+    if (pendingInitialGameOutputSkipRef.current !== null) {
+      if (pendingInitialGameOutputSkipRef.current.length === gameOutputLines.length
+        && pendingInitialGameOutputSkipRef.current.every((line, index) => line === gameOutputLines[index])) {
+        pendingInitialGameOutputSkipRef.current = null;
+        return;
+      }
+      pendingInitialGameOutputSkipRef.current = null;
+    }
+
+    queueSave(currentDoc);
+  }, [gameOutputLines]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

@@ -3001,6 +3001,28 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
 
+    it('renders an up decoration toward the semantic target even when that end is visually lower', () => {
+      const doc = createEmptyMap('Test');
+      const cellar = { ...createRoom('Cellar'), position: { x: 80, y: 0 } };
+      const attic = { ...createRoom('Attic'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, cellar);
+      d = addRoom(d, attic);
+      const conn = createConnection(cellar.id, attic.id, true);
+      d = addConnection(d, conn, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
+    });
+
     it('renders a down decoration from endpoint directions when no end is up and one end is down', () => {
       const doc = createEmptyMap('Test');
       const ledge = { ...createRoom('Ledge'), position: { x: 80, y: 200 } };
@@ -3025,7 +3047,29 @@ describe('MapCanvas', () => {
       expect(annotationArrow).toBeInTheDocument();
       expect(lineX1).toBeGreaterThan(120);
       expect(lineX2).toBeGreaterThan(120);
-      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
+    });
+
+    it('renders a down decoration toward the semantic target even when that end is visually higher', () => {
+      const doc = createEmptyMap('Test');
+      const ledge = { ...createRoom('Ledge'), position: { x: 80, y: 200 } };
+      const shaft = { ...createRoom('Shaft'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, ledge);
+      d = addRoom(d, shaft);
+      const conn = createConnection(ledge.id, shaft.id, false);
+      d = addConnection(d, conn, 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
+      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
     });
 
