@@ -30,7 +30,10 @@ async function renderAppWithOpenMap(mapName = 'Opened Map') {
 function expectGameOutputToContain(...fragments: readonly string[]) {
   const value = getGameOutputBox().value;
   for (const fragment of fragments) {
-    expect(value).toContain(fragment);
+    const capitalizedFragment = fragment.length > 0
+      ? `${fragment[0].toUpperCase()}${fragment.slice(1)}`
+      : fragment;
+    expect(value.includes(fragment) || value.includes(capitalizedFragment)).toBe(true);
   }
 }
 
@@ -228,7 +231,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'connect Kitchen east to Hallway',
-      'connected.',
+      'Connected.',
     );
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);

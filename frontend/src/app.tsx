@@ -171,27 +171,27 @@ function formatCliEcho(input: string): string {
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
-      return 'listed available commands.';
+      return 'Listed available commands.';
     case 'arrange':
-      return 'arranged.';
+      return 'Arranged.';
     case 'create':
-      return 'created.';
+      return 'Created.';
     case 'delete':
-      return 'deleted.';
+      return 'Deleted.';
     case 'edit':
-      return 'edited.';
+      return 'Edited.';
     case 'notate':
-      return 'notated.';
+      return 'Notated.';
     case 'show':
-      return 'shown.';
+      return 'Shown.';
     case 'connect':
-      return 'connected.';
+      return 'Connected.';
     case 'create-and-connect':
-      return 'created and connected.';
+      return 'Created and connected.';
     case 'undo':
-      return 'undone.';
+      return 'Undone.';
     case 'redo':
-      return 'redone.';
+      return 'Redone.';
   }
 }
 
