@@ -90,7 +90,9 @@ body {
 .app-game-output {
   position: static;
   pointer-events: auto;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
@@ -100,7 +102,8 @@ body {
   background: #ffffff;
   color: color-mix(in srgb, currentColor 50%, transparent);
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
-  resize: none;
+  overflow: auto;
+  white-space: pre-wrap;
 }
 
 .app-game-output:focus {
@@ -110,6 +113,11 @@ body {
 .app-game-output:focus-visible {
   border-color: color-mix(in srgb, currentColor 42%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-game-output-content {
+  flex: 0 0 auto;
+  min-width: 100%;
 }
 
 .app-cli-bar {

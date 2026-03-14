@@ -277,7 +277,7 @@ export function App(): React.JSX.Element {
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
   const pendingInitialGameOutputSkipRef = useRef<readonly string[] | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
-  const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
+  const gameOutputRef = useRef<HTMLDivElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [cliCommand, setCliCommand] = useState('');
   const [cliHistory, setCliHistory] = useState<string[]>([]);
@@ -300,6 +300,14 @@ export function App(): React.JSX.Element {
     ? 0
     : getAppMapVisibleLeftInset(window.innerWidth, rootFontSizePx);
   const hasOpenMap = activeMap !== null;
+
+  const scrollGameOutputToEnd = () => {
+    if (gameOutputRef.current === null) {
+      return;
+    }
+
+    gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
+  };
 
   // Sync the router's active map into the editor store.
   useEffect(() => {
@@ -391,12 +399,14 @@ export function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (gameOutputRef.current === null) {
-      return;
-    }
+    const frameId = window.requestAnimationFrame(() => {
+      scrollGameOutputToEnd();
+    });
 
-    gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
-  }, [gameOutputLines]);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [gameOutputLines, hasOpenMap]);
 
   const appendGameOutput = (lines: readonly string[]) => {
     setGameOutputLines((previousLines) => [...previousLines, ...lines, '']);
@@ -744,15 +754,19 @@ export function App(): React.JSX.Element {
         <>
           <div className="app-left-chrome-backdrop" aria-hidden="true" />
           <div className="app-cli-stack">
-            <textarea
+            <div
               id="app-game-output"
               className="app-game-output"
+              role="textbox"
+              aria-multiline="true"
+              aria-readonly="true"
               aria-label="Game output"
-              readOnly
-              rows={20}
               ref={gameOutputRef}
-              value={gameOutputLines.join('\n')}
-            />
+            >
+              <div className="app-game-output-content">
+                {gameOutputLines.join('\n')}
+              </div>
+            </div>
             <div className="app-cli-bar">
               <form
                 className="app-cli-form"

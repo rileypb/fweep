@@ -14,8 +14,8 @@ function navigateTo(hashRoute: string) {
   window.history.pushState({}, '', hashRoute);
 }
 
-function getGameOutputBox(): HTMLTextAreaElement {
-  return screen.getByRole('textbox', { name: /game output/i }) as HTMLTextAreaElement;
+function getGameOutputBox(): HTMLElement {
+  return screen.getByRole('textbox', { name: /game output/i });
 }
 
 async function renderAppWithOpenMap(mapName = 'Opened Map') {
@@ -28,7 +28,7 @@ async function renderAppWithOpenMap(mapName = 'Opened Map') {
 }
 
 function expectGameOutputToContain(...fragments: readonly string[]) {
-  const value = getGameOutputBox().value;
+  const value = getGameOutputBox().textContent ?? '';
   for (const fragment of fragments) {
     const capitalizedFragment = fragment.length > 0
       ? `${fragment[0].toUpperCase()}${fragment.slice(1)}`
@@ -1997,7 +1997,7 @@ describe('URL routing', () => {
       fireEvent.submit(form);
     }
 
-    const outputLines = getGameOutputBox().value.split('\n');
+    const outputLines = (getGameOutputBox().textContent ?? '').split('\n');
     expect(outputLines).toHaveLength(DEFAULT_CLI_OUTPUT_LINES.length + 21);
     expect(outputLines.slice(0, DEFAULT_CLI_OUTPUT_LINES.length)).toEqual(DEFAULT_CLI_OUTPUT_LINES);
     expect(outputLines[4]).toBe('>blorb room 1');
@@ -2083,8 +2083,8 @@ describe('URL routing', () => {
     render(<App />);
 
     await screen.findByText(/persisted output map/i);
-    expect(getGameOutputBox().value).toContain('>help');
-    expect(getGameOutputBox().value).toContain('create <room name>');
+    expect(getGameOutputBox().textContent ?? '').toContain('>help');
+    expect(getGameOutputBox().textContent ?? '').toContain('create <room name>');
   });
 
   it('returns to the selection screen from the map header back button', async () => {
