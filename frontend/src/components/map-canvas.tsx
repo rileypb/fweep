@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createRoom, type Position, type Room } from '../domain/map-types';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
-import { useMapViewport } from './use-map-viewport';
+import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
@@ -180,7 +180,9 @@ export function MapCanvas({
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
+  const persistedZoom = useEditorStore((s) => s.mapZoom);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
+  const setMapZoom = useEditorStore((s) => s.setMapZoom);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
   const ensureDefaultBackgroundLayer = useEditorStore((s) => s.ensureDefaultBackgroundLayer);
   const beginBackgroundStroke = useEditorStore((s) => s.beginBackgroundStroke);
@@ -188,6 +190,7 @@ export function MapCanvas({
   const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
   const suppressCanvasClickRef = useRef(false);
   const persistPanTimeoutRef = useRef<number | null>(null);
+  const persistZoomTimeoutRef = useRef<number | null>(null);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
   const theme = useDocumentTheme();
@@ -204,7 +207,7 @@ export function MapCanvas({
     centerOnMapPoint,
     toMapPoint,
     zoomAtClientPoint,
-  } = useMapViewport({ initialPanOffset: persistedPanOffset });
+  } = useMapViewport({ initialPanOffset: persistedPanOffset, initialZoom: persistedZoom });
 
   const showGrid = doc ? showGridEnabled : initialShowGrid;
   const effectiveCanvasInteractionMode = drawingInterfaceEnabled ? canvasInteractionMode : 'map';
@@ -264,6 +267,9 @@ export function MapCanvas({
   useEffect(() => () => {
     if (persistPanTimeoutRef.current !== null) {
       window.clearTimeout(persistPanTimeoutRef.current);
+    }
+    if (persistZoomTimeoutRef.current !== null) {
+      window.clearTimeout(persistZoomTimeoutRef.current);
     }
   }, []);
 
@@ -353,6 +359,33 @@ export function MapCanvas({
       }
     };
   }, [doc, panOffset, persistedPanOffset.x, persistedPanOffset.y, setMapPanOffset]);
+
+  useEffect(() => {
+    if (!doc) {
+      return;
+    }
+
+    const safePersistedZoom = clampMapViewportZoom(persistedZoom);
+    if (safePersistedZoom === zoom) {
+      return;
+    }
+
+    if (persistZoomTimeoutRef.current !== null) {
+      window.clearTimeout(persistZoomTimeoutRef.current);
+    }
+
+    persistZoomTimeoutRef.current = window.setTimeout(() => {
+      setMapZoom(zoom);
+      persistZoomTimeoutRef.current = null;
+    }, 150);
+
+    return () => {
+      if (persistZoomTimeoutRef.current !== null) {
+        window.clearTimeout(persistZoomTimeoutRef.current);
+        persistZoomTimeoutRef.current = null;
+      }
+    };
+  }, [doc, persistedZoom, setMapZoom, zoom]);
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorState(null);

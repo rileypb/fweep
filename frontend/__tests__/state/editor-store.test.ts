@@ -32,6 +32,7 @@ describe('useEditorStore', () => {
         view: {
           ...testDoc.view,
           pan: { x: 120, y: -80 },
+          zoom: 1.5,
           showGrid: false,
           snapToGrid: false,
         },
@@ -40,6 +41,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().loadDocument(doc);
 
       expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 120, y: -80 });
+      expect(useEditorStore.getState().mapZoom).toBe(1.5);
       expect(useEditorStore.getState().showGridEnabled).toBe(false);
       expect(useEditorStore.getState().snapToGridEnabled).toBe(false);
     });
@@ -69,6 +71,7 @@ describe('useEditorStore', () => {
         view: {
           ...testDoc.view,
           pan: { x: 120, y: -80 },
+          zoom: 1.5,
           showGrid: false,
           snapToGrid: false,
         },
@@ -78,6 +81,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().unloadDocument();
 
       expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 0, y: 0 });
+      expect(useEditorStore.getState().mapZoom).toBe(1);
       expect(useEditorStore.getState().showGridEnabled).toBe(true);
       expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
     });
@@ -187,6 +191,15 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 160, y: -40 });
       expect(useEditorStore.getState().doc?.view.pan).toEqual({ x: 160, y: -40 });
+    });
+
+    it('setMapZoom updates the stored map view', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().setMapZoom(1.8);
+
+      expect(useEditorStore.getState().mapZoom).toBe(1.8);
+      expect(useEditorStore.getState().doc?.view.zoom).toBe(1.8);
     });
 
     it('stores and updates the background reference image and its zoom', () => {

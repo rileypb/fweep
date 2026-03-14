@@ -218,6 +218,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   if (value === undefined) {
     return {
       pan: { x: 0, y: 0 },
+      zoom: 1,
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -228,6 +229,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   if (!view) {
     return {
       pan: { x: 0, y: 0 },
+      zoom: 1,
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -237,6 +239,9 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const panRecord = asRecord(view.pan ?? { x: 0, y: 0 }, issues, 'view.pan', 'map', 'root');
   const panX = panRecord ? requireFiniteNumber(panRecord.x, issues, 'view.pan.x', 'map', 'root') : null;
   const panY = panRecord ? requireFiniteNumber(panRecord.y, issues, 'view.pan.y', 'map', 'root') : null;
+  const zoom = view.zoom === undefined
+    ? 1
+    : requireFiniteNumber(view.zoom, issues, 'view.zoom', 'map', 'root');
   const showGrid = view.showGrid === undefined
     ? true
     : requireBoolean(view.showGrid, issues, 'view.showGrid', 'map', 'root');
@@ -252,6 +257,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       x: panX ?? 0,
       y: panY ?? 0,
     },
+    zoom: zoom ?? 1,
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
     useBezierConnections: useBezierConnections ?? false,

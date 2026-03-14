@@ -20,6 +20,7 @@ export interface Position {
 
 export interface MapView {
   readonly pan: Position;
+  readonly zoom: number;
   readonly showGrid: boolean;
   readonly snapToGrid: boolean;
   readonly useBezierConnections: boolean;
@@ -178,6 +179,7 @@ export function createEmptyMap(name: string): MapDocument {
     },
     view: {
       pan: { x: 0, y: 0 },
+      zoom: 1,
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,

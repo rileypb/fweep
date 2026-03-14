@@ -192,6 +192,9 @@ export interface EditorState {
   /** The persisted pan offset for the current map. */
   mapPanOffset: Position;
 
+  /** The persisted zoom level for the current map. */
+  mapZoom: number;
+
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
 
@@ -421,6 +424,9 @@ export interface EditorState {
 
   /** Persist the current map pan offset without adding a history entry. */
   setMapPanOffset: (position: Position) => void;
+
+  /** Persist the current map zoom without adding a history entry. */
+  setMapZoom: (zoom: number) => void;
 
   /** Replace the current background reference image. */
   setBackgroundReferenceImage: (image: BackgroundReferenceImage) => void;
@@ -701,12 +707,13 @@ function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
 
 function patchDocumentView(
   doc: MapDocument,
-  state: Pick<EditorState, 'mapPanOffset' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
+  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
 ): MapDocument {
   return {
     ...doc,
     view: {
       pan: state.mapPanOffset,
+      zoom: state.mapZoom,
       showGrid: state.showGridEnabled,
       snapToGrid: state.snapToGridEnabled,
       useBezierConnections: state.useBezierConnectionsEnabled,
@@ -729,6 +736,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   showGridEnabled: true,
   useBezierConnectionsEnabled: false,
   mapPanOffset: { x: 0, y: 0 },
+  mapZoom: 1,
   connectionDrag: null,
   stickyNoteLinkDrag: null,
   selectionDrag: null,
@@ -752,6 +760,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadDocument: (doc) => set({
     doc: patchDocumentView(doc, {
       mapPanOffset: doc.view.pan,
+      mapZoom: doc.view.zoom,
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
       useBezierConnectionsEnabled: doc.view.useBezierConnections,
@@ -769,6 +778,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     showGridEnabled: doc.view.showGrid,
     useBezierConnectionsEnabled: doc.view.useBezierConnections,
     mapPanOffset: doc.view.pan,
+    mapZoom: doc.view.zoom,
     connectionDrag: null,
     stickyNoteLinkDrag: null,
     selectionDrag: null,
@@ -794,6 +804,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     showGridEnabled: true,
     useBezierConnectionsEnabled: false,
     mapPanOffset: { x: 0, y: 0 },
+    mapZoom: 1,
     connectionDrag: null,
     stickyNoteLinkDrag: null,
     selectionDrag: null,
@@ -1476,6 +1487,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         : state.doc,
       mapPanOffset: position,
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setMapZoom: (zoom) => {
+    set((state) => ({
+      doc: state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            zoom,
+          },
+        }
+        : state.doc,
+      mapZoom: zoom,
       lastHistoryMergeKey: null,
     }));
   },

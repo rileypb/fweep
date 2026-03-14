@@ -168,6 +168,7 @@ describe('map-store', () => {
       expect(loaded?.connections[connectionId].annotation).toBeNull();
       expect(loaded?.view).toEqual({
         pan: { x: 0, y: 0 },
+        zoom: 1,
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,
@@ -273,6 +274,7 @@ describe('map-store', () => {
       });
       expect(loaded?.view).toEqual({
         pan: { x: 0, y: 0 },
+        zoom: 1,
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,

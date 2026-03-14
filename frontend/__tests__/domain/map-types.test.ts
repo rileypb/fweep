@@ -31,6 +31,7 @@ describe('createEmptyMap', () => {
     const doc = createEmptyMap('Empty');
     expect(doc.view).toEqual({
       pan: { x: 0, y: 0 },
+      zoom: 1,
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,

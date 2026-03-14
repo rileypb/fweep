@@ -20,16 +20,6 @@ function loadImageDimensions(src: string): Promise<{ width: number; height: numb
   });
 }
 
-function getImageNameFromUrl(url: string): string {
-  try {
-    const parsedUrl = new URL(url);
-    const pathname = parsedUrl.pathname.split('/').filter(Boolean);
-    return pathname[pathname.length - 1] || parsedUrl.hostname || 'background-image';
-  } catch {
-    return 'background-image';
-  }
-}
-
 async function createBackgroundReferenceImage(
   blob: Blob,
   name: string,
@@ -57,7 +47,6 @@ export function BackgroundImageControls(): React.JSX.Element {
   const setBackgroundReferenceImageZoom = useEditorStore((state) => state.setBackgroundReferenceImageZoom);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [urlValue, setUrlValue] = useState('');
   const [zoomPercent, setZoomPercent] = useState('100');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -164,52 +153,6 @@ export function BackgroundImageControls(): React.JSX.Element {
             )}
           </div>
 
-          <label className="background-image-panel__field">
-            <span>Import from URL</span>
-            <div className="background-image-panel__url-row">
-              <input
-                type="url"
-                value={urlValue}
-                placeholder="https://example.com/map.png"
-                onChange={(event) => setUrlValue(event.target.value)}
-              />
-              <button
-                type="button"
-                className="export-png-secondary"
-                disabled={isBusy || urlValue.trim().length === 0}
-                onClick={() => {
-                  void (async () => {
-                    setIsBusy(true);
-                    setErrorMessage(null);
-                    try {
-                      const trimmedUrl = urlValue.trim();
-                      const response = await fetch(trimmedUrl);
-                      if (!response.ok) {
-                        throw new Error(`Image request failed (${response.status}).`);
-                      }
-
-                      const blob = await response.blob();
-                      if (!blob.type.startsWith('image/')) {
-                        throw new Error('URL did not return an image.');
-                      }
-
-                      const name = getImageNameFromUrl(trimmedUrl);
-                      const image = await createBackgroundReferenceImage(blob, name, trimmedUrl);
-                      setBackgroundReferenceImage(image);
-                      setIsOpen(true);
-                    } catch (error) {
-                      setErrorMessage(error instanceof Error ? error.message : 'Failed to import image URL.');
-                    } finally {
-                      setIsBusy(false);
-                    }
-                  })();
-                }}
-              >
-                Import
-              </button>
-            </div>
-          </label>
-
           {referenceImage && (
             <>
               <label className="background-image-panel__field">
@@ -246,9 +189,6 @@ export function BackgroundImageControls(): React.JSX.Element {
               <p className="background-image-panel__meta">
                 Centered on map origin. Native size: {referenceImage.width} x {referenceImage.height}px.
               </p>
-              {referenceImage.sourceUrl && (
-                <p className="background-image-panel__meta">Stored from URL: {referenceImage.sourceUrl}</p>
-              )}
             </>
           )}
 

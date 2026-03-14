@@ -478,7 +478,7 @@ describe('MapCanvas', () => {
       expect(content.style.transform).toBe('translate(-20px, -30px) scale(1)');
     });
 
-    it('zooms the map on ctrl-wheel gestures', () => {
+  it('zooms the map on ctrl-wheel gestures', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -500,9 +500,53 @@ describe('MapCanvas', () => {
 
       fireEvent.wheel(canvas, { clientX: 150, clientY: 100, deltaX: 20, deltaY: -30, ctrlKey: true });
 
-      expect(content.style.transform).toContain('scale(1.1)');
-      expect(content.style.transform).toContain('translate(-15');
+    expect(content.style.transform).toContain('scale(1.1)');
+    expect(content.style.transform).toContain('translate(-15');
+  });
+
+  it('restores persisted zoom from the map view', () => {
+    const doc = createEmptyMap('Test');
+    useEditorStore.getState().loadDocument({
+      ...doc,
+      view: {
+        ...doc.view,
+        zoom: 1.5,
+      },
     });
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByTestId('map-canvas-content').style.transform).toBe('translate(0px, 0px) scale(1.5)');
+  });
+
+  it('persists zoom changes back to the map view', () => {
+    jest.useFakeTimers();
+    const doc = createEmptyMap('Test');
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    const canvas = screen.getByTestId('map-canvas');
+    jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 300,
+      bottom: 200,
+      width: 300,
+      height: 200,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.wheel(canvas, { clientX: 150, clientY: 100, deltaY: -30, ctrlKey: true });
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+
+    expect(useEditorStore.getState().doc?.view.zoom).toBeCloseTo(1.1);
+    jest.useRealTimers();
+  });
 
     it('zooms the map with keyboard shortcuts and resets with 0', () => {
       const doc = createEmptyMap('Test');

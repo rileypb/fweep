@@ -155,3 +155,7 @@ export function useMapViewport(options: UseMapViewportOptions = {}): MapViewport
     zoomAtClientPoint,
   };
 }
+
+export function clampMapViewportZoom(zoom: number): number {
+  return clampZoom(zoom);
+}
