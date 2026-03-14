@@ -2831,7 +2831,7 @@ describe('MapCanvas', () => {
       expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
       expect(arrowBasePoints[1][1]).toBeGreaterThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('up');
-      expect(annotationText.getAttribute('transform')).toBeNull();
+      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
 
     it('renders a down annotation arrow pointing toward the visually lower end of the connection', () => {
@@ -2865,7 +2865,7 @@ describe('MapCanvas', () => {
       expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
       expect(arrowBasePoints[1][1]).toBeLessThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('down');
-      expect(annotationText.getAttribute('transform')).toBeNull();
+      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
 
     it('renders an up decoration from endpoint directions when one end is up', () => {
@@ -2941,7 +2941,7 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();
     });
 
-    it('renders an in annotation as a centered parallel arrow and horizontal label', () => {
+    it('renders an in annotation as a centered parallel arrow and parallel label', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -2970,7 +2970,7 @@ describe('MapCanvas', () => {
       expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
       expect(arrowBasePoints[1][1]).toBeCloseTo(78.4, 5);
       expect(annotationText).toHaveTextContent('in');
-      expect(annotationText.getAttribute('transform')).toBeNull();
+      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
 
     it('renders an out annotation arrow pointing toward the source room with an in label', () => {
@@ -3001,7 +3001,7 @@ describe('MapCanvas', () => {
       expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
       expect(arrowPoints[2][1]).toBeCloseTo(157.6, 5);
       expect(annotationText).toHaveTextContent('in');
-      expect(annotationText.getAttribute('transform')).toBeNull();
+      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
 
     it('renders free text annotations parallel to the connection', () => {

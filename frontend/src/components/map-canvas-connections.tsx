@@ -523,6 +523,7 @@ export function MapCanvasConnections({
               y={annotationGeometry.textPosition.y}
               textAnchor="middle"
               dominantBaseline="middle"
+              transform={`rotate(${normalizeReadableTextRotation(annotationGeometry.rotationDegrees)} ${annotationGeometry.textPosition.x} ${annotationGeometry.textPosition.y})`}
             >
               {annotationLabel}
             </text>
