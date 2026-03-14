@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { createEmptyMap } from '../../src/domain/map-types';
+import { createEmptyMap, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import {
   deleteBackgroundChunks,
   deleteBackgroundChunksForMap,
@@ -63,7 +63,10 @@ async function putRawStoredMap(rawValue: unknown): Promise<void> {
 describe('map-store', () => {
   describe('saveMap / loadMap round-trip', () => {
     it('persists and retrieves a map by ID', async () => {
-      const doc = createEmptyMap('Round Trip');
+      const doc = {
+        ...createEmptyMap('Round Trip'),
+        cliOutputLines: ['>help', 'Listed available commands.', ''],
+      };
       await saveMap(doc);
 
       const loaded = await loadMap(doc.metadata.id);
@@ -96,6 +99,7 @@ describe('map-store', () => {
       const loaded = await loadMap(doc.metadata.id);
 
       expect(loaded?.rooms[roomId].shape).toBe('rectangle');
+      expect(loaded?.cliOutputLines).toEqual(DEFAULT_CLI_OUTPUT_LINES);
     });
 
     it('hydrates missing room style fields from older saved maps', async () => {

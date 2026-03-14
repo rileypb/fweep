@@ -249,6 +249,9 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
     ...doc,
     view: normalizeMapView(doc.view),
     background: normalizeBackground(doc),
+    cliOutputLines: Array.isArray(doc.cliOutputLines)
+      ? doc.cliOutputLines.filter((line): line is string => typeof line === 'string')
+      : [],
     rooms,
     connections,
     stickyNotes: doc.stickyNotes ?? {},

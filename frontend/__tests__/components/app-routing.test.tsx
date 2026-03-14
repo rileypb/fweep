@@ -2,7 +2,7 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { createConnection, createEmptyMap, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
 import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
@@ -1998,13 +1998,14 @@ describe('URL routing', () => {
     }
 
     const outputLines = getGameOutputBox().value.split('\n');
-    expect(outputLines).toHaveLength(21);
-    expect(outputLines[0]).toBe('>blorb room 1');
-    expect(outputLines[1]).toContain("I didn't understand you.");
-    expect(outputLines[2]).toBe('');
-    expect(outputLines[18]).toBe('>blorb room 7');
-    expect(outputLines[19]).toContain("I didn't understand you.");
-    expect(outputLines[20]).toBe('');
+    expect(outputLines).toHaveLength(DEFAULT_CLI_OUTPUT_LINES.length + 21);
+    expect(outputLines.slice(0, DEFAULT_CLI_OUTPUT_LINES.length)).toEqual(DEFAULT_CLI_OUTPUT_LINES);
+    expect(outputLines[4]).toBe('>blorb room 1');
+    expect(outputLines[5]).toContain("I didn't understand you.");
+    expect(outputLines[6]).toBe('');
+    expect(outputLines[22]).toBe('>blorb room 7');
+    expect(outputLines[23]).toContain("I didn't understand you.");
+    expect(outputLines[24]).toBe('');
   });
 
   it('opens and closes the help dialog', async () => {
@@ -2055,6 +2056,35 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /redo/i })).toBeInTheDocument();
     // Should NOT show the selection dialog
     expect(screen.queryByRole('dialog', { name: /choose a map/i })).not.toBeInTheDocument();
+  });
+
+  it('restores the saved CLI output log when the map is reloaded', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Persisted Output Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    const firstRender = render(<App />);
+    await screen.findByText(/persisted output map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'help{enter}');
+
+    await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
+      expect(persisted?.cliOutputLines).toEqual(expect.arrayContaining([
+        ...DEFAULT_CLI_OUTPUT_LINES,
+        '>help',
+        'create <room name>',
+      ]));
+      expect(persisted?.cliOutputLines).toContain('create <room name>');
+    }));
+
+    firstRender.unmount();
+    render(<App />);
+
+    await screen.findByText(/persisted output map/i);
+    expect(getGameOutputBox().value).toContain('>help');
+    expect(getGameOutputBox().value).toContain('create <room name>');
   });
 
   it('returns to the selection screen from the map header back button', async () => {

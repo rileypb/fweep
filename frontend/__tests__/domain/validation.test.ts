@@ -225,6 +225,24 @@ describe('parseUntrustedMapDocument', () => {
     });
   });
 
+  it('hydrates missing CLI output log metadata on legacy maps', () => {
+    const doc = validMap();
+    const legacyDoc = {
+      schemaVersion: doc.schemaVersion,
+      metadata: doc.metadata,
+      view: doc.view,
+      background: doc.background,
+      rooms: doc.rooms,
+      connections: doc.connections,
+      stickyNotes: doc.stickyNotes,
+      stickyNoteLinks: doc.stickyNoteLinks,
+      items: doc.items,
+    };
+
+    const parsed = parseUntrustedMapDocument(legacyDoc);
+    expect(parsed.cliOutputLines).toEqual([]);
+  });
+
   it('hydrates missing view metadata on legacy maps', () => {
     const doc = validMap();
     const legacyDoc = {

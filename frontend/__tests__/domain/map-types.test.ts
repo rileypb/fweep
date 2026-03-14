@@ -1,5 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
-import { createEmptyMap, createRoom, createConnection, CURRENT_SCHEMA_VERSION } from '../../src/domain/map-types';
+import {
+  createEmptyMap,
+  createRoom,
+  createConnection,
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_CLI_OUTPUT_LINES,
+} from '../../src/domain/map-types';
 
 describe('createEmptyMap', () => {
   it('creates a map with the given name', () => {
@@ -42,6 +48,7 @@ describe('createEmptyMap', () => {
       activeLayerId: null,
       referenceImage: null,
     });
+    expect(doc.cliOutputLines).toEqual(DEFAULT_CLI_OUTPUT_LINES);
     expect(doc.rooms).toEqual({});
     expect(doc.connections).toEqual({});
     expect(doc.stickyNotes).toEqual({});

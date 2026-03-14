@@ -275,6 +275,7 @@ export function App(): React.JSX.Element {
   const redo = useEditorStore((s) => s.redo);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
+  const pendingInitialGameOutputSkipRef = useRef<readonly string[] | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const gameOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -306,11 +307,15 @@ export function App(): React.JSX.Element {
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = activeMap;
+      pendingInitialGameOutputSkipRef.current = activeMap.cliOutputLines;
+      setGameOutputLines([...activeMap.cliOutputLines]);
       loadDocument(activeMap);
     } else {
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = null;
+      pendingInitialGameOutputSkipRef.current = null;
+      setGameOutputLines([]);
       unloadDocument();
     }
   }, [activeMap, loadDocument, unloadDocument]);
@@ -319,13 +324,28 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     if (!storeDoc) return;
     if (pendingInitialSaveSkipDocRef.current === storeDoc) {
+      if (pendingInitialGameOutputSkipRef.current !== null) {
+        if (pendingInitialGameOutputSkipRef.current.length === gameOutputLines.length
+          && pendingInitialGameOutputSkipRef.current.every((line, index) => line === gameOutputLines[index])) {
+          pendingInitialSaveSkipDocRef.current = null;
+          pendingInitialGameOutputSkipRef.current = null;
+          return;
+        }
+
+        return;
+      }
+
       pendingInitialSaveSkipDocRef.current = null;
       return;
     }
 
     pendingInitialSaveSkipDocRef.current = null;
-    void saveMap(storeDoc);
-  }, [storeDoc]);
+    pendingInitialGameOutputSkipRef.current = null;
+    void saveMap({
+      ...storeDoc,
+      cliOutputLines: gameOutputLines,
+    });
+  }, [gameOutputLines, storeDoc]);
 
   useEffect(() => {
     if (!isHelpOpen) {

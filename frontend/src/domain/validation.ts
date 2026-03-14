@@ -171,6 +171,34 @@ function requireFiniteNumber(
   return value;
 }
 
+function parseStringArray(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): readonly string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be an array of strings.`);
+    return [];
+  }
+
+  const parsed: string[] = [];
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== 'string') {
+      pushIssue(issues, 'error', entityType, entityId, `${path}.${index}`, `${path}.${index} must be a string.`);
+      continue;
+    }
+    parsed.push(entry);
+  }
+
+  return parsed;
+}
+
 function validateLength(
   value: string,
   maxLength: number,
@@ -1059,6 +1087,7 @@ export function parseUntrustedMapDocument(
   const metadata = parseMetadata(doc.metadata, issues);
   const view = parseMapView(doc.view, issues);
   const background = parseBackground(doc.background, issues);
+  const cliOutputLines = parseStringArray(doc.cliOutputLines, issues, 'cliOutputLines', 'map', 'root');
   const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
   const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
   const stickyNotes = parseRecordCollection(doc.stickyNotes ?? {}, 'stickyNotes', MAX_STICKY_NOTES, issues, parseStickyNote);
@@ -1074,6 +1103,7 @@ export function parseUntrustedMapDocument(
     metadata,
     view,
     background,
+    cliOutputLines,
     rooms,
     connections,
     stickyNotes,

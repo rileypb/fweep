@@ -139,6 +139,7 @@ export interface MapDocument {
   readonly metadata: MapMetadata;
   readonly view: MapView;
   readonly background: BackgroundDocument;
+  readonly cliOutputLines: readonly string[];
   readonly rooms: Readonly<Record<string, Room>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly stickyNotes: Readonly<Record<string, StickyNote>>;
@@ -148,6 +149,12 @@ export interface MapDocument {
 
 /** Current schema version for new maps. */
 export const CURRENT_SCHEMA_VERSION = 1;
+export const DEFAULT_CLI_OUTPUT_LINES = [
+  'fweep',
+  'An interactive map creator by Phil Riley',
+  'Release 31 / Serial number 415926',
+  '',
+] as const;
 
 export function createEmptyBackground(): BackgroundDocument {
   return {
@@ -190,6 +197,7 @@ export function createEmptyMap(name: string): MapDocument {
       useBezierConnections: false,
     },
     background: createEmptyBackground(),
+    cliOutputLines: [...DEFAULT_CLI_OUTPUT_LINES],
     rooms: {},
     connections: {},
     stickyNotes: {},
