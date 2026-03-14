@@ -18,12 +18,21 @@ import {
   sampleConnectionGeometryAtFraction,
   pointsToSvgString,
   ROOM_HEIGHT,
+  type Point,
 } from '../graph/connection-geometry';
 import { getRoomNodeWidth } from '../graph/minimap-geometry';
 import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
 import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
 import { PadlockGlyph } from './padlock-glyph';
+import {
+  getAnnotationGeometryFromRenderGeometry,
+  getAnnotationGeometryFromSegment,
+  getDerivedVerticalAnnotationKind,
+  getLongestSegment,
+  getVisibleConnectionSegments,
+  normalizeReadableTextRotation,
+} from '../graph/connection-decoration-geometry';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_LENGTH_RATIO = 0.8;
@@ -34,8 +43,6 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
-const PASS_THROUGH_GAP_PADDING = 6;
-const PASS_THROUGH_CROSSBAR_LENGTH = 10;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -67,26 +74,10 @@ function applyStickyNoteDragOffset(
   };
 }
 
-interface VectorPoint {
-  readonly x: number;
-  readonly y: number;
-}
-
 interface ConnectionLabelGeometry {
   readonly x: number;
   readonly y: number;
   readonly textAnchor: 'start' | 'middle';
-}
-
-interface VisibleConnectionSegment {
-  readonly start: VectorPoint;
-  readonly end: VectorPoint;
-}
-
-interface VisibleConnectionSegmentsResult {
-  readonly segments: readonly VisibleConnectionSegment[];
-  readonly crossbars: readonly VisibleConnectionSegment[];
-  readonly hasGap: boolean;
 }
 
 interface AnnotationGeometryBase {
@@ -96,7 +87,7 @@ interface AnnotationGeometryBase {
 
 interface AnnotationSegmentSample {
   readonly kind: 'segment';
-  readonly segment: { start: VectorPoint; end: VectorPoint };
+  readonly segment: { start: Point; end: Point };
 }
 
 interface AnnotationCurveSample {
@@ -110,223 +101,6 @@ interface DirectionalAnnotationRenderIntent extends AnnotationGeometryBase {
   readonly label: 'up' | 'down' | 'in';
   readonly compactLength: boolean;
   readonly positionSample: AnnotationPositionSample | null;
-}
-
-function getDerivedVerticalAnnotationKind(connection: Connection, sourceRoom: Room, targetRoom: Room): 'up' | 'down' | null {
-  const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
-  const targetDirection = connection.isBidirectional
-    ? findRoomDirectionForConnection(targetRoom, connection.id)
-    : null;
-
-  const sourceIsUp = sourceDirection === 'up';
-  const targetIsUp = targetDirection === 'up';
-  if ((sourceIsUp || targetIsUp) && !(sourceIsUp && targetIsUp)) {
-    return 'up';
-  }
-
-  const sourceIsDown = sourceDirection === 'down';
-  const targetIsDown = targetDirection === 'down';
-  if ((sourceIsDown || targetIsDown) && !(sourceIsDown && targetIsDown)) {
-    return 'down';
-  }
-
-  return null;
-}
-
-function getSegmentLength(start: VectorPoint, end: VectorPoint): number {
-  return Math.hypot(end.x - start.x, end.y - start.y);
-}
-
-function getLongestSegment(points: readonly VectorPoint[]): { start: VectorPoint; end: VectorPoint } | null {
-  let bestSegment: { start: VectorPoint; end: VectorPoint } | null = null;
-  let bestLength = -1;
-
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    const length = getSegmentLength(start, end);
-    if (length > bestLength) {
-      bestLength = length;
-      bestSegment = { start, end };
-    }
-  }
-
-  return bestSegment;
-}
-
-function getRoomBounds(room: Room): { left: number; right: number; top: number; bottom: number } {
-  const roomWidth = getRoomNodeWidth(room);
-  return {
-    left: room.position.x - PASS_THROUGH_GAP_PADDING,
-    right: room.position.x + roomWidth + PASS_THROUGH_GAP_PADDING,
-    top: room.position.y - PASS_THROUGH_GAP_PADDING,
-    bottom: room.position.y + ROOM_HEIGHT + PASS_THROUGH_GAP_PADDING,
-  };
-}
-
-function getSegmentGapIntervals(
-  start: VectorPoint,
-  end: VectorPoint,
-  roomsToSkipAcross: readonly Room[],
-): readonly { start: number; end: number }[] {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  if (dx === 0 && dy === 0) {
-    return [];
-  }
-
-  const intervals = roomsToSkipAcross.flatMap((room) => {
-    const bounds = getRoomBounds(room);
-    let tMin = 0;
-    let tMax = 1;
-
-    if (dx === 0) {
-      if (start.x < bounds.left || start.x > bounds.right) {
-        return [];
-      }
-    } else {
-      const tx1 = (bounds.left - start.x) / dx;
-      const tx2 = (bounds.right - start.x) / dx;
-      tMin = Math.max(tMin, Math.min(tx1, tx2));
-      tMax = Math.min(tMax, Math.max(tx1, tx2));
-    }
-
-    if (dy === 0) {
-      if (start.y < bounds.top || start.y > bounds.bottom) {
-        return [];
-      }
-    } else {
-      const ty1 = (bounds.top - start.y) / dy;
-      const ty2 = (bounds.bottom - start.y) / dy;
-      tMin = Math.max(tMin, Math.min(ty1, ty2));
-      tMax = Math.min(tMax, Math.max(ty1, ty2));
-    }
-
-    if (tMax <= 0 || tMin >= 1 || tMin >= tMax) {
-      return [];
-    }
-
-    return [{
-      start: Math.max(0, tMin),
-      end: Math.min(1, tMax),
-    }];
-  });
-
-  if (intervals.length === 0) {
-    return [];
-  }
-
-  const sortedIntervals = [...intervals].sort((left, right) => left.start - right.start);
-  const mergedIntervals: Array<{ start: number; end: number }> = [];
-
-  sortedIntervals.forEach((interval) => {
-    const previous = mergedIntervals[mergedIntervals.length - 1];
-    if (!previous || interval.start > previous.end) {
-      mergedIntervals.push({ ...interval });
-      return;
-    }
-
-    previous.end = Math.max(previous.end, interval.end);
-  });
-
-  return mergedIntervals;
-}
-
-function getVisibleConnectionSegments(
-  connection: Connection,
-  points: readonly VectorPoint[],
-  rooms: Readonly<Record<string, Room>>,
-): VisibleConnectionSegmentsResult {
-  if (points.length < 2) {
-    return { segments: [], crossbars: [], hasGap: false };
-  }
-
-  const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
-  const visibleSegments: VisibleConnectionSegment[] = [];
-  const crossbars: VisibleConnectionSegment[] = [];
-  let hasGap = false;
-
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms);
-
-    if (gapIntervals.length === 0) {
-      visibleSegments.push({ start, end });
-      continue;
-    }
-
-    hasGap = true;
-    const segmentLength = Math.hypot(dx, dy);
-    const normalX = segmentLength === 0 ? 0 : -dy / segmentLength;
-    const normalY = segmentLength === 0 ? 0 : dx / segmentLength;
-    const halfCrossbarLength = PASS_THROUGH_CROSSBAR_LENGTH / 2;
-
-    let cursor = 0;
-    gapIntervals.forEach((interval) => {
-      const gapStartPoint = {
-        x: start.x + (dx * interval.start),
-        y: start.y + (dy * interval.start),
-      };
-      const gapEndPoint = {
-        x: start.x + (dx * interval.end),
-        y: start.y + (dy * interval.end),
-      };
-
-      crossbars.push({
-        start: {
-          x: gapStartPoint.x - (normalX * halfCrossbarLength),
-          y: gapStartPoint.y - (normalY * halfCrossbarLength),
-        },
-        end: {
-          x: gapStartPoint.x + (normalX * halfCrossbarLength),
-          y: gapStartPoint.y + (normalY * halfCrossbarLength),
-        },
-      });
-      crossbars.push({
-        start: {
-          x: gapEndPoint.x - (normalX * halfCrossbarLength),
-          y: gapEndPoint.y - (normalY * halfCrossbarLength),
-        },
-        end: {
-          x: gapEndPoint.x + (normalX * halfCrossbarLength),
-          y: gapEndPoint.y + (normalY * halfCrossbarLength),
-        },
-      });
-
-      if (interval.start > cursor) {
-        visibleSegments.push({
-          start: {
-            x: start.x + (dx * cursor),
-            y: start.y + (dy * cursor),
-          },
-          end: {
-            x: start.x + (dx * interval.start),
-            y: start.y + (dy * interval.start),
-          },
-        });
-      }
-      cursor = Math.max(cursor, interval.end);
-    });
-
-    if (cursor < 1) {
-      visibleSegments.push({
-        start: {
-          x: start.x + (dx * cursor),
-          y: start.y + (dy * cursor),
-        },
-        end,
-      });
-    }
-  }
-
-  return {
-    segments: visibleSegments.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
-    crossbars: crossbars.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
-    hasGap,
-  };
 }
 
 function getVerticalAnnotationReverseDirection(
@@ -343,7 +117,7 @@ function getVerticalAnnotationReverseDirection(
 function getDirectionalAnnotationRenderIntent(
   annotationKind: 'up' | 'down' | 'in' | 'out',
   geometry: ConnectionRenderGeometry,
-  longestSegment: { start: VectorPoint; end: VectorPoint } | null,
+  longestSegment: { start: Point; end: Point } | null,
 ): DirectionalAnnotationRenderIntent {
   const positionSample: AnnotationPositionSample | null = geometry.kind === 'polyline'
     ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
@@ -372,116 +146,7 @@ function getDirectionalAnnotationRenderIntent(
   };
 }
 
-function normalizeAnnotationNormal(
-  normal: VectorPoint,
-  preferPositiveX: boolean,
-): VectorPoint {
-  if (!preferPositiveX) {
-    return normal;
-  }
-
-  if (normal.x < 0 || (normal.x === 0 && normal.y < 0)) {
-    return {
-      x: -normal.x,
-      y: -normal.y,
-    };
-  }
-
-  return normal;
-}
-
-function getAnnotationGeometry(
-  segment: { start: VectorPoint; end: VectorPoint },
-  reverseDirection: boolean,
-  annotationLabel: string,
-  compactLength: boolean,
-  preferPositiveNormalX = false,
-): {
-  lineStart: VectorPoint;
-  lineEnd: VectorPoint;
-  arrowTip: VectorPoint;
-  arrowBaseA: VectorPoint;
-  arrowBaseB: VectorPoint;
-  textPosition: VectorPoint;
-  rotationDegrees: number;
-} | null {
-  const dx = segment.end.x - segment.start.x;
-  const dy = segment.end.y - segment.start.y;
-  const length = Math.hypot(dx, dy);
-  if (length === 0) {
-    return null;
-  }
-
-  const ux = dx / length;
-  const uy = dy / length;
-  const directionX = reverseDirection ? -ux : ux;
-  const directionY = reverseDirection ? -uy : uy;
-  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
-  const normalX = normal.x;
-  const normalY = normal.y;
-  const centerX = (segment.start.x + segment.end.x) / 2;
-  const centerY = (segment.start.y + segment.end.y) / 2;
-  const annotationCenterX = centerX + (normalX * CONNECTION_ANNOTATION_OFFSET);
-  const annotationCenterY = centerY + (normalY * CONNECTION_ANNOTATION_OFFSET);
-  const annotationLength = compactLength
-    ? Math.min(
-      length * CONNECTION_ANNOTATION_LENGTH_RATIO,
-      Math.max(
-        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
-        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
-      ),
-    )
-    : length * CONNECTION_ANNOTATION_LENGTH_RATIO;
-  const halfLength = annotationLength / 2;
-  const lineStart = {
-    x: annotationCenterX - (directionX * halfLength),
-    y: annotationCenterY - (directionY * halfLength),
-  };
-  const lineEnd = {
-    x: annotationCenterX + (directionX * halfLength),
-    y: annotationCenterY + (directionY * halfLength),
-  };
-  const arrowTip = lineEnd;
-  const arrowBaseCenter = {
-    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
-    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
-  };
-  const arrowBaseA = {
-    x: arrowBaseCenter.x + (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-    y: arrowBaseCenter.y + (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-  };
-  const arrowBaseB = {
-    x: arrowBaseCenter.x - (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-    y: arrowBaseCenter.y - (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-  };
-  const textPosition = {
-    x: annotationCenterX + (normalX * CONNECTION_ANNOTATION_TEXT_OFFSET),
-    y: annotationCenterY + (normalY * CONNECTION_ANNOTATION_TEXT_OFFSET),
-  };
-  const rotationDegrees = (Math.atan2(directionY, directionX) * 180) / Math.PI;
-
-  return {
-    lineStart,
-    lineEnd,
-    arrowTip,
-    arrowBaseA,
-    arrowBaseB,
-    textPosition,
-    rotationDegrees,
-  };
-}
-
-function normalizeReadableTextRotation(rotationDegrees: number): number {
-  if (rotationDegrees > 90) {
-    return rotationDegrees - 180;
-  }
-  if (rotationDegrees <= -90) {
-    return rotationDegrees + 180;
-  }
-  return rotationDegrees;
-}
-
-function getSelfAnnotationPosition(points: readonly VectorPoint[]): VectorPoint | null {
+function getSelfAnnotationPosition(points: readonly Point[]): Point | null {
   if (points.length === 0) {
     return null;
   }
@@ -502,101 +167,20 @@ function getSelfAnnotationPosition(points: readonly VectorPoint[]): VectorPoint 
   };
 }
 
-function getSegmentCenter(segment: { start: VectorPoint; end: VectorPoint }): VectorPoint {
+function getSegmentCenter(segment: { start: Point; end: Point }): Point {
   return {
     x: (segment.start.x + segment.end.x) / 2,
     y: (segment.start.y + segment.end.y) / 2,
   };
 }
 
-function getAnnotationGeometryFromRenderGeometry(
-  geometry: ConnectionRenderGeometry,
-  reverseDirection: boolean,
-  annotationLabel: string,
-  compactLength: boolean,
-  preferPositiveNormalX = false,
-): {
-  lineStart: VectorPoint;
-  lineEnd: VectorPoint;
-  arrowTip: VectorPoint;
-  arrowBaseA: VectorPoint;
-  arrowBaseB: VectorPoint;
-  textPosition: VectorPoint;
-  rotationDegrees: number;
-} | null {
-  const sample = sampleConnectionGeometryAtFraction(geometry, 0.5);
-  if (!sample) {
-    return null;
-  }
-
-  const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
-  if (tangentLength === 0) {
-    return null;
-  }
-
-  const ux = sample.tangent.x / tangentLength;
-  const uy = sample.tangent.y / tangentLength;
-  const directionX = reverseDirection ? -ux : ux;
-  const directionY = reverseDirection ? -uy : uy;
-  const normal = normalizeAnnotationNormal({ x: -uy, y: ux }, preferPositiveNormalX);
-  const normalX = normal.x;
-  const normalY = normal.y;
-  const annotationCenterX = sample.point.x + (normalX * CONNECTION_ANNOTATION_OFFSET);
-  const annotationCenterY = sample.point.y + (normalY * CONNECTION_ANNOTATION_OFFSET);
-  const annotationLength = compactLength
-    ? Math.min(
-      getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO,
-      Math.max(
-        CONNECTION_ANNOTATION_ARROWHEAD_LENGTH + CONNECTION_ANNOTATION_PADDING,
-        (annotationLabel.length * CONNECTION_ANNOTATION_CHAR_WIDTH) + CONNECTION_ANNOTATION_PADDING,
-      ),
-    )
-    : getConnectionGeometryLength(geometry) * CONNECTION_ANNOTATION_LENGTH_RATIO;
-  const halfLength = annotationLength / 2;
-  const lineStart = {
-    x: annotationCenterX - (directionX * halfLength),
-    y: annotationCenterY - (directionY * halfLength),
-  };
-  const lineEnd = {
-    x: annotationCenterX + (directionX * halfLength),
-    y: annotationCenterY + (directionY * halfLength),
-  };
-  const arrowTip = lineEnd;
-  const arrowBaseCenter = {
-    x: arrowTip.x - (directionX * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
-    y: arrowTip.y - (directionY * CONNECTION_ANNOTATION_ARROWHEAD_LENGTH),
-  };
-  const arrowBaseA = {
-    x: arrowBaseCenter.x + (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-    y: arrowBaseCenter.y + (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-  };
-  const arrowBaseB = {
-    x: arrowBaseCenter.x - (normalX * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-    y: arrowBaseCenter.y - (normalY * (CONNECTION_ANNOTATION_ARROWHEAD_WIDTH / 2)),
-  };
-  const textPosition = {
-    x: annotationCenterX + (normalX * CONNECTION_ANNOTATION_TEXT_OFFSET),
-    y: annotationCenterY + (normalY * CONNECTION_ANNOTATION_TEXT_OFFSET),
-  };
-
-  return {
-    lineStart,
-    lineEnd,
-    arrowTip,
-    arrowBaseA,
-    arrowBaseB,
-    textPosition,
-    rotationDegrees: (Math.atan2(directionY, directionX) * 180) / Math.PI,
-  };
-}
-
-function getConnectionCenterFromGeometry(geometry: ConnectionRenderGeometry): VectorPoint | null {
+function getConnectionCenterFromGeometry(geometry: ConnectionRenderGeometry): Point | null {
   return sampleConnectionGeometryAtFraction(geometry, 0.5)?.point ?? null;
 }
 
 function getStubLabelGeometry(
-  start: VectorPoint,
-  end: VectorPoint,
+  start: Point,
+  end: Point,
 ): ConnectionLabelGeometry | null {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -665,7 +249,11 @@ export function MapCanvasConnections({
   ): React.JSX.Element => {
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
-    const annotationKind = conn.annotation?.kind ?? getDerivedVerticalAnnotationKind(conn, sourceRoom, targetRoom);
+    const sourceDirection = findRoomDirectionForConnection(sourceRoom, conn.id) ?? null;
+    const targetDirection = conn.isBidirectional
+      ? (findRoomDirectionForConnection(targetRoom, conn.id) ?? null)
+      : null;
+    const annotationKind = conn.annotation?.kind ?? getDerivedVerticalAnnotationKind(conn, sourceDirection, targetDirection);
     const annotationText = annotationKind === 'text' ? conn.annotation?.text?.trim() ?? '' : '';
     const rendersDirectionalAnnotation = annotationKind === 'up'
       || annotationKind === 'down'
@@ -681,9 +269,9 @@ export function MapCanvasConnections({
     const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
-    let annotationGeometry: ReturnType<typeof getAnnotationGeometry> = null;
+    let annotationGeometry: ReturnType<typeof getAnnotationGeometryFromSegment> = null;
     if (directionalAnnotationIntent?.positionSample?.kind === 'segment') {
-      annotationGeometry = getAnnotationGeometry(
+      annotationGeometry = getAnnotationGeometryFromSegment(
         directionalAnnotationIntent.positionSample.segment,
         directionalAnnotationIntent.reverseDirection,
         annotationLabel,
@@ -700,7 +288,7 @@ export function MapCanvasConnections({
       );
     }
     const textAnnotationGeometry = geometry.kind === 'polyline'
-      ? (textAnnotationSegment ? getAnnotationGeometry(textAnnotationSegment, false, annotationLabel, false) : null)
+      ? (textAnnotationSegment ? getAnnotationGeometryFromSegment(textAnnotationSegment, false, annotationLabel, false) : null)
       : rendersTextAnnotation
         ? getAnnotationGeometryFromRenderGeometry(geometry, false, annotationLabel, false)
         : null;
