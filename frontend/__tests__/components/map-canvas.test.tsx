@@ -2850,6 +2850,42 @@ describe('MapCanvas', () => {
       ))).toBe(false);
     });
 
+    it('renders a gap for a bezier connection when it crosses an unrelated room', () => {
+      const doc = createEmptyMap('Bezier Gap');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      let d = addRoom(doc, northOfHouse);
+      d = addRoom(d, kitchen);
+      d = addRoom(d, westOfHouse);
+      d = addRoom(d, attic);
+      d = {
+        ...d,
+        view: {
+          ...d.view,
+          useBezierConnections: true,
+        },
+      };
+      const westNorthConnection = createConnection(westOfHouse.id, northOfHouse.id, true);
+      const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
+      d = addConnection(d, westNorthConnection, 'north', 'west');
+      d = addConnection(d, kitchenAtticConnection, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const gapSegments = screen.getAllByTestId(/connection-line-segment-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+      const gapCrossbars = screen.getAllByTestId(/connection-gap-crossbar-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+
+      expect(gapSegments.length).toBeGreaterThanOrEqual(2);
+      expect(gapCrossbars).toHaveLength(2);
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`connection-hit-target-${westNorthConnection.id}`).tagName.toLowerCase()).toBe('path');
+    });
+
     it('does not render an arrowhead for a bidirectional connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };

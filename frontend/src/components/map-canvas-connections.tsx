@@ -319,9 +319,15 @@ export function MapCanvasConnections({
         ),
         visualStyle,
       )
-      : { segments: [], crossbars: [], hasGap: false };
-    const usesGapRendering = geometry.kind === 'polyline'
-      && conn.sourceRoomId !== conn.targetRoomId
+      : getVisibleConnectionSegments(
+        conn,
+        geometry,
+        Object.fromEntries(
+          Object.entries(rooms).map(([roomId, room]) => [roomId, getRoomForVisualStyle(room, visualStyle)]),
+        ),
+        visualStyle,
+      );
+    const usesGapRendering = conn.sourceRoomId !== conn.targetRoomId
       && visiblePolylineResult.hasGap;
 
     return (
@@ -449,6 +455,98 @@ export function MapCanvasConnections({
                 )}
               </>
             )}
+          </>
+        ) : usesGapRendering ? (
+          <>
+            <path
+              data-testid={`connection-hit-target-${conn.id}`}
+              data-connection-id={conn.id}
+              className="connection-hit-target"
+              d={pathData ?? ''}
+              fill="none"
+              stroke="transparent"
+              strokeWidth="18"
+              style={{ pointerEvents: interactionsDisabled ? 'none' : 'stroke', cursor: interactionsDisabled ? 'default' : 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (e.shiftKey) {
+                  addConnectionToSelection(conn.id);
+                } else {
+                  selectConnection(conn.id);
+                }
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                selectConnection(conn.id);
+                onOpenConnectionEditor(conn.id);
+              }}
+            />
+            {visiblePolylineResult.segments.map((segment, index) => (
+              <line
+                key={`connection-line-segment-${conn.id}-${index}`}
+                data-testid={`connection-line-segment-${conn.id}-${index}`}
+                className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                x1={segment.start.x}
+                y1={segment.start.y}
+                x2={segment.end.x}
+                y2={segment.end.y}
+                style={{
+                  stroke: connectionStroke,
+                  strokeWidth: isSelected ? 6 : 2,
+                  strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+            {visiblePolylineResult.crossbars.map((segment, index) => (
+              <line
+                key={`connection-gap-crossbar-${conn.id}-${index}`}
+                data-testid={`connection-gap-crossbar-${conn.id}-${index}`}
+                className={baseClassName}
+                x1={segment.start.x}
+                y1={segment.start.y}
+                x2={segment.end.x}
+                y2={segment.end.y}
+                style={{
+                  stroke: connectionStroke,
+                  strokeWidth: isSelected ? 6 : 2,
+                  strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+            {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+              <line
+                key={`connection-selection-inner-segment-${conn.id}-${index}`}
+                data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
+                className="connection-line connection-line--selected-inner"
+                x1={segment.start.x}
+                y1={segment.start.y}
+                x2={segment.end.x}
+                y2={segment.end.y}
+                style={{
+                  stroke: '#f59e0b',
+                  strokeWidth: 2,
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
+            {isSelected && visiblePolylineResult.crossbars.map((segment, index) => (
+              <line
+                key={`connection-gap-crossbar-inner-${conn.id}-${index}`}
+                data-testid={`connection-gap-crossbar-inner-${conn.id}-${index}`}
+                className="connection-line connection-line--selected-inner"
+                x1={segment.start.x}
+                y1={segment.start.y}
+                x2={segment.end.x}
+                y2={segment.end.y}
+                style={{
+                  stroke: '#f59e0b',
+                  strokeWidth: 2,
+                  pointerEvents: 'none',
+                }}
+              />
+            ))}
           </>
         ) : (
           <>

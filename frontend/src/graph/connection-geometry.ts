@@ -997,6 +997,29 @@ export function sampleConnectionGeometryAtFraction(
   };
 }
 
+export function flattenConnectionGeometry(
+  geometry: ConnectionRenderGeometry,
+  segmentCount: number = 48,
+): readonly Point[] {
+  if (geometry.kind === 'polyline') {
+    return geometry.points;
+  }
+
+  const clampedSegmentCount = Math.max(2, Math.floor(segmentCount));
+  const points: Point[] = [];
+
+  for (let index = 0; index <= clampedSegmentCount; index += 1) {
+    const fraction = index / clampedSegmentCount;
+    const sample = sampleConnectionGeometryAtFraction(geometry, fraction);
+    if (!sample) {
+      continue;
+    }
+    points.push(sample.point);
+  }
+
+  return points;
+}
+
 export function computeGeometryArrowheadPoints(
   geometry: ConnectionRenderGeometry,
   arrowLength: number = DEFAULT_ARROW_LENGTH,

@@ -13,6 +13,7 @@ const mockGetRoomStrokeDasharray = jest.fn<typeof import('../../src/components/m
 const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connection-geometry').computeConnectionPath>();
 const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/graph/connection-geometry').computeGeometryArrowheadPoints>();
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
+const mockFlattenConnectionGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').flattenConnectionGeometry>();
 const mockFindRoomDirectionForConnection = jest.fn<typeof import('../../src/graph/connection-geometry').findRoomDirectionForConnection>();
 const mockGetConnectionGeometryLength = jest.fn<typeof import('../../src/graph/connection-geometry').getConnectionGeometryLength>();
 const mockSampleConnectionGeometryAtFraction = jest.fn<typeof import('../../src/graph/connection-geometry').sampleConnectionGeometryAtFraction>();
@@ -46,6 +47,7 @@ await jest.unstable_mockModule('../../src/graph/connection-geometry', async () =
     computeConnectionPath: mockComputeConnectionPath,
     computeGeometryArrowheadPoints: mockComputeGeometryArrowheadPoints,
     createConnectionRenderGeometry: mockCreateConnectionRenderGeometry,
+    flattenConnectionGeometry: mockFlattenConnectionGeometry,
     findRoomDirectionForConnection: mockFindRoomDirectionForConnection,
     getConnectionGeometryLength: mockGetConnectionGeometryLength,
     sampleConnectionGeometryAtFraction: mockSampleConnectionGeometryAtFraction,
@@ -280,6 +282,13 @@ describe('renderExportCanvas', () => {
     mockSampleConnectionGeometryAtFraction.mockReturnValue({
       point: { x: 20, y: 10 },
       tangent: { x: 10, y: 0 },
+    });
+    mockFlattenConnectionGeometry.mockImplementation((geometry) => {
+      if (geometry.kind === 'polyline') {
+        return geometry.points;
+      }
+
+      return [geometry.start, { x: 20, y: 162 }, { x: 20, y: 114 }, geometry.end];
     });
     mockGetConnectionGeometryLength.mockReturnValue(40);
     mockFindRoomDirectionForConnection.mockImplementation((room, connectionId) => {
@@ -845,5 +854,66 @@ describe('renderExportCanvas', () => {
     expect(context.lineTo).toHaveBeenCalledWith(125, 162);
     expect(context.moveTo).toHaveBeenCalledWith(115, 114);
     expect(context.lineTo).toHaveBeenCalledWith(125, 114);
+  });
+
+  it('renders pass-through gaps and crossbars for bezier room crossings in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Left'), id: 'room-left', position: { x: 80, y: 220 } };
+    const blocker = { ...createRoom('Kitchen'), id: 'room-blocker', position: { x: 80, y: 120 } };
+    const target = { ...createRoom('Top'), id: 'room-top', position: { x: 120, y: 20 } };
+    let doc = createEmptyMap('Export Bezier Gap');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, blocker);
+    doc = addRoom(doc, target);
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        useBezierConnections: true,
+      },
+    };
+    const connection = { ...createConnection(source.id, target.id, true), id: 'connection-bezier-gap' };
+    doc = addConnection(doc, connection, 'north', 'south');
+
+    mockComputeConnectionPath.mockReturnValue([
+      { x: 80, y: 220 },
+      { x: 80, y: 200 },
+      { x: 120, y: 40 },
+      { x: 120, y: 20 },
+    ]);
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'cubic',
+      start: { x: 80, y: 220 },
+      control1: { x: 80, y: 200 },
+      control2: { x: 120, y: 40 },
+      end: { x: 120, y: 20 },
+    });
+    mockFlattenConnectionGeometry.mockReturnValue([
+      { x: 80, y: 220 },
+      { x: 120, y: 162 },
+      { x: 120, y: 114 },
+      { x: 120, y: 20 },
+    ]);
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [source.id, blocker.id, target.id],
+      selectedConnectionIds: [connection.id],
+      selectedStickyNoteIds: [],
+      selectedStickyNoteLinkIds: [],
+      settings: {
+        ...createBaseInput().settings,
+        scope: 'selection',
+      },
+    });
+
+    expect(context.moveTo.mock.calls.some(([x, y]) => x === 80 && y === 220)).toBe(true);
+    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y === 162)).toBe(true);
+    expect(context.moveTo.mock.calls.some(([x, y]) => x === 120 && y === 114)).toBe(true);
+    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y < 114)).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import type { Connection, MapVisualStyle, Room } from '../domain/map-types';
 import {
+  flattenConnectionGeometry,
   getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
@@ -16,6 +17,7 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const PASS_THROUGH_GAP_PADDING = 6;
 const PASS_THROUGH_CROSSBAR_LENGTH = 10;
+const GAP_MERGE_TOLERANCE = 0.5;
 
 export interface VisibleConnectionSegment {
   readonly start: Point;
@@ -40,6 +42,14 @@ export interface ConnectionAnnotationGeometry {
 
 function getSegmentLength(start: Point, end: Point): number {
   return Math.hypot(end.x - start.x, end.y - start.y);
+}
+
+interface PolylineSegmentInfo {
+  readonly start: Point;
+  readonly end: Point;
+  readonly length: number;
+  readonly startDistance: number;
+  readonly endDistance: number;
 }
 
 function getRoomBounds(
@@ -178,99 +188,174 @@ export function getLongestSegment(points: readonly Point[]): { start: Point; end
 
 export function getVisibleConnectionSegments(
   connection: Connection,
-  points: readonly Point[],
+  pointsOrGeometry: readonly Point[] | ConnectionRenderGeometry,
   rooms: Readonly<Record<string, Room>>,
   visualStyle: MapVisualStyle = 'default',
 ): VisibleConnectionSegmentsResult {
+  const points = 'kind' in pointsOrGeometry
+    ? flattenConnectionGeometry(pointsOrGeometry)
+    : pointsOrGeometry;
   if (points.length < 2) {
     return { segments: [], crossbars: [], hasGap: false };
   }
 
   const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
-  const visibleSegments: VisibleConnectionSegment[] = [];
-  const crossbars: VisibleConnectionSegment[] = [];
-  let hasGap = false;
-
+  const segmentInfos: PolylineSegmentInfo[] = [];
+  let totalLength = 0;
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
     const end = points[index + 1];
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const gapIntervals = getSegmentGapIntervals(start, end, unrelatedRooms, visualStyle);
-
-    if (gapIntervals.length === 0) {
-      visibleSegments.push({ start, end });
-      continue;
-    }
-
-    hasGap = true;
-    const segmentLength = Math.hypot(dx, dy);
-    const normalX = segmentLength === 0 ? 0 : -dy / segmentLength;
-    const normalY = segmentLength === 0 ? 0 : dx / segmentLength;
-    const halfCrossbarLength = PASS_THROUGH_CROSSBAR_LENGTH / 2;
-
-    let cursor = 0;
-    gapIntervals.forEach((interval) => {
-      const gapStartPoint = {
-        x: start.x + (dx * interval.start),
-        y: start.y + (dy * interval.start),
-      };
-      const gapEndPoint = {
-        x: start.x + (dx * interval.end),
-        y: start.y + (dy * interval.end),
-      };
-
-      crossbars.push({
-        start: {
-          x: gapStartPoint.x - (normalX * halfCrossbarLength),
-          y: gapStartPoint.y - (normalY * halfCrossbarLength),
-        },
-        end: {
-          x: gapStartPoint.x + (normalX * halfCrossbarLength),
-          y: gapStartPoint.y + (normalY * halfCrossbarLength),
-        },
-      });
-      crossbars.push({
-        start: {
-          x: gapEndPoint.x - (normalX * halfCrossbarLength),
-          y: gapEndPoint.y - (normalY * halfCrossbarLength),
-        },
-        end: {
-          x: gapEndPoint.x + (normalX * halfCrossbarLength),
-          y: gapEndPoint.y + (normalY * halfCrossbarLength),
-        },
-      });
-
-      if (interval.start > cursor) {
-        visibleSegments.push({
-          start: {
-            x: start.x + (dx * cursor),
-            y: start.y + (dy * cursor),
-          },
-          end: {
-            x: start.x + (dx * interval.start),
-            y: start.y + (dy * interval.start),
-          },
-        });
-      }
-      cursor = Math.max(cursor, interval.end);
+    const length = getSegmentLength(start, end);
+    segmentInfos.push({
+      start,
+      end,
+      length,
+      startDistance: totalLength,
+      endDistance: totalLength + length,
     });
+    totalLength += length;
+  }
 
-    if (cursor < 1) {
-      visibleSegments.push({
-        start: {
-          x: start.x + (dx * cursor),
-          y: start.y + (dy * cursor),
-        },
-        end,
+  const mergedGapIntervals = segmentInfos
+    .flatMap((segmentInfo) => (
+      getSegmentGapIntervals(segmentInfo.start, segmentInfo.end, unrelatedRooms, visualStyle)
+        .map((interval) => ({
+          start: segmentInfo.startDistance + (segmentInfo.length * interval.start),
+          end: segmentInfo.startDistance + (segmentInfo.length * interval.end),
+        }))
+    ))
+    .sort((left, right) => left.start - right.start)
+    .reduce<Array<{ start: number; end: number }>>((merged, interval) => {
+      const previous = merged[merged.length - 1];
+      if (!previous || interval.start > previous.end + GAP_MERGE_TOLERANCE) {
+        merged.push({ ...interval });
+        return merged;
+      }
+
+      previous.end = Math.max(previous.end, interval.end);
+      return merged;
+    }, []);
+
+  if (mergedGapIntervals.length === 0) {
+    return {
+      segments: segmentInfos
+        .filter((segment) => segment.length > 0.1)
+        .map((segment) => ({ start: segment.start, end: segment.end })),
+      crossbars: [],
+      hasGap: false,
+    };
+  }
+
+  const getPointAtDistance = (distance: number): Point => {
+    const clampedDistance = Math.min(Math.max(distance, 0), totalLength);
+    for (const segmentInfo of segmentInfos) {
+      if (segmentInfo.length === 0) {
+        continue;
+      }
+
+      if (clampedDistance <= segmentInfo.endDistance) {
+        const ratio = (clampedDistance - segmentInfo.startDistance) / segmentInfo.length;
+        return {
+          x: segmentInfo.start.x + ((segmentInfo.end.x - segmentInfo.start.x) * ratio),
+          y: segmentInfo.start.y + ((segmentInfo.end.y - segmentInfo.start.y) * ratio),
+        };
+      }
+    }
+
+    return points[points.length - 1];
+  };
+
+  const getSegmentInfoAtDistance = (distance: number): PolylineSegmentInfo | null => {
+    const clampedDistance = Math.min(Math.max(distance, 0), totalLength);
+    for (const segmentInfo of segmentInfos) {
+      if (segmentInfo.length === 0) {
+        continue;
+      }
+
+      if (clampedDistance >= segmentInfo.startDistance && clampedDistance <= segmentInfo.endDistance) {
+        return segmentInfo;
+      }
+    }
+
+    return segmentInfos.find((segmentInfo) => segmentInfo.length > 0) ?? null;
+  };
+
+  const appendVisibleSegmentsBetweenDistances = (
+    startDistance: number,
+    endDistance: number,
+    target: VisibleConnectionSegment[],
+  ): void => {
+    if (endDistance <= startDistance) {
+      return;
+    }
+
+    for (const segmentInfo of segmentInfos) {
+      if (segmentInfo.length === 0) {
+        continue;
+      }
+
+      const overlapStart = Math.max(startDistance, segmentInfo.startDistance);
+      const overlapEnd = Math.min(endDistance, segmentInfo.endDistance);
+      if (overlapEnd <= overlapStart) {
+        continue;
+      }
+
+      target.push({
+        start: getPointAtDistance(overlapStart),
+        end: getPointAtDistance(overlapEnd),
       });
     }
-  }
+  };
+
+  const createCrossbarAtDistance = (distance: number): VisibleConnectionSegment | null => {
+    const segmentInfo = getSegmentInfoAtDistance(distance);
+    if (!segmentInfo || segmentInfo.length === 0) {
+      return null;
+    }
+
+    const dx = segmentInfo.end.x - segmentInfo.start.x;
+    const dy = segmentInfo.end.y - segmentInfo.start.y;
+    const normalX = -dy / segmentInfo.length;
+    const normalY = dx / segmentInfo.length;
+    const halfCrossbarLength = PASS_THROUGH_CROSSBAR_LENGTH / 2;
+    const point = getPointAtDistance(distance);
+
+    return {
+      start: {
+        x: point.x - (normalX * halfCrossbarLength),
+        y: point.y - (normalY * halfCrossbarLength),
+      },
+      end: {
+        x: point.x + (normalX * halfCrossbarLength),
+        y: point.y + (normalY * halfCrossbarLength),
+      },
+    };
+  };
+
+  const visibleSegments: VisibleConnectionSegment[] = [];
+  const crossbars: VisibleConnectionSegment[] = [];
+  let cursor = 0;
+  mergedGapIntervals.forEach((interval) => {
+    appendVisibleSegmentsBetweenDistances(cursor, interval.start, visibleSegments);
+
+    const startCrossbar = createCrossbarAtDistance(interval.start);
+    if (startCrossbar) {
+      crossbars.push(startCrossbar);
+    }
+
+    const endCrossbar = createCrossbarAtDistance(interval.end);
+    if (endCrossbar) {
+      crossbars.push(endCrossbar);
+    }
+
+    cursor = Math.max(cursor, interval.end);
+  });
+  appendVisibleSegmentsBetweenDistances(cursor, totalLength, visibleSegments);
 
   return {
     segments: visibleSegments.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
     crossbars: crossbars.filter((segment) => getSegmentLength(segment.start, segment.end) > 0.1),
-    hasGap,
+    hasGap: true,
   };
 }
 

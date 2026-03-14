@@ -298,16 +298,21 @@ function drawConnectionLine(
   context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
-  if (geometry.kind === 'polyline' && connection.sourceRoomId !== connection.targetRoomId) {
-    const visiblePolylineResult = getVisibleConnectionSegments(connection, points, doc.rooms, doc.view.visualStyle);
-    if (visiblePolylineResult.hasGap) {
-      visiblePolylineResult.segments.forEach((segment) => {
+  if (connection.sourceRoomId !== connection.targetRoomId) {
+    const visibleGapResult = getVisibleConnectionSegments(
+      connection,
+      geometry.kind === 'polyline' ? points : geometry,
+      doc.rooms,
+      doc.view.visualStyle,
+    );
+    if (visibleGapResult.hasGap) {
+      visibleGapResult.segments.forEach((segment) => {
         context.beginPath();
         context.moveTo(segment.start.x, segment.start.y);
         context.lineTo(segment.end.x, segment.end.y);
         context.stroke();
       });
-      visiblePolylineResult.crossbars.forEach((segment) => {
+      visibleGapResult.crossbars.forEach((segment) => {
         context.beginPath();
         context.moveTo(segment.start.x, segment.start.y);
         context.lineTo(segment.end.x, segment.end.y);
