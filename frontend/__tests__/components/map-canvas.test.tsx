@@ -1339,33 +1339,8 @@ describe('MapCanvas', () => {
       await user.dblClick(roomNode);
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
-      expect(screen.getByTestId('room-editor-room-node')).toHaveClass('room-node');
       expect(screen.getByTestId('room-editor-dialog')).toBeInTheDocument();
       expect(screen.getByTestId('map-canvas-scene')).toHaveClass('map-canvas-scene--editor-open');
-    });
-
-    it('positions the room name editor using the room SVG geometry after auto-pan', async () => {
-      const user = userEvent.setup();
-      const roomNode = setupRoom();
-      const canvas = screen.getByTestId('map-canvas');
-
-      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        right: 900,
-        bottom: 600,
-        width: 900,
-        height: 600,
-        toJSON: () => ({}),
-      });
-
-      await user.dblClick(roomNode);
-
-      expect(screen.getByTestId('room-editor-room-node')).toHaveStyle({
-        transform: 'translate(450px, 200px) translateX(-50%)',
-      });
     });
 
     it('focuses and selects the room name when the room editor opens', async () => {
@@ -1440,7 +1415,6 @@ describe('MapCanvas', () => {
       await user.dblClick(roomNode);
 
       expect(screen.queryByTestId('room-shape-option-diamond')).not.toBeInTheDocument();
-      expect(screen.getByTestId('room-editor-room-node')).toHaveAttribute('data-map-visual-style', 'square-classic');
     });
 
     it('previews room style options in the room editor without applying them immediately', async () => {
@@ -1463,13 +1437,14 @@ describe('MapCanvas', () => {
       expect(room.strokeStyle).toBe('solid');
 
       const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
-      const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
 
       expect(canvasShape).not.toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
-      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534', strokeDasharray: '8 5' });
+      expect(screen.getByTestId('room-fill-color-chip-2')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByTestId('room-stroke-color-chip-4')).toHaveAttribute('aria-checked', 'true');
+      expect(strokeStyleInput).toHaveValue('dashed');
     });
 
-    it('re-resolves indexed room colors when the theme changes', async () => {
+    it('keeps the selected room style controls when the theme changes', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom();
 
@@ -1477,15 +1452,14 @@ describe('MapCanvas', () => {
       await user.click(screen.getByTestId('room-fill-color-chip-2'));
       await user.click(screen.getByTestId('room-stroke-color-chip-4'));
 
-      const canvasShape = screen.getByTestId('room-node').querySelector('.room-node-shape') as SVGElement;
-      const editorShape = screen.getByTestId('room-editor-room-node').querySelector('.room-node-shape') as SVGElement;
-      expect(canvasShape).toHaveStyle({ fill: '#ffffff', stroke: '#6366f1' });
-      expect(editorShape).toHaveStyle({ fill: '#ffcc00', stroke: '#166534' });
+      expect(screen.getByTestId('room-fill-color-chip-2')).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByTestId('room-stroke-color-chip-4')).toHaveAttribute('aria-checked', 'true');
 
       document.documentElement.setAttribute('data-theme', 'dark');
 
       await waitFor(() => {
-        expect(editorShape).toHaveStyle({ fill: '#854d0e', stroke: '#86efac' });
+        expect(screen.getByTestId('room-fill-color-chip-2')).toHaveAttribute('aria-checked', 'true');
+        expect(screen.getByTestId('room-stroke-color-chip-4')).toHaveAttribute('aria-checked', 'true');
       });
     });
 

@@ -1,7 +1,6 @@
-import type { MapDocument, Position, Room, StickyNote } from '../domain/map-types';
-import { getRoomNodeWidth } from './room-label-geometry';
+import type { MapDocument, MapVisualStyle, Position, Room, StickyNote } from '../domain/map-types';
+import { getRoomNodeDimensions } from './room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
-const ROOM_HEIGHT = 36;
 const ROOM_VERTICAL_GAP = 24;
 const ROOM_HORIZONTAL_GAP = 40;
 const STICKY_NOTE_GAP = 24;
@@ -50,21 +49,27 @@ function snapCoordinate(value: number): number {
   return Object.is(snapped, -0) ? 0 : snapped;
 }
 
-function estimateRoomWidth(room: Room): number {
-  return getRoomNodeWidth(room);
+function getRoomDimensions(room: Room, visualStyle: MapVisualStyle): { readonly width: number; readonly height: number } {
+  return getRoomNodeDimensions(room, visualStyle);
 }
 
-function toRoomCenter(room: Room, position: Position): Vector {
+function estimateRoomWidth(room: Room, visualStyle: MapVisualStyle): number {
+  return getRoomDimensions(room, visualStyle).width;
+}
+
+function toRoomCenter(room: Room, position: Position, visualStyle: MapVisualStyle): Vector {
+  const dimensions = getRoomDimensions(room, visualStyle);
   return {
-    x: position.x + (estimateRoomWidth(room) / 2),
-    y: position.y + (ROOM_HEIGHT / 2),
+    x: position.x + (dimensions.width / 2),
+    y: position.y + (dimensions.height / 2),
   };
 }
 
-function toRoomTopLeft(room: Room, center: Vector): Position {
+function toRoomTopLeft(room: Room, center: Vector, visualStyle: MapVisualStyle): Position {
+  const dimensions = getRoomDimensions(room, visualStyle);
   return {
-    x: center.x - (estimateRoomWidth(room) / 2),
-    y: center.y - (ROOM_HEIGHT / 2),
+    x: center.x - (dimensions.width / 2),
+    y: center.y - (dimensions.height / 2),
   };
 }
 
@@ -291,11 +296,12 @@ function computeComponentSeedOffset(
   doc: MapDocument,
   lockedRoomIds: ReadonlySet<string>,
 ): Vector {
+  const visualStyle = doc.view.visualStyle;
   const lockedComponentRoomIds = componentRoomIds.filter((roomId) => lockedRoomIds.has(roomId));
   if (lockedComponentRoomIds.length > 0) {
     const total = lockedComponentRoomIds.reduce(
       (acc, roomId) => {
-        const actualCenter = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position);
+        const actualCenter = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, visualStyle);
         const seedCenter = seedPositions.get(roomId)!;
         return {
           x: acc.x + (actualCenter.x - seedCenter.x),
@@ -418,9 +424,10 @@ function relaxComponent(
 }
 
 function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): Vector {
+  const visualStyle = doc.view.visualStyle;
   const total = roomIds.reduce(
     (acc, roomId) => {
-      const center = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position);
+      const center = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -437,13 +444,14 @@ function computePlacedCentroid(
   positions: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): Vector {
+  const visualStyle = doc.view.visualStyle;
   const total = roomIds.reduce(
     (acc, roomId) => {
       const position = positions.get(roomId);
       if (!position) {
         return acc;
       }
-      const center = toRoomCenter(doc.rooms[roomId], position);
+      const center = toRoomCenter(doc.rooms[roomId], position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -462,11 +470,12 @@ function overlapsPlacedRooms(
   doc: MapDocument,
 ): boolean {
   const room = doc.rooms[roomId];
-  const candidateWidth = estimateRoomWidth(room);
+  const visualStyle = doc.view.visualStyle;
+  const candidateDimensions = getRoomDimensions(room, visualStyle);
   const candidateLeft = candidatePosition.x;
-  const candidateRight = candidateLeft + candidateWidth + ROOM_HORIZONTAL_GAP;
+  const candidateRight = candidateLeft + candidateDimensions.width + ROOM_HORIZONTAL_GAP;
   const candidateTop = candidatePosition.y;
-  const candidateBottom = candidateTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+  const candidateBottom = candidateTop + candidateDimensions.height + ROOM_VERTICAL_GAP;
 
   for (const [placedRoomId, placedPosition] of placedPositions) {
     if (placedRoomId === roomId) {
@@ -474,11 +483,11 @@ function overlapsPlacedRooms(
     }
 
     const placedRoom = doc.rooms[placedRoomId];
-    const placedWidth = estimateRoomWidth(placedRoom);
+    const placedDimensions = getRoomDimensions(placedRoom, visualStyle);
     const placedLeft = placedPosition.x;
-    const placedRight = placedLeft + placedWidth + ROOM_HORIZONTAL_GAP;
+    const placedRight = placedLeft + placedDimensions.width + ROOM_HORIZONTAL_GAP;
     const placedTop = placedPosition.y;
-    const placedBottom = placedTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+    const placedBottom = placedTop + placedDimensions.height + ROOM_VERTICAL_GAP;
 
     const intersectsHorizontally = candidateLeft < placedRight && candidateRight > placedLeft;
     const intersectsVertically = candidateTop < placedBottom && candidateBottom > placedTop;
@@ -545,6 +554,7 @@ function canTranslateComponent(
   placedPositions: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): boolean {
+  const visualStyle = doc.view.visualStyle;
   if (delta.x === 0 && delta.y === 0) {
     return true;
   }
@@ -571,14 +581,16 @@ function canTranslateComponent(
 
       const room = doc.rooms[roomId];
       const otherRoom = doc.rooms[otherRoomId];
+      const roomDimensions = getRoomDimensions(room, visualStyle);
+      const otherRoomDimensions = getRoomDimensions(otherRoom, visualStyle);
       const candidateLeft = shiftedPosition.x;
-      const candidateRight = candidateLeft + estimateRoomWidth(room) + ROOM_HORIZONTAL_GAP;
+      const candidateRight = candidateLeft + roomDimensions.width + ROOM_HORIZONTAL_GAP;
       const candidateTop = shiftedPosition.y;
-      const candidateBottom = candidateTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+      const candidateBottom = candidateTop + roomDimensions.height + ROOM_VERTICAL_GAP;
       const otherLeft = otherPosition.x;
-      const otherRight = otherLeft + estimateRoomWidth(otherRoom) + ROOM_HORIZONTAL_GAP;
+      const otherRight = otherLeft + otherRoomDimensions.width + ROOM_HORIZONTAL_GAP;
       const otherTop = otherPosition.y;
-      const otherBottom = otherTop + ROOM_HEIGHT + ROOM_VERTICAL_GAP;
+      const otherBottom = otherTop + otherRoomDimensions.height + ROOM_VERTICAL_GAP;
 
       const intersectsHorizontally = candidateLeft < otherRight && candidateRight > otherLeft;
       const intersectsVertically = candidateTop < otherBottom && candidateBottom > otherTop;
@@ -600,12 +612,13 @@ function getStickyNoteBounds(stickyNote: StickyNote, position: Position) {
   };
 }
 
-function getRoomBounds(room: Room, position: Position) {
+function getRoomBounds(room: Room, position: Position, visualStyle: MapVisualStyle) {
+  const dimensions = getRoomDimensions(room, visualStyle);
   return {
     left: position.x,
     top: position.y,
-    right: position.x + estimateRoomWidth(room),
-    bottom: position.y + ROOM_HEIGHT,
+    right: position.x + dimensions.width,
+    bottom: position.y + dimensions.height,
   };
 }
 
@@ -631,9 +644,10 @@ function overlapsRoomOrStickyNote(
 ): boolean {
   const stickyNote = doc.stickyNotes[stickyNoteId];
   const candidateBounds = getStickyNoteBounds(stickyNote, candidatePosition);
+  const visualStyle = doc.view.visualStyle;
 
   for (const [roomId, roomPosition] of Object.entries(roomPositions)) {
-    if (intersectsWithGap(candidateBounds, getRoomBounds(doc.rooms[roomId], roomPosition), STICKY_NOTE_GAP)) {
+    if (intersectsWithGap(candidateBounds, getRoomBounds(doc.rooms[roomId], roomPosition, visualStyle), STICKY_NOTE_GAP)) {
       return true;
     }
   }
@@ -708,6 +722,7 @@ function getPreferredStickyNotePosition(
   doc: MapDocument,
 ): Position {
   const stickyNote = doc.stickyNotes[stickyNoteId];
+  const visualStyle = doc.view.visualStyle;
   const linkedRoomIds = Object.values(doc.stickyNoteLinks)
     .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && roomPositions[stickyNoteLink.roomId] !== undefined)
     .map((stickyNoteLink) => stickyNoteLink.roomId)
@@ -722,24 +737,24 @@ function getPreferredStickyNotePosition(
 
   const linkedRoom = doc.rooms[linkedRoomIds[0]];
   const linkedRoomPosition = roomPositions[linkedRoomIds[0]];
-  const roomWidth = estimateRoomWidth(linkedRoom);
+  const roomDimensions = getRoomDimensions(linkedRoom, visualStyle);
   const noteHeight = getStickyNoteHeight(stickyNote.text);
 
   const candidatePositions = [
     {
-      x: snapCoordinate(linkedRoomPosition.x + roomWidth + STICKY_NOTE_GAP),
-      y: snapCoordinate(linkedRoomPosition.y + ((ROOM_HEIGHT - noteHeight) / 2)),
+      x: snapCoordinate(linkedRoomPosition.x + roomDimensions.width + STICKY_NOTE_GAP),
+      y: snapCoordinate(linkedRoomPosition.y + ((roomDimensions.height - noteHeight) / 2)),
     },
     {
       x: snapCoordinate(linkedRoomPosition.x - STICKY_NOTE_WIDTH - STICKY_NOTE_GAP),
-      y: snapCoordinate(linkedRoomPosition.y + ((ROOM_HEIGHT - noteHeight) / 2)),
+      y: snapCoordinate(linkedRoomPosition.y + ((roomDimensions.height - noteHeight) / 2)),
     },
     {
-      x: snapCoordinate(linkedRoomPosition.x + ((roomWidth - STICKY_NOTE_WIDTH) / 2)),
-      y: snapCoordinate(linkedRoomPosition.y + ROOM_HEIGHT + STICKY_NOTE_GAP),
+      x: snapCoordinate(linkedRoomPosition.x + ((roomDimensions.width - STICKY_NOTE_WIDTH) / 2)),
+      y: snapCoordinate(linkedRoomPosition.y + roomDimensions.height + STICKY_NOTE_GAP),
     },
     {
-      x: snapCoordinate(linkedRoomPosition.x + ((roomWidth - STICKY_NOTE_WIDTH) / 2)),
+      x: snapCoordinate(linkedRoomPosition.x + ((roomDimensions.width - STICKY_NOTE_WIDTH) / 2)),
       y: snapCoordinate(linkedRoomPosition.y - noteHeight - STICKY_NOTE_GAP),
     },
   ];
@@ -846,7 +861,7 @@ function computePrettifiedRoomPositionsSinglePass(
 
     for (const roomId of componentRoomIds) {
       if (lockedRoomIds.has(roomId)) {
-        absoluteSeedPositions.set(roomId, toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position));
+        absoluteSeedPositions.set(roomId, toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, doc.view.visualStyle));
         continue;
       }
 
@@ -885,7 +900,7 @@ function computePrettifiedRoomPositionsSinglePass(
       x: snapCoordinate(center.x),
       y: snapCoordinate(center.y),
     };
-    const topLeft = toRoomTopLeft(doc.rooms[roomId], snappedCenter);
+    const topLeft = toRoomTopLeft(doc.rooms[roomId], snappedCenter, doc.view.visualStyle);
     const snappedPosition = {
       x: topLeft.x,
       y: topLeft.y,

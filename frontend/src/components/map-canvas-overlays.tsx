@@ -13,8 +13,7 @@ import {
   type RoomColorPaletteEntry,
   type ThemeMode,
 } from '../domain/room-color-palette';
-import { getRoomScreenGeometry, renderRoomShape } from './map-canvas-helpers';
-import type { PanOffset } from './use-map-viewport';
+import { renderRoomShape } from './map-canvas-helpers';
 
 interface ColorChipGroupProps {
   label: string;
@@ -300,9 +299,6 @@ export function ConnectionEditorOverlay({
 export interface RoomEditorOverlayProps {
   roomId?: string;
   initialPosition?: Position;
-  panOffset: PanOffset;
-  zoom?: number;
-  canvasRect: DOMRect | null;
   visibleMapLeftInset?: number;
   theme: ThemeMode;
   onClose: (savedRoomId?: string) => void;
@@ -312,16 +308,12 @@ export interface RoomEditorOverlayProps {
 export function RoomEditorOverlay({
   roomId,
   initialPosition,
-  panOffset,
-  zoom = 1,
-  canvasRect,
   visibleMapLeftInset = 0,
   theme,
   onClose,
   onBackdropClose,
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => (roomId === undefined ? null : (s.doc?.rooms[roomId] ?? null)));
-  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -393,6 +385,7 @@ export function RoomEditorOverlay({
     return null;
   }
 
+  const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const draftRoom = {
     ...(room ?? {
       id: 'room-editor-draft',
@@ -408,12 +401,11 @@ export function RoomEditorOverlay({
     strokeColorIndex: draft.strokeColorIndex,
     strokeStyle: draft.strokeStyle,
   };
-  const roomGeometry = getRoomScreenGeometry(draftRoom, panOffset, canvasRect, zoom, mapVisualStyle);
   const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
   const panelWidth = Math.min(42 * 16, Math.max(viewportWidth - 32, 0));
   const panelHalfWidth = panelWidth / 2;
   const visiblePanelCenterX = viewportWidth === 0
-    ? roomGeometry.centerX
+    ? panelHalfWidth + 16
     : visibleMapLeftInset + (Math.max(viewportWidth - visibleMapLeftInset, 0) / 2);
   const desiredPanelLeft = viewportWidth === 0
     ? visiblePanelCenterX
@@ -422,35 +414,6 @@ export function RoomEditorOverlay({
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
       <div className="room-editor-backdrop" aria-hidden="true" onClick={onBackdropClose} />
-      <div
-        className="room-node room-editor-room-node"
-        data-testid="room-editor-room-node"
-        data-room-shape={draft.shape}
-        data-map-visual-style={mapVisualStyle}
-        style={{
-          transform: `translate(${roomGeometry.centerX}px, ${roomGeometry.top}px) translateX(-50%)`,
-          width: `${roomGeometry.width}px`,
-          height: `${roomGeometry.height}px`,
-        }}
-      >
-        <svg
-          className="room-editor-room-svg"
-          aria-hidden="true"
-          width={roomGeometry.width}
-          height={roomGeometry.height}
-        >
-          {renderRoomShape(draft.shape, roomGeometry.width, roomGeometry.height, draftRoom, theme, mapVisualStyle)}
-        </svg>
-        <input
-          ref={nameInputRef}
-          className="room-name-input room-editor-room-name-input"
-          data-testid="room-editor-name-input"
-          type="text"
-          aria-label="Room name"
-          value={draft.name}
-          onChange={(e) => setDraft((current) => current === null ? current : { ...current, name: e.target.value })}
-        />
-      </div>
       <form
         className="room-editor-panel"
         role="dialog"
@@ -523,6 +486,24 @@ export function RoomEditorOverlay({
           </aside>
 
           <div className="room-editor-main">
+            <div className="room-editor-field">
+              <label className="room-editor-label" htmlFor="room-editor-name-input">
+                Room name
+              </label>
+              <input
+                ref={nameInputRef}
+                id="room-editor-name-input"
+                className="room-editor-input room-editor-name-input"
+                data-testid="room-editor-name-input"
+                type="text"
+                aria-label="Room name"
+                maxLength={100}
+                size={44}
+                value={draft.name}
+                onChange={(e) => setDraft((current) => current === null ? current : { ...current, name: e.target.value })}
+              />
+            </div>
+
             {mapVisualStyle === 'default' && (
               <div className="room-editor-field">
                 <span className="room-editor-label">Shape</span>

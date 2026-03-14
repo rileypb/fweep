@@ -2,7 +2,12 @@ import { describe, expect, it } from '@jest/globals';
 import { addConnection, addRoom, addStickyNote, addStickyNoteLink, setRoomPositions } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import type { MapDocument, Room } from '../../src/domain/map-types';
-import { computePrettifiedLayoutPositions, computePrettifiedRoomPositions, PRETTIFY_GRID_SIZE } from '../../src/graph/prettify-layout';
+import {
+  computePrettifiedLayoutPositions,
+  computePrettifiedRoomPositions,
+  PRETTIFY_GRID_SIZE,
+  PRETTIFY_HORIZONTAL_SPACING,
+} from '../../src/graph/prettify-layout';
 import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../../src/graph/sticky-note-geometry';
 
 function expectSnappedToGrid(value: number): void {
@@ -120,6 +125,25 @@ describe('computePrettifiedRoomPositions', () => {
       getRoomCenterX(longRoom, positions[longRoom.id].x),
     );
     expect(positions[longRoom.id].y).toBeLessThan(positions[shortRoom.id].y);
+  });
+
+  it('uses fixed square room widths for square-classic prettify spacing', () => {
+    let doc = createEmptyMap('Square Spacing');
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'square-classic',
+      },
+    };
+    const longRoom = { ...createRoom('A Very Long Room Name That Should Not Push Things Outward'), position: { x: 0, y: 0 } };
+    const shortRoom = { ...createRoom('B'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, longRoom), shortRoom);
+    doc = addConnection(doc, createConnection(longRoom.id, shortRoom.id, true), 'east', 'west');
+
+    const positions = computePrettifiedRoomPositions(doc);
+
+    expect(positions[shortRoom.id].x - positions[longRoom.id].x).toBe(PRETTIFY_HORIZONTAL_SPACING);
   });
 
   it('keeps rooms on unique snapped positions for a cyclic layout', () => {

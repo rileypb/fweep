@@ -1527,9 +1527,6 @@ export function MapCanvas({
           key={roomEditorId ?? `new-room-${roomEditorState.initialPosition?.x ?? 0}-${roomEditorState.initialPosition?.y ?? 0}`}
           roomId={roomEditorId ?? undefined}
           initialPosition={roomEditorState.initialPosition}
-          panOffset={panOffset}
-          zoom={zoom}
-          canvasRect={effectiveCanvasRect}
           visibleMapLeftInset={visibleMapLeftInset}
           theme={theme}
           onClose={(savedRoomId) => {
