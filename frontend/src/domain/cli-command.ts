@@ -250,7 +250,7 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedC
 
 function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
   const aboveBelowIndex = tokens.findIndex((token, index) =>
-    index > 0 && !token.quoted && (isTokenValue(token, 'above') || isTokenValue(token, 'below')),
+    index > 1 && !token.quoted && (isTokenValue(token, 'above') || isTokenValue(token, 'below')),
   );
   if (aboveBelowIndex !== -1) {
     const sourceRoom = readRoomName(tokens, 1, (token) => token === tokens[aboveBelowIndex]);
@@ -273,12 +273,19 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
     };
   }
 
-  const sourceRoom = readRoomName(tokens, 1, isDirectionToken);
+  const relationDirectionIndex = tokens.findIndex((token, index) =>
+    index > 1 && isDirectionToken(token) && isTokenValue(tokens[index + 1], 'of'),
+  );
+  if (relationDirectionIndex === -1) {
+    return null;
+  }
+
+  const sourceRoom = readRoomName(tokens, 1, (token) => token === tokens[relationDirectionIndex]);
   if (sourceRoom === null) {
     return null;
   }
 
-  const relationDirectionToken = tokens[sourceRoom.nextIndex];
+  const relationDirectionToken = tokens[relationDirectionIndex];
   if (!isDirectionToken(relationDirectionToken)) {
     return null;
   }
@@ -289,7 +296,7 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
     return null;
   }
 
-  const ofIndex = sourceRoom.nextIndex + 1;
+  const ofIndex = relationDirectionIndex + 1;
   if (!isTokenValue(tokens[ofIndex], 'of')) {
     return null;
   }

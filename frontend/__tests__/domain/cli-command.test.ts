@@ -90,6 +90,13 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('create Kitchen n of Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going south to Hallway going north',
     );
+    expect(parseCliCommandDescription('create north gate e of four')).toBe(
+      'create a room called north gate and create a two-way connection from north gate going west to four going east',
+    );
+  });
+
+  it('falls back to plain create when a relative-create pattern would leave the new room name empty', () => {
+    expect(parseCliCommandDescription('create east of eden')).toBe('create a room called east of eden');
   });
 
   it('describes relative vertical create commands using bidirectional above/below syntax', () => {
