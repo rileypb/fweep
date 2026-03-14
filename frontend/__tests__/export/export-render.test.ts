@@ -712,6 +712,89 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('down', expect.any(Number), expect.any(Number));
   });
 
+  it('renders a derived up annotation even when the connection has a door annotation', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Basement'), id: 'room-source', position: { x: 0, y: 160 } };
+    const target = { ...createRoom('Attic'), id: 'room-target', position: { x: 160, y: 0 } };
+    let doc = createEmptyMap('Door Up');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, target);
+    doc = addConnection(
+      doc,
+      { ...createConnection(source.id, target.id, true), id: 'connection-door-up', annotation: { kind: 'door' } },
+      'up',
+      'down',
+    );
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [],
+      selectedConnectionIds: [],
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('up', expect.any(Number), expect.any(Number));
+  });
+
+  it('renders a door glyph in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Basement'), id: 'room-source', position: { x: 0, y: 160 } };
+    const target = { ...createRoom('Attic'), id: 'room-target', position: { x: 160, y: 0 } };
+    let doc = createEmptyMap('Door Export');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, target);
+    doc = addConnection(
+      doc,
+      { ...createConnection(source.id, target.id, true), id: 'connection-door', annotation: { kind: 'door' } },
+      'north',
+      'south',
+    );
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [],
+      selectedConnectionIds: [],
+    });
+
+    expect(context.translate).toHaveBeenCalledWith(14, 2);
+    expect(context.quadraticCurveTo).toHaveBeenCalledWith(6, 1, 11, 7);
+  });
+
+  it('renders a locked door glyph in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const source = { ...createRoom('Basement'), id: 'room-source', position: { x: 0, y: 160 } };
+    const target = { ...createRoom('Attic'), id: 'room-target', position: { x: 160, y: 0 } };
+    let doc = createEmptyMap('Locked Door Export');
+    doc = addRoom(doc, source);
+    doc = addRoom(doc, target);
+    doc = addConnection(
+      doc,
+      { ...createConnection(source.id, target.id, true), id: 'connection-locked-door', annotation: { kind: 'locked door' } },
+      'north',
+      'south',
+    );
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+      selectedRoomIds: [],
+      selectedConnectionIds: [],
+    });
+
+    expect(context.translate).toHaveBeenCalledWith(14, 2);
+    expect(context.arc).toHaveBeenCalledWith(6, 10.5, 1, 0, Math.PI * 2);
+  });
+
   it('renders arrow geometry for up annotations in exported PNGs', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;

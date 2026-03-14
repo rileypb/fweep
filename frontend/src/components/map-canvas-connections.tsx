@@ -256,19 +256,26 @@ export function MapCanvasConnections({
     const targetDirection = conn.isBidirectional
       ? (findRoomDirectionForConnection(targetRoom, conn.id) ?? null)
       : null;
-    const annotationKind = conn.annotation?.kind ?? getDerivedVerticalAnnotationKind(conn, sourceDirection, targetDirection);
-    const annotationText = annotationKind === 'text' ? conn.annotation?.text?.trim() ?? '' : '';
-    const rendersDirectionalAnnotation = annotationKind === 'up'
-      || annotationKind === 'down'
-      || annotationKind === 'in'
-      || annotationKind === 'out';
-    const rendersTextAnnotation = annotationKind === 'text' && annotationText.length > 0;
+    const explicitAnnotationKind = conn.annotation?.kind ?? null;
+    const derivedVerticalAnnotationKind = getDerivedVerticalAnnotationKind(conn, sourceDirection, targetDirection);
+    const directionalAnnotationKind = explicitAnnotationKind === 'up'
+      || explicitAnnotationKind === 'down'
+      || explicitAnnotationKind === 'in'
+      || explicitAnnotationKind === 'out'
+      ? explicitAnnotationKind
+      : derivedVerticalAnnotationKind;
+    const annotationText = explicitAnnotationKind === 'text' ? conn.annotation?.text?.trim() ?? '' : '';
+    const rendersDirectionalAnnotation = directionalAnnotationKind === 'up'
+      || directionalAnnotationKind === 'down'
+      || directionalAnnotationKind === 'in'
+      || directionalAnnotationKind === 'out';
+    const rendersTextAnnotation = explicitAnnotationKind === 'text' && annotationText.length > 0;
     const directionalAnnotationIntent = rendersDirectionalAnnotation
-      ? getDirectionalAnnotationRenderIntent(annotationKind, geometry, geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null)
+      ? getDirectionalAnnotationRenderIntent(directionalAnnotationKind, geometry, geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null)
       : null;
     const annotationLabel = directionalAnnotationIntent?.label ?? annotationText;
-    const rendersDoorAnnotation = annotationKind === 'door';
-    const rendersLockedDoorAnnotation = annotationKind === 'locked door';
+    const rendersDoorAnnotation = explicitAnnotationKind === 'door';
+    const rendersLockedDoorAnnotation = explicitAnnotationKind === 'locked door';
     const textAnnotationSegment = geometry.kind === 'polyline' && rendersTextAnnotation ? getLongestSegment(points) : null;
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;

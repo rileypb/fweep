@@ -37,6 +37,8 @@ const LIGHT_FOREGROUND = '#111827';
 const DARK_FOREGROUND = '#f3f4f6';
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
+const CONNECTION_DOOR_WIDTH = 12;
+const CONNECTION_DOOR_HEIGHT = 16;
 
 function getBoundsSize(bounds: ExportRegion): { width: number; height: number } {
   return {
@@ -386,14 +388,94 @@ function drawConnectionLabels(
   const targetDirection = connection.isBidirectional
     ? (findRoomDirectionForConnection(targetRoom, connection.id) ?? null)
     : null;
-  const annotationKind = connection.annotation?.kind ?? getDerivedVerticalAnnotationKind(connection, sourceDirection, targetDirection);
-  const annotationLabel = annotationKind === 'text'
+  const explicitAnnotationKind = connection.annotation?.kind ?? null;
+  const derivedVerticalAnnotationKind = getDerivedVerticalAnnotationKind(connection, sourceDirection, targetDirection);
+  const directionalAnnotationKind = explicitAnnotationKind === 'up'
+    || explicitAnnotationKind === 'down'
+    || explicitAnnotationKind === 'in'
+    || explicitAnnotationKind === 'out'
+    ? explicitAnnotationKind
+    : derivedVerticalAnnotationKind;
+  const annotationLabel = explicitAnnotationKind === 'text'
     ? connection.annotation?.text?.trim() ?? ''
-    : annotationKind === 'up' || annotationKind === 'down'
-      ? annotationKind
-      : annotationKind === 'in' || annotationKind === 'out'
+    : directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down'
+      ? directionalAnnotationKind
+      : directionalAnnotationKind === 'in' || directionalAnnotationKind === 'out'
         ? 'in'
         : '';
+  const doorCenter = geometry.kind === 'polyline'
+    ? (() => {
+      const segment = getLongestSegment(points);
+      return segment
+        ? {
+          x: (segment.start.x + segment.end.x) / 2,
+          y: (segment.start.y + segment.end.y) / 2,
+        }
+        : null;
+    })()
+    : sampleConnectionGeometryAtFraction(geometry, 0.5)?.point ?? null;
+
+  if ((explicitAnnotationKind === 'door' || explicitAnnotationKind === 'locked door') && doorCenter) {
+    const glyphColor = getRoomStrokeColor(connection.strokeColorIndex, theme);
+    context.save();
+    context.translate(doorCenter.x - (CONNECTION_DOOR_WIDTH / 2), doorCenter.y - (CONNECTION_DOOR_HEIGHT / 2));
+    context.lineWidth = 1.5;
+    context.lineCap = 'round';
+
+    if (explicitAnnotationKind === 'door') {
+      context.beginPath();
+      context.moveTo(1, 15);
+      context.lineTo(1, 7);
+      context.quadraticCurveTo(6, 1, 11, 7);
+      context.lineTo(11, 15);
+      context.closePath();
+      context.fillStyle = glyphColor;
+      context.fill();
+      context.strokeStyle = glyphColor;
+      context.stroke();
+    } else {
+      context.beginPath();
+      context.moveTo(3, 7);
+      context.lineTo(3, 5.5);
+      context.bezierCurveTo(3, 2.8, 5, 1, 6, 1);
+      context.bezierCurveTo(7, 1, 9, 2.8, 9, 5.5);
+      context.lineTo(9, 7);
+      context.strokeStyle = glyphColor;
+      context.stroke();
+
+      const bodyRight = PADLOCK_BODY.x + PADLOCK_BODY.width;
+      const bodyBottom = PADLOCK_BODY.y + PADLOCK_BODY.height;
+      const bodyRadius = PADLOCK_BODY.rx;
+      context.beginPath();
+      context.moveTo(PADLOCK_BODY.x + bodyRadius, PADLOCK_BODY.y);
+      context.lineTo(bodyRight - bodyRadius, PADLOCK_BODY.y);
+      context.quadraticCurveTo(bodyRight, PADLOCK_BODY.y, bodyRight, PADLOCK_BODY.y + bodyRadius);
+      context.lineTo(bodyRight, bodyBottom - bodyRadius);
+      context.quadraticCurveTo(bodyRight, bodyBottom, bodyRight - bodyRadius, bodyBottom);
+      context.lineTo(PADLOCK_BODY.x + bodyRadius, bodyBottom);
+      context.quadraticCurveTo(PADLOCK_BODY.x, bodyBottom, PADLOCK_BODY.x, bodyBottom - bodyRadius);
+      context.lineTo(PADLOCK_BODY.x, PADLOCK_BODY.y + bodyRadius);
+      context.quadraticCurveTo(PADLOCK_BODY.x, PADLOCK_BODY.y, PADLOCK_BODY.x + bodyRadius, PADLOCK_BODY.y);
+      context.closePath();
+      context.fillStyle = glyphColor;
+      context.fill();
+      context.strokeStyle = glyphColor;
+      context.stroke();
+
+      context.fillStyle = theme === 'dark' ? '#111827' : '#ffffff';
+      context.beginPath();
+      context.arc(PADLOCK_KEYHOLE.cx, PADLOCK_KEYHOLE.cy, PADLOCK_KEYHOLE.r, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.moveTo(PADLOCK_KEY_STEM.x1, PADLOCK_KEY_STEM.y1);
+      context.lineTo(PADLOCK_KEY_STEM.x2, PADLOCK_KEY_STEM.y2);
+      context.strokeStyle = theme === 'dark' ? '#111827' : '#ffffff';
+      context.lineWidth = 1;
+      context.stroke();
+    }
+
+    context.restore();
+  }
 
   if (!annotationLabel) {
     return;
@@ -403,8 +485,8 @@ function drawConnectionLabels(
   context.textAlign = 'center';
   context.textBaseline = 'middle';
 
-  if (annotationKind === 'up' || annotationKind === 'down' || annotationKind === 'in' || annotationKind === 'out') {
-    const directionalAnnotation = getDirectionalAnnotationGeometry(annotationKind, annotationLabel, geometry, points);
+  if (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down' || directionalAnnotationKind === 'in' || directionalAnnotationKind === 'out') {
+    const directionalAnnotation = getDirectionalAnnotationGeometry(directionalAnnotationKind, annotationLabel, geometry, points);
     if (!directionalAnnotation) {
       return;
     }
@@ -433,7 +515,7 @@ function drawConnectionLabels(
     return;
   }
 
-  if (annotationKind === 'text') {
+  if (explicitAnnotationKind === 'text') {
     const textAnnotationGeometry = geometry.kind === 'polyline'
       ? (() => {
         const segment = getLongestSegment(points);

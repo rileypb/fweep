@@ -3206,6 +3206,24 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();
     });
 
+    it('renders a derived up annotation alongside a door glyph', () => {
+      const doc = createEmptyMap('Test');
+      const lower = { ...createRoom('Lower'), position: { x: 80, y: 200 } };
+      const upper = { ...createRoom('Upper'), position: { x: 80, y: 0 } };
+      let d = addRoom(doc, lower);
+      d = addRoom(d, upper);
+      const conn = { ...createConnection(lower.id, upper.id, true), annotation: { kind: 'door' as const } };
+      d = addConnection(d, conn, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`connection-annotation-door-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
+    });
+
     it('renders two arrowhead polygons for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
