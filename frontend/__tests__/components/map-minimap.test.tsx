@@ -88,6 +88,23 @@ describe('MapMinimap', () => {
     expect(document.querySelectorAll('.map-minimap__connection')).toHaveLength(1);
   });
 
+  it('uses only the actually visible map width for the minimap viewport', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+
+    renderMinimap({
+      rooms: { [kitchen.id]: kitchen, [hallway.id]: hallway },
+      visibleMapLeftInset: 120,
+    });
+
+    const viewport = screen.getByTestId('map-minimap-viewport');
+    const width = Number(viewport.getAttribute('width'));
+    const x = Number(viewport.getAttribute('x'));
+
+    expect(width).toBeLessThan(120);
+    expect(x).toBeGreaterThan(20);
+  });
+
   it('trims one-way minimap connections to the target room perimeter', () => {
     const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };

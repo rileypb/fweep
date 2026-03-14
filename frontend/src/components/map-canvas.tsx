@@ -1375,6 +1375,7 @@ export function MapCanvas({
             zoom={zoom}
             visualStyle={mapVisualStyle}
             canvasRect={effectiveCanvasRect}
+            visibleMapLeftInset={visibleMapLeftInset}
             theme={theme}
             disabled={roomEditorId !== null || connectionEditorId !== null}
             onPanToMapPoint={centerOnMapPoint}

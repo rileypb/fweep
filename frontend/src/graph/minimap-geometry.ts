@@ -308,13 +308,18 @@ export function getMinimapViewportRect(
   canvasSize: CanvasSize,
   transform: MinimapTransform,
   zoom: number = 1,
+  visibleLeftInset: number = 0,
 ): MinimapViewportRect {
-  const topLeft = toMinimapPoint({ x: -panOffset.x / zoom, y: -panOffset.y / zoom }, transform);
+  const visibleWidth = Math.max(canvasSize.width - visibleLeftInset, 0);
+  const topLeft = toMinimapPoint({
+    x: (visibleLeftInset - panOffset.x) / zoom,
+    y: -panOffset.y / zoom,
+  }, transform);
 
   return {
     x: topLeft.x,
     y: topLeft.y,
-    width: Math.max((canvasSize.width / zoom) * transform.scale, 6),
+    width: Math.max((visibleWidth / zoom) * transform.scale, 6),
     height: Math.max((canvasSize.height / zoom) * transform.scale, 6),
   };
 }

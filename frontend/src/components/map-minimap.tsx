@@ -53,6 +53,7 @@ export interface MapMinimapProps {
   readonly zoom?: number;
   readonly visualStyle?: MapVisualStyle;
   readonly canvasRect: CanvasRectLike | null;
+  readonly visibleMapLeftInset?: number;
   readonly theme: ThemeMode;
   readonly disabled?: boolean;
   readonly onPanToMapPoint: (point: { x: number; y: number }) => void;
@@ -87,6 +88,7 @@ export function MapMinimap({
   zoom = 1,
   visualStyle = 'default',
   canvasRect,
+  visibleMapLeftInset = 0,
   theme,
   disabled = false,
   onPanToMapPoint,
@@ -175,9 +177,15 @@ export function MapMinimap({
   );
   const viewportRect = useMemo(
     () => transform && canvasRect
-      ? getMinimapViewportRect(panOffset, { width: canvasRect.width, height: canvasRect.height }, transform, zoom)
+      ? getMinimapViewportRect(
+        panOffset,
+        { width: canvasRect.width, height: canvasRect.height },
+        transform,
+        zoom,
+        visibleMapLeftInset,
+      )
       : null,
-    [canvasRect, panOffset, transform, zoom],
+    [canvasRect, panOffset, transform, visibleMapLeftInset, zoom],
   );
   const dragStateRef = useRef<{ previousX: number; previousY: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
