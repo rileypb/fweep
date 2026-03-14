@@ -16,14 +16,21 @@ import {
   deleteRoom,
   deleteConnection,
   deleteStickyNote,
+  deleteStickyNoteLink,
   deleteItem,
   describeRoom,
   describeItem,
   moveRoom,
+  moveStickyNote,
+  setConnectionAnnotation,
+  setConnectionLabels,
+  setConnectionStyle,
   setRoomLocked,
+  setRoomStyle,
   setRoomPositions,
   setRoomShape,
   setRoomsLocked,
+  setStickyNotePositions,
   setStickyNoteText,
 } from '../../src/domain/map-operations';
 
@@ -260,6 +267,37 @@ describe('sticky notes', () => {
     expect(deleted.stickyNoteLinks[stickyNoteLink.id]).toBeUndefined();
   });
 
+  it('throws when linking a missing sticky note to a room', () => {
+    const doc = addRoom(createEmptyMap('Test'), createRoom('Kitchen'));
+
+    expect(() => addStickyNoteLink(doc, createStickyNoteLink('missing-note', Object.keys(doc.rooms)[0]))).toThrow(/sticky note/i);
+  });
+
+  it('throws when linking a sticky note to a missing room', () => {
+    const stickyNote = createStickyNote('Remember the lantern.');
+    const doc = addStickyNote(createEmptyMap('Test'), stickyNote);
+
+    expect(() => addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, 'missing-room'))).toThrow(/room/i);
+  });
+
+  it('keeps the original document when adding a duplicate sticky-note link', () => {
+    const doc = createEmptyMap('Test');
+    const room = createRoom('Kitchen');
+    const stickyNote = createStickyNote('Remember the lantern.');
+    const withRoom = addRoom(doc, room);
+    const withStickyNote = addStickyNote(withRoom, stickyNote);
+    const firstLink = createStickyNoteLink(stickyNote.id, room.id);
+    const linked = addStickyNoteLink(withStickyNote, firstLink);
+    const duplicateLink = createStickyNoteLink(stickyNote.id, room.id);
+
+    const next = addStickyNoteLink(linked, duplicateLink);
+
+    expect(next).toBe(linked);
+    expect(next.metadata.updatedAt).toBe(linked.metadata.updatedAt);
+    expect(next.stickyNoteLinks).toEqual(linked.stickyNoteLinks);
+    expect(next.stickyNoteLinks[duplicateLink.id]).toBeUndefined();
+  });
+
   it('updates sticky note text', () => {
     const doc = createEmptyMap('Test');
     const stickyNote = createStickyNote('');
@@ -267,6 +305,37 @@ describe('sticky notes', () => {
     const updated = setStickyNoteText(withStickyNote, stickyNote.id, 'A hidden panel is here.');
 
     expect(updated.stickyNotes[stickyNote.id].text).toBe('A hidden panel is here.');
+  });
+
+  it('returns the original document when sticky note positions do not change', () => {
+    const stickyNote = { ...createStickyNote('Keep still'), position: { x: 40, y: 80 } };
+    const doc = addStickyNote(createEmptyMap('Test'), stickyNote);
+
+    const next = setStickyNotePositions(doc, {
+      [stickyNote.id]: { x: 40, y: 80 },
+    });
+
+    expect(next).toBe(doc);
+  });
+
+  it('throws when moving a missing sticky note', () => {
+    expect(() => moveStickyNote(createEmptyMap('Test'), 'missing-note', { x: 10, y: 20 })).toThrow(/not found/i);
+  });
+
+  it('throws when setting positions for a missing sticky note', () => {
+    expect(() => setStickyNotePositions(createEmptyMap('Test'), { 'missing-note': { x: 10, y: 20 } })).toThrow(/not found/i);
+  });
+
+  it('throws when setting text for a missing sticky note', () => {
+    expect(() => setStickyNoteText(createEmptyMap('Test'), 'missing-note', 'Hidden door')).toThrow(/not found/i);
+  });
+
+  it('throws when deleting a missing sticky note', () => {
+    expect(() => deleteStickyNote(createEmptyMap('Test'), 'missing-note')).toThrow(/not found/i);
+  });
+
+  it('throws when deleting a missing sticky-note link', () => {
+    expect(() => deleteStickyNoteLink(createEmptyMap('Test'), 'missing-link')).toThrow(/not found/i);
   });
 });
 
@@ -280,6 +349,15 @@ describe('room locking', () => {
     expect(next.rooms[room.id].locked).toBe(true);
   });
 
+  it('returns the original document when a room lock state already matches', () => {
+    const room = createRoom('Kitchen');
+    const doc = addRoom(createEmptyMap('Test'), room);
+
+    const next = setRoomLocked(doc, room.id, false);
+
+    expect(next).toBe(doc);
+  });
+
   it('updates multiple room lock states at once', () => {
     const roomA = createRoom('A');
     const roomB = createRoom('B');
@@ -290,6 +368,17 @@ describe('room locking', () => {
 
     expect(next.rooms[roomA.id].locked).toBe(true);
     expect(next.rooms[roomB.id].locked).toBe(true);
+  });
+
+  it('returns the original document when all room lock states already match', () => {
+    const roomA = { ...createRoom('A'), locked: true };
+    const roomB = { ...createRoom('B'), locked: true };
+    let doc = addRoom(createEmptyMap('Test'), roomA);
+    doc = addRoom(doc, roomB);
+
+    const next = setRoomsLocked(doc, [roomA.id, roomB.id], true);
+
+    expect(next).toBe(doc);
   });
 
   it('does not move a locked room', () => {
@@ -314,6 +403,17 @@ describe('room locking', () => {
 
     expect(next.rooms[lockedRoom.id].position).toEqual({ x: 80, y: 120 });
     expect(next.rooms[freeRoom.id].position).toEqual({ x: 280, y: 200 });
+  });
+
+  it('returns the original document when supplied room positions are unchanged', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const doc = addRoom(createEmptyMap('Test'), room);
+
+    const next = setRoomPositions(doc, {
+      [room.id]: { x: 80, y: 120 },
+    });
+
+    expect(next).toBe(doc);
   });
 });
 
@@ -392,6 +492,23 @@ describe('deleteRoom', () => {
 
     const next = deleteRoom(d, room.id);
     expect(next.items[item.id]).toBeUndefined();
+  });
+
+  it('removes only sticky-note links attached to the deleted room', () => {
+    const kitchen = createRoom('Kitchen');
+    const hall = createRoom('Hall');
+    const note = createStickyNote('Mind the draft.');
+    let doc = addRoom(addRoom(createEmptyMap('Test'), kitchen), hall);
+    doc = addStickyNote(doc, note);
+    const kitchenLink = createStickyNoteLink(note.id, kitchen.id);
+    const hallLink = createStickyNoteLink(note.id, hall.id);
+    doc = addStickyNoteLink(doc, kitchenLink);
+    doc = addStickyNoteLink(doc, hallLink);
+
+    const next = deleteRoom(doc, kitchen.id);
+
+    expect(next.stickyNoteLinks[kitchenLink.id]).toBeUndefined();
+    expect(next.stickyNoteLinks[hallLink.id]).toEqual(hallLink);
   });
 
   it('throws if the room does not exist', () => {
@@ -547,5 +664,27 @@ describe('describeItem', () => {
   it('throws if the item does not exist', () => {
     const doc = createEmptyMap('Test');
     expect(() => describeItem(doc, 'nope', 'text')).toThrow(/not found/i);
+  });
+});
+
+describe('style and annotation setters', () => {
+  it('throws when setting a shape on a missing room', () => {
+    expect(() => setRoomShape(createEmptyMap('Test'), 'missing-room', 'diamond')).toThrow(/not found/i);
+  });
+
+  it('throws when setting style on a missing room', () => {
+    expect(() => setRoomStyle(createEmptyMap('Test'), 'missing-room', { fillColorIndex: 1 })).toThrow(/not found/i);
+  });
+
+  it('throws when setting style on a missing connection', () => {
+    expect(() => setConnectionStyle(createEmptyMap('Test'), 'missing-connection', { strokeColorIndex: 1 })).toThrow(/not found/i);
+  });
+
+  it('throws when setting annotation on a missing connection', () => {
+    expect(() => setConnectionAnnotation(createEmptyMap('Test'), 'missing-connection', { kind: 'door' })).toThrow(/not found/i);
+  });
+
+  it('throws when setting labels on a missing connection', () => {
+    expect(() => setConnectionLabels(createEmptyMap('Test'), 'missing-connection', { startLabel: 'ledge' })).toThrow(/not found/i);
   });
 });

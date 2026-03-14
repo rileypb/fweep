@@ -373,6 +373,28 @@ describe('parseUntrustedMapDocument', () => {
     expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
   });
 
+  it('rejects invalid background reference image dimensions and zoom', () => {
+    const doc = validMap();
+    const broken = {
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          id: 'background-1',
+          name: 'Dungeon scan',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 0,
+          height: -1,
+          zoom: 0,
+        },
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
+
   it('maps legacy direct color values onto palette indices', () => {
     const doc = validMap();
     const roomId = Object.keys(doc.rooms)[0];
@@ -558,6 +580,26 @@ describe('parseUntrustedMapDocument', () => {
 
     expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
   });
+
+  it('rejects rooms with too many direction bindings', () => {
+    const doc = validMap();
+    const roomId = Object.keys(doc.rooms)[0];
+    const directions = Object.fromEntries(
+      Array.from({ length: 65 }, (_, index) => [`dir-${index}`, `conn-${index}`]),
+    );
+    const broken = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [roomId]: {
+          ...doc.rooms[roomId],
+          directions,
+        },
+      },
+    };
+
+    expect(() => parseUntrustedMapDocument(broken)).toThrow(MapValidationError);
+  });
 });
 
 describe('validateMap', () => {
@@ -685,5 +727,62 @@ describe('validateMap', () => {
     const result = validateMap(broken);
     expect(result.errors.some((e) => /missing sticky note/i.test(e.message))).toBe(true);
     expect(result.errors.some((e) => /missing room/i.test(e.message))).toBe(true);
+  });
+
+  it('returns structured paths for background reference image dimension errors', () => {
+    const d = validMap();
+    const broken: MapDocument = {
+      ...d,
+      background: {
+        ...d.background,
+        referenceImage: {
+          id: 'background-1',
+          name: 'Dungeon scan',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 0,
+          height: 100,
+          zoom: 1,
+        },
+      },
+    };
+
+    try {
+      parseUntrustedMapDocument(broken);
+      throw new Error('Expected parseUntrustedMapDocument to throw.');
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(MapValidationError);
+      const validationError = error as MapValidationError;
+      expect(validationError.issues.some((issue) =>
+        issue.path === 'background.referenceImage.width' && /width must be greater than 0/i.test(issue.message))).toBe(true);
+    }
+  });
+
+  it('returns structured paths when a room has too many directions', () => {
+    const d = validMap();
+    const roomId = Object.keys(d.rooms)[0];
+    const broken: MapDocument = {
+      ...d,
+      rooms: {
+        ...d.rooms,
+        [roomId]: {
+          ...d.rooms[roomId],
+          directions: Object.fromEntries(
+            Array.from({ length: 65 }, (_, index) => [`dir-${index}`, `conn-${index}`]),
+          ),
+        },
+      },
+    };
+
+    try {
+      parseUntrustedMapDocument(broken);
+      throw new Error('Expected parseUntrustedMapDocument to throw.');
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(MapValidationError);
+      const validationError = error as MapValidationError;
+      expect(validationError.issues.some((issue) =>
+        issue.path === `rooms.${roomId}.directions` && /must not contain more than/i.test(issue.message))).toBe(true);
+    }
   });
 });

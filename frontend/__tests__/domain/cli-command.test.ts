@@ -137,6 +137,27 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('treats quoted direction words as room names instead of syntax', () => {
+    expect(parseCliCommandDescription('connect "north" east to Hallway')).toBe(
+      'create a two-way connection from north going east to Hallway going west',
+    );
+  });
+
+  it('treats quoted relation words as room names in relative create commands', () => {
+    expect(parseCliCommandDescription('create "above" east of Hallway')).toBe(
+      'create a room called above and create a two-way connection from above going west to Hallway going east',
+    );
+    expect(parseCliCommandDescription('create Kitchen above "below"')).toBe(
+      'create a room called Kitchen and create a two-way connection from Kitchen going down to below going up',
+    );
+  });
+
+  it('does not parse a quoted target direction as syntax', () => {
+    expect(parseCliCommandDescription('connect Kitchen east to Hallway "west"')).toBe(
+      'create a two-way connection from Kitchen going east to Hallway west going west',
+    );
+  });
+
   it('normalizes tabs and repeated spaces', () => {
     expect(parseCliCommandDescription('create\t\tGreat    Hall')).toBe('create a room called Great Hall');
   });
@@ -146,5 +167,7 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('connect Kitchen east one-way Hallway')).toBeNull();
     expect(parseCliCommandDescription('create and connect Kitchen east of Hallway')).toBeNull();
     expect(parseCliCommandDescription('connect "Kitchen east to Hallway')).toBeNull();
+    expect(parseCliCommandDescription('create "A\\q"')).toBeNull();
+    expect(parseCliCommandDescription('create Ki"tchen')).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { CLI_COMMAND_FORMS } from '../../src/domain/cli-command';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
@@ -104,9 +105,42 @@ describe('URL routing', () => {
     expect(input).toHaveValue('');
   });
 
+  it('keeps the first CLI history entry selected when pressing ArrowUp repeatedly', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI History Ceiling Map');
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.type(input, 'help{enter}');
+    await user.type(input, 'arrange{enter}');
+
+    await user.keyboard('{ArrowUp}');
+    await user.keyboard('{ArrowUp}');
+    await user.keyboard('{ArrowUp}');
+
+    expect(input).toHaveValue('help');
+  });
+
   it('restores the in-progress CLI draft after leaving command history', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Draft Map');
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.type(input, 'help{enter}');
+    await user.type(input, 'arrange{enter}');
+    await user.type(input, 'sho');
+
+    await user.keyboard('{ArrowUp}');
+    expect(input).toHaveValue('arrange');
+
+    await user.keyboard('{ArrowDown}');
+    expect(input).toHaveValue('sho');
+  });
+
+  it('restores the in-progress CLI draft when leaving the newest history entry', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Draft Restore Map');
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
 
@@ -164,6 +198,36 @@ describe('URL routing', () => {
     expect(input).toHaveValue('/');
   });
 
+  it('does not steal / from a focused textarea, select, or contenteditable element', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Slash Editable Elements Map');
+
+    const textarea = document.createElement('textarea');
+    document.body.append(textarea);
+    textarea.focus();
+    await user.keyboard('/');
+    expect(document.activeElement).toBe(textarea);
+
+    const select = document.createElement('select');
+    select.innerHTML = '<option value="one">One</option><option value="two">Two</option>';
+    document.body.append(select);
+    select.focus();
+    await user.keyboard('/');
+    expect(document.activeElement).toBe(select);
+
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    editable.tabIndex = 0;
+    Object.defineProperty(editable, 'isContentEditable', {
+      configurable: true,
+      value: true,
+    });
+    document.body.append(editable);
+    editable.focus();
+    await user.keyboard('/');
+    expect(document.activeElement).toBe(editable);
+  });
+
   it('opens the hidden script import input when the import button is clicked', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Script Button Map');
@@ -201,6 +265,9 @@ describe('URL routing', () => {
       'connect Kitchen east to Hallway',
       'Imported 3 commands from "map-script.txt".',
     );
+    await waitFor(() => {
+      expect(fileInput).toHaveValue('');
+    });
   });
 
   it('rolls back script import changes when a later line fails', async () => {
@@ -226,6 +293,45 @@ describe('URL routing', () => {
       'Unknown room "Hallway".',
       'Import aborted on line 2. Rolled back 1 successful command.',
     );
+    await waitFor(() => {
+      expect(fileInput).toHaveValue('');
+    });
+  });
+
+  it('reports when an imported script file has no commands', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Empty Script Map');
+
+    const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
+    const scriptFile = new File(['\n  \n'], 'empty-script.txt', { type: 'text/plain' });
+
+    await user.upload(fileInput, scriptFile);
+
+    expectGameOutputToContain('No commands found in "empty-script.txt".');
+    await waitFor(() => {
+      expect(fileInput).toHaveValue('');
+    });
+  });
+
+  it('reports file read failures when importing a script', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Script Failure Map');
+
+    const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
+    const scriptFile = new File(['ignored'], 'broken-script.txt', { type: 'text/plain' });
+    Object.defineProperty(scriptFile, 'text', {
+      configurable: true,
+      value: jest.fn(async () => {
+        throw new Error('Disk read failed.');
+      }),
+    });
+
+    await user.upload(fileInput, scriptFile);
+
+    await waitFor(() => {
+      expectGameOutputToContain('Unable to import "broken-script.txt": Disk read failed.');
+      expect(fileInput).toHaveValue('');
+    });
   });
 
   it('executes a connect command from the CLI when the named rooms exist', async () => {
@@ -2087,9 +2193,9 @@ describe('URL routing', () => {
       expect(persisted?.cliOutputLines).toEqual(expect.arrayContaining([
         ...DEFAULT_CLI_OUTPUT_LINES,
         '>help',
-        'create <room name>',
+        ...CLI_COMMAND_FORMS,
       ]));
-      expect(persisted?.cliOutputLines).toContain('create <room name>');
+      expect(persisted?.cliOutputLines).toContain('create/c <room name>');
     }));
 
     firstRender.unmount();
@@ -2097,7 +2203,7 @@ describe('URL routing', () => {
 
     await screen.findByText(/persisted output map/i);
     expect(getGameOutputBox().textContent ?? '').toContain('>help');
-    expect(getGameOutputBox().textContent ?? '').toContain('create <room name>');
+    expect(getGameOutputBox().textContent ?? '').toContain('create/c <room name>');
   });
 
   it('does not reopen a stale edit request after returning to the map list and reopening the map', async () => {

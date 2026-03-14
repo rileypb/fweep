@@ -2,7 +2,10 @@ const markdown = `# Fweep Help
 
 ## Navigating the Map
 
-You can move around the map by middle-clicking and dragging, or by single-clicking and dragging on the minimap in the upper right corner.
+You can move around the map by \`middle-clicking\` and dragging, or by single-clicking and dragging on the minimap in the upper right corner.
+
+- Drag on the minimap to pan.
+- Press / to focus the CLI.
 
 ## Creating, Editing and Deleting Rooms
 
