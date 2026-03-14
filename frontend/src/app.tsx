@@ -388,8 +388,7 @@ export function App(): React.JSX.Element {
       }
 
       event.preventDefault();
-      cliInputRef.current?.focus();
-      cliInputRef.current?.select();
+      focusCliInput();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -415,6 +414,11 @@ export function App(): React.JSX.Element {
   const setCliPronounRoomReference = (roomId: string | null) => {
     cliPronounRoomIdRef.current = roomId;
     setCliPronounRoomId(roomId);
+  };
+
+  const focusCliInput = () => {
+    cliInputRef.current?.focus();
+    cliInputRef.current?.select();
   };
 
   const reportCliError = (submittedInput: string, error: CliError) => {
@@ -762,6 +766,9 @@ export function App(): React.JSX.Element {
               aria-readonly="true"
               aria-label="Game output"
               ref={gameOutputRef}
+              onClick={() => {
+                focusCliInput();
+              }}
             >
               <div className="app-game-output-content">
                 {gameOutputLines.join('\n')}

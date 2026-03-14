@@ -138,6 +138,19 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('focuses the CLI input when the output log is clicked', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Output Focus Map');
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+
+    await user.click(getGameOutputBox());
+
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it('does not steal / from an already focused text input', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Slash Map');
