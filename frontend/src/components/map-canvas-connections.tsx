@@ -17,6 +17,7 @@ import {
   computePreviewPath,
   createConnectionRenderGeometry,
   findRoomDirectionForConnection,
+  getRoomCenter,
   getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
   pointsToSvgString,
@@ -28,6 +29,7 @@ import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
 import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
 import { PadlockGlyph } from './padlock-glyph';
+import type { PanOffset } from './use-map-viewport';
 import {
   getAnnotationGeometryFromRenderGeometry,
   getAnnotationGeometryFromSegment,
@@ -47,6 +49,8 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
+const CONNECTION_REROUTE_HANDLE_RADIUS = 8;
+const CONNECTION_REROUTE_HANDLE_INNER_RADIUS = 4;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -227,6 +231,7 @@ export interface MapCanvasConnectionsProps {
   onOpenConnectionEditor: (connectionId: string) => void;
   theme: ThemeMode;
   visualStyle: MapVisualStyle;
+  toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
 export function MapCanvasConnections({
@@ -238,9 +243,11 @@ export function MapCanvasConnections({
   onOpenConnectionEditor,
   theme,
   visualStyle,
+  toMapPoint,
 }: MapCanvasConnectionsProps): React.JSX.Element {
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
   const stickyNoteLinkDrag = useEditorStore((s) => s.stickyNoteLinkDrag);
+  const connectionEndpointDrag = useEditorStore((s) => s.connectionEndpointDrag);
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
@@ -250,6 +257,10 @@ export function MapCanvasConnections({
   const addConnectionToSelection = useEditorStore((s) => s.addConnectionToSelection);
   const selectStickyNoteLink = useEditorStore((s) => s.selectStickyNoteLink);
   const addStickyNoteLinkToSelection = useEditorStore((s) => s.addStickyNoteLinkToSelection);
+  const startConnectionEndpointDrag = useEditorStore((s) => s.startConnectionEndpointDrag);
+  const updateConnectionEndpointDrag = useEditorStore((s) => s.updateConnectionEndpointDrag);
+  const completeConnectionEndpointDrag = useEditorStore((s) => s.completeConnectionEndpointDrag);
+  const cancelConnectionEndpointDrag = useEditorStore((s) => s.cancelConnectionEndpointDrag);
   const interactionsDisabled = canvasInteractionMode === 'draw';
   const entries = Object.values(connections);
   const stickyNoteLinkEntries = Object.values(stickyNoteLinks);
@@ -261,6 +272,54 @@ export function MapCanvasConnections({
 
     const pseudoRoom = pseudoRooms[connection.target.id];
     return pseudoRoom ? toPseudoRoomVisualRoom(pseudoRoom) : null;
+  };
+
+  const beginConnectionEndpointDrag = (
+    connectionId: string,
+    endpoint: 'start' | 'end',
+    event: React.MouseEvent<SVGCircleElement>,
+  ): void => {
+    if (event.button !== 0 || interactionsDisabled) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const startPoint = toMapPoint(event.clientX, event.clientY);
+    startConnectionEndpointDrag(connectionId, endpoint, startPoint.x, startPoint.y);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+      updateConnectionEndpointDrag(cursorPoint.x, cursorPoint.y);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      const target = (typeof document.elementFromPoint === 'function'
+        ? (document.elementFromPoint(upEvent.clientX, upEvent.clientY) as Element | null)
+        : null)
+        ?? (upEvent.target as Element | null);
+      const roomElement = target?.closest?.('[data-room-id]') as HTMLElement | null;
+      if (!roomElement) {
+        cancelConnectionEndpointDrag();
+        return;
+      }
+
+      const targetRoomId = roomElement.getAttribute('data-room-id');
+      if (!targetRoomId) {
+        cancelConnectionEndpointDrag();
+        return;
+      }
+
+      const handleElement = target?.closest?.('[data-direction]') as HTMLElement | null;
+      const targetDirection = handleElement?.getAttribute('data-direction') ?? undefined;
+      completeConnectionEndpointDrag(targetRoomId, targetDirection);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   const renderConnectionLine = (
@@ -777,6 +836,90 @@ export function MapCanvasConnections({
     applyStickyNoteDragOffset(stickyNote, selectionDrag)
   );
 
+  const renderConnectionRerouteHandles = (
+    connection: Connection,
+    start: Point,
+    end: Point,
+  ): React.JSX.Element | null => {
+    if (!selectedConnectionIds.includes(connection.id) || interactionsDisabled) {
+      return null;
+    }
+
+    return (
+      <>
+        {([
+          ['start', start],
+          ['end', end],
+        ] as const).map(([endpoint, point]) => (
+          <g key={`connection-reroute-handle-${connection.id}-${endpoint}`}>
+            <circle
+              data-testid={`connection-reroute-handle-${connection.id}-${endpoint}`}
+              cx={point.x}
+              cy={point.y}
+              r={CONNECTION_REROUTE_HANDLE_RADIUS}
+              fill="#ffffff"
+              stroke="#f59e0b"
+              strokeWidth="2"
+              style={{ cursor: 'grab' }}
+              onMouseDown={(event) => beginConnectionEndpointDrag(connection.id, endpoint, event)}
+            />
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={CONNECTION_REROUTE_HANDLE_INNER_RADIUS}
+              fill="#f59e0b"
+              pointerEvents="none"
+            />
+          </g>
+        ))}
+      </>
+    );
+  };
+
+  const getConnectionReroutePreviewPoints = (
+    connection: Connection,
+    sourceRoom: Room,
+    targetRoom: Room,
+    sourceDimensions: ReturnType<typeof getRoomNodeDimensions>,
+    targetDimensions: ReturnType<typeof getRoomNodeDimensions>,
+    endpoint: 'start' | 'end',
+    cursor: Point,
+  ): Point[] => {
+    const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id);
+    const targetDirection = connection.isBidirectional
+      ? findRoomDirectionForConnection(targetRoom, connection.id)
+      : undefined;
+
+    if (endpoint === 'end') {
+      return sourceDirection
+        ? computePreviewPath(
+          sourceRoom,
+          sourceDirection,
+          cursor.x,
+          cursor.y,
+          undefined,
+          sourceDimensions,
+        )
+        : [getRoomCenter(sourceRoom.position, sourceDimensions), cursor];
+    }
+
+    if (targetDirection) {
+      return [...computePreviewPath(
+        targetRoom,
+        targetDirection,
+        cursor.x,
+        cursor.y,
+        undefined,
+        targetDimensions,
+      )].reverse();
+    }
+
+    return [
+      cursor,
+      getRoomCenter(targetRoom.position, targetDimensions),
+    ];
+  };
+
   return (
     <>
       <svg
@@ -994,6 +1137,99 @@ export function MapCanvasConnections({
 
           return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;
         })}
+      </svg>
+      <svg
+        className="connection-reroute-overlay"
+        data-testid="connection-reroute-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'visible',
+          zIndex: 8,
+        }}
+      >
+        {entries.map((conn) => {
+          const rawSrc = rooms[conn.sourceRoomId];
+          const rawTgt = getTargetVisualRoom(conn);
+          if (!rawSrc || !rawTgt) return null;
+
+          const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
+          const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
+          const srcDimensions = getRoomNodeDimensions(src, visualStyle);
+          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const points = insetPseudoRoomConnectionEndpoint(
+            conn,
+            computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
+          );
+
+          return <g key={`reroute-handles-${conn.id}`}>{renderConnectionRerouteHandles(conn, points[0], points[points.length - 1])}</g>;
+        })}
+
+        {connectionEndpointDrag && (() => {
+          const connection = connections[connectionEndpointDrag.connectionId];
+          if (!connection) {
+            return null;
+          }
+
+          const rawSrc = rooms[connection.sourceRoomId];
+          const rawTgt = getTargetVisualRoom(connection);
+          if (!rawSrc || !rawTgt) {
+            return null;
+          }
+
+          const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
+          const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
+          const srcDimensions = getRoomNodeDimensions(src, visualStyle);
+          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const previewPoint = {
+            x: connectionEndpointDrag.cursorX,
+            y: connectionEndpointDrag.cursorY,
+          };
+          const previewPoints = getConnectionReroutePreviewPoints(
+            connection,
+            src,
+            tgt,
+            srcDimensions,
+            tgtDimensions,
+            connectionEndpointDrag.endpoint,
+            previewPoint,
+          );
+          const previewGeometry = createConnectionRenderGeometry(
+            previewPoints,
+            false,
+            useBezierConnectionsEnabled,
+            false,
+          );
+
+          return previewGeometry.kind === 'polyline' ? (
+            <polyline
+              data-testid="connection-reroute-preview-line"
+              className="connection-preview-line"
+              points={pointsToSvgString(previewPoints)}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth="3"
+              strokeDasharray="6 4"
+              opacity="0.9"
+              pointerEvents="none"
+            />
+          ) : (
+            <path
+              data-testid="connection-reroute-preview-line"
+              className="connection-preview-line"
+              d={connectionGeometryToSvgPath(previewGeometry)}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth="3"
+              strokeDasharray="6 4"
+              opacity="0.9"
+              pointerEvents="none"
+            />
+          );
+        })()}
       </svg>
     </>
   );

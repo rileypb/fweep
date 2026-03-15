@@ -1,6 +1,6 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
 import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
-import { getRoomFillColor, getRoomStrokeColor } from '../domain/room-color-palette';
+import { getRoomFillColor, getRoomLabelColor, getRoomStrokeColor } from '../domain/room-color-palette';
 import { blobToCanvas, createSizedCanvas } from '../components/map-background-raster';
 import { getRoomStrokeDasharray } from '../components/map-canvas-helpers';
 import {
@@ -40,6 +40,7 @@ const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
+const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
 
 function getBoundsSize(bounds: ExportRegion): { width: number; height: number } {
   return {
@@ -163,6 +164,25 @@ function drawRoomLabel(
       room.position.y + labelLayout.firstLineY + (index * labelLayout.lineHeight),
     );
   });
+}
+
+function drawPseudoRoomSymbol(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
+): void {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+
+  context.fillStyle = getRoomLabelColor(theme);
+  context.font = `700 ${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(
+    room.name,
+    room.position.x + (dimensions.width / 2),
+    room.position.y + (dimensions.height / 2),
+  );
 }
 
 function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNote): void {
@@ -675,6 +695,35 @@ function getRenderableRooms(input: ExportRenderInput): readonly Room[] {
     .filter((room): room is Room => Boolean(room));
 }
 
+function getRenderablePseudoRooms(input: ExportRenderInput): readonly Room[] {
+  if (input.settings.scope !== 'selection') {
+    return Object.values(input.doc.pseudoRooms).map((pseudoRoom) => toPseudoRoomVisualRoom(pseudoRoom));
+  }
+
+  const renderablePseudoRooms = new Map<string, Room>();
+  Object.values(input.doc.pseudoRooms).forEach((pseudoRoom) => {
+    if (input.selectedRoomIds.includes(pseudoRoom.id)) {
+      renderablePseudoRooms.set(pseudoRoom.id, toPseudoRoomVisualRoom(pseudoRoom));
+    }
+  });
+
+  input.selectedConnectionIds.forEach((connectionId) => {
+    const connection = input.doc.connections[connectionId];
+    if (!connection || connection.target.kind !== 'pseudo-room') {
+      return;
+    }
+
+    const pseudoRoom = input.doc.pseudoRooms[connection.target.id];
+    if (!pseudoRoom) {
+      return;
+    }
+
+    renderablePseudoRooms.set(pseudoRoom.id, toPseudoRoomVisualRoom(pseudoRoom));
+  });
+
+  return [...renderablePseudoRooms.values()];
+}
+
 function getRenderableStickyNotes(input: ExportRenderInput): readonly StickyNote[] {
   if (input.settings.scope !== 'selection') {
     return Object.values(input.doc.stickyNotes);
@@ -723,6 +772,7 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   const renderableConnections = getRenderableConnections(input);
   const renderableRooms = getRenderableRooms(input);
+  const renderablePseudoRooms = getRenderablePseudoRooms(input);
   const renderableStickyNotes = getRenderableStickyNotes(input);
   const renderableStickyNoteLinks = getRenderableStickyNoteLinks(input);
 
@@ -769,6 +819,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   renderableRooms.forEach((room) => {
     drawRoomLabel(context, room, input.theme, input.doc.view.visualStyle);
+  });
+
+  renderablePseudoRooms.forEach((pseudoRoom) => {
+    drawPseudoRoomSymbol(context, pseudoRoom, input.theme, input.doc.view.visualStyle);
   });
 
   renderableStickyNotes.forEach((stickyNote) => {

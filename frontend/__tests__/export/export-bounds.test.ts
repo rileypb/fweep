@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { createConnection, createEmptyMap, createRoom, createStickyNote } from '../../src/domain/map-types';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createPseudoRoom, createRoom, createStickyNote } from '../../src/domain/map-types';
+import { addConnection, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
 import { getEntireMapExportBounds, getExportBounds, getRegionExportBounds, getSelectionExportBounds, getViewportExportBounds, validateExportBounds } from '../../src/export/export-bounds';
 import type { ExportSettings } from '../../src/export/export-types';
 
@@ -56,6 +56,33 @@ describe('export-bounds', () => {
     expect(result.validationError).toBeNull();
     expect(result.bounds).not.toBeNull();
     expect((result.bounds?.right ?? 0) - (result.bounds?.left ?? 0)).toBeGreaterThan(150);
+  });
+
+  it('includes pseudo-rooms in entire-map bounds', () => {
+    const room = { ...createRoom('A'), id: 'room-a', position: { x: 0, y: 0 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-a', position: { x: 300, y: 140 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+
+    const result = getEntireMapExportBounds(doc, 0);
+
+    expect(result.validationError).toBeNull();
+    expect(result.bounds).not.toBeNull();
+    expect(result.bounds?.right ?? 0).toBeGreaterThan(300);
+    expect(result.bounds?.bottom ?? 0).toBeGreaterThan(140);
+  });
+
+  it('includes selected pseudo-rooms in selection bounds', () => {
+    const pseudoRoom = { ...createPseudoRoom('infinite'), id: 'pseudo-a', position: { x: 300, y: 140 } };
+    const doc = addPseudoRoom(createEmptyMap('Test'), pseudoRoom);
+
+    const result = getSelectionExportBounds(doc, [pseudoRoom.id], [], [], [], 0);
+
+    expect(result.validationError).toBeNull();
+    expect(result.bounds).not.toBeNull();
+    expect(result.bounds?.left).toBe(300);
+    expect(result.bounds?.top).toBe(140);
   });
 
   it('includes derived vertical annotation text in selection bounds', () => {

@@ -1,5 +1,6 @@
 import type {
   Connection,
+  ConnectionTarget,
   ConnectionAnnotation,
   Item,
   MapDocument,
@@ -12,6 +13,7 @@ import type {
   StickyNoteLink,
 } from './map-types';
 import { isPseudoRoomTarget } from './pseudo-room-helpers';
+import { normalizeDirection } from './directions';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -40,6 +42,73 @@ function stripBindings(room: Room, removedConnectionIds: Set<string>): Room {
     }
   }
   return changed ? { ...room, directions: cleaned } : room;
+}
+
+function findBoundDirections(room: Room, connectionId: string): string[] {
+  const directions: string[] = [];
+
+  for (const [rawDirection, boundConnectionId] of Object.entries(room.directions)) {
+    if (boundConnectionId !== connectionId) {
+      continue;
+    }
+
+    const direction = normalizeDirection(rawDirection);
+    if (!directions.includes(direction)) {
+      directions.push(direction);
+    }
+  }
+
+  return directions;
+}
+
+interface ConnectionEndpointState {
+  readonly target: ConnectionTarget;
+  readonly direction: string | undefined;
+}
+
+function getConnectionEndpointStates(doc: MapDocument, connection: Connection): { start: ConnectionEndpointState; end: ConnectionEndpointState } {
+  const sourceRoom = doc.rooms[connection.sourceRoomId];
+  if (!sourceRoom) {
+    throw new Error(`Source room "${connection.sourceRoomId}" not found.`);
+  }
+
+  const sourceDirections = findBoundDirections(sourceRoom, connection.id);
+  const startDirection = sourceDirections[0];
+
+  if (connection.target.kind === 'pseudo-room') {
+    return {
+      start: {
+        target: { kind: 'room', id: connection.sourceRoomId },
+        direction: startDirection,
+      },
+      end: {
+        target: connection.target,
+        direction: undefined,
+      },
+    };
+  }
+
+  const targetRoom = doc.rooms[connection.target.id];
+  if (!targetRoom) {
+    throw new Error(`Target room "${connection.target.id}" not found.`);
+  }
+
+  const endDirection = connection.isBidirectional
+    ? (connection.sourceRoomId === connection.target.id
+      ? sourceDirections[1]
+      : findBoundDirections(targetRoom, connection.id)[0])
+    : undefined;
+
+  return {
+    start: {
+      target: { kind: 'room', id: connection.sourceRoomId },
+      direction: startDirection,
+    },
+    end: {
+      target: connection.target,
+      direction: endDirection,
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -339,6 +408,176 @@ export function convertPseudoRoomToRoom(doc: MapDocument, pseudoRoomId: string, 
     rooms: { ...doc.rooms, [room.id]: room },
     pseudoRooms: remainingPseudoRooms,
     connections: updatedConnections,
+  });
+}
+
+export function rerouteConnectionEndpoint(
+  doc: MapDocument,
+  connectionId: string,
+  endpoint: 'start' | 'end',
+  targetRoomId: string,
+  targetDirection?: string,
+): MapDocument {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    throw new Error(`Connection "${connectionId}" not found.`);
+  }
+
+  const dropRoom = doc.rooms[targetRoomId];
+  if (!dropRoom) {
+    throw new Error(`Room "${targetRoomId}" not found.`);
+  }
+
+  const currentEndpoints = getConnectionEndpointStates(doc, connection);
+  const normalizedDropDirection = targetDirection === undefined ? undefined : normalizeDirection(targetDirection);
+  const nextStart = endpoint === 'start'
+    ? { target: { kind: 'room', id: targetRoomId } as ConnectionTarget, direction: normalizedDropDirection }
+    : currentEndpoints.start;
+  const nextEnd = endpoint === 'end'
+    ? { target: { kind: 'room', id: targetRoomId } as ConnectionTarget, direction: normalizedDropDirection }
+    : currentEndpoints.end;
+  const directedEndpoints = [nextStart, nextEnd].filter((candidate) => candidate.direction !== undefined);
+
+  if (directedEndpoints.length === 0) {
+    throw new Error('A connection must remain directed from at least one endpoint.');
+  }
+
+  if (
+    directedEndpoints.length === 2
+    && nextStart.target.kind === 'room'
+    && nextEnd.target.kind === 'room'
+    && nextStart.target.id === nextEnd.target.id
+    && nextStart.direction === nextEnd.direction
+  ) {
+    throw new Error('Both ends of a connection cannot use the same room direction.');
+  }
+
+  let nextConnection: Connection;
+  let sourceBinding: { roomId: string; direction: string };
+  let targetBinding: { roomId: string; direction: string | undefined; target: ConnectionTarget };
+
+  if (directedEndpoints.length === 2) {
+    if (nextStart.target.kind !== 'room' || nextEnd.target.kind !== 'room') {
+      throw new Error('Bidirectional connections must connect two rooms.');
+    }
+
+    sourceBinding = { roomId: nextStart.target.id, direction: nextStart.direction! };
+    targetBinding = {
+      roomId: nextEnd.target.id,
+      direction: nextEnd.direction!,
+      target: nextEnd.target,
+    };
+    nextConnection = {
+      ...connection,
+      sourceRoomId: nextStart.target.id,
+      target: nextEnd.target,
+      isBidirectional: true,
+    };
+  } else if (nextStart.direction !== undefined) {
+    sourceBinding = { roomId: nextStart.target.id, direction: nextStart.direction };
+    targetBinding = {
+      roomId: nextEnd.target.id,
+      direction: undefined,
+      target: nextEnd.target,
+    };
+    nextConnection = {
+      ...connection,
+      sourceRoomId: nextStart.target.id,
+      target: nextEnd.target,
+      isBidirectional: false,
+    };
+  } else if (nextEnd.direction !== undefined) {
+    if (nextEnd.target.kind !== 'room') {
+      throw new Error('Pseudo-rooms cannot become the directed source of a connection.');
+    }
+
+    sourceBinding = { roomId: nextEnd.target.id, direction: nextEnd.direction };
+    targetBinding = {
+      roomId: nextStart.target.id,
+      direction: undefined,
+      target: nextStart.target,
+    };
+    nextConnection = {
+      ...connection,
+      sourceRoomId: nextEnd.target.id,
+      target: nextStart.target,
+      isBidirectional: false,
+    };
+  } else {
+    throw new Error('A connection must remain directed from at least one endpoint.');
+  }
+
+  if (targetBinding.target.kind === 'pseudo-room' && nextConnection.isBidirectional) {
+    throw new Error('Pseudo-rooms can only be targets of one-way connections.');
+  }
+
+  const sourceRoom = doc.rooms[sourceBinding.roomId];
+  if (!sourceRoom) {
+    throw new Error(`Source room "${sourceBinding.roomId}" not found.`);
+  }
+
+  const existingSourceBinding = sourceRoom.directions[sourceBinding.direction];
+  if (existingSourceBinding !== undefined && existingSourceBinding !== connectionId) {
+    throw new Error(
+      `Direction "${sourceBinding.direction}" in room "${sourceRoom.name}" is already bound to connection "${existingSourceBinding}".`,
+    );
+  }
+
+  if (targetBinding.direction !== undefined) {
+    const bindingRoom = doc.rooms[targetBinding.roomId];
+    if (!bindingRoom) {
+      throw new Error(`Target room "${targetBinding.roomId}" not found.`);
+    }
+
+    const existingTargetBinding = bindingRoom.directions[targetBinding.direction];
+    if (existingTargetBinding !== undefined && existingTargetBinding !== connectionId) {
+      throw new Error(
+        `Direction "${targetBinding.direction}" in room "${bindingRoom.name}" is already bound to connection "${existingTargetBinding}".`,
+      );
+    }
+  }
+
+  const strippedRooms = Object.fromEntries(
+    Object.entries(doc.rooms).map(([roomId, room]) => [roomId, stripBindings(room, new Set([connectionId]))]),
+  );
+
+  const reboundSourceRoom = strippedRooms[sourceBinding.roomId];
+  const reboundRooms: Record<string, Room> = {
+    ...strippedRooms,
+    [sourceBinding.roomId]: {
+      ...reboundSourceRoom,
+      directions: {
+        ...reboundSourceRoom.directions,
+        [sourceBinding.direction]: connectionId,
+      },
+    },
+  };
+
+  if (targetBinding.direction !== undefined) {
+    const reboundTargetRoom = reboundRooms[targetBinding.roomId];
+    reboundRooms[targetBinding.roomId] = {
+      ...reboundTargetRoom,
+      directions: {
+        ...reboundTargetRoom.directions,
+        [targetBinding.direction]: connectionId,
+      },
+    };
+  }
+
+  const remainingPseudoRooms = connection.target.kind === 'pseudo-room' && nextConnection.target.kind !== 'pseudo-room'
+    ? Object.fromEntries(
+      Object.entries(doc.pseudoRooms).filter(([pseudoRoomId]) => pseudoRoomId !== connection.target.id),
+    )
+    : doc.pseudoRooms;
+
+  return touch({
+    ...doc,
+    rooms: reboundRooms,
+    pseudoRooms: remainingPseudoRooms,
+    connections: {
+      ...doc.connections,
+      [connectionId]: nextConnection,
+    },
   });
 }
 

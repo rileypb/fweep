@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { createEmptyMap, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
+import { createEmptyMap, createPseudoRoom, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import type { MapDocument, Position } from '../../src/domain/map-types';
-import { addConnection, addRoom, addStickyNote, addStickyNoteLink } from '../../src/domain/map-operations';
+import { addConnection, addPseudoRoom, addRoom, addStickyNote, addStickyNoteLink } from '../../src/domain/map-operations';
 import { createConnection } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 import { getBackgroundChunkKey, loadBackgroundChunk, saveBackgroundChunks } from '../../src/storage/map-store';
@@ -1033,7 +1033,7 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().connectionDrag).toBeNull();
     });
 
-    it('completeConnectionDragToNewRoom creates a snapped room and one-way connection in one history step', () => {
+    it('completeConnectionDragToNewRoom creates a snapped room and a bidirectional connection with the opposite target binding', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
 
@@ -1050,9 +1050,9 @@ describe('useEditorStore', () => {
       expect(connections).toHaveLength(1);
       expect(connections[0].sourceRoomId).toBe(kitchenId);
       expect(connections[0].target).toEqual({ kind: 'room', id: createdRoomId! });
-      expect(connections[0].isBidirectional).toBe(false);
+      expect(connections[0].isBidirectional).toBe(true);
       expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
-      expect(doc.rooms[createdRoomId!].directions).toEqual({});
+      expect(doc.rooms[createdRoomId!].directions).toEqual({ south: connections[0].id });
       expect(useEditorStore.getState().selectedRoomIds).toEqual([createdRoomId]);
       expect(useEditorStore.getState().connectionDrag).toBeNull();
       expect(useEditorStore.getState().pastEntries).toHaveLength(2);
@@ -1117,6 +1117,86 @@ describe('useEditorStore', () => {
         name: 'Hallway',
       });
       expect(doc.connections[result.connectionId].target).toEqual({ kind: 'room', id: result.pseudoRoomId });
+    });
+  });
+
+  describe('connection endpoint drag', () => {
+    it('starts and updates endpoint reroute drag state', () => {
+      useEditorStore.getState().startConnectionEndpointDrag('c1', 'start', 100, 120);
+      expect(useEditorStore.getState().connectionEndpointDrag).toEqual({
+        connectionId: 'c1',
+        endpoint: 'start',
+        cursorX: 100,
+        cursorY: 120,
+      });
+
+      useEditorStore.getState().updateConnectionEndpointDrag(180, 200);
+      expect(useEditorStore.getState().connectionEndpointDrag).toEqual({
+        connectionId: 'c1',
+        endpoint: 'start',
+        cursorX: 180,
+        cursorY: 200,
+      });
+    });
+
+    it('reroutes a selected connection endpoint in one undoable history step', async () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      const cellar = { ...createRoom('Cellar'), position: { x: 240, y: 240 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      doc = addRoom(doc, cellar);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      doc = addConnection(doc, connection, 'east', 'west');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().startConnectionEndpointDrag(connection.id, 'end', 240, 140);
+      useEditorStore.getState().completeConnectionEndpointDrag(cellar.id);
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.connections[connection.id]).toMatchObject({
+        sourceRoomId: kitchen.id,
+        target: { kind: 'room', id: cellar.id },
+        isBidirectional: false,
+      });
+      expect(updatedDoc.rooms[hallway.id].directions.west).toBeUndefined();
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connection.id]);
+
+      await useEditorStore.getState().undo();
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toMatchObject({
+        sourceRoomId: kitchen.id,
+        target: { kind: 'room', id: hallway.id },
+        isBidirectional: true,
+      });
+
+      await useEditorStore.getState().redo();
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toMatchObject({
+        sourceRoomId: kitchen.id,
+        target: { kind: 'room', id: cellar.id },
+        isBidirectional: false,
+      });
+    });
+
+    it('removes a pseudo-room when rerouting away from it', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 400, y: 120 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      doc = addPseudoRoom(doc, unknown);
+      const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      doc = addConnection(doc, connection, 'east');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().startConnectionEndpointDrag(connection.id, 'end', 360, 140);
+      useEditorStore.getState().completeConnectionEndpointDrag(hallway.id, 'west');
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.pseudoRooms[unknown.id]).toBeUndefined();
+      expect(updatedDoc.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: hallway.id },
+        isBidirectional: true,
+      });
     });
   });
 

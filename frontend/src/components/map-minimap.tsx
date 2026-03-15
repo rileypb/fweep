@@ -4,12 +4,14 @@ import {
   type BackgroundDocument,
   type Connection,
   type MapVisualStyle,
+  type PseudoRoom,
   type Room,
   type RoomShape,
   type StickyNote,
   type StickyNoteLink,
 } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
+import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import type { PanOffset } from './use-map-viewport';
 import {
   clampPointToMinimap,
@@ -42,6 +44,7 @@ export interface MapMinimapProps {
   readonly background: BackgroundDocument;
   readonly backgroundRevision?: number;
   readonly rooms: Readonly<Record<string, Room>>;
+  readonly pseudoRooms?: Readonly<Record<string, PseudoRoom>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly stickyNotes?: Readonly<Record<string, StickyNote>>;
   readonly stickyNoteLinks?: Readonly<Record<string, StickyNoteLink>>;
@@ -77,6 +80,7 @@ export function MapMinimap({
   background,
   backgroundRevision = 0,
   rooms,
+  pseudoRooms = {},
   connections,
   stickyNotes = {},
   stickyNoteLinks = {},
@@ -95,6 +99,11 @@ export function MapMinimap({
   onPanBy,
 }: MapMinimapProps): React.JSX.Element | null {
   const roomEntries = useMemo(() => Object.values(rooms), [rooms]);
+  const pseudoRoomEntries = useMemo(() => Object.values(pseudoRooms), [pseudoRooms]);
+  const pseudoRoomVisualEntries = useMemo(
+    () => pseudoRoomEntries.map((pseudoRoom) => toPseudoRoomVisualRoom(pseudoRoom)),
+    [pseudoRoomEntries],
+  );
   const stickyNoteEntries = useMemo(() => Object.values(stickyNotes), [stickyNotes]);
   const [backgroundChunks, setBackgroundChunks] = useState<readonly MinimapBackgroundChunk[]>([]);
   const activeBackgroundLayerId = background.activeLayerId;
@@ -137,10 +146,19 @@ export function MapMinimap({
   }, [backgroundChunks]);
 
   const worldBounds = useMemo(() => {
-    if (roomEntries.length > 0 || stickyNoteEntries.length > 0) {
+    if (roomEntries.length > 0 || pseudoRoomVisualEntries.length > 0 || stickyNoteEntries.length > 0) {
       return mergeWorldBounds([
         ...roomEntries.map((room) => {
           const bounds = getRoomBounds(room, visualStyle);
+          return {
+            left: bounds.left,
+            top: bounds.top,
+            right: bounds.left + bounds.width,
+            bottom: bounds.top + bounds.height,
+          };
+        }),
+        ...pseudoRoomVisualEntries.map((pseudoRoom) => {
+          const bounds = getRoomBounds(pseudoRoom, visualStyle);
           return {
             left: bounds.left,
             top: bounds.top,
@@ -168,7 +186,7 @@ export function MapMinimap({
     }));
 
     return mergeWorldBounds(backgroundBounds);
-  }, [backgroundChunks, roomEntries, stickyNoteEntries, visualStyle]);
+  }, [backgroundChunks, pseudoRoomVisualEntries, roomEntries, stickyNoteEntries, visualStyle]);
   const transform = useMemo(
     () => worldBounds
       ? createMinimapTransform(worldBounds, { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT })
@@ -312,7 +330,7 @@ export function MapMinimap({
           );
         })}
         {Object.values(connections).map((connection) => {
-          const points = getMinimapConnectionPoints(rooms, connection, transform, visualStyle);
+          const points = getMinimapConnectionPoints(rooms, pseudoRooms, connection, transform, visualStyle);
           if (points.length === 0) {
             return null;
           }
@@ -359,6 +377,19 @@ export function MapMinimap({
               transform={`translate(${rect.left} ${rect.top})`}
             >
               <path d={getMinimapShapePath(getEffectiveMinimapShape(room.shape, visualStyle), rect.width, rect.height)} />
+            </g>
+          );
+        })}
+        {pseudoRoomVisualEntries.map((pseudoRoom) => {
+          const rect = getMinimapRoomRect(pseudoRoom, transform, visualStyle);
+
+          return (
+            <g
+              key={pseudoRoom.id}
+              className="map-minimap__room map-minimap__pseudo-room"
+              transform={`translate(${rect.left} ${rect.top})`}
+            >
+              <path d={getMinimapShapePath(getEffectiveMinimapShape(pseudoRoom.shape, visualStyle), rect.width, rect.height)} />
             </g>
           );
         })}

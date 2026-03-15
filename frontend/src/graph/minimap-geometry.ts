@@ -1,4 +1,5 @@
-import type { Connection, MapVisualStyle, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
+import type { Connection, MapVisualStyle, PseudoRoom, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
+import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import {
   computeConnectionPath,
   getRoomPerimeterPointToward,
@@ -232,12 +233,15 @@ export function getMinimapStickyNoteRect(stickyNote: StickyNote, transform: Mini
 
 export function getMinimapConnectionPoints(
   rooms: Readonly<Record<string, Room>>,
+  pseudoRooms: Readonly<Record<string, PseudoRoom>>,
   connection: Connection,
   transform: MinimapTransform,
   visualStyle: MapVisualStyle = 'default',
 ): Point[] {
   const sourceRoom = rooms[connection.sourceRoomId];
-  const targetRoom = connection.target.kind === 'room' ? rooms[connection.target.id] : null;
+  const targetRoom = connection.target.kind === 'room'
+    ? rooms[connection.target.id]
+    : (pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(pseudoRooms[connection.target.id]) : null);
   if (!sourceRoom || !targetRoom) {
     return [];
   }

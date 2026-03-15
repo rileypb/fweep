@@ -6,6 +6,7 @@ import {
   createBackgroundLayer,
   createConnection,
   createEmptyBackground,
+  createPseudoRoom,
   createRoom,
   createStickyNote,
   createStickyNoteLink,
@@ -41,6 +42,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{}}
+        pseudoRooms={{}}
         connections={{}}
         stickyNotes={{}}
         stickyNoteLinks={{}}
@@ -68,6 +70,23 @@ describe('MapMinimap', () => {
     });
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders pseudo-rooms and pseudo-room-targeted connections', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+
+    renderMinimap({
+      rooms: { [kitchen.id]: kitchen },
+      pseudoRooms: { [unknown.id]: unknown },
+      connections: { [connection.id]: connection },
+    });
+
+    expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
+    expect(document.querySelectorAll('.map-minimap__room')).toHaveLength(2);
+    expect(document.querySelectorAll('.map-minimap__pseudo-room')).toHaveLength(1);
+    expect(document.querySelectorAll('.map-minimap__connection')).toHaveLength(1);
   });
 
   it('renders shapes, connections, and viewport', () => {
@@ -228,6 +247,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{ [invalidConnection.id]: invalidConnection }}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -251,6 +271,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -279,6 +300,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -311,6 +333,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -346,6 +369,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -385,6 +409,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -416,6 +441,7 @@ describe('MapMinimap', () => {
         mapId="map-1"
         background={createEmptyBackground()}
         rooms={{ [kitchen.id]: kitchen }}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}
@@ -524,6 +550,7 @@ describe('MapMinimap', () => {
           referenceImage: null,
         }}
         rooms={{}}
+        pseudoRooms={{}}
         connections={{}}
         selectedRoomIds={[]}
         selectedConnectionIds={[]}

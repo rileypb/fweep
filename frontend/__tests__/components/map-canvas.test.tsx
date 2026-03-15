@@ -3,8 +3,8 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
-import { createEmptyMap, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
-import { addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
+import { createEmptyMap, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
+import { addPseudoRoom, addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
 
@@ -2361,7 +2361,8 @@ describe('MapCanvas', () => {
       expect(createdRoom!.position.x % 40).toBe(0);
       expect(createdRoom!.position.y % 40).toBe(0);
       expect(Object.values(doc.connections)).toHaveLength(1);
-      expect(doc.rooms[createdRoom!.id].directions).toEqual({});
+      expect(Object.values(doc.connections)[0].isBidirectional).toBe(true);
+      expect(doc.rooms[createdRoom!.id].directions).toEqual({ south: Object.values(doc.connections)[0].id });
       expect(await screen.findByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByLabelText('Room name')).toHaveValue('Room');
       expect(useEditorStore.getState().connectionDrag).toBeNull();
@@ -2424,6 +2425,109 @@ describe('MapCanvas', () => {
       fireEvent.mouseUp(hallwayNode, { clientX: 100, clientY: 10 });
 
       expect(screen.queryByTestId('connection-preview-line')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('connection rerouting', () => {
+    function setupRerouteMap() {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 260, y: 200 } };
+      const cellar = { ...createRoom('Cellar'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addRoom(updated, cellar);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(connection.id);
+      render(<MapCanvas mapName="Test" />);
+
+      return { kitchen, hallway, cellar, connection };
+    }
+
+    it('renders reroute handles for a selected connection', () => {
+      const { connection } = setupRerouteMap();
+
+      expect(screen.getByTestId(`connection-reroute-handle-${connection.id}-start`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`)).toBeInTheDocument();
+    });
+
+    it('shows a live preview while rerouting an endpoint', () => {
+      const { connection } = setupRerouteMap();
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 260, clientY: 60 });
+
+      expect(screen.getByTestId('connection-reroute-preview-line')).toBeInTheDocument();
+    });
+
+    it('reroutes a selected endpoint when dropped on a room body', () => {
+      const { connection, hallway, cellar } = setupRerouteMap();
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      const cellarNode = screen.getAllByTestId('room-node').find((node) => node.textContent === 'Cellar') as HTMLElement;
+      fireEvent.mouseUp(cellarNode, { clientX: 280, clientY: 60, button: 0 });
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: cellar.id },
+        isBidirectional: false,
+      });
+      expect(doc.rooms[hallway.id].directions.west).toBeUndefined();
+    });
+
+    it('reroutes a selected endpoint when dropped on a room handle', () => {
+      const { connection, hallway, cellar } = setupRerouteMap();
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      const cellarNode = screen.getAllByTestId('room-node').find((node) => node.textContent === 'Cellar') as HTMLElement;
+      fireEvent.mouseEnter(cellarNode);
+      fireEvent.mouseUp(within(cellarNode).getByTestId('direction-handle-s'), { clientX: 300, clientY: 76, button: 0 });
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: cellar.id },
+        isBidirectional: true,
+      });
+      expect(doc.rooms[hallway.id].directions.west).toBeUndefined();
+      expect(doc.rooms[cellar.id].directions.south).toBe(connection.id);
+    });
+
+    it('cancels rerouting on Escape', () => {
+      const { connection } = setupRerouteMap();
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 260, clientY: 60 });
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
+      expect(screen.queryByTestId('connection-reroute-preview-line')).not.toBeInTheDocument();
+    });
+
+    it('does not reroute onto pseudo-rooms', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 260, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      updated = addPseudoRoom(updated, unknown);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectConnection(connection.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      fireEvent.mouseUp(screen.getByTestId('pseudo-room-node'), { clientX: 280, clientY: 60, button: 0 });
+
+      expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: hallway.id },
+        isBidirectional: true,
+      });
     });
   });
 

@@ -304,6 +304,11 @@ export function getEntireMapExportBounds(doc: MapDocument, padding: number): Exp
     hasContent = true;
   });
 
+  Object.values(doc.pseudoRooms).forEach((pseudoRoom) => {
+    bounds = includeRect(bounds, getRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
+    hasContent = true;
+  });
+
   Object.values(doc.connections).forEach((connection) => {
     const connectionBounds = getConnectionBounds(doc, connection);
     if (!connectionBounds) {
@@ -380,6 +385,15 @@ export function getSelectionExportBounds(
       return;
     }
     bounds = includeRect(bounds, getRoomBounds(room, doc));
+    hasContent = true;
+  });
+
+  selectedRoomIds.forEach((roomId) => {
+    const pseudoRoom = doc.pseudoRooms[roomId];
+    if (!pseudoRoom) {
+      return;
+    }
+    bounds = includeRect(bounds, getRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
     hasContent = true;
   });
 

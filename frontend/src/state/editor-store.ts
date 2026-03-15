@@ -26,6 +26,7 @@ import {
   moveRoom as domainMoveRoom,
   movePseudoRoom as domainMovePseudoRoom,
   moveStickyNote as domainMoveStickyNote,
+  rerouteConnectionEndpoint as domainRerouteConnectionEndpoint,
   describeRoom as domainDescribeRoom,
   setStickyNoteText as domainSetStickyNoteText,
   setRoomShape as domainSetRoomShape,
@@ -92,6 +93,13 @@ export interface ConnectionDrag {
 
 export interface StickyNoteLinkDrag {
   readonly sourceStickyNoteId: string;
+  readonly cursorX: number;
+  readonly cursorY: number;
+}
+
+export interface ConnectionEndpointDrag {
+  readonly connectionId: string;
+  readonly endpoint: 'start' | 'end';
   readonly cursorX: number;
   readonly cursorY: number;
 }
@@ -215,6 +223,9 @@ export interface EditorState {
 
   /** Active sticky-note link drag state, or null when not dragging. */
   stickyNoteLinkDrag: StickyNoteLinkDrag | null;
+
+  /** Active connection-endpoint reroute drag state, or null when not rerouting. */
+  connectionEndpointDrag: ConnectionEndpointDrag | null;
 
   /** Active mixed node drag state, or null when not dragging selected rooms/notes. */
   selectionDrag: SelectionDrag | null;
@@ -511,6 +522,18 @@ export interface EditorState {
   /** Cancel an in-progress connection drag. */
   cancelConnectionDrag: () => void;
 
+  /** Begin rerouting one visible end of a selected connection. */
+  startConnectionEndpointDrag: (connectionId: string, endpoint: 'start' | 'end', cursorX: number, cursorY: number) => void;
+
+  /** Update the cursor position during a connection-endpoint reroute drag. */
+  updateConnectionEndpointDrag: (cursorX: number, cursorY: number) => void;
+
+  /** Complete a connection-endpoint reroute by dropping onto a room or room handle. */
+  completeConnectionEndpointDrag: (targetRoomId: string, targetDirection?: string) => void;
+
+  /** Cancel an in-progress connection-endpoint reroute drag. */
+  cancelConnectionEndpointDrag: () => void;
+
   /** Begin a sticky-note link drag from the sticky note body. */
   startStickyNoteLinkDrag: (stickyNoteId: string, cursorX: number, cursorY: number) => void;
 
@@ -785,6 +808,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   mapVisualStyle: 'default',
   connectionDrag: null,
   stickyNoteLinkDrag: null,
+  connectionEndpointDrag: null,
   selectionDrag: null,
   exportRegionDraft: null,
   exportRegion: null,
@@ -829,6 +853,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapVisualStyle: doc.view.visualStyle,
     connectionDrag: null,
     stickyNoteLinkDrag: null,
+    connectionEndpointDrag: null,
     selectionDrag: null,
     exportRegionDraft: null,
     exportRegion: null,
@@ -856,6 +881,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     mapVisualStyle: 'default',
     connectionDrag: null,
     stickyNoteLinkDrag: null,
+    connectionEndpointDrag: null,
     selectionDrag: null,
     exportRegionDraft: null,
     exportRegion: null,
@@ -895,6 +921,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, selectedStickyNoteLinkIds),
         connectionDrag: null,
         stickyNoteLinkDrag: null,
+        connectionEndpointDrag: null,
         selectionDrag: null,
         exportRegionDraft: null,
         activeStroke: null,
@@ -911,6 +938,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       stickyNoteLinkDrag: null,
+      connectionEndpointDrag: null,
       selectionDrag: null,
       exportRegionDraft: null,
       activeStroke: null,
@@ -949,6 +977,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(patchedNextDoc, selectedStickyNoteLinkIds),
         connectionDrag: null,
         stickyNoteLinkDrag: null,
+        connectionEndpointDrag: null,
         selectionDrag: null,
         exportRegionDraft: null,
         activeStroke: null,
@@ -965,6 +994,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastHistoryMergeKey: null,
       connectionDrag: null,
       stickyNoteLinkDrag: null,
+      connectionEndpointDrag: null,
       selectionDrag: null,
       exportRegionDraft: null,
       activeStroke: null,
@@ -1844,11 +1874,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { sourceRoomId, sourceDirection } = connectionDrag;
     const snappedPosition = maybeSnapPosition(position, snapToGridEnabled);
     const room = { ...createRoom('Room'), position: snappedPosition };
-    const connection = createConnection(sourceRoomId, room.id, false);
+    const connection = createConnection(sourceRoomId, room.id, true);
+    const targetDirection = oppositeDirection(sourceDirection);
 
     try {
       let updatedDoc = addRoom(doc, room);
-      updatedDoc = addConnection(updatedDoc, connection, sourceDirection);
+      updatedDoc = addConnection(updatedDoc, connection, sourceDirection, targetDirection);
       set((state) => ({
         ...commitDocumentChange(state, doc, updatedDoc),
         connectionDrag: null,
@@ -1866,6 +1897,63 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   cancelConnectionDrag: () => {
     set({ connectionDrag: null, lastHistoryMergeKey: null });
+  },
+
+  startConnectionEndpointDrag: (connectionId, endpoint, cursorX, cursorY) => {
+    set({
+      lastHistoryMergeKey: null,
+      connectionEndpointDrag: {
+        connectionId,
+        endpoint,
+        cursorX,
+        cursorY,
+      },
+    });
+  },
+
+  updateConnectionEndpointDrag: (cursorX, cursorY) => {
+    const { connectionEndpointDrag } = get();
+    if (!connectionEndpointDrag) {
+      return;
+    }
+
+    set({
+      connectionEndpointDrag: {
+        ...connectionEndpointDrag,
+        cursorX,
+        cursorY,
+      },
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  completeConnectionEndpointDrag: (targetRoomId, targetDirection) => {
+    const { doc, connectionEndpointDrag } = get();
+    if (!doc || !connectionEndpointDrag) {
+      set({ connectionEndpointDrag: null });
+      return;
+    }
+
+    try {
+      const updatedDoc = domainRerouteConnectionEndpoint(
+        doc,
+        connectionEndpointDrag.connectionId,
+        connectionEndpointDrag.endpoint,
+        targetRoomId,
+        targetDirection,
+      );
+      set((state) => ({
+        ...commitDocumentChange(state, doc, updatedDoc),
+        connectionEndpointDrag: null,
+        selectedConnectionIds: [connectionEndpointDrag.connectionId],
+      }));
+    } catch {
+      set({ connectionEndpointDrag: null });
+    }
+  },
+
+  cancelConnectionEndpointDrag: () => {
+    set({ connectionEndpointDrag: null, lastHistoryMergeKey: null });
   },
 
   startStickyNoteLinkDrag: (stickyNoteId, cursorX, cursorY) => {

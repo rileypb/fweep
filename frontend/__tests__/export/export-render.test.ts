@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom, createStickyNote } from '../../src/domain/map-types';
+import { addConnection, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createPseudoRoom, createRoom, createStickyNote } from '../../src/domain/map-types';
 import type { ExportRenderInput } from '../../src/export/export-types';
 import type { BackgroundChunkRecord } from '../../src/storage/map-store';
 
@@ -8,6 +8,7 @@ const mockValidateExportBounds = jest.fn<typeof import('../../src/export/export-
 const mockBlobToCanvas = jest.fn<typeof import('../../src/components/map-background-raster').blobToCanvas>();
 const mockCreateSizedCanvas = jest.fn<typeof import('../../src/components/map-background-raster').createSizedCanvas>();
 const mockGetRoomFillColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomFillColor>();
+const mockGetRoomLabelColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomLabelColor>();
 const mockGetRoomStrokeColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomStrokeColor>();
 const mockGetRoomStrokeDasharray = jest.fn<typeof import('../../src/components/map-canvas-helpers').getRoomStrokeDasharray>();
 const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connection-geometry').computeConnectionPath>();
@@ -32,6 +33,7 @@ await jest.unstable_mockModule('../../src/components/map-background-raster', () 
 await jest.unstable_mockModule('../../src/domain/room-color-palette', async () => {
   return {
     getRoomFillColor: mockGetRoomFillColor,
+    getRoomLabelColor: mockGetRoomLabelColor,
     getRoomStrokeColor: mockGetRoomStrokeColor,
   };
 });
@@ -153,8 +155,19 @@ function createBaseInput(): ExportRenderInput {
     endLabel: 'south',
     annotation: { kind: 'up' },
   };
+  const unknownExit = {
+    ...createPseudoRoom('unknown'),
+    id: 'pseudo-room-unknown',
+    position: { x: 180, y: 120 },
+  };
+  const unknownConnection = {
+    ...createConnection(diamondRoom.id, { kind: 'pseudo-room', id: unknownExit.id }, false),
+    id: 'connection-unknown',
+  };
   doc = addConnection(doc, oneWay, 'north');
   doc = addConnection(doc, twoWay, 'east', 'west');
+  doc = addPseudoRoom(doc, unknownExit);
+  doc = addConnection(doc, unknownConnection, 'south');
   doc = {
     ...doc,
     stickyNotes: {
@@ -228,6 +241,7 @@ describe('renderExportCanvas', () => {
     mockValidateExportBounds.mockReturnValue(null);
     mockBlobToCanvas.mockResolvedValue({ width: 64, height: 64 } as HTMLCanvasElement);
     mockGetRoomFillColor.mockImplementation((index) => `fill-${index}`);
+    mockGetRoomLabelColor.mockReturnValue('label-color');
     mockGetRoomStrokeColor.mockImplementation((index) => `stroke-${index}`);
     mockGetRoomStrokeDasharray.mockImplementation((style) => {
       if (style === 'dashed') {
@@ -346,6 +360,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Oval', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Octagon', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('north', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('south', expect.any(Number), expect.any(Number));
@@ -414,7 +429,32 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).not.toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
+    expect(context.fillText).not.toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
+  });
+
+  it('renders pseudo-room symbols for selected pseudo-room connections', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      settings: {
+        ...baseInput.settings,
+        scope: 'selection',
+        scale: 1,
+      },
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: ['connection-unknown'],
+      selectedStickyNoteLinkIds: [],
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.fillText).toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
   });
 
   it('skips background image rendering when disabled', async () => {

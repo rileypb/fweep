@@ -193,6 +193,8 @@ export function MapCanvas({
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const connectionDrag = useEditorStore((s) => s.connectionDrag);
+  const connectionEndpointDrag = useEditorStore((s) => s.connectionEndpointDrag);
+  const cancelConnectionEndpointDrag = useEditorStore((s) => s.cancelConnectionEndpointDrag);
   const activeStroke = useEditorStore((s) => s.activeStroke);
   const backgroundRevision = useEditorStore((s) => s.backgroundRevision);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
@@ -299,7 +301,12 @@ export function MapCanvas({
         return;
       }
 
-      if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
+      if (event.key === 'Escape' && connectionEndpointDrag !== null) {
+        cancelConnectionEndpointDrag();
+        return;
+      }
+
+      if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
         return;
       }
 
@@ -349,7 +356,18 @@ export function MapCanvas({
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown);
     };
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, isRoomEditorOpen, redo, setCanvasInteractionMode, undo]);
+  }, [
+    cancelConnectionEndpointDrag,
+    canvasInteractionMode,
+    connectionDrag,
+    connectionEditorId,
+    connectionEndpointDrag,
+    drawingInterfaceEnabled,
+    isRoomEditorOpen,
+    redo,
+    setCanvasInteractionMode,
+    undo,
+  ]);
 
   useEffect(() => {
     if (!doc) {
@@ -924,7 +942,7 @@ export function MapCanvas({
   }, [cancelBackgroundStroke, commitBackgroundStroke, doc]);
 
   const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 0 || isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
       return;
     }
 
@@ -1124,6 +1142,7 @@ export function MapCanvas({
     canvasRect,
     commitExportRegion,
     connectionDrag,
+    connectionEndpointDrag,
     connectionEditorId,
     doc,
     drawingInterfaceEnabled,
@@ -1144,7 +1163,7 @@ export function MapCanvas({
   ]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
       return;
     }
 
@@ -1186,7 +1205,7 @@ export function MapCanvas({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [connectionDrag, connectionEditorId, effectiveCanvasInteractionMode, isRoomEditorOpen, panOffsetRef, setPanOffset]);
+  }, [connectionDrag, connectionEditorId, connectionEndpointDrag, effectiveCanvasInteractionMode, isRoomEditorOpen, panOffsetRef, setPanOffset]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (isRoomEditorOpen || connectionEditorId || activeStroke) return;
@@ -1229,7 +1248,7 @@ export function MapCanvas({
   }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, openNewRoomEditor, toMapPoint]);
 
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
       return;
     }
 
@@ -1249,10 +1268,10 @@ export function MapCanvas({
     }
 
     panBy({ x: -e.deltaX, y: -e.deltaY });
-  }, [connectionDrag, connectionEditorId, isRoomEditorOpen, panBy, zoomAtClientPoint]);
+  }, [connectionDrag, connectionEditorId, connectionEndpointDrag, isRoomEditorOpen, panBy, zoomAtClientPoint]);
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
       return;
     }
 
@@ -1354,7 +1373,7 @@ export function MapCanvas({
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     centerRoomOnScreen(nearestRoom);
-  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
+  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, connectionEndpointDrag, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
 
   const classes = [
     'map-canvas',
@@ -1418,7 +1437,8 @@ export function MapCanvas({
             background={minimapBackground}
             backgroundRevision={backgroundRevision}
             rooms={doc.rooms}
-            connections={Object.fromEntries(Object.entries(doc.connections).filter(([, connection]) => connection.target.kind === 'room'))}
+            pseudoRooms={doc.pseudoRooms}
+            connections={doc.connections}
             stickyNotes={doc.stickyNotes}
             stickyNoteLinks={doc.stickyNoteLinks}
             selectedRoomIds={selectedRoomIds}
@@ -1462,6 +1482,7 @@ export function MapCanvas({
               onOpenConnectionEditor={openConnectionEditor}
               theme={theme}
               visualStyle={mapVisualStyle}
+              toMapPoint={toMapPoint}
             />
           )}
 

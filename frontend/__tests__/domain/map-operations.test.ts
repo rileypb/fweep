@@ -3,12 +3,14 @@ import {
   createEmptyMap,
   createRoom,
   createConnection,
+  createPseudoRoom,
   createItem,
   createStickyNote,
   createStickyNoteLink,
 } from '../../src/domain/map-types';
 import {
   addRoom,
+  addPseudoRoom,
   addConnection,
   addItem,
   addStickyNote,
@@ -32,6 +34,7 @@ import {
   setRoomsLocked,
   setStickyNotePositions,
   setStickyNoteText,
+  rerouteConnectionEndpoint,
 } from '../../src/domain/map-operations';
 
 /* ------------------------------------------------------------------ */
@@ -572,6 +575,93 @@ describe('deleteConnection', () => {
     const next = deleteConnection(d, conn.id);
     expect(next.rooms[r1.id].directions['north']).toBeUndefined();
     expect(next.rooms[r1.id].directions['up']).toBeUndefined();
+  });
+});
+
+describe('rerouteConnectionEndpoint', () => {
+  it('rerouting the target end to a room body keeps only the source direction', () => {
+    const kitchen = createRoom('Kitchen');
+    const hallway = createRoom('Hallway');
+    const cellar = createRoom('Cellar');
+    let doc = addRoom(addRoom(addRoom(createEmptyMap('Test'), kitchen), hallway), cellar);
+    const connection = createConnection(kitchen.id, hallway.id, true);
+    doc = addConnection(doc, connection, 'east', 'west');
+
+    const next = rerouteConnectionEndpoint(doc, connection.id, 'end', cellar.id);
+
+    expect(next.connections[connection.id]).toMatchObject({
+      sourceRoomId: kitchen.id,
+      target: { kind: 'room', id: cellar.id },
+      isBidirectional: false,
+    });
+    expect(next.rooms[kitchen.id].directions.east).toBe(connection.id);
+    expect(next.rooms[hallway.id].directions.west).toBeUndefined();
+    expect(next.rooms[cellar.id].directions).toEqual({});
+  });
+
+  it('rerouting the end to a room handle converts a one-way connection into a bidirectional one', () => {
+    const kitchen = createRoom('Kitchen');
+    const hallway = createRoom('Hallway');
+    let doc = addRoom(addRoom(createEmptyMap('Test'), kitchen), hallway);
+    const connection = createConnection(kitchen.id, hallway.id, false);
+    doc = addConnection(doc, connection, 'north');
+
+    const next = rerouteConnectionEndpoint(doc, connection.id, 'end', hallway.id, 'south');
+
+    expect(next.connections[connection.id].isBidirectional).toBe(true);
+    expect(next.rooms[kitchen.id].directions.north).toBe(connection.id);
+    expect(next.rooms[hallway.id].directions.south).toBe(connection.id);
+  });
+
+  it('rerouting the start end to a room body swaps source and target to keep one-way semantics valid', () => {
+    const kitchen = createRoom('Kitchen');
+    const hallway = createRoom('Hallway');
+    const cellar = createRoom('Cellar');
+    let doc = addRoom(addRoom(addRoom(createEmptyMap('Test'), kitchen), hallway), cellar);
+    const connection = createConnection(kitchen.id, hallway.id, true);
+    doc = addConnection(doc, connection, 'east', 'west');
+
+    const next = rerouteConnectionEndpoint(doc, connection.id, 'start', cellar.id);
+
+    expect(next.connections[connection.id]).toMatchObject({
+      sourceRoomId: hallway.id,
+      target: { kind: 'room', id: cellar.id },
+      isBidirectional: false,
+    });
+    expect(next.rooms[kitchen.id].directions.east).toBeUndefined();
+    expect(next.rooms[hallway.id].directions.west).toBe(connection.id);
+  });
+
+  it('rejects reroutes onto a direction already occupied by another connection', () => {
+    const kitchen = createRoom('Kitchen');
+    const hallway = createRoom('Hallway');
+    const attic = createRoom('Attic');
+    let doc = addRoom(addRoom(addRoom(createEmptyMap('Test'), kitchen), hallway), attic);
+    const first = createConnection(kitchen.id, hallway.id, false);
+    doc = addConnection(doc, first, 'north');
+    const second = createConnection(attic.id, hallway.id, true);
+    doc = addConnection(doc, second, 'east', 'south');
+
+    expect(() => rerouteConnectionEndpoint(doc, first.id, 'end', hallway.id, 'south')).toThrow(/already bound/i);
+  });
+
+  it('deletes an orphaned pseudo-room when rerouting away from it', () => {
+    const kitchen = createRoom('Kitchen');
+    const hallway = createRoom('Hallway');
+    const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    let doc = addRoom(addRoom(createEmptyMap('Test'), kitchen), hallway);
+    doc = addPseudoRoom(doc, unknown);
+    const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+    doc = addConnection(doc, connection, 'east');
+
+    const next = rerouteConnectionEndpoint(doc, connection.id, 'end', hallway.id, 'west');
+
+    expect(next.pseudoRooms[unknown.id]).toBeUndefined();
+    expect(next.connections[connection.id]).toMatchObject({
+      target: { kind: 'room', id: hallway.id },
+      isBidirectional: true,
+    });
+    expect(next.rooms[hallway.id].directions.west).toBe(connection.id);
   });
 });
 
