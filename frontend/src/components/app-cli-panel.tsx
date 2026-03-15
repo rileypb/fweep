@@ -11,10 +11,12 @@ interface AppCliPanelProps {
   readonly cliHistory: readonly string[];
   readonly cliHistoryIndex: number | null;
   readonly cliHistoryDraft: string;
+  readonly isOutputCollapsed: boolean;
   readonly isImportingScript: boolean;
   readonly onSubmit: () => void;
   readonly onCliCommandChange: (value: string) => void;
   readonly onCliHistoryNavigate: (direction: 'up' | 'down') => void;
+  readonly onToggleOutputCollapsed: () => void;
   readonly onImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -29,17 +31,19 @@ export function AppCliPanel({
   cliHistory,
   cliHistoryIndex,
   cliHistoryDraft,
+  isOutputCollapsed,
   isImportingScript,
   onSubmit,
   onCliCommandChange,
   onCliHistoryNavigate,
+  onToggleOutputCollapsed,
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
   return (
-    <div className="app-cli-stack">
+    <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
       <div
         id="app-game-output"
-        className="app-game-output"
+        className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
         role="textbox"
         aria-multiline="true"
         aria-readonly="true"
@@ -107,6 +111,15 @@ export function AppCliPanel({
                 onCliCommandChange(event.target.value);
               }}
             />
+            <button
+              className="app-cli-collapse-button"
+              type="button"
+              aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+              title={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+              onClick={onToggleOutputCollapsed}
+            >
+              {isOutputCollapsed ? 'More' : 'Less'}
+            </button>
             <input
               ref={cliImportInputRef}
               className="app-cli-import-input"

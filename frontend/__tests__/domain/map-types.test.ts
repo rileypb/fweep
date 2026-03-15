@@ -42,6 +42,7 @@ describe('createEmptyMap', () => {
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
+      cliOutputCollapsed: false,
     });
     expect(doc.background).toEqual({
       layers: {},

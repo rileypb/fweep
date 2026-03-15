@@ -9,13 +9,16 @@ import { useAppCli } from './hooks/use-app-cli';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 
-function getAppMapVisibleLeftInset(viewportWidth: number, rootFontSizePx: number): number {
-  const leftOffset = rootFontSizePx + (viewportWidth * 0.02);
+function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
+  return rootFontSizePx + (viewportWidth * 0.02);
+}
+
+function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): number {
+  const leftOffset = getAppCliLeftOffset(viewportWidth, rootFontSizePx);
   const preferredStackWidth = viewportWidth <= 720
     ? Math.min(viewportWidth * 0.52, rootFontSizePx * 18)
     : Math.min(viewportWidth * 0.375, rootFontSizePx * 27);
-  const stackWidth = Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
-  return leftOffset + stackWidth;
+  return Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
 }
 
 export function App(): React.JSX.Element {
@@ -24,9 +27,11 @@ export function App(): React.JSX.Element {
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
+  const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
+  const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
@@ -37,7 +42,8 @@ export function App(): React.JSX.Element {
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
-    : getAppMapVisibleLeftInset(window.innerWidth, rootFontSizePx);
+    : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
+      + (cliOutputCollapsedEnabled ? 0 : getAppCliStackWidth(window.innerWidth, rootFontSizePx));
   const hasOpenMap = activeMap !== null;
   const {
     cliInputRef,
@@ -111,7 +117,7 @@ export function App(): React.JSX.Element {
     <main className="app-shell">
       {hasOpenMap && (
         <>
-          <div className="app-left-chrome-backdrop" aria-hidden="true" />
+          <div className="app-left-rail-backdrop" aria-hidden="true" />
           <AppCliPanel
             gameOutputRef={gameOutputRef}
             gameOutputLines={gameOutputLines}
@@ -123,10 +129,12 @@ export function App(): React.JSX.Element {
             cliHistory={cliHistory}
             cliHistoryIndex={cliHistoryIndex}
             cliHistoryDraft={cliHistoryDraft}
+            isOutputCollapsed={cliOutputCollapsedEnabled}
             isImportingScript={isImportingScript}
             onSubmit={handleCliSubmit}
             onCliCommandChange={handleCliCommandChange}
             onCliHistoryNavigate={handleCliHistoryNavigate}
+            onToggleOutputCollapsed={toggleCliOutputCollapsed}
             onImportScriptChange={handleImportScriptChange}
           />
           <div

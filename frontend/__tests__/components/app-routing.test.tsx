@@ -185,6 +185,53 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('collapses the output log to widen the minimap viewport approximation and persists that state', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('CLI Collapse Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 160, y: 120 } };
+    let savedDoc = addRoom(doc, kitchen);
+    savedDoc = addRoom(savedDoc, hallway);
+    await saveMap(savedDoc);
+    navigateTo(`#/map/${savedDoc.metadata.id}`);
+    render(<App />);
+    await screen.findByLabelText('Map name: CLI Collapse Map');
+
+    const canvas = await screen.findByTestId('map-canvas');
+    jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 1200,
+      bottom: 800,
+      width: 1200,
+      height: 800,
+      toJSON: () => ({}),
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    const viewport = await screen.findByTestId('map-minimap-viewport');
+    const initialWidth = Number(viewport.getAttribute('width'));
+
+    await user.click(screen.getByRole('button', { name: /collapse output log/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /expand output log/i })).toBeInTheDocument();
+    });
+
+    const collapsedWidth = Number(screen.getByTestId('map-minimap-viewport').getAttribute('width'));
+    expect(collapsedWidth).toBeGreaterThan(initialWidth);
+
+    await waitFor(async () => {
+      const reloaded = await loadMap(savedDoc.metadata.id);
+      expect(reloaded?.view.cliOutputCollapsed).toBe(true);
+    });
+  });
+
   it('does not steal / from an already focused text input', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Slash Map');

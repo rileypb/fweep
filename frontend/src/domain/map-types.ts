@@ -25,6 +25,7 @@ export interface MapView {
   readonly showGrid: boolean;
   readonly snapToGrid: boolean;
   readonly useBezierConnections: boolean;
+  readonly cliOutputCollapsed: boolean;
 }
 
 export const MAP_VISUAL_STYLES = ['default', 'square-classic'] as const;
@@ -210,6 +211,7 @@ export function createEmptyMap(name: string): MapDocument {
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
+      cliOutputCollapsed: false,
     },
     background: createEmptyBackground(),
     cliOutputLines: [...DEFAULT_CLI_OUTPUT_LINES],

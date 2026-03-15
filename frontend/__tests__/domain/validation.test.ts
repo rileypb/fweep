@@ -263,6 +263,7 @@ describe('parseUntrustedMapDocument', () => {
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
+      cliOutputCollapsed: false,
     });
   });
 
@@ -287,6 +288,7 @@ describe('parseUntrustedMapDocument', () => {
         showGrid: false,
         snapToGrid: false,
         useBezierConnections: true,
+        cliOutputCollapsed: true,
       },
     };
 
@@ -299,6 +301,7 @@ describe('parseUntrustedMapDocument', () => {
       showGrid: false,
       snapToGrid: false,
       useBezierConnections: true,
+      cliOutputCollapsed: true,
     });
   });
 

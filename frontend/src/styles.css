@@ -55,18 +55,18 @@ body {
   background-color: #111827;
 }
 
-.app-left-chrome-backdrop {
+.app-left-rail-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  width: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)));
+  width: var(--app-cli-stack-left);
   z-index: 5;
   pointer-events: none;
   background-color: #ffffff;
 }
 
-:root[data-theme='dark'] .app-left-chrome-backdrop {
+:root[data-theme='dark'] .app-left-rail-backdrop {
   background-color: #111827;
 }
 
@@ -87,6 +87,11 @@ body {
   overflow: hidden;
 }
 
+.app-cli-stack--collapsed {
+  top: auto;
+  bottom: 1rem;
+}
+
 .app-game-output {
   position: static;
   pointer-events: auto;
@@ -104,6 +109,12 @@ body {
   font: 600 0.92rem/1.45 ui-monospace, 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.app-game-output--collapsed {
+  flex: 0 0 auto;
+  min-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
+  max-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
 }
 
 .app-game-output:focus {
@@ -199,9 +210,10 @@ body {
   display: none;
 }
 
+.app-cli-collapse-button,
 .app-cli-import-button {
   flex: 0 0 auto;
-  min-width: 4.7rem;
+  min-width: 4.1rem;
   height: calc(100% - 0.7rem);
   padding: 0 0.8rem;
   border: none;
@@ -213,6 +225,8 @@ body {
   transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 
+.app-cli-collapse-button:hover,
+.app-cli-collapse-button:focus-visible,
 .app-cli-import-button:hover,
 .app-cli-import-button:focus-visible {
   background: color-mix(in srgb, currentColor 18%, transparent);

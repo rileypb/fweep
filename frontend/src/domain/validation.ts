@@ -255,6 +255,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
+      cliOutputCollapsed: false,
     };
   }
 
@@ -267,6 +268,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
+      cliOutputCollapsed: false,
     };
   }
 
@@ -288,6 +290,9 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const useBezierConnections = view.useBezierConnections === undefined
     ? false
     : requireBoolean(view.useBezierConnections, issues, 'view.useBezierConnections', 'map', 'root');
+  const cliOutputCollapsed = view.cliOutputCollapsed === undefined
+    ? false
+    : requireBoolean(view.cliOutputCollapsed, issues, 'view.cliOutputCollapsed', 'map', 'root');
   if (visualStyleValue !== null && !MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])) {
     pushIssue(issues, 'error', 'map', 'root', 'view.visualStyle', 'view.visualStyle must be a supported map visual style.');
   }
@@ -306,6 +311,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
     useBezierConnections: useBezierConnections ?? false,
+    cliOutputCollapsed: cliOutputCollapsed ?? false,
   };
 }
 

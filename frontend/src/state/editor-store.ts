@@ -215,6 +215,9 @@ export interface EditorState {
   /** Whether the current map renders non-self connections as bezier curves. */
   useBezierConnectionsEnabled: boolean;
 
+  /** Whether the CLI output log is collapsed. */
+  cliOutputCollapsedEnabled: boolean;
+
   /** The persisted pan offset for the current map. */
   mapPanOffset: Position;
 
@@ -498,6 +501,9 @@ export interface EditorState {
 
   /** Persist the current map visual style without adding a history entry. */
   setMapVisualStyle: (visualStyle: MapVisualStyle) => void;
+
+  /** Toggle the persisted CLI output collapse state without adding a history entry. */
+  toggleCliOutputCollapsed: () => void;
 
   /** Replace the current background reference image. */
   setBackgroundReferenceImage: (image: BackgroundReferenceImage) => void;
@@ -853,7 +859,7 @@ function prettifyCliPseudoRoomResult(doc: MapDocument): MapDocument {
 
 function patchDocumentView(
   doc: MapDocument,
-  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
+  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled' | 'cliOutputCollapsedEnabled'>,
 ): MapDocument {
   return {
     ...doc,
@@ -864,6 +870,7 @@ function patchDocumentView(
       showGrid: state.showGridEnabled,
       snapToGrid: state.snapToGridEnabled,
       useBezierConnections: state.useBezierConnectionsEnabled,
+      cliOutputCollapsed: state.cliOutputCollapsedEnabled,
     },
   };
 }
@@ -883,6 +890,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   snapToGridEnabled: true,
   showGridEnabled: true,
   useBezierConnectionsEnabled: false,
+  cliOutputCollapsedEnabled: false,
   mapPanOffset: { x: 0, y: 0 },
   mapZoom: 1,
   mapVisualStyle: 'default',
@@ -915,6 +923,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
       useBezierConnectionsEnabled: doc.view.useBezierConnections,
+      cliOutputCollapsedEnabled: doc.view.cliOutputCollapsed,
     }),
     pastEntries: [],
     futureEntries: [],
@@ -929,6 +938,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     snapToGridEnabled: doc.view.snapToGrid,
     showGridEnabled: doc.view.showGrid,
     useBezierConnectionsEnabled: doc.view.useBezierConnections,
+    cliOutputCollapsedEnabled: doc.view.cliOutputCollapsed,
     mapPanOffset: doc.view.pan,
     mapZoom: doc.view.zoom,
     mapVisualStyle: doc.view.visualStyle,
@@ -958,6 +968,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     snapToGridEnabled: true,
     showGridEnabled: true,
     useBezierConnectionsEnabled: false,
+    cliOutputCollapsedEnabled: false,
     mapPanOffset: { x: 0, y: 0 },
     mapZoom: 1,
     mapVisualStyle: 'default',
@@ -1866,6 +1877,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       mapVisualStyle: visualStyle,
       lastHistoryMergeKey: null,
     }));
+  },
+
+  toggleCliOutputCollapsed: () => {
+    set((state) => {
+      const cliOutputCollapsedEnabled = !state.cliOutputCollapsedEnabled;
+      return {
+        doc: state.doc
+          ? {
+            ...state.doc,
+            view: {
+              ...state.doc.view,
+              cliOutputCollapsed: cliOutputCollapsedEnabled,
+            },
+          }
+          : state.doc,
+        cliOutputCollapsedEnabled,
+        lastHistoryMergeKey: null,
+      };
+    });
   },
 
   setBackgroundReferenceImage: (image) => {

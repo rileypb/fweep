@@ -177,6 +177,7 @@ describe('map-store', () => {
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,
+        cliOutputCollapsed: false,
       });
     });
 
@@ -192,6 +193,7 @@ describe('map-store', () => {
           showGrid: 'yes',
           snapToGrid: 1,
           useBezierConnections: 'sometimes',
+          cliOutputCollapsed: 'sometimes',
         },
         background: {
           activeLayerId: 'missing-layer',
@@ -284,6 +286,7 @@ describe('map-store', () => {
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,
+        cliOutputCollapsed: false,
       });
       expect(loaded?.stickyNotes).toEqual({});
       expect(loaded?.stickyNoteLinks).toEqual({});

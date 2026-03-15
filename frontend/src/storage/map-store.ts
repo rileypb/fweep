@@ -244,6 +244,7 @@ function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
     showGrid: typeof view?.showGrid === 'boolean' ? view.showGrid : true,
     snapToGrid: typeof view?.snapToGrid === 'boolean' ? view.snapToGrid : true,
     useBezierConnections: typeof view?.useBezierConnections === 'boolean' ? view.useBezierConnections : false,
+    cliOutputCollapsed: typeof view?.cliOutputCollapsed === 'boolean' ? view.cliOutputCollapsed : false,
   };
 }
 

@@ -35,6 +35,7 @@ describe('useEditorStore', () => {
           zoom: 1.5,
           showGrid: false,
           snapToGrid: false,
+          cliOutputCollapsed: true,
         },
       };
 
@@ -44,6 +45,7 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().mapZoom).toBe(1.5);
       expect(useEditorStore.getState().showGridEnabled).toBe(false);
       expect(useEditorStore.getState().snapToGridEnabled).toBe(false);
+      expect(useEditorStore.getState().cliOutputCollapsedEnabled).toBe(true);
     });
   });
 
@@ -74,6 +76,7 @@ describe('useEditorStore', () => {
           zoom: 1.5,
           showGrid: false,
           snapToGrid: false,
+          cliOutputCollapsed: true,
         },
       };
       useEditorStore.getState().loadDocument(doc);
@@ -84,6 +87,7 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().mapZoom).toBe(1);
       expect(useEditorStore.getState().showGridEnabled).toBe(true);
       expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
+      expect(useEditorStore.getState().cliOutputCollapsedEnabled).toBe(false);
     });
   });
 
