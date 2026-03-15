@@ -3,6 +3,8 @@ import type { MapMetadata } from '../domain/map-types';
 import { createEmptyMap, type MapDocument } from '../domain/map-types';
 import { importMapFromFile, listMaps, loadMap, saveMap, deleteMap } from '../storage/map-store';
 
+const batImage = new URL('../../bat.png', import.meta.url).href;
+
 export interface MapSelectionStorage {
   listMaps: typeof listMaps;
   loadMap: typeof loadMap;
@@ -123,107 +125,109 @@ export function MapSelectionDialog({
 
   return (
     <div className="map-selection-backdrop">
-      <div className="map-selection-dialog" role="dialog" aria-label="Choose a map">
-        <h2 className="map-selection-heading">Open a Map</h2>
+      <div className="map-selection-shell">
+        <div className="map-selection-dialog" role="dialog" aria-label="Choose a map">
+          <h2 className="map-selection-heading">Open a Map</h2>
 
-        {error && (
-          <p className="map-selection-error" role="alert">
-            {error}
-          </p>
-        )}
-
-        {/* --- Existing maps --- */}
-        <section className="map-selection-section">
-          <h3 className="map-selection-subheading">Recent Maps</h3>
-          {loading && <p className="map-selection-empty">Loading…</p>}
-          {!loading && maps.length === 0 && (
-            <p className="map-selection-empty">No saved maps yet.</p>
+          {error && (
+            <p className="map-selection-error" role="alert">
+              {error}
+            </p>
           )}
-          {!loading && maps.length > 0 && (
-            <ul className="map-selection-list">
-              {maps.map((m) => (
-                <li key={m.id} className="map-selection-list-item">
-                  <button
-                    className="map-selection-item"
-                    type="button"
-                    onClick={() => void handleSelect(m.id)}
-                  >
-                    <span className="map-selection-item-name">{m.name}</span>
-                    <span className="map-selection-item-date">{formatDate(m.updatedAt)}</span>
-                  </button>
-                  {confirmingDeleteId === m.id ? (
-                    <span className="map-selection-delete-confirm">
-                      <button
-                        className="map-selection-delete-confirm-btn"
-                        type="button"
-                        aria-label="Confirm delete"
-                        onClick={() => void handleDelete(m.id)}
-                      >
-                        ✓
-                      </button>
-                      <button
-                        className="map-selection-delete-cancel-btn"
-                        type="button"
-                        aria-label="Cancel delete"
-                        onClick={() => setConfirmingDeleteId(null)}
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ) : (
+
+          <section className="map-selection-section">
+            <h3 className="map-selection-subheading">Recent Maps</h3>
+            {loading && <p className="map-selection-empty">Loading…</p>}
+            {!loading && maps.length === 0 && (
+              <p className="map-selection-empty">No saved maps yet.</p>
+            )}
+            {!loading && maps.length > 0 && (
+              <ul className="map-selection-list">
+                {maps.map((m) => (
+                  <li key={m.id} className="map-selection-list-item">
                     <button
-                      className="map-selection-delete-btn"
+                      className="map-selection-item"
                       type="button"
-                      aria-label={`Delete ${m.name}`}
-                      onClick={() => setConfirmingDeleteId(m.id)}
+                      onClick={() => void handleSelect(m.id)}
                     >
-                      🗑
+                      <span className="map-selection-item-name">{m.name}</span>
+                      <span className="map-selection-item-date">{formatDate(m.updatedAt)}</span>
                     </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    {confirmingDeleteId === m.id ? (
+                      <span className="map-selection-delete-confirm">
+                        <button
+                          className="map-selection-delete-confirm-btn"
+                          type="button"
+                          aria-label="Confirm delete"
+                          onClick={() => void handleDelete(m.id)}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          className="map-selection-delete-cancel-btn"
+                          type="button"
+                          aria-label="Cancel delete"
+                          onClick={() => setConfirmingDeleteId(null)}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="map-selection-delete-btn"
+                        type="button"
+                        aria-label={`Delete ${m.name}`}
+                        onClick={() => setConfirmingDeleteId(m.id)}
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-        {/* --- Create new map --- */}
-        <section className="map-selection-section">
-          <h3 className="map-selection-subheading">Create New Map</h3>
-          <div className="map-selection-create-row">
+          <section className="map-selection-section">
+            <h3 className="map-selection-subheading">Create New Map</h3>
+            <div className="map-selection-create-row">
+              <input
+                className="map-selection-input"
+                type="text"
+                placeholder="Map name"
+                value={newMapName}
+                onChange={(e) => setNewMapName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canCreate) void handleCreate();
+                }}
+              />
+              <button className="map-selection-btn" type="button" disabled={!canCreate} onClick={() => void handleCreate()}>
+                Create
+              </button>
+            </div>
+          </section>
+
+          <section className="map-selection-section">
+            <h3 className="map-selection-subheading">Import</h3>
             <input
-              className="map-selection-input"
-              type="text"
-              placeholder="Map name"
-              value={newMapName}
-              onChange={(e) => setNewMapName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canCreate) void handleCreate();
-              }}
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              className="map-selection-file-input"
+              onChange={(e) => void handleImport(e)}
             />
-            <button className="map-selection-btn" type="button" disabled={!canCreate} onClick={() => void handleCreate()}>
-              Create
+            <button
+              className="map-selection-btn"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Import from file…
             </button>
-          </div>
-        </section>
-
-        {/* --- Import --- */}
-        <section className="map-selection-section">
-          <h3 className="map-selection-subheading">Import</h3>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="map-selection-file-input"
-            onChange={(e) => void handleImport(e)}
-          />
-          <button
-            className="map-selection-btn"
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Import from file…
-          </button>
-        </section>
+          </section>
+        </div>
+        <div className="map-selection-art" aria-hidden="true">
+          <img className="map-selection-art-image" src={batImage} alt="" />
+        </div>
       </div>
     </div>
   );

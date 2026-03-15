@@ -153,6 +153,14 @@ describe('MapSelectionDialog', () => {
     expect(screen.getByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
 
+  it('renders the decorative mirrored bat artwork beside the dialog', () => {
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    const artImage = document.querySelector('.map-selection-art-image') as HTMLImageElement | null;
+    expect(artImage).not.toBeNull();
+    expect(artImage?.getAttribute('src')).toContain('bat.png');
+  });
+
   it('shows a delete button for each saved map', async () => {
     const doc = createEmptyMap('Deletable Map');
     await saveMap(doc);
