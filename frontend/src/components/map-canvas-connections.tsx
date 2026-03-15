@@ -950,7 +950,7 @@ export function MapCanvasConnections({
           height: '100%',
           overflow: 'visible',
           pointerEvents: 'none',
-          zIndex: 2,
+          zIndex: 'var(--map-layer-connections)',
         }}
       >
         {entries.map((conn) => {
@@ -1135,7 +1135,7 @@ export function MapCanvasConnections({
           height: '100%',
           overflow: 'visible',
           pointerEvents: 'none',
-          zIndex: 6,
+          zIndex: 'var(--map-layer-connection-labels)',
         }}
       >
         {entries.map((conn) => {
@@ -1167,7 +1167,7 @@ export function MapCanvasConnections({
           height: '100%',
           overflow: 'visible',
           pointerEvents: 'none',
-          zIndex: 8,
+          zIndex: 'var(--map-layer-connection-reroute)',
         }}
       >
         {entries.map((conn) => {

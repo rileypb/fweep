@@ -147,17 +147,14 @@ export function MapCanvasPseudoRoomNode({
 
   return (
     <svg
-      className="map-room-node map-room-node--pseudo"
+      className={`pseudo-room-node${isDragging ? ' pseudo-room-node--dragging' : ''}`}
       data-testid="pseudo-room-node"
       data-pseudo-room-id={pseudoRoom.id}
       width={roomDimensions.width}
       height={roomDimensions.height}
       style={{
-        position: 'absolute',
-        overflow: 'visible',
         transform: `translate(${visualX}px, ${visualY}px)`,
         cursor: 'move',
-        zIndex: 0,
       }}
       onMouseDown={handleMouseDown}
       onClick={(event) => {

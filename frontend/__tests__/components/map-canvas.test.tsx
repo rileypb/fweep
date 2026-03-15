@@ -121,7 +121,7 @@ describe('MapCanvas', () => {
     expect(children.indexOf(pseudoNode)).toBeGreaterThan(-1);
     expect(children.indexOf(stickyNoteNode as HTMLElement)).toBeGreaterThan(children.indexOf(pseudoNode));
     expect(children.indexOf(roomNode)).toBeGreaterThan(children.indexOf(pseudoNode));
-    expect(pseudoNode).toHaveStyle({ zIndex: '0' });
+    expect(pseudoNode).toHaveClass('pseudo-room-node');
   });
 
   it('keeps connection and sticky-note-link pointer interaction enabled', () => {
