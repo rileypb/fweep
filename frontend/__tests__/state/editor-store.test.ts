@@ -851,6 +851,7 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1'],
+        pseudoRoomIds: [],
         stickyNoteIds: [],
         dx: 0,
         dy: 0,
@@ -865,6 +866,7 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1', 'r2'],
+        pseudoRoomIds: [],
         stickyNoteIds: [],
         dx: 0,
         dy: 0,
@@ -878,6 +880,7 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1'],
+        pseudoRoomIds: [],
         stickyNoteIds: ['s1'],
         dx: 0,
         dy: 0,
@@ -890,6 +893,7 @@ describe('useEditorStore', () => {
 
       expect(useEditorStore.getState().selectionDrag).toEqual({
         roomIds: ['r1'],
+        pseudoRoomIds: [],
         stickyNoteIds: [],
         dx: 40,
         dy: 20,
@@ -902,6 +906,33 @@ describe('useEditorStore', () => {
       useEditorStore.getState().endRoomDrag();
 
       expect(useEditorStore.getState().selectionDrag).toBeNull();
+    });
+
+    it('moveSelection records mixed entity movement as one undo step', async () => {
+      const room = { ...createRoom('Kitchen'), id: 'r1', position: { x: 40, y: 40 } };
+      const stickyNote = { ...createStickyNote('Check desk'), id: 's1', position: { x: 320, y: 80 } };
+      const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'p1', position: { x: 160, y: 80 } };
+      let doc = addRoom(testDoc, room);
+      doc = addPseudoRoom(doc, pseudoRoom);
+      doc = addStickyNote(doc, stickyNote);
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().moveSelection({
+        rooms: { r1: { x: 80, y: 120 } },
+        pseudoRooms: { p1: { x: 200, y: 120 } },
+        stickyNotes: { s1: { x: 360, y: 120 } },
+      });
+
+      expect(useEditorStore.getState().pastEntries).toHaveLength(1);
+      expect(useEditorStore.getState().doc?.rooms.r1.position).toEqual({ x: 80, y: 120 });
+      expect(useEditorStore.getState().doc?.pseudoRooms.p1.position).toEqual({ x: 200, y: 120 });
+      expect(useEditorStore.getState().doc?.stickyNotes.s1.position).toEqual({ x: 360, y: 120 });
+
+      await useEditorStore.getState().undo();
+
+      expect(useEditorStore.getState().doc?.rooms.r1.position).toEqual(room.position);
+      expect(useEditorStore.getState().doc?.pseudoRooms.p1.position).toEqual(pseudoRoom.position);
+      expect(useEditorStore.getState().doc?.stickyNotes.s1.position).toEqual(stickyNote.position);
     });
   });
 
@@ -1294,7 +1325,7 @@ describe('useEditorStore', () => {
       const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
       useEditorStore.getState().startRoomDrag(roomId);
 
-      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], stickyNoteIds: [], dx: 0, dy: 0 });
+      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], pseudoRoomIds: [], stickyNoteIds: [], dx: 0, dy: 0 });
     });
 
     it('updateRoomDrag updates the offset', () => {
@@ -1303,7 +1334,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startRoomDrag(roomId);
       useEditorStore.getState().updateRoomDrag(30, 40);
 
-      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], stickyNoteIds: [], dx: 30, dy: 40 });
+      expect(useEditorStore.getState().selectionDrag).toEqual({ roomIds: [roomId], pseudoRoomIds: [], stickyNoteIds: [], dx: 30, dy: 40 });
     });
 
     it('endRoomDrag clears the drag state', () => {

@@ -24,9 +24,7 @@ export function MapCanvasPseudoRoomNode({
   onOpenPseudoRoomEditor,
 }: MapCanvasPseudoRoomNodeProps): React.JSX.Element {
   const visualRoom = toPseudoRoomVisualRoom(pseudoRoom);
-  const movePseudoRooms = useEditorStore((s) => s.movePseudoRooms);
-  const moveRooms = useEditorStore((s) => s.moveRooms);
-  const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
+  const moveSelection = useEditorStore((s) => s.moveSelection);
   const selectPseudoRoom = useEditorStore((s) => s.selectPseudoRoom);
   const addPseudoRoomToSelection = useEditorStore((s) => s.addPseudoRoomToSelection);
   const startPseudoRoomDrag = useEditorStore((s) => s.startPseudoRoomDrag);
@@ -131,9 +129,11 @@ export function MapCanvasPseudoRoomNode({
           }),
         );
 
-        movePseudoRooms(nextPseudoRoomPositions);
-        moveRooms(nextRoomPositions);
-        moveStickyNotes(nextStickyNotePositions);
+        moveSelection({
+          rooms: nextRoomPositions,
+          pseudoRooms: nextPseudoRoomPositions,
+          stickyNotes: nextStickyNotePositions,
+        });
       } else if (upEvent.shiftKey) {
         addPseudoRoomToSelection(pseudoRoom.id);
       } else {
@@ -143,7 +143,7 @@ export function MapCanvasPseudoRoomNode({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [addPseudoRoomToSelection, endRoomDrag, movePseudoRooms, moveRooms, moveStickyNotes, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, updateRoomDrag]);
+  }, [addPseudoRoomToSelection, endRoomDrag, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, updateRoomDrag]);
 
   return (
     <svg

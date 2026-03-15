@@ -39,9 +39,7 @@ export function MapCanvasStickyNote({
   const startStickyNoteDrag = useEditorStore((s) => s.startStickyNoteDrag);
   const updateStickyNoteDrag = useEditorStore((s) => s.updateStickyNoteDrag);
   const endStickyNoteDrag = useEditorStore((s) => s.endStickyNoteDrag);
-  const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
-  const moveRooms = useEditorStore((s) => s.moveRooms);
-  const movePseudoRooms = useEditorStore((s) => s.movePseudoRooms);
+  const moveSelection = useEditorStore((s) => s.moveSelection);
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const startStickyNoteLinkDrag = useEditorStore((s) => s.startStickyNoteLinkDrag);
   const updateStickyNoteLinkDrag = useEditorStore((s) => s.updateStickyNoteLinkDrag);
@@ -215,9 +213,11 @@ export function MapCanvasStickyNote({
                   }]];
                 }),
               );
-              moveStickyNotes(nextStickyNotePositions);
-              moveRooms(nextRoomPositions);
-              movePseudoRooms(nextPseudoRoomPositions);
+              moveSelection({
+                rooms: nextRoomPositions,
+                pseudoRooms: nextPseudoRoomPositions,
+                stickyNotes: nextStickyNotePositions,
+              });
             } else if (upEvent.shiftKey) {
               addStickyNoteToSelection(stickyNote.id);
             } else {

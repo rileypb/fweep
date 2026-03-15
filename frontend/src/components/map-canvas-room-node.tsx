@@ -138,8 +138,7 @@ export function MapCanvasRoomNode({
   toMapPoint,
 }: MapCanvasRoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
-  const moveRooms = useEditorStore((s) => s.moveRooms);
-  const movePseudoRooms = useEditorStore((s) => s.movePseudoRooms);
+  const moveSelection = useEditorStore((s) => s.moveSelection);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
   const updateConnectionDrag = useEditorStore((s) => s.updateConnectionDrag);
   const completeConnectionDrag = useEditorStore((s) => s.completeConnectionDrag);
@@ -150,7 +149,6 @@ export function MapCanvasRoomNode({
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const addRoomToSelection = useEditorStore((s) => s.addRoomToSelection);
-  const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
   const canvasInteractionMode = useEditorStore((s) => s.canvasInteractionMode);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const interactionsDisabled = canvasInteractionMode === 'draw';
@@ -241,9 +239,11 @@ export function MapCanvasRoomNode({
             }),
           );
 
-          moveRooms(nextRoomPositions);
-          movePseudoRooms(nextPseudoRoomPositions);
-          moveStickyNotes(nextStickyNotePositions);
+          moveSelection({
+            rooms: nextRoomPositions,
+            pseudoRooms: nextPseudoRoomPositions,
+            stickyNotes: nextStickyNotePositions,
+          });
         } else if (upEvent.shiftKey) {
           addRoomToSelection(room.id);
         } else {
@@ -254,7 +254,7 @@ export function MapCanvasRoomNode({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, movePseudoRooms, moveRooms, moveStickyNotes, room.id, selectRoom, startRoomDrag, updateRoomDrag],
+    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveSelection, room.id, selectRoom, startRoomDrag, updateRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(

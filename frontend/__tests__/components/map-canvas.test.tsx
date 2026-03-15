@@ -2129,6 +2129,42 @@ describe('MapCanvas', () => {
       expect(rooms[hallway.id].position).toEqual({ x: 200, y: 120 });
     });
 
+    it('undoes a mixed room, pseudo-room, and sticky-note drag as one history step', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+      const stickyNote = { ...createStickyNote('Check desk'), position: { x: 360, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, pseudoRoom);
+      updated = addStickyNote(updated, stickyNote);
+      useEditorStore.getState().loadDocument(updated);
+      useEditorStore.getState().selectRoom(kitchen.id);
+      useEditorStore.getState().addPseudoRoomToSelection(pseudoRoom.id);
+      useEditorStore.getState().addStickyNoteToSelection(stickyNote.id);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const canvas = screen.getByTestId('map-canvas');
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 160, clientY: 180 });
+      fireEvent.mouseUp(document, { clientX: 160, clientY: 180 });
+
+      let currentDoc = useEditorStore.getState().doc!;
+      expect(currentDoc.rooms[kitchen.id].position).toEqual({ x: 160, y: 160 });
+      expect(currentDoc.pseudoRooms[pseudoRoom.id].position).toEqual({ x: 320, y: 160 });
+      expect(currentDoc.stickyNotes[stickyNote.id].position).toEqual({ x: 440, y: 160 });
+
+      canvas.focus();
+      fireEvent.keyDown(canvas, { key: 'z', ctrlKey: true });
+
+      currentDoc = useEditorStore.getState().doc!;
+      expect(currentDoc.rooms[kitchen.id].position).toEqual({ x: 80, y: 120 });
+      expect(currentDoc.pseudoRooms[pseudoRoom.id].position).toEqual({ x: 240, y: 120 });
+      expect(currentDoc.stickyNotes[stickyNote.id].position).toEqual({ x: 360, y: 120 });
+    });
+
     it('updates all selected room positions live while dragging', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };

@@ -532,6 +532,13 @@ export interface EditorState {
   /** Move multiple sticky notes to new positions in a single history step. */
   moveStickyNotes: (positions: Readonly<Record<string, Position>>) => void;
 
+  /** Move rooms, pseudo-rooms, and sticky notes together in a single history step. */
+  moveSelection: (positions: {
+    readonly rooms?: Readonly<Record<string, Position>>;
+    readonly pseudoRooms?: Readonly<Record<string, Position>>;
+    readonly stickyNotes?: Readonly<Record<string, Position>>;
+  }) => void;
+
   /** Recompute room positions from the connection graph. */
   prettifyLayout: () => void;
 
@@ -2019,6 +2026,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     ) as Record<string, Position>;
 
     const updatedDoc = domainSetStickyNotePositions(doc, snappedPositions);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  moveSelection: (positions) => {
+    const { doc, snapToGridEnabled } = get();
+    if (!doc) {
+      throw new Error('Cannot move selection: no document is loaded.');
+    }
+
+    const snapPositionMap = (positionMap: Readonly<Record<string, Position>> | undefined): Record<string, Position> => (
+      Object.fromEntries(
+        Object.entries(positionMap ?? {}).map(([entityId, position]) => [
+          entityId,
+          maybeSnapPosition(position, snapToGridEnabled),
+        ]),
+      ) as Record<string, Position>
+    );
+
+    const snappedRoomPositions = snapPositionMap(positions.rooms);
+    const snappedPseudoRoomPositions = snapPositionMap(positions.pseudoRooms);
+    const snappedStickyNotePositions = snapPositionMap(positions.stickyNotes);
+
+    const roomsUpdatedDoc = domainSetRoomPositions(doc, snappedRoomPositions);
+    const pseudoRoomsUpdatedDoc = domainSetPseudoRoomPositions(roomsUpdatedDoc, snappedPseudoRoomPositions);
+    const updatedDoc = domainSetStickyNotePositions(pseudoRoomsUpdatedDoc, snappedStickyNotePositions);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
