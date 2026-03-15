@@ -119,6 +119,22 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`)).not.toHaveStyle({ pointerEvents: 'none' });
   });
 
+  it('keeps connection overlays transparent while leaving connection hit targets interactive', () => {
+    const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), roomA);
+    doc = addRoom(doc, roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
+    const connectionId = Object.keys(doc.connections)[0];
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByTestId('connection-svg-overlay')).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId('connection-reroute-overlay')).toHaveStyle({ pointerEvents: 'none' });
+    expect(screen.getByTestId(`connection-hit-target-${connectionId}`)).not.toHaveStyle({ pointerEvents: 'none' });
+  });
+
   it('uses the pan-ready cursor when Shift is held in map mode', () => {
     render(<MapCanvas mapName="Test" />);
 
@@ -1941,6 +1957,33 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);
+    });
+
+    it('still responds to hover and double-click when another connection crosses over it', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Crossing Hover');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      let nextDoc = addRoom(doc, northOfHouse);
+      nextDoc = addRoom(nextDoc, kitchen);
+      nextDoc = addRoom(nextDoc, westOfHouse);
+      nextDoc = addRoom(nextDoc, attic);
+      nextDoc = addConnection(nextDoc, createConnection(westOfHouse.id, northOfHouse.id, true), 'north', 'west');
+      nextDoc = addConnection(nextDoc, createConnection(kitchen.id, attic.id, true), 'up', 'down');
+      useEditorStore.getState().loadDocument(nextDoc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]');
+      expect(kitchenNode).not.toBeNull();
+
+      fireEvent.mouseEnter(kitchenNode!);
+      expect(screen.getAllByTestId(/^direction-handle-/)).toHaveLength(10);
+
+      await user.dblClick(kitchenNode!);
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
 
     it('opens the room editor for a newly created room', () => {

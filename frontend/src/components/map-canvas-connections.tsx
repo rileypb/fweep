@@ -877,7 +877,7 @@ export function MapCanvasConnections({
               fill="#ffffff"
               stroke="#f59e0b"
               strokeWidth="2"
-              style={{ cursor: 'grab' }}
+              style={{ cursor: 'grab', pointerEvents: 'all' }}
               onMouseDown={(event) => beginConnectionEndpointDrag(connection.id, endpoint, event)}
             />
             <circle
@@ -949,6 +949,7 @@ export function MapCanvasConnections({
           width: '100%',
           height: '100%',
           overflow: 'visible',
+          pointerEvents: 'none',
           zIndex: 2,
         }}
       >
@@ -1165,6 +1166,7 @@ export function MapCanvasConnections({
           width: '100%',
           height: '100%',
           overflow: 'visible',
+          pointerEvents: 'none',
           zIndex: 8,
         }}
       >
