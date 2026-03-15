@@ -13,7 +13,8 @@ import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 
 const PSEUDO_ROOM_CONNECTION_INSET = 42;
 export const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
-export const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 9;
+export const PSEUDO_ROOM_SYMBOL_FONT_WEIGHT = 700;
+export const PSEUDO_ROOM_SYMBOL_FONT_FAMILY = 'sans-serif';
 
 interface PointLike {
   readonly x: number;
@@ -73,7 +74,7 @@ export function getPseudoRoomSymbolLayoutForRoom(
   const dimensions = getRoomNodeDimensions(room, visualStyle);
   return {
     x: dimensions.width / 2,
-    y: (dimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET,
+    y: dimensions.height / 2,
     fontSize: PSEUDO_ROOM_SYMBOL_FONT_SIZE,
   };
 }

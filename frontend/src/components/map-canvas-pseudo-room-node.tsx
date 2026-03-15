@@ -1,7 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { type PseudoRoom } from '../domain/map-types';
 import { type ThemeMode, getRoomLabelColor } from '../domain/room-color-palette';
-import { getPseudoRoomSymbolLayout, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import {
+  PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
+  PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
+  getPseudoRoomSymbolLayout,
+  toPseudoRoomVisualRoom,
+} from '../domain/pseudo-room-helpers';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
 
@@ -31,10 +36,30 @@ export function MapCanvasPseudoRoomNode({
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
   const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
+  const textRef = useRef<SVGTextElement | null>(null);
+  const [symbolAdjustment, setSymbolAdjustment] = useState({ x: 0, y: 0 });
   const roomLabelColor = getRoomLabelColor(theme);
   const isDragging = selectionDrag !== null && selectionDrag.pseudoRoomIds.includes(pseudoRoom.id);
   const visualX = pseudoRoom.position.x + (isDragging ? selectionDrag.dx : 0);
   const visualY = pseudoRoom.position.y + (isDragging ? selectionDrag.dy : 0);
+
+  useLayoutEffect(() => {
+    if (!textRef.current || typeof textRef.current.getBBox !== 'function') {
+      return;
+    }
+
+    const bbox = textRef.current.getBBox();
+    const nextAdjustment = {
+      x: symbolLayout.x - (bbox.x + (bbox.width / 2)),
+      y: symbolLayout.y - (bbox.y + (bbox.height / 2)),
+    };
+
+    setSymbolAdjustment((previous) => (
+      previous.x === nextAdjustment.x && previous.y === nextAdjustment.y
+        ? previous
+        : nextAdjustment
+    ));
+  }, [symbolLayout.x, symbolLayout.y, symbolLayout.fontSize, visualRoom.name]);
 
   const handleMouseDown = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
     if (event.button !== 0) {
@@ -161,11 +186,18 @@ export function MapCanvasPseudoRoomNode({
         />
       )}
       <text
-        x={symbolLayout.x}
-        y={symbolLayout.y}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        style={{ fill: roomLabelColor, pointerEvents: 'none', fontSize: `${symbolLayout.fontSize}px`, fontWeight: 700 }}
+        ref={textRef}
+        x={symbolLayout.x + symbolAdjustment.x}
+        y={symbolLayout.y + symbolAdjustment.y}
+        textAnchor="start"
+        dominantBaseline="alphabetic"
+        style={{
+          fill: roomLabelColor,
+          pointerEvents: 'none',
+          fontFamily: PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
+          fontSize: `${symbolLayout.fontSize}px`,
+          fontWeight: PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
+        }}
       >
         {visualRoom.name}
       </text>

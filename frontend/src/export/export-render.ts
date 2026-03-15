@@ -1,6 +1,8 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
 import {
+  PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
   getPseudoRoomSymbolLayoutForRoom,
+  PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
   insetPseudoRoomConnectionEndpoint,
   PSEUDO_ROOM_SYMBOL_FONT_SIZE,
   toPseudoRoomVisualRoom,
@@ -177,15 +179,25 @@ function drawPseudoRoomSymbol(
   visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
 ): void {
   const symbolLayout = getPseudoRoomSymbolLayoutForRoom(room, visualStyle);
+  const centerX = room.position.x + symbolLayout.x;
+  const centerY = room.position.y + symbolLayout.y;
 
   context.fillStyle = getRoomLabelColor(theme);
-  context.font = `700 ${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px sans-serif`;
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
+  context.font = `${PSEUDO_ROOM_SYMBOL_FONT_WEIGHT} ${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px ${PSEUDO_ROOM_SYMBOL_FONT_FAMILY}`;
+  const canMeasureText = typeof context.measureText === 'function';
+  context.textAlign = canMeasureText ? 'left' : 'center';
+  context.textBaseline = canMeasureText ? 'alphabetic' : 'middle';
+  const metrics = canMeasureText ? context.measureText(room.name) : null;
+  const left = metrics?.actualBoundingBoxLeft ?? 0;
+  const right = metrics?.actualBoundingBoxRight ?? metrics?.width ?? 0;
+  const ascent = metrics?.actualBoundingBoxAscent ?? (PSEUDO_ROOM_SYMBOL_FONT_SIZE * 0.7);
+  const descent = metrics?.actualBoundingBoxDescent ?? (PSEUDO_ROOM_SYMBOL_FONT_SIZE * 0.3);
+  const drawX = canMeasureText ? centerX - ((right - left) / 2) : centerX;
+  const drawY = canMeasureText ? centerY - ((descent - ascent) / 2) : centerY;
   context.fillText(
     room.name,
-    room.position.x + symbolLayout.x,
-    room.position.y + symbolLayout.y,
+    drawX,
+    drawY,
   );
 }
 
