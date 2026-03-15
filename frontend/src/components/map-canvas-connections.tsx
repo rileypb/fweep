@@ -343,7 +343,7 @@ export function MapCanvasConnections({
     conn: Connection,
     sourceRoom: Room,
     targetRoom: Room,
-    points: ReturnType<typeof computeConnectionPath>,
+    points: readonly Point[],
     geometry: ConnectionRenderGeometry,
     isSelfConnection: boolean,
   ): React.JSX.Element => {
@@ -806,7 +806,7 @@ export function MapCanvasConnections({
 
   const renderConnectionEndpointLabels = (
     conn: Connection,
-    points: ReturnType<typeof computeConnectionPath>,
+    points: readonly Point[],
   ): React.JSX.Element | null => {
     const startLabel = conn.startLabel.trim();
     const endLabel = conn.endLabel.trim();

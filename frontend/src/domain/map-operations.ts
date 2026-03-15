@@ -396,10 +396,10 @@ export function convertPseudoRoomToRoom(doc: MapDocument, pseudoRoomId: string, 
   }
 
   const { [pseudoRoomId]: _removedPseudoRoom, ...remainingPseudoRooms } = doc.pseudoRooms;
-  const updatedConnections = Object.fromEntries(
+  const updatedConnections: Record<string, Connection> = Object.fromEntries(
     Object.entries(doc.connections).map(([connectionId, connection]) => (
       connection.target.kind === 'pseudo-room' && connection.target.id === pseudoRoomId
-        ? [connectionId, { ...connection, target: { kind: 'room', id: room.id } }]
+        ? [connectionId, { ...connection, target: { kind: 'room' as const, id: room.id } }]
         : [connectionId, connection]
     )),
   );

@@ -761,7 +761,7 @@ export function computeSegmentArrowheadPoints(
 }
 
 /** Convert an array of points to an SVG polyline `points` attribute string. */
-export function pointsToSvgString(pts: Point[]): string {
+export function pointsToSvgString(pts: readonly Point[]): string {
   return pts.map((p) => `${p.x},${p.y}`).join(' ');
 }
 

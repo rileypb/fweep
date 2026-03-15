@@ -194,7 +194,10 @@ function normalizeConnection(
     }
   ),
 ): MapDocument['connections'][string] {
-  const legacyConnection = connection as typeof connection & { strokeColor?: string };
+  const legacyConnection = connection as typeof connection & {
+    strokeColor?: string;
+    targetRoomId?: string;
+  };
   const { strokeColor: _legacyStrokeColor, ...restConnection } = legacyConnection;
   const annotation = (
     legacyConnection.annotation
@@ -220,7 +223,9 @@ function normalizeConnection(
     ...restConnection,
     target: connection.target ?? {
       kind: 'room',
-      id: typeof legacyConnection.targetRoomId === 'string' ? legacyConnection.targetRoomId : '',
+      id: 'targetRoomId' in legacyConnection && typeof legacyConnection.targetRoomId === 'string'
+        ? legacyConnection.targetRoomId
+        : '',
     },
     annotation,
     strokeColorIndex,

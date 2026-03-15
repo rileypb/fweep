@@ -691,7 +691,7 @@ describe('renderExportCanvas', () => {
       ...baseInput.doc.connections['connection-one-way'],
       id: 'connection-dangling',
       sourceRoomId: 'missing-room',
-      targetRoomId: 'room-diamond',
+      target: { kind: 'room' as const, id: 'room-diamond' },
       annotation: null,
       startLabel: '',
       endLabel: '',

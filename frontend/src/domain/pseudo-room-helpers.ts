@@ -10,6 +10,7 @@ import {
   type Room,
 } from './map-types';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
+import type { Point } from '../graph/connection-geometry';
 
 const PSEUDO_ROOM_CONNECTION_INSET = 42;
 export const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
@@ -99,9 +100,9 @@ export function isPseudoRoom(value: Room | PseudoRoom | null | undefined): value
 export function insetPseudoRoomConnectionEndpoint(
   connection: Connection,
   points: readonly PointLike[],
-): readonly PointLike[] {
+): Point[] {
   if (!isPseudoRoomTarget(connection.target) || points.length < 2) {
-    return points;
+    return [...points];
   }
 
   const end = points[points.length - 1];
@@ -110,7 +111,7 @@ export function insetPseudoRoomConnectionEndpoint(
   const dy = end.y - previous.y;
   const length = Math.hypot(dx, dy);
   if (length === 0) {
-    return points;
+    return [...points];
   }
 
   const inset = Math.min(PSEUDO_ROOM_CONNECTION_INSET, Math.max(length - 1, 0));

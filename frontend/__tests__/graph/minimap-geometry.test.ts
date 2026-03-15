@@ -75,6 +75,7 @@ describe('minimap geometry', () => {
 
     const points = getMinimapConnectionPoints(
       { [kitchen.id]: kitchen, [hallway.id]: hallway },
+      {},
       connection,
       transform,
     );
