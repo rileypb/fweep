@@ -34,6 +34,7 @@ import {
   setConnectionAnnotation as domainSetConnectionAnnotation,
   setConnectionLabels as domainSetConnectionLabels,
   setConnectionStyle as domainSetConnectionStyle,
+  setPseudoRoomKind as domainSetPseudoRoomKind,
   setRoomsLocked as domainSetRoomsLocked,
   setRoomPositions as domainSetRoomPositions,
   setPseudoRoomPositions as domainSetPseudoRoomPositions,
@@ -286,6 +287,13 @@ export interface EditorState {
     position: Position,
     sourceRoomId: string,
     sourceDirection: string,
+  ) => { pseudoRoomId: string; connectionId: string };
+
+  /** Create or replace a pseudo-room exit from a room in a single history step. */
+  setPseudoRoomExit: (
+    sourceRoomId: string,
+    sourceDirection: string,
+    kind: PseudoRoomKind,
   ) => { pseudoRoomId: string; connectionId: string };
 
   /** Convert a pseudo-room into a standard room in place. */
@@ -800,6 +808,42 @@ function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
   return domainSetStickyNotePositions(doc, stickyNotePositions);
 }
 
+function getCliPseudoRoomPlacement(doc: MapDocument, sourceRoomId: string, sourceDirection: string): Position {
+  const sourceRoom = doc.rooms[sourceRoomId];
+  if (!sourceRoom) {
+    throw new Error(`Room "${sourceRoomId}" not found.`);
+  }
+
+  const offset = GRID_SIZE * 2;
+  const direction = normalizeDirection(sourceDirection);
+  const deltaByDirection: Record<string, Position> = {
+    north: { x: 0, y: -offset },
+    south: { x: 0, y: offset },
+    east: { x: offset, y: 0 },
+    west: { x: -offset, y: 0 },
+    northeast: { x: offset, y: -offset },
+    northwest: { x: -offset, y: -offset },
+    southeast: { x: offset, y: offset },
+    southwest: { x: -offset, y: offset },
+    up: { x: 0, y: -offset },
+    down: { x: 0, y: offset },
+    in: { x: -offset, y: 0 },
+    out: { x: offset, y: 0 },
+  };
+  const delta = deltaByDirection[direction] ?? { x: offset, y: 0 };
+
+  return {
+    x: sourceRoom.position.x + delta.x,
+    y: sourceRoom.position.y + delta.y,
+  };
+}
+
+function prettifyCliPseudoRoomResult(doc: MapDocument): MapDocument {
+  const transientLockedRoomIds = new Set(Object.keys(doc.rooms));
+  const { pseudoRoomPositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
+  return domainSetPseudoRoomPositions(doc, pseudoRoomPositions);
+}
+
 function patchDocumentView(
   doc: MapDocument,
   state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled'>,
@@ -1097,6 +1141,60 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return { pseudoRoomId: pseudoRoom.id, connectionId: connection.id };
   },
 
+  setPseudoRoomExit: (sourceRoomId, sourceDirection, kind) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot create or replace a pseudo-room exit: no document is loaded.');
+    }
+
+    const normalizedSourceDirection = normalizeDirection(sourceDirection);
+    const sourceRoom = doc.rooms[sourceRoomId];
+    if (!sourceRoom) {
+      throw new Error(`Room "${sourceRoomId}" not found.`);
+    }
+
+    const existingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+    if (existingConnectionId) {
+      const existingConnection = doc.connections[existingConnectionId];
+      if (existingConnection?.target.kind === 'pseudo-room') {
+        let nextDoc = domainSetPseudoRoomKind(doc, existingConnection.target.id, kind);
+        nextDoc = prettifyCliPseudoRoomResult(nextDoc);
+        set((state) => ({
+          ...commitDocumentChange(state, doc, nextDoc),
+          selectedRoomIds: [],
+          selectedPseudoRoomIds: [],
+          selectedStickyNoteIds: [],
+          selectedConnectionIds: [existingConnection.id],
+          selectedStickyNoteLinkIds: [],
+        }));
+        return { pseudoRoomId: existingConnection.target.id, connectionId: existingConnection.id };
+      }
+    }
+
+    let nextDoc = doc;
+    if (existingConnectionId) {
+      nextDoc = domainDeleteConnection(nextDoc, existingConnectionId);
+    }
+
+    const pseudoRoom = {
+      ...createPseudoRoom(kind),
+      position: maybeSnapPosition(getCliPseudoRoomPlacement(nextDoc, sourceRoomId, normalizedSourceDirection), get().snapToGridEnabled),
+    };
+    const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
+    nextDoc = addPseudoRoom(nextDoc, pseudoRoom);
+    nextDoc = addConnection(nextDoc, connection, normalizedSourceDirection);
+    nextDoc = prettifyCliPseudoRoomResult(nextDoc);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc),
+      selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connection.id],
+      selectedStickyNoteLinkIds: [],
+    }));
+    return { pseudoRoomId: pseudoRoom.id, connectionId: connection.id };
+  },
+
   convertPseudoRoomToRoom: (pseudoRoomId, draft) => {
     const { doc } = get();
     if (!doc) {
@@ -1192,6 +1290,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot create and connect a room: no document is loaded.');
+    }
+
+    const normalizedTargetDirection = options.targetDirection === null ? null : normalizeDirection(options.targetDirection);
+    if (!options.oneWay && normalizedTargetDirection !== null) {
+      const targetRoom = doc.rooms[targetRoomId];
+      const placeholderConnectionId = targetRoom?.directions[normalizedTargetDirection];
+      const placeholderConnection = placeholderConnectionId ? doc.connections[placeholderConnectionId] : undefined;
+      if (placeholderConnection?.target.kind === 'pseudo-room') {
+        const pseudoRoom = doc.pseudoRooms[placeholderConnection.target.id];
+        if (pseudoRoom) {
+          const room = {
+            ...createRoom(name),
+            id: pseudoRoom.id,
+            position: pseudoRoom.position,
+          };
+          let nextDoc = domainConvertPseudoRoomToRoom(doc, pseudoRoom.id, room);
+          nextDoc = domainRerouteConnectionEndpoint(nextDoc, placeholderConnection.id, 'end', room.id, options.sourceDirection);
+          nextDoc = room.id === targetRoomId
+            ? nextDoc
+            : prettifyCliConnectionResult(nextDoc, [room.id]);
+
+          set((state) => ({
+            ...commitDocumentChange(state, doc, nextDoc),
+            selectedRoomIds: [room.id, targetRoomId],
+            selectedPseudoRoomIds: [],
+            selectedStickyNoteIds: [],
+            selectedConnectionIds: [placeholderConnection.id],
+            selectedStickyNoteLinkIds: [],
+          }));
+
+          return { roomId: room.id, connectionId: placeholderConnection.id };
+        }
+      }
     }
 
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);

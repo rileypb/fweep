@@ -6,6 +6,7 @@ import type {
   MapDocument,
   Position,
   PseudoRoom,
+  PseudoRoomKind,
   Room,
   RoomShape,
   RoomStrokeStyle,
@@ -408,6 +409,28 @@ export function convertPseudoRoomToRoom(doc: MapDocument, pseudoRoomId: string, 
     rooms: { ...doc.rooms, [room.id]: room },
     pseudoRooms: remainingPseudoRooms,
     connections: updatedConnections,
+  });
+}
+
+export function setPseudoRoomKind(doc: MapDocument, pseudoRoomId: string, kind: PseudoRoomKind): MapDocument {
+  const pseudoRoom = doc.pseudoRooms[pseudoRoomId];
+  if (!pseudoRoom) {
+    throw new Error(`Pseudo-room "${pseudoRoomId}" not found.`);
+  }
+
+  if (pseudoRoom.kind === kind) {
+    return doc;
+  }
+
+  return touch({
+    ...doc,
+    pseudoRooms: {
+      ...doc.pseudoRooms,
+      [pseudoRoomId]: {
+        ...pseudoRoom,
+        kind,
+      },
+    },
   });
 }
 

@@ -74,6 +74,10 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Arranged.';
     case 'create':
       return 'Created.';
+    case 'create-pseudo-room':
+      return command.pseudoKind === 'unknown'
+        ? 'Marked exit as unknown.'
+        : 'Marked exit as going on forever.';
     case 'delete':
       return 'Deleted.';
     case 'edit':
@@ -157,6 +161,7 @@ export function useAppCli({
   const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
   const connectRooms = useEditorStore((s) => s.connectRooms);
   const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
+  const setPseudoRoomExit = useEditorStore((s) => s.setPseudoRoomExit);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const redo = useEditorStore((s) => s.redo);
   const removeRoom = useEditorStore((s) => s.removeRoom);
@@ -397,6 +402,30 @@ export function useAppCli({
       selectRoom(roomId);
       setRequestedViewportFocusRequest({
         roomIds: [roomId],
+        requestId: issueUiRequestId(),
+      });
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'create-pseudo-room' && currentDoc !== null) {
+      const sourceRoomMatch = resolveRoomByCliReference(
+        currentDoc,
+        command.sourceRoom.text,
+        command.sourceRoom.exact,
+        currentPronounRoomId,
+      );
+      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (sourceRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      setPseudoRoomExit(sourceRoomMatch.room.id, command.sourceDirection, command.pseudoKind);
+      setCliPronounRoomReference(sourceRoomMatch.room.id);
+      setRequestedRoomRevealRequest({
+        roomId: sourceRoomMatch.room.id,
         requestId: issueUiRequestId(),
       });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);

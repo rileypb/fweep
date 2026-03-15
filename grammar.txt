@@ -16,6 +16,7 @@ Grammar
 input               ::= command ;
 
 command             ::= create-and-connect-command
+                      | pseudo-room-command
                       | create-relative-command
                       | connect-command
                       | create-command
@@ -28,6 +29,17 @@ command             ::= create-and-connect-command
                       | redo-command ;
 
 create-command      ::= "create" wsp room-name ;
+
+pseudo-room-command ::= unknown-pseudo-room-command
+                      | infinite-pseudo-room-command ;
+
+unknown-pseudo-room-command
+                    ::= direction-reference wsp "is" wsp "unknown"
+                      | "the" wsp "room" wsp direction-reference wsp "is" wsp "unknown" ;
+
+infinite-pseudo-room-command
+                    ::= direction-reference wsp "goes" wsp "on" wsp "forever"
+                      | "the" wsp "way" wsp direction-reference wsp "goes" wsp "on" wsp "forever" ;
 
 delete-command      ::= "delete" wsp room-name ;
 
@@ -52,6 +64,8 @@ create-and-connect-command
 
 create-relative-command
                     ::= "create" wsp room-name wsp direction wsp "of" wsp room-name ;
+
+direction-reference ::= direction wsp "of" wsp room-name ;
 
 connect-command     ::= "connect" wsp connect-tail ;
 
@@ -143,6 +157,13 @@ Semantic constraints
   - the written direction describes the created room's position relative to the target room
   - the command is semantically equivalent to `create and connect <source room> <inverse of written direction> to <target room>`
   - the target room must already exist, or the command fails
+- In a `pseudo-room-command`:
+  - the room named in the direction reference must already exist
+  - the command creates or replaces a one-way exit from that room in the written direction
+  - `is unknown` creates or updates an `unknown` pseudo-room target
+  - `goes on forever` creates or updates an `infinite` pseudo-room target
+  - if the written direction already points to a pseudo-room, that pseudo-room is updated in place
+  - if a later `create` command creates a normal room in a direction occupied by a pseudo-room, that pseudo-room is converted into the new room in place
 - Commands that resolve a room by name must fail with a semantic error if zero rooms match or if more than one room matches.
 - The unquoted room name `it` is a pronoun placeholder rather than a literal room name when a prior successful command has bound a room direct object for pronoun resolution.
 - If `it` is used where a room name is expected and no room is currently bound, execution must fail with a semantic error.
@@ -154,6 +175,13 @@ Reserved words
 The following words are reserved when they appear unquoted:
 
 - `create`
+- `is`
+- `unknown`
+- `goes`
+- `on`
+- `forever`
+- `room`
+- `way`
 - `and`
 - `connect`
 - `delete`

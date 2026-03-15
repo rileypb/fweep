@@ -18,6 +18,36 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('c Kitchen')).toBe('create a room called Kitchen');
   });
 
+  it('describes pseudo-room unknown commands', () => {
+    expect(parseCliCommandDescription('west of Bedroom is unknown')).toBe(
+      'mark the west exit from Bedroom as unknown',
+    );
+    expect(parseCliCommandDescription('the room west of Bedroom is unknown')).toBe(
+      'mark the west exit from Bedroom as unknown',
+    );
+    expect(parseCliCommandDescription('Above Bedroom is unknown')).toBe(
+      'mark the up exit from Bedroom as unknown',
+    );
+    expect(parseCliCommandDescription('the room below Bedroom is unknown')).toBe(
+      'mark the down exit from Bedroom as unknown',
+    );
+  });
+
+  it('describes pseudo-room infinite commands', () => {
+    expect(parseCliCommandDescription('east of Kitchen goes on forever')).toBe(
+      'mark the east exit from Kitchen as going on forever',
+    );
+    expect(parseCliCommandDescription('the way east of Kitchen goes on forever')).toBe(
+      'mark the east exit from Kitchen as going on forever',
+    );
+    expect(parseCliCommandDescription('Above Kitchen goes on forever')).toBe(
+      'mark the up exit from Kitchen as going on forever',
+    );
+    expect(parseCliCommandDescription('the way below Kitchen goes on forever')).toBe(
+      'mark the down exit from Kitchen as going on forever',
+    );
+  });
+
   it('describes delete commands', () => {
     expect(parseCliCommandDescription('delete Kitchen')).toBe('delete the room called Kitchen');
     expect(parseCliCommandDescription('d Kitchen')).toBe('delete the room called Kitchen');
@@ -169,5 +199,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('connect "Kitchen east to Hallway')).toBeNull();
     expect(parseCliCommandDescription('create "A\\q"')).toBeNull();
     expect(parseCliCommandDescription('create Ki"tchen')).toBeNull();
+    expect(parseCliCommandDescription('bedroom west is unknown')).toBeNull();
+    expect(parseCliCommandDescription('kitchen east goes on forever')).toBeNull();
+    expect(parseCliCommandDescription("bedroom's west exit is unknown")).toBeNull();
+    expect(parseCliCommandDescription('the way east of kitchen continues indefinitely')).toBeNull();
   });
 });

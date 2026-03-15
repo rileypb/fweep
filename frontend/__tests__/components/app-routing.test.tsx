@@ -2,8 +2,8 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CLI_COMMAND_FORMS } from '../../src/domain/cli-command';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
+import { addConnection, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
 import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
@@ -1698,6 +1698,179 @@ describe('URL routing', () => {
     expect(useEditorStore.getState().doc?.rooms.pantry?.position).toEqual({ x: 480, y: 320 });
   });
 
+  it('creates an unknown pseudo-room exit from the CLI', async () => {
+    let doc = createEmptyMap('CLI Unknown Exit Map');
+    doc = {
+      ...doc,
+      rooms: {
+        bedroom: {
+          id: 'bedroom',
+          name: 'Bedroom',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli unknown exit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'west of bedroom is unknown{enter}');
+
+    const state = useEditorStore.getState();
+    const pseudoRooms = Object.values(state.doc?.pseudoRooms ?? {});
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(pseudoRooms).toHaveLength(1);
+    expect(pseudoRooms[0]).toMatchObject({ kind: 'unknown' });
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: 'bedroom',
+      target: { kind: 'pseudo-room', id: pseudoRooms[0]?.id },
+      isBidirectional: false,
+    });
+    expect(state.doc?.rooms.bedroom?.directions.west).toBe(connections[0].id);
+    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expectGameOutputToContain('west of bedroom is unknown', 'marked exit as unknown');
+  });
+
+  it('creates vertical pseudo-room exits from the CLI shorthand', async () => {
+    let doc = createEmptyMap('CLI Vertical Unknown Exit Map');
+    doc = {
+      ...doc,
+      rooms: {
+        bedroom: {
+          id: 'bedroom',
+          name: 'Bedroom',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli vertical unknown exit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'Above Bedroom is unknown{enter}');
+
+    const state = useEditorStore.getState();
+    const pseudoRooms = Object.values(state.doc?.pseudoRooms ?? {});
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(pseudoRooms).toHaveLength(1);
+    expect(pseudoRooms[0]).toMatchObject({ kind: 'unknown' });
+    expect(connections).toHaveLength(1);
+    expect(state.doc?.rooms.bedroom?.directions.up).toBe(connections[0].id);
+    expectGameOutputToContain('Above Bedroom is unknown', 'marked exit as unknown');
+  });
+
+  it('replaces an unknown pseudo-room exit with an infinite one in place', async () => {
+    const bedroom = {
+      id: 'bedroom',
+      name: 'Bedroom',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    const unknown = { ...createPseudoRoom('unknown'), id: 'unknown-exit', position: { x: 80, y: 160 } };
+    const placeholderConnection = { ...createConnection(bedroom.id, { kind: 'pseudo-room', id: unknown.id }, false), id: 'placeholder-conn' };
+    let doc = addRoom(createEmptyMap('CLI Replace Pseudo Map'), bedroom);
+    doc = addPseudoRoom(doc, unknown);
+    doc = addConnection(doc, placeholderConnection, 'west');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli replace pseudo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'west of bedroom goes on forever{enter}');
+
+    const state = useEditorStore.getState();
+    expect(state.doc?.pseudoRooms['unknown-exit']).toMatchObject({ kind: 'infinite' });
+    expect(state.doc?.connections['placeholder-conn']).toMatchObject({
+      sourceRoomId: 'bedroom',
+      target: { kind: 'pseudo-room', id: 'unknown-exit' },
+      isBidirectional: false,
+    });
+    expect(Object.keys(state.doc?.pseudoRooms ?? {})).toEqual(['unknown-exit']);
+    expect(Object.keys(state.doc?.connections ?? {})).toEqual(['placeholder-conn']);
+    expectGameOutputToContain('west of bedroom goes on forever', 'marked exit as going on forever');
+  });
+
+  it('replaces a vertical pseudo-room exit with an infinite one in place', async () => {
+    const bedroom = {
+      id: 'bedroom',
+      name: 'Bedroom',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    const unknown = { ...createPseudoRoom('unknown'), id: 'unknown-exit', position: { x: 240, y: 320 } };
+    const placeholderConnection = { ...createConnection(bedroom.id, { kind: 'pseudo-room', id: unknown.id }, false), id: 'placeholder-conn' };
+    let doc = addRoom(createEmptyMap('CLI Replace Vertical Pseudo Map'), bedroom);
+    doc = addPseudoRoom(doc, unknown);
+    doc = addConnection(doc, placeholderConnection, 'down');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli replace vertical pseudo map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'Below Bedroom goes on forever{enter}');
+
+    const state = useEditorStore.getState();
+    expect(state.doc?.pseudoRooms['unknown-exit']).toMatchObject({ kind: 'infinite' });
+    expect(state.doc?.connections['placeholder-conn']).toMatchObject({
+      sourceRoomId: 'bedroom',
+      target: { kind: 'pseudo-room', id: 'unknown-exit' },
+      isBidirectional: false,
+    });
+    expect(state.doc?.rooms.bedroom?.directions.down).toBe('placeholder-conn');
+    expectGameOutputToContain('Below Bedroom goes on forever', 'marked exit as going on forever');
+  });
+
   it('creates and connects a room in one CLI command', async () => {
     let doc = createEmptyMap('CLI Create Connect Map');
     doc = {
@@ -1886,6 +2059,50 @@ describe('URL routing', () => {
     expect(state.doc?.rooms.hallway?.directions.east).toBe(connections[0].id);
     expect(state.selectedRoomIds).toEqual([createdRoom!.id, 'hallway']);
     expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+  });
+
+  it('converts a pseudo-room placeholder into a normal room for relative create commands', async () => {
+    const bedroom = {
+      id: 'bedroom',
+      name: 'Bedroom',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    const unknown = { ...createPseudoRoom('unknown'), id: 'unknown-exit', position: { x: 80, y: 160 } };
+    const placeholderConnection = { ...createConnection(bedroom.id, { kind: 'pseudo-room', id: unknown.id }, false), id: 'placeholder-conn' };
+    let doc = addRoom(createEmptyMap('CLI Convert Placeholder Map'), bedroom);
+    doc = addPseudoRoom(doc, unknown);
+    doc = addConnection(doc, placeholderConnection, 'west');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli convert placeholder map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Pantry west of Bedroom{enter}');
+
+    const state = useEditorStore.getState();
+    expect(state.doc?.pseudoRooms['unknown-exit']).toBeUndefined();
+    expect(state.doc?.rooms['unknown-exit']).toMatchObject({ name: 'Pantry' });
+    expect(state.doc?.connections['placeholder-conn']).toMatchObject({
+      sourceRoomId: 'bedroom',
+      target: { kind: 'room', id: 'unknown-exit' },
+      isBidirectional: true,
+    });
+    expect(state.doc?.rooms.bedroom?.directions.west).toBe('placeholder-conn');
+    expect(state.doc?.rooms['unknown-exit']?.directions.east).toBe('placeholder-conn');
+    expect(state.selectedRoomIds).toEqual(['unknown-exit', 'bedroom']);
+    expect(state.selectedConnectionIds).toEqual(['placeholder-conn']);
   });
 
   it('supports relative above/below create syntax', async () => {

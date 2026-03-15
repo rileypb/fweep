@@ -35,6 +35,12 @@
   - `notate kitchen with this room has nice wallpaper`
   - `annotate kitchen with this room has nice wallpaper`
   - `notate "machine room" with "check the humming noise here"`
+- pseudo-room exits may be created with fiction-facing syntax:
+  - `west of bedroom is unknown`
+  - `the room west of bedroom is unknown`
+  - `east of kitchen goes on forever`
+  - `the way east of kitchen goes on forever`
+- these pseudo-room CLI forms create one-way exits from the named room into a pseudo-room target.
 - `it` may be used in place of a room name after a command has established a direct-object room target. For example:
   - `create kitchen`
   - `connect it east to living room` means `connect kitchen east to living room`
@@ -88,10 +94,13 @@
 - If the user attempts to attach a connection in a direction that already possesses a connection, delete the old connection and create the new one. 
   - For instance, if bedroom is connected to living room to the east, and the user attempts to connect bedroom to kitchen to the east, delete the connection to living room and create the connection to the kitchen.
   - Correspondingly, if the user types `connect bedroom east to living room west` and `connect kitchen east to living room west`, the first connection will be deleted and only the connection between kitchen and living room will remain.
+- If the user applies a pseudo-room command to a direction that already points to a pseudo-room, update that pseudo-room in place rather than deleting and recreating it.
+- If the user creates a normal room in a direction currently occupied by a pseudo-room placeholder, convert that pseudo-room into the new room in place.
 - Report the error `I didn't understand you.` only for syntax errors. A syntax error is any input that, after whitespace normalization and tokenization, does not match exactly one command form. This includes malformed quotes, missing required words, missing required arguments, and unexpected extra input after an otherwise valid command.
 - If a command parses successfully but cannot be executed, report a specific error instead of `I didn't understand you.`.
 - For failures in combined commands, report the first error encountered.
 - If a combined command fails, roll back all actions.
+- Successful pseudo-room commands should report a success message.
 
 ## Direction table
 

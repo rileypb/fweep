@@ -1,0 +1,216 @@
+Proposed CLI sketch for pseudo-rooms
+
+Status
+
+- This is a design sketch, not a final grammar.
+- The goal is to make pseudo-rooms feel like map facts rather than technical object types.
+- Pseudo-rooms remain target-only placeholders in the data model even if the CLI phrasing sounds room-like.
+
+Core idea
+
+- Each pseudo-room kind should use idiomatic, fiction-facing CLI syntax.
+- Different kinds may therefore have different command phrases.
+- Internally, all accepted forms normalize to the same semantic action:
+  - resolve an existing source room
+  - resolve a source direction
+  - replace whatever is currently in that direction with a pseudo-room of the requested kind
+  - create a one-way connection from the source room to that pseudo-room
+
+V1 pseudo-room kinds
+
+- `unknown`
+- `infinite`
+
+V1 proposed syntax
+
+Unknown pseudo-room
+
+- `west of bedroom is unknown`
+- `the room west of bedroom is unknown`
+
+Infinite pseudo-room
+
+- `east of kitchen goes on forever`
+- `the way east of kitchen goes on forever`
+
+Notes on wording
+
+- `unknown` works well as a predicate.
+- `infinite` should not require a noun phrase like `an infinite road` in v1.
+- Phrases like `goes on forever` or `continues indefinitely` express the semantics without introducing a hidden room name or type-specific label text.
+
+Recommended first-pass grammar shape
+
+```ebnf
+input                         ::= command ;
+
+command                       ::= existing-command
+                                | pseudo-room-command ;
+
+pseudo-room-command           ::= unknown-room-command
+                                | infinite-room-command ;
+
+unknown-room-command          ::= direction-reference wsp "is" wsp "unknown"
+                                | "the" wsp "room" wsp direction-reference wsp "is" wsp "unknown" ;
+
+infinite-room-command         ::= direction-reference wsp infinite-predicate
+                                | "the" wsp "way" wsp direction-reference wsp infinite-predicate ;
+
+direction-reference           ::= source-direction wsp "of" wsp room-reference ;
+
+infinite-predicate            ::= "goes" wsp "on" wsp "forever" ;
+
+room-reference                ::= existing room-name rules from `grammar.txt` ;
+
+source-direction              ::= existing direction rules from `grammar.txt` ;
+
+wsp                           ::= " " ;
+```
+
+Intended semantics
+
+- `west of bedroom is unknown` means:
+  - resolve `bedroom`
+  - create or replace the west exit of bedroom with an `unknown` pseudo-room
+  - if a target handle is implied, do not assign one
+  - result is a one-way connection from bedroom to the pseudo-room
+
+- `east of kitchen goes on forever` means:
+  - resolve `kitchen`
+  - create or replace the east exit of kitchen with an `infinite` pseudo-room
+  - result is a one-way connection from kitchen to the pseudo-room
+
+Why one-way
+
+- Pseudo-rooms support incoming but not outgoing connections.
+- The CLI command should therefore create a one-way connection from the source room into the pseudo-room.
+- No reverse direction should be assigned.
+
+Replacement behavior
+
+If the indicated direction is currently empty:
+
+- create the pseudo-room and connection
+
+If the indicated direction currently points to a pseudo-room:
+
+- replace that pseudo-room in place with the new pseudo-room kind
+- preserve the connection ID
+- preserve the pseudo-room ID
+- preserve the pseudo-room position
+
+If the indicated direction currently points to a standard room:
+
+- delete that connection and replace it with the pseudo-room connection
+- this matches the current CLI rule that a new direction binding replaces the old one
+
+If the indicated direction currently points to a self-connection:
+
+- delete that connection and replace it with the pseudo-room connection
+
+Interaction with ordinary create commands
+
+If a direction currently points to a pseudo-room and the user uses a normal room-creation command, for example:
+
+- `create pantry west of bedroom`
+- `create and connect pantry east to bedroom`
+
+then:
+
+- the pseudo-room should be converted into a normal room in place
+- the room ID should be preserved if practical
+- the connection should be preserved if practical
+- the resulting command should behave as though the placeholder has now been explored and named
+
+This conversion rule should apply only when:
+
+- the occupied direction points to a pseudo-room
+
+It should not change current behavior for standard rooms.
+
+Selection and pronoun binding
+
+After a pseudo-room command succeeds:
+
+- select the newly created or replaced connection
+- bind `it` to the source room, not the pseudo-room
+
+Reason:
+
+- pseudo-rooms are nameless and should not become direct CLI referents
+- the command's practical direct object is the source room exit being described
+
+Matching and ambiguity
+
+- The room reference part should use the existing room-resolution rules from `grammar.txt`.
+- The new keywords and phrases should be treated as reserved when unquoted in these command forms.
+- If the source room is unknown or ambiguous, fail exactly as existing room-resolving commands do.
+
+Suggested additions to reserved words
+
+- `is`
+- `unknown`
+- `goes`
+- `on`
+- `forever`
+- `continues`
+- `indefinitely`
+- `exit`
+- `room`
+- `way`
+
+Potential synonyms to defer for now
+
+- `bedroom west is unknown`
+- `kitchen east goes on forever`
+- possessive forms like `bedroom's west exit is unknown`
+- `unexplored`
+- `unmapped`
+- `leads forever`
+- `runs forever`
+- `continues onward`
+- `continues indefinitely`
+- noun-phrase forms like `is an infinite road`
+
+Reasons to defer these:
+
+- they increase grammar ambiguity
+- they risk introducing hidden pseudo-room labels
+- they are easy to add later once the base behavior is working
+
+Examples
+
+- `west of bedroom is unknown`
+- `the room west of bedroom is unknown`
+- `east of kitchen goes on forever`
+- `the way east of kitchen goes on forever`
+
+Examples that should remain invalid in v1
+
+- `create pseudo-room unknown west of bedroom`
+- `the room west of bedroom is an infinite road`
+- `bedroom west is infinite`
+- `bedroom west is unknown`
+- `kitchen east goes on forever`
+- `bedroom's west exit is unknown`
+- `the way east of kitchen continues indefinitely`
+
+Reasons:
+
+- the first is too implementation-facing
+- the second introduces a noun phrase with unclear semantics
+- the third is too terse and reads as though `infinite` were a room adjective rather than an exit fact
+
+Open questions
+
+1. Should possessive syntax like `bedroom's west exit is unknown` be supported in v1, or deferred until after the simpler forms ship?
+Answer: Defer possessive syntax in v1. Support only `west of bedroom is unknown` and `the room west of bedroom is unknown` for the unknown pseudo-room kind.
+
+2. Should `continues indefinitely` ship alongside `goes on forever`, or should v1 pick just one infinite form to keep parse reporting simpler?
+Answer: Pick one canonical infinite predicate for v1: `goes on forever`. Support only `east of kitchen goes on forever` and `the way east of kitchen goes on forever`.
+
+3. If a direction already points to one pseudo-room kind and the user issues a command for the other kind, should we preserve the pseudo-room ID, or should we replace it with a fresh pseudo-room entity?
+Answer: Replace the pseudo-room kind in place. Preserve the pseudo-room ID, preserve the connection ID, and preserve the pseudo-room position. This should be treated as mutation of the existing placeholder, not delete-and-recreate.
+
+4. Should the successful command output explicitly mention that the exit is now unknown / goes on forever, or should it stay silent unless there is an error?
+Answer: Yes. Successful pseudo-room commands should report a success message, consistent with the broader CLI goal that successful commands produce visible confirmation rather than staying silent.
