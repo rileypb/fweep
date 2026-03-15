@@ -6,6 +6,7 @@ import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
 
 const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
+const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 6;
 
 export interface MapCanvasPseudoRoomNodeProps {
   pseudoRoom: PseudoRoom;
@@ -163,7 +164,7 @@ export function MapCanvasPseudoRoomNode({
       )}
       <text
         x={roomDimensions.width / 2}
-        y={roomDimensions.height / 2}
+        y={(roomDimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET}
         textAnchor="middle"
         dominantBaseline="middle"
         style={{ fill: roomLabelColor, pointerEvents: 'none', fontSize: `${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px`, fontWeight: 700 }}

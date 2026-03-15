@@ -41,6 +41,7 @@ const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
 const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
+const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 6;
 
 function getBoundsSize(bounds: ExportRegion): { width: number; height: number } {
   return {
@@ -181,7 +182,7 @@ function drawPseudoRoomSymbol(
   context.fillText(
     room.name,
     room.position.x + (dimensions.width / 2),
-    room.position.y + (dimensions.height / 2),
+    room.position.y + (dimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET,
   );
 }
 
