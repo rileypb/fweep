@@ -1525,6 +1525,16 @@ export function MapCanvas({
             />
           )}
 
+          {pseudoRooms.map((pseudoRoom) => (
+            <MapCanvasPseudoRoomNode
+              key={pseudoRoom.id}
+              pseudoRoom={pseudoRoom}
+              theme={theme}
+              isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
+              onOpenPseudoRoomEditor={openPseudoRoomEditor}
+            />
+          ))}
+
           {stickyNotes.map((stickyNote) => (
             <MapCanvasStickyNote
               key={stickyNote.id}
@@ -1547,16 +1557,6 @@ export function MapCanvas({
               onOpenRoomEditor={openRoomEditor}
               onEmptyConnectionDrop={openConnectionCreationMenu}
               toMapPoint={toMapPoint}
-            />
-          ))}
-
-          {pseudoRooms.map((pseudoRoom) => (
-            <MapCanvasPseudoRoomNode
-              key={pseudoRoom.id}
-              pseudoRoom={pseudoRoom}
-              theme={theme}
-              isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
-              onOpenPseudoRoomEditor={openPseudoRoomEditor}
             />
           ))}
         </div>

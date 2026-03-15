@@ -157,7 +157,7 @@ export function MapCanvasPseudoRoomNode({
         overflow: 'visible',
         transform: `translate(${visualX}px, ${visualY}px)`,
         cursor: 'move',
-        zIndex: 7,
+        zIndex: 0,
       }}
       onMouseDown={handleMouseDown}
       onClick={(event) => {

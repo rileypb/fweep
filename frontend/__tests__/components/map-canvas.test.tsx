@@ -101,6 +101,29 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ pointerEvents: 'none' });
   });
 
+  it('renders pseudo-rooms beneath sticky notes and rooms', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 400, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addStickyNote(doc, stickyNote);
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    const content = screen.getByTestId('map-canvas-content');
+    const pseudoNode = screen.getByTestId('pseudo-room-node');
+    const stickyNoteNode = screen.getByTestId('sticky-note').closest('.sticky-note-wrapper');
+    const roomNode = screen.getByTestId('room-node');
+    const children = Array.from(content.children);
+
+    expect(children.indexOf(pseudoNode)).toBeGreaterThan(-1);
+    expect(children.indexOf(stickyNoteNode as HTMLElement)).toBeGreaterThan(children.indexOf(pseudoNode));
+    expect(children.indexOf(roomNode)).toBeGreaterThan(children.indexOf(pseudoNode));
+    expect(pseudoNode).toHaveStyle({ zIndex: '0' });
+  });
+
   it('keeps connection and sticky-note-link pointer interaction enabled', () => {
     const roomA = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const roomB = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
