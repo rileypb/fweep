@@ -31,13 +31,14 @@ describe('MapCanvas', () => {
     expect(screen.getByTestId('map-canvas')).toBeInTheDocument();
   });
 
-  it('hides the minimap when the document has no rooms', () => {
+  it('shows a placeholder minimap when the document has no rooms', () => {
     const doc = createEmptyMap('Test');
     useEditorStore.getState().loadDocument(doc);
 
     render(<MapCanvas mapName="Test" />);
 
-    expect(screen.queryByTestId('map-minimap')).not.toBeInTheDocument();
+    expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
+    expect(screen.queryByTestId('map-minimap-viewport')).not.toBeInTheDocument();
   });
 
   it('shows the minimap when the document has rooms', () => {

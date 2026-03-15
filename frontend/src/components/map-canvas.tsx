@@ -1439,7 +1439,7 @@ export function MapCanvas({
           data-testid="map-canvas-scene"
         >
           {drawingInterfaceEnabled && <MapDrawingToolbar />}
-        {doc && (rooms.length > 0 || pseudoRooms.length > 0 || stickyNotes.length > 0 || minimapBackground.activeLayerId !== null) && (
+        {doc && (
           <MapMinimap
             mapId={doc.metadata.id}
             background={minimapBackground}

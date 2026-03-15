@@ -60,16 +60,20 @@ describe('MapMinimap', () => {
     );
   }
 
-  it('does not render when there are no rooms', () => {
+  it('renders a placeholder shell when there are no rooms', () => {
     const onPanToMapPoint = jest.fn<(point: { x: number; y: number }) => void>();
     const onPanBy = jest.fn<(delta: { x: number; y: number }) => void>();
 
-    const { container } = renderMinimap({
+    renderMinimap({
       onPanToMapPoint,
       onPanBy,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
+    expect(screen.getByTestId('map-minimap-svg')).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.queryByTestId('map-minimap-viewport')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.map-minimap__room')).toHaveLength(0);
   });
 
   it('renders pseudo-rooms and pseudo-room-targeted connections', () => {

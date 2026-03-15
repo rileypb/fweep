@@ -276,17 +276,15 @@ export function MapMinimap({
     }
   }, [disabled, onPanBy, onPanToMapPoint, worldBounds]);
 
-  if (!transform || !viewportRect) {
-    return null;
-  }
+  const isPlaceholder = !transform || !viewportRect;
 
   return (
     <section
-      className={`map-minimap${disabled ? ' map-minimap--disabled' : ''}`}
+      className={`map-minimap${disabled || isPlaceholder ? ' map-minimap--disabled' : ''}`}
       data-testid="map-minimap"
       aria-label="Map overview"
       aria-description="Click to recenter the map; drag the frame to pan."
-      tabIndex={0}
+      tabIndex={isPlaceholder ? -1 : 0}
       onKeyDown={handleKeyDown}
     >
       <svg
@@ -295,7 +293,7 @@ export function MapMinimap({
         data-testid="map-minimap-svg"
         viewBox={`0 0 ${MINIMAP_WIDTH} ${MINIMAP_HEIGHT}`}
         onClick={(event) => {
-          if (disabled || dragStateRef.current) {
+          if (disabled || isPlaceholder || dragStateRef.current) {
             return;
           }
 
@@ -305,7 +303,7 @@ export function MapMinimap({
         }}
       >
         <rect className="map-minimap__frame" x="0.5" y="0.5" width={MINIMAP_WIDTH - 1} height={MINIMAP_HEIGHT - 1} rx="12" />
-        {backgroundChunks.map((chunk) => {
+        {!isPlaceholder && backgroundChunks.map((chunk) => {
           const topLeft = toMinimapPoint({
             x: chunk.chunkX * BACKGROUND_LAYER_CHUNK_SIZE,
             y: chunk.chunkY * BACKGROUND_LAYER_CHUNK_SIZE,
@@ -329,7 +327,7 @@ export function MapMinimap({
             />
           );
         })}
-        {Object.values(connections).map((connection) => {
+        {!isPlaceholder && Object.values(connections).map((connection) => {
           const points = getMinimapConnectionPoints(rooms, pseudoRooms, connection, transform, visualStyle);
           if (points.length === 0) {
             return null;
@@ -348,7 +346,7 @@ export function MapMinimap({
             />
           );
         })}
-        {Object.values(stickyNoteLinks).map((stickyNoteLink) => {
+        {!isPlaceholder && Object.values(stickyNoteLinks).map((stickyNoteLink) => {
           const points = getMinimapStickyNoteLinkPoints(rooms, stickyNotes, stickyNoteLink, transform, visualStyle);
           if (points.length !== 2) {
             return null;
@@ -366,7 +364,7 @@ export function MapMinimap({
             />
           );
         })}
-        {roomEntries.map((room) => {
+        {!isPlaceholder && roomEntries.map((room) => {
           const rect = getMinimapRoomRect(room, transform, visualStyle);
           const isSelected = selectedRoomIds.includes(room.id);
 
@@ -380,7 +378,7 @@ export function MapMinimap({
             </g>
           );
         })}
-        {pseudoRoomVisualEntries.map((pseudoRoom) => {
+        {!isPlaceholder && pseudoRoomVisualEntries.map((pseudoRoom) => {
           const rect = getMinimapRoomRect(pseudoRoom, transform, visualStyle);
 
           return (
@@ -393,7 +391,7 @@ export function MapMinimap({
             </g>
           );
         })}
-        {stickyNoteEntries.map((stickyNote) => {
+        {!isPlaceholder && stickyNoteEntries.map((stickyNote) => {
           const rect = getMinimapStickyNoteRect(stickyNote, transform);
           const isSelected = selectedStickyNoteIds.includes(stickyNote.id);
 
@@ -409,55 +407,57 @@ export function MapMinimap({
             />
           );
         })}
-        <rect
-          className="map-minimap__viewport"
-          data-testid="map-minimap-viewport"
-          x={viewportRect.x}
-          y={viewportRect.y}
-          width={viewportRect.width}
-          height={viewportRect.height}
-          rx="8"
-          onMouseDown={(event) => {
-            if (disabled || !transform) {
-              return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            dragStateRef.current = { previousX: event.clientX, previousY: event.clientY };
-
-            const handleMouseMove = (moveEvent: MouseEvent) => {
-              if (!dragStateRef.current) {
+        {!isPlaceholder && viewportRect && (
+          <rect
+            className="map-minimap__viewport"
+            data-testid="map-minimap-viewport"
+            x={viewportRect.x}
+            y={viewportRect.y}
+            width={viewportRect.width}
+            height={viewportRect.height}
+            rx="8"
+            onMouseDown={(event) => {
+              if (disabled || !transform) {
                 return;
               }
 
-              const current = dragStateRef.current;
-              const previousMinimapPoint = getSvgMinimapPoint(current.previousX, current.previousY);
-              const nextMinimapPoint = getSvgMinimapPoint(moveEvent.clientX, moveEvent.clientY);
-              if (!previousMinimapPoint || !nextMinimapPoint) {
-                return;
-              }
+              event.preventDefault();
+              event.stopPropagation();
+              dragStateRef.current = { previousX: event.clientX, previousY: event.clientY };
 
-              const previousPoint = fromMinimapPoint(previousMinimapPoint, transform);
-              const nextPoint = fromMinimapPoint(nextMinimapPoint, transform);
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                if (!dragStateRef.current) {
+                  return;
+                }
 
-              dragStateRef.current = { previousX: moveEvent.clientX, previousY: moveEvent.clientY };
-              onPanBy({
-                x: -(nextPoint.x - previousPoint.x),
-                y: -(nextPoint.y - previousPoint.y),
-              });
-            };
+                const current = dragStateRef.current;
+                const previousMinimapPoint = getSvgMinimapPoint(current.previousX, current.previousY);
+                const nextMinimapPoint = getSvgMinimapPoint(moveEvent.clientX, moveEvent.clientY);
+                if (!previousMinimapPoint || !nextMinimapPoint) {
+                  return;
+                }
 
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-              dragStateRef.current = null;
-            };
+                const previousPoint = fromMinimapPoint(previousMinimapPoint, transform);
+                const nextPoint = fromMinimapPoint(nextMinimapPoint, transform);
 
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-          }}
-        />
+                dragStateRef.current = { previousX: moveEvent.clientX, previousY: moveEvent.clientY };
+                onPanBy({
+                  x: -(nextPoint.x - previousPoint.x),
+                  y: -(nextPoint.y - previousPoint.y),
+                });
+              };
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+                dragStateRef.current = null;
+              };
+
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
+          />
+        )}
       </svg>
       <div className="map-minimap__hint" aria-hidden="true">
         Overview
