@@ -1,12 +1,9 @@
 import { useCallback } from 'react';
 import { type PseudoRoom } from '../domain/map-types';
 import { type ThemeMode, getRoomLabelColor } from '../domain/room-color-palette';
-import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomSymbolLayout, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
-
-const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
-const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 6;
 
 export interface MapCanvasPseudoRoomNodeProps {
   pseudoRoom: PseudoRoom;
@@ -33,6 +30,7 @@ export function MapCanvasPseudoRoomNode({
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
+  const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
   const roomLabelColor = getRoomLabelColor(theme);
   const isDragging = selectionDrag !== null && selectionDrag.pseudoRoomIds.includes(pseudoRoom.id);
   const visualX = pseudoRoom.position.x + (isDragging ? selectionDrag.dx : 0);
@@ -163,11 +161,11 @@ export function MapCanvasPseudoRoomNode({
         />
       )}
       <text
-        x={roomDimensions.width / 2}
-        y={(roomDimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET}
+        x={symbolLayout.x}
+        y={symbolLayout.y}
         textAnchor="middle"
         dominantBaseline="middle"
-        style={{ fill: roomLabelColor, pointerEvents: 'none', fontSize: `${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px`, fontWeight: 700 }}
+        style={{ fill: roomLabelColor, pointerEvents: 'none', fontSize: `${symbolLayout.fontSize}px`, fontWeight: 700 }}
       >
         {visualRoom.name}
       </text>

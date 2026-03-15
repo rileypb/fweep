@@ -1,5 +1,10 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
-import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import {
+  getPseudoRoomSymbolLayoutForRoom,
+  insetPseudoRoomConnectionEndpoint,
+  PSEUDO_ROOM_SYMBOL_FONT_SIZE,
+  toPseudoRoomVisualRoom,
+} from '../domain/pseudo-room-helpers';
 import { getRoomFillColor, getRoomLabelColor, getRoomStrokeColor } from '../domain/room-color-palette';
 import { blobToCanvas, createSizedCanvas } from '../components/map-background-raster';
 import { getRoomStrokeDasharray } from '../components/map-canvas-helpers';
@@ -40,8 +45,6 @@ const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_DOOR_WIDTH = 12;
 const CONNECTION_DOOR_HEIGHT = 16;
-const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
-const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 6;
 
 function getBoundsSize(bounds: ExportRegion): { width: number; height: number } {
   return {
@@ -173,7 +176,7 @@ function drawPseudoRoomSymbol(
   theme: ExportRenderInput['theme'],
   visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
 ): void {
-  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const symbolLayout = getPseudoRoomSymbolLayoutForRoom(room, visualStyle);
 
   context.fillStyle = getRoomLabelColor(theme);
   context.font = `700 ${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px sans-serif`;
@@ -181,8 +184,8 @@ function drawPseudoRoomSymbol(
   context.textBaseline = 'middle';
   context.fillText(
     room.name,
-    room.position.x + (dimensions.width / 2),
-    room.position.y + (dimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET,
+    room.position.x + symbolLayout.x,
+    room.position.y + symbolLayout.y,
   );
 }
 

@@ -3,17 +3,27 @@ import {
   type Connection,
   type ConnectionTarget,
   type MapDocument,
+  type MapVisualStyle,
   type Position,
   type PseudoRoom,
   type PseudoRoomKind,
   type Room,
 } from './map-types';
+import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 
 const PSEUDO_ROOM_CONNECTION_INSET = 42;
+export const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
+export const PSEUDO_ROOM_SYMBOL_Y_OFFSET = 9;
 
 interface PointLike {
   readonly x: number;
   readonly y: number;
+}
+
+export interface PseudoRoomSymbolLayout {
+  readonly x: number;
+  readonly y: number;
+  readonly fontSize: number;
 }
 
 export function isPseudoRoomTarget(target: ConnectionTarget): boolean {
@@ -46,6 +56,25 @@ export function toPseudoRoomVisualRoom(
     fillColorIndex: 0,
     strokeColorIndex: 0,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
+  };
+}
+
+export function getPseudoRoomSymbolLayout(
+  pseudoRoom: PseudoRoom,
+  visualStyle: MapVisualStyle,
+): PseudoRoomSymbolLayout {
+  return getPseudoRoomSymbolLayoutForRoom(toPseudoRoomVisualRoom(pseudoRoom), visualStyle);
+}
+
+export function getPseudoRoomSymbolLayoutForRoom(
+  room: Room,
+  visualStyle: MapVisualStyle,
+): PseudoRoomSymbolLayout {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  return {
+    x: dimensions.width / 2,
+    y: (dimensions.height / 2) + PSEUDO_ROOM_SYMBOL_Y_OFFSET,
+    fontSize: PSEUDO_ROOM_SYMBOL_FONT_SIZE,
   };
 }
 

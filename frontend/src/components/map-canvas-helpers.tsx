@@ -24,6 +24,7 @@ import {
   getRoomShapePath,
   getRoomShapePolygonVertices,
 } from '../graph/room-shape-geometry';
+import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import type { PanOffset } from './use-map-viewport';
 
 const ROOM_VISIBILITY_PADDING = 24;
@@ -120,18 +121,7 @@ export function getPseudoRoomsWithinSelectionBox(
   visualStyle: MapVisualStyle = 'default',
 ): string[] {
   return getRoomsWithinSelectionBox(
-    pseudoRooms.map((pseudoRoom) => ({
-      ...pseudoRoom,
-      name: '?',
-      description: '',
-      directions: {},
-      isDark: false,
-      locked: false,
-      shape: 'oval',
-      fillColorIndex: 0,
-      strokeColorIndex: 0,
-      strokeStyle: 'solid',
-    })),
+    pseudoRooms.map((pseudoRoom) => toPseudoRoomVisualRoom(pseudoRoom)),
     panOffset,
     canvasRect,
     selectionBox,
