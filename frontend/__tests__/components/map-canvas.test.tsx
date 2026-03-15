@@ -717,6 +717,39 @@ describe('MapCanvas', () => {
 
       fireEvent.mouseUp(document, { clientX: 320, clientY: 180, button: 0 });
     });
+
+    it('includes pseudo-rooms in marquee selection and mixed dragging', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 80 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'east');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 420, clientY: 220 });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchen.id]);
+      expect(useEditorStore.getState().selectedPseudoRoomIds).toEqual([unknown.id]);
+      expect(screen.getByTestId('pseudo-room-selection-outline')).toBeInTheDocument();
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+      fireEvent.mouseUp(document, { clientX: 420, clientY: 220, button: 0 });
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 120, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 180, clientY: 200 });
+
+      expect(pseudoRoomNode).toHaveStyle({ transform: 'translate(300px, 140px)' });
+
+      fireEvent.mouseUp(document, { clientX: 180, clientY: 200, button: 0 });
+
+      expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id].position).toEqual({ x: 320, y: 160 });
+    });
   });
 
   describe('keyboard shortcuts', () => {
@@ -2529,6 +2562,64 @@ describe('MapCanvas', () => {
         isBidirectional: true,
       });
     });
+
+    it('shows a live drag preview for pseudo-rooms', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+      fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 300, clientY: 80 });
+
+      expect(pseudoRoomNode).toHaveStyle({ transform: 'translate(300px, 80px)' });
+    });
+
+    it('selects pseudo-rooms on click', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+      fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.click(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
+
+      expect(useEditorStore.getState().selectedPseudoRoomIds).toEqual([unknown.id]);
+      expect(screen.getByTestId('pseudo-room-selection-outline')).toBeInTheDocument();
+    });
+
+    it('deletes a selected pseudo-room by removing its incoming connection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      updated = addConnection(updated, connection, 'north');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.mouseDown(screen.getByTestId('pseudo-room-node'), { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.keyDown(screen.getByTestId('map-canvas'), { key: 'Delete' });
+
+      expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id]).toBeUndefined();
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toBeUndefined();
+    });
   });
 
   /* ---- Connection rendering ---- */
@@ -3573,6 +3664,31 @@ describe('MapCanvas', () => {
       expect(pointsDuring).not.toBe(pointsBefore);
 
       fireEvent.mouseUp(document, { clientX: 200, clientY: 310 });
+    });
+
+    it('updates pseudo-room connection lines in real time during pseudo-room drag', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let d = addRoom(doc, kitchen);
+      d = addPseudoRoom(d, unknown);
+      const conn = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      d = addConnection(d, conn, 'north');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
+      const pointsBefore = connectionLine.getAttribute('points');
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+
+      fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 320, clientY: 100 });
+
+      const pointsDuring = connectionLine.getAttribute('points');
+      expect(pointsDuring).not.toBe(pointsBefore);
+
+      fireEvent.mouseUp(document, { clientX: 320, clientY: 100 });
     });
   });
 });

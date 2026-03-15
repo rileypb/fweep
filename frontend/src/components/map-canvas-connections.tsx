@@ -65,6 +65,23 @@ function applyDragOffset(
   };
 }
 
+function applyPseudoRoomDragOffset(
+  pseudoRoom: PseudoRoom,
+  selectionDrag: { pseudoRoomIds: readonly string[]; dx: number; dy: number } | null,
+): PseudoRoom {
+  if (!selectionDrag || !selectionDrag.pseudoRoomIds.includes(pseudoRoom.id)) {
+    return pseudoRoom;
+  }
+
+  return {
+    ...pseudoRoom,
+    position: {
+      x: pseudoRoom.position.x + selectionDrag.dx,
+      y: pseudoRoom.position.y + selectionDrag.dy,
+    },
+  };
+}
+
 function applyStickyNoteDragOffset(
   stickyNote: StickyNote,
   selectionDrag: { stickyNoteIds: readonly string[]; dx: number; dy: number } | null,
@@ -271,7 +288,7 @@ export function MapCanvasConnections({
     }
 
     const pseudoRoom = pseudoRooms[connection.target.id];
-    return pseudoRoom ? toPseudoRoomVisualRoom(pseudoRoom) : null;
+    return pseudoRoom ? toPseudoRoomVisualRoom(applyPseudoRoomDragOffset(pseudoRoom, selectionDrag)) : null;
   };
 
   const beginConnectionEndpointDrag = (

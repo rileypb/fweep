@@ -10,19 +10,32 @@ const PSEUDO_ROOM_SYMBOL_FONT_SIZE = 112;
 export interface MapCanvasPseudoRoomNodeProps {
   pseudoRoom: PseudoRoom;
   theme: ThemeMode;
+  isSelected: boolean;
   onOpenPseudoRoomEditor: (pseudoRoomId: string) => void;
 }
 
 export function MapCanvasPseudoRoomNode({
   pseudoRoom,
   theme,
+  isSelected,
   onOpenPseudoRoomEditor,
 }: MapCanvasPseudoRoomNodeProps): React.JSX.Element {
   const visualRoom = toPseudoRoomVisualRoom(pseudoRoom);
-  const movePseudoRoom = useEditorStore((s) => s.movePseudoRoom);
+  const movePseudoRooms = useEditorStore((s) => s.movePseudoRooms);
+  const moveRooms = useEditorStore((s) => s.moveRooms);
+  const moveStickyNotes = useEditorStore((s) => s.moveStickyNotes);
+  const selectPseudoRoom = useEditorStore((s) => s.selectPseudoRoom);
+  const addPseudoRoomToSelection = useEditorStore((s) => s.addPseudoRoomToSelection);
+  const startPseudoRoomDrag = useEditorStore((s) => s.startPseudoRoomDrag);
+  const updateRoomDrag = useEditorStore((s) => s.updateRoomDrag);
+  const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
+  const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
   const roomLabelColor = getRoomLabelColor(theme);
+  const isDragging = selectionDrag !== null && selectionDrag.pseudoRoomIds.includes(pseudoRoom.id);
+  const visualX = pseudoRoom.position.x + (isDragging ? selectionDrag.dx : 0);
+  const visualY = pseudoRoom.position.y + (isDragging ? selectionDrag.dy : 0);
 
   const handleMouseDown = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
     if (event.button !== 0) {
@@ -33,9 +46,10 @@ export function MapCanvasPseudoRoomNode({
     event.stopPropagation();
     const startX = event.clientX;
     const startY = event.clientY;
+    startPseudoRoomDrag(pseudoRoom.id);
 
-    const handleMouseMove = () => {
-      // Drag preview is intentionally omitted for pseudo-rooms in v1.
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      updateRoomDrag(moveEvent.clientX - startX, moveEvent.clientY - startY);
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
@@ -44,17 +58,68 @@ export function MapCanvasPseudoRoomNode({
 
       const dx = upEvent.clientX - startX;
       const dy = upEvent.clientY - startY;
+      const currentDoc = useEditorStore.getState().doc;
+      const dragSelection = useEditorStore.getState().selectionDrag;
+      endRoomDrag();
+
+      if (!currentDoc?.pseudoRooms[pseudoRoom.id]) {
+        return;
+      }
+
       if (dx !== 0 || dy !== 0) {
-        movePseudoRoom(pseudoRoom.id, {
-          x: pseudoRoom.position.x + dx,
-          y: pseudoRoom.position.y + dy,
-        });
+        const nextPseudoRoomPositions = Object.fromEntries(
+          (dragSelection?.pseudoRoomIds ?? [pseudoRoom.id]).flatMap((draggedPseudoRoomId) => {
+            const draggedPseudoRoom = currentDoc.pseudoRooms[draggedPseudoRoomId];
+            if (!draggedPseudoRoom) {
+              return [];
+            }
+
+            return [[draggedPseudoRoomId, {
+              x: draggedPseudoRoom.position.x + dx,
+              y: draggedPseudoRoom.position.y + dy,
+            }]];
+          }),
+        );
+        const nextRoomPositions = Object.fromEntries(
+          (dragSelection?.roomIds ?? []).flatMap((draggedRoomId) => {
+            const draggedRoom = currentDoc.rooms[draggedRoomId];
+            if (!draggedRoom) {
+              return [];
+            }
+
+            return [[draggedRoomId, {
+              x: draggedRoom.position.x + dx,
+              y: draggedRoom.position.y + dy,
+            }]];
+          }),
+        );
+        const nextStickyNotePositions = Object.fromEntries(
+          (dragSelection?.stickyNoteIds ?? []).flatMap((draggedStickyNoteId) => {
+            const draggedStickyNote = currentDoc.stickyNotes[draggedStickyNoteId];
+            if (!draggedStickyNote) {
+              return [];
+            }
+
+            return [[draggedStickyNoteId, {
+              x: draggedStickyNote.position.x + dx,
+              y: draggedStickyNote.position.y + dy,
+            }]];
+          }),
+        );
+
+        movePseudoRooms(nextPseudoRoomPositions);
+        moveRooms(nextRoomPositions);
+        moveStickyNotes(nextStickyNotePositions);
+      } else if (upEvent.shiftKey) {
+        addPseudoRoomToSelection(pseudoRoom.id);
+      } else {
+        selectPseudoRoom(pseudoRoom.id);
       }
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [movePseudoRoom, pseudoRoom.id, pseudoRoom.position.x, pseudoRoom.position.y]);
+  }, [addPseudoRoomToSelection, endRoomDrag, movePseudoRooms, moveRooms, moveStickyNotes, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, updateRoomDrag]);
 
   return (
     <svg
@@ -66,17 +131,36 @@ export function MapCanvasPseudoRoomNode({
       style={{
         position: 'absolute',
         overflow: 'visible',
-        transform: `translate(${pseudoRoom.position.x}px, ${pseudoRoom.position.y}px)`,
+        transform: `translate(${visualX}px, ${visualY}px)`,
         cursor: 'move',
         zIndex: 7,
       }}
       onMouseDown={handleMouseDown}
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
       onDoubleClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
         onOpenPseudoRoomEditor(pseudoRoom.id);
       }}
     >
+      {isSelected && (
+        <rect
+          className="room-selection-outline"
+          data-testid="pseudo-room-selection-outline"
+          x={-4}
+          y={-4}
+          width={roomDimensions.width + 8}
+          height={roomDimensions.height + 8}
+          rx={10}
+          ry={10}
+          fill="none"
+          stroke="#ef4444"
+          strokeWidth={2}
+          pointerEvents="none"
+        />
+      )}
       <text
         x={roomDimensions.width / 2}
         y={roomDimensions.height / 2}

@@ -745,6 +745,30 @@ export function setRoomPositions(
   return changed ? touch({ ...doc, rooms }) : doc;
 }
 
+export function setPseudoRoomPositions(
+  doc: MapDocument,
+  positions: Readonly<Record<string, Position>>,
+): MapDocument {
+  let changed = false;
+  const pseudoRooms = { ...doc.pseudoRooms };
+
+  for (const [pseudoRoomId, position] of Object.entries(positions)) {
+    const pseudoRoom = pseudoRooms[pseudoRoomId];
+    if (!pseudoRoom) {
+      throw new Error(`Pseudo-room "${pseudoRoomId}" not found.`);
+    }
+
+    if (pseudoRoom.position.x === position.x && pseudoRoom.position.y === position.y) {
+      continue;
+    }
+
+    pseudoRooms[pseudoRoomId] = { ...pseudoRoom, position };
+    changed = true;
+  }
+
+  return changed ? touch({ ...doc, pseudoRooms }) : doc;
+}
+
 /* ------------------------------------------------------------------ */
 /*  describeRoom                                                       */
 /* ------------------------------------------------------------------ */

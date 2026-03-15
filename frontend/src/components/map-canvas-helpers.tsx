@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   type Connection,
   type MapVisualStyle,
+  type PseudoRoom,
   type Room,
   type RoomShape,
   type RoomStrokeStyle,
@@ -108,6 +109,35 @@ export function getRoomsWithinSelectionBox(
         && roomBottom >= bounds.top;
     })
     .map((room) => room.id);
+}
+
+export function getPseudoRoomsWithinSelectionBox(
+  pseudoRooms: readonly PseudoRoom[],
+  panOffset: PanOffset,
+  canvasRect: DOMRect | null,
+  selectionBox: SelectionBox,
+  zoom: number = 1,
+  visualStyle: MapVisualStyle = 'default',
+): string[] {
+  return getRoomsWithinSelectionBox(
+    pseudoRooms.map((pseudoRoom) => ({
+      ...pseudoRoom,
+      name: '?',
+      description: '',
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'oval',
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid',
+    })),
+    panOffset,
+    canvasRect,
+    selectionBox,
+    zoom,
+    visualStyle,
+  );
 }
 
 export function getStickyNotesWithinSelectionBox(

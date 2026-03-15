@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { addConnection, addRoom, addStickyNote, addStickyNoteLink, setRoomPositions } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
+import { addConnection, addPseudoRoom, addRoom, addStickyNote, addStickyNoteLink, setRoomPositions } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createPseudoRoom, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import type { MapDocument, Room } from '../../src/domain/map-types';
 import {
   computePrettifiedLayoutPositions,
@@ -183,6 +183,25 @@ describe('computePrettifiedRoomPositions', () => {
     expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
     expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
     expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
+  });
+
+  it('includes pseudo-rooms in directional prettify layout', () => {
+    let doc = createEmptyMap('Pseudo Layout');
+    const room = { ...createRoom('Room'), id: 'room-a', position: { x: 0, y: 0 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-a', position: { x: 0, y: 0 } };
+    doc = addRoom(doc, room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+
+    const { roomPositions, pseudoRoomPositions } = computePrettifiedLayoutPositions(doc);
+
+    expect(pseudoRoomPositions[pseudoRoom.id]).toBeDefined();
+    expect(pseudoRoomPositions[pseudoRoom.id]).not.toEqual(pseudoRoom.position);
+    expect(pseudoRoomPositions[pseudoRoom.id]).not.toEqual(roomPositions[room.id]);
+    expectSnappedToGrid(getRoomCenterX(room, roomPositions[room.id].x));
+    expectSnappedToGrid(getRoomCenterY(roomPositions[room.id].y));
+    expectSnappedToGrid(pseudoRoomPositions[pseudoRoom.id].x + 40);
+    expectSnappedToGrid(pseudoRoomPositions[pseudoRoom.id].y + 18);
   });
 
   it('falls back for disconnected rooms and separates overlapping preferred positions', () => {

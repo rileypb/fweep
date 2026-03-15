@@ -6,6 +6,7 @@ import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
+  getPseudoRoomsWithinSelectionBox,
   getRoomScreenGeometry,
   getStickyNoteLinksWithinSelectionBox,
   getStickyNotesWithinSelectionBox,
@@ -174,6 +175,7 @@ export function MapCanvas({
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
+  const selectedPseudoRoomIds = useEditorStore((s) => s.selectedPseudoRoomIds);
   const selectedStickyNoteIds = useEditorStore((s) => s.selectedStickyNoteIds);
   const selectedConnectionIds = useEditorStore((s) => s.selectedConnectionIds);
   const selectedStickyNoteLinkIds = useEditorStore((s) => s.selectedStickyNoteLinkIds);
@@ -182,6 +184,7 @@ export function MapCanvas({
   const completeConnectionDragToNewRoom = useEditorStore((s) => s.completeConnectionDragToNewRoom);
   const createPseudoRoomAndConnect = useEditorStore((s) => s.createPseudoRoomAndConnect);
   const setSelection = useEditorStore((s) => s.setSelection);
+  const addPseudoRoomToSelection = useEditorStore((s) => s.addPseudoRoomToSelection);
   const exportRegionDraft = useEditorStore((s) => s.exportRegionDraft);
   const exportRegion = useEditorStore((s) => s.exportRegion);
   const beginExportRegion = useEditorStore((s) => s.beginExportRegion);
@@ -242,6 +245,7 @@ export function MapCanvas({
   const pseudoRooms = doc ? Object.values(doc.pseudoRooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
   const hasExportSelection = selectedRoomIds.length > 0
+    || selectedPseudoRoomIds.length > 0
     || selectedStickyNoteIds.length > 0
     || selectedConnectionIds.length > 0
     || selectedStickyNoteLinkIds.length > 0;
@@ -1095,6 +1099,9 @@ export function MapCanvas({
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
           doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
         );
+        pseudoRooms
+          .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))
+          .forEach((pseudoRoom) => addPseudoRoomToSelection(pseudoRoom.id));
       };
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
@@ -1311,6 +1318,7 @@ export function MapCanvas({
       const { selectedConnectionIds: currentSelectedConnectionIds, selectedStickyNoteLinkIds: currentSelectedStickyNoteLinkIds } = useEditorStore.getState();
       if (
         selectedRoomIds.length === 0
+        && selectedPseudoRoomIds.length === 0
         && selectedStickyNoteIds.length === 0
         && currentSelectedConnectionIds.length === 0
         && currentSelectedStickyNoteLinkIds.length === 0
@@ -1373,7 +1381,7 @@ export function MapCanvas({
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     centerRoomOnScreen(nearestRoom);
-  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, connectionEndpointDrag, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
+  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, connectionEndpointDrag, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedPseudoRoomIds, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
 
   const classes = [
     'map-canvas',
@@ -1516,6 +1524,7 @@ export function MapCanvas({
               key={pseudoRoom.id}
               pseudoRoom={pseudoRoom}
               theme={theme}
+              isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
               onOpenPseudoRoomEditor={openPseudoRoomEditor}
             />
           ))}

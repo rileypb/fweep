@@ -36,6 +36,7 @@ import {
   setConnectionStyle as domainSetConnectionStyle,
   setRoomsLocked as domainSetRoomsLocked,
   setRoomPositions as domainSetRoomPositions,
+  setPseudoRoomPositions as domainSetPseudoRoomPositions,
   setStickyNotePositions as domainSetStickyNotePositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
@@ -119,6 +120,7 @@ export interface StickyNoteDrag {
 
 export interface SelectionDrag {
   readonly roomIds: readonly string[];
+  readonly pseudoRoomIds: readonly string[];
   readonly stickyNoteIds: readonly string[];
   readonly dx: number;
   readonly dy: number;
@@ -190,6 +192,9 @@ export interface EditorState {
 
   /** The currently selected room IDs. */
   selectedRoomIds: readonly string[];
+
+  /** The currently selected pseudo-room IDs. */
+  selectedPseudoRoomIds: readonly string[];
 
   /** The currently selected sticky note IDs. */
   selectedStickyNoteIds: readonly string[];
@@ -412,6 +417,9 @@ export interface EditorState {
   /** Replace the current room selection with a single room. */
   selectRoom: (roomId: string) => void;
 
+  /** Replace the current selection with a single pseudo-room. */
+  selectPseudoRoom: (pseudoRoomId: string) => void;
+
   /** Replace the current selection with a single connection. */
   selectConnection: (connectionId: string) => void;
 
@@ -426,6 +434,9 @@ export interface EditorState {
 
   /** Add a room to the current selection. */
   addRoomToSelection: (roomId: string) => void;
+
+  /** Add a pseudo-room to the current selection. */
+  addPseudoRoomToSelection: (pseudoRoomId: string) => void;
 
   /** Add a sticky note to the current selection. */
   addStickyNoteToSelection: (stickyNoteId: string) => void;
@@ -449,6 +460,9 @@ export interface EditorState {
 
   /** Clear the current room selection. */
   clearRoomSelection: () => void;
+
+  /** Clear the current pseudo-room selection. */
+  clearPseudoRoomSelection: () => void;
 
   /** Clear the current connection selection. */
   clearConnectionSelection: () => void;
@@ -491,6 +505,12 @@ export interface EditorState {
 
   /** Move a pseudo-room to a new position (snapped to grid). */
   movePseudoRoom: (pseudoRoomId: string, position: Position) => void;
+
+  /** Move multiple pseudo-rooms to new positions in a single history step. */
+  movePseudoRooms: (positions: Readonly<Record<string, Position>>) => void;
+
+  /** Begin dragging a pseudo-room. */
+  startPseudoRoomDrag: (pseudoRoomId: string) => void;
 
   /** Move multiple rooms to new positions in a single history step. */
   moveRooms: (positions: Readonly<Record<string, Position>>) => void;
@@ -625,6 +645,14 @@ function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonl
   }
 
   return selectedRoomIds.filter((roomId) => roomId in doc.rooms);
+}
+
+function filterPseudoRoomSelectionForDoc(doc: MapDocument | null, selectedPseudoRoomIds: readonly string[]): readonly string[] {
+  if (!doc) {
+    return [];
+  }
+
+  return selectedPseudoRoomIds.filter((pseudoRoomId) => pseudoRoomId in doc.pseudoRooms);
 }
 
 function filterStickyNoteSelectionForDoc(doc: MapDocument | null, selectedStickyNoteIds: readonly string[]): readonly string[] {
@@ -797,6 +825,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   canRedo: false,
   lastHistoryMergeKey: null,
   selectedRoomIds: [],
+  selectedPseudoRoomIds: [],
   selectedStickyNoteIds: [],
   selectedConnectionIds: [],
   selectedStickyNoteLinkIds: [],
@@ -842,6 +871,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     canRedo: false,
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
+    selectedPseudoRoomIds: [],
     selectedStickyNoteIds: [],
     selectedConnectionIds: [],
     selectedStickyNoteLinkIds: [],
@@ -870,6 +900,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     canRedo: false,
     lastHistoryMergeKey: null,
     selectedRoomIds: [],
+    selectedPseudoRoomIds: [],
     selectedStickyNoteIds: [],
     selectedConnectionIds: [],
     selectedStickyNoteLinkIds: [],
@@ -896,6 +927,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       pastEntries,
       futureEntries,
       selectedRoomIds,
+      selectedPseudoRoomIds,
       selectedStickyNoteIds,
       selectedConnectionIds,
       selectedStickyNoteLinkIds,
@@ -916,6 +948,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         canRedo: true,
         lastHistoryMergeKey: null,
         selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
+        selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(nextDoc, selectedPseudoRoomIds),
         selectedStickyNoteIds: filterStickyNoteSelectionForDoc(nextDoc, selectedStickyNoteIds),
         selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
         selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, selectedStickyNoteLinkIds),
@@ -952,6 +985,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       pastEntries,
       futureEntries,
       selectedRoomIds,
+      selectedPseudoRoomIds,
       selectedStickyNoteIds,
       selectedConnectionIds,
       selectedStickyNoteLinkIds,
@@ -972,6 +1006,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         canRedo: nextFutureEntries.length > 0,
         lastHistoryMergeKey: null,
         selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
+        selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(patchedNextDoc, selectedPseudoRoomIds),
         selectedStickyNoteIds: filterStickyNoteSelectionForDoc(patchedNextDoc, selectedStickyNoteIds),
         selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
         selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(patchedNextDoc, selectedStickyNoteLinkIds),
@@ -1379,6 +1414,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const {
       doc,
       selectedRoomIds,
+      selectedPseudoRoomIds,
       selectedStickyNoteIds,
       selectedConnectionIds,
       selectedStickyNoteLinkIds,
@@ -1391,6 +1427,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       (nextDoc, roomId) => (nextDoc.rooms[roomId] ? domainDeleteRoom(nextDoc, roomId) : nextDoc),
       doc,
     );
+    updatedDoc = selectedPseudoRoomIds.reduce((nextDoc, pseudoRoomId) => {
+      const incomingConnection = Object.values(nextDoc.connections).find((connection) => (
+        connection.target.kind === 'pseudo-room' && connection.target.id === pseudoRoomId
+      ));
+
+      return incomingConnection ? domainDeleteConnection(nextDoc, incomingConnection.id) : nextDoc;
+    }, updatedDoc);
     updatedDoc = selectedStickyNoteIds.reduce(
       (nextDoc, stickyNoteId) => (nextDoc.stickyNotes[stickyNoteId] ? domainDeleteStickyNote(nextDoc, stickyNoteId) : nextDoc),
       updatedDoc,
@@ -1409,6 +1452,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1418,6 +1462,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectRoom: (roomId) => {
     set({
       selectedRoomIds: [roomId],
+      selectedPseudoRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+      lastHistoryMergeKey: null,
+    });
+  },
+
+  selectPseudoRoom: (pseudoRoomId) => {
+    set({
+      selectedRoomIds: [],
+      selectedPseudoRoomIds: [pseudoRoomId],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1428,6 +1484,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectConnection: (connectionId) => {
     set({
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [connectionId],
       selectedStickyNoteLinkIds: [],
@@ -1438,6 +1495,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectStickyNote: (stickyNoteId) => {
     set({
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [stickyNoteId],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1448,6 +1506,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectStickyNoteLink: (stickyNoteLinkId) => {
     set({
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [stickyNoteLinkId],
@@ -1461,6 +1520,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedRoomIds: state.selectedRoomIds.includes(roomId)
         ? state.selectedRoomIds
         : [...state.selectedRoomIds, roomId],
+    }));
+  },
+
+  addPseudoRoomToSelection: (pseudoRoomId) => {
+    set((state) => ({
+      lastHistoryMergeKey: null,
+      selectedPseudoRoomIds: state.selectedPseudoRoomIds.includes(pseudoRoomId)
+        ? state.selectedPseudoRoomIds
+        : [...state.selectedPseudoRoomIds, pseudoRoomId],
     }));
   },
 
@@ -1494,6 +1562,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelectedRoomIds: (roomIds) => {
     set({
       selectedRoomIds: [...roomIds],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1504,6 +1573,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelectedStickyNoteIds: (stickyNoteIds) => {
     set({
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [...stickyNoteIds],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1514,6 +1584,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelection: (roomIds, stickyNoteIds, connectionIds, stickyNoteLinkIds) => {
     set({
       selectedRoomIds: [...roomIds],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [...stickyNoteIds],
       selectedConnectionIds: [...connectionIds],
       selectedStickyNoteLinkIds: [...stickyNoteLinkIds],
@@ -1523,6 +1594,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   clearRoomSelection: () => {
     set({ selectedRoomIds: [], lastHistoryMergeKey: null });
+  },
+
+  clearPseudoRoomSelection: () => {
+    set({ selectedPseudoRoomIds: [], lastHistoryMergeKey: null });
   },
 
   clearConnectionSelection: () => {
@@ -1536,6 +1611,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearSelection: () => {
     set({
       selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
       selectedStickyNoteLinkIds: [],
@@ -1735,6 +1811,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
+  movePseudoRooms: (positions) => {
+    const { doc, snapToGridEnabled } = get();
+    if (!doc) {
+      throw new Error('Cannot move pseudo-rooms: no document is loaded.');
+    }
+
+    const snappedPositions = Object.fromEntries(
+      Object.entries(positions).map(([pseudoRoomId, position]) => [
+        pseudoRoomId,
+        maybeSnapPosition(position, snapToGridEnabled),
+      ]),
+    ) as Record<string, Position>;
+
+    const updatedDoc = domainSetPseudoRoomPositions(doc, snappedPositions);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
   moveRooms: (positions) => {
     const { doc, snapToGridEnabled } = get();
     if (!doc) {
@@ -1804,9 +1897,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    const { roomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+    const { roomPositions, pseudoRoomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
     const roomsUpdatedDoc = domainSetRoomPositions(doc, roomPositions);
-    const updatedDoc = domainSetStickyNotePositions(roomsUpdatedDoc, stickyNotePositions);
+    const pseudoRoomsUpdatedDoc = domainSetPseudoRoomPositions(roomsUpdatedDoc, pseudoRoomPositions);
+    const updatedDoc = domainSetStickyNotePositions(pseudoRoomsUpdatedDoc, stickyNotePositions);
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
@@ -2002,6 +2096,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         roomIds: (state.selectedRoomIds.includes(roomId) ? state.selectedRoomIds : [roomId]).filter(
           (selectedRoomId) => !state.doc?.rooms[selectedRoomId]?.locked,
         ),
+        pseudoRoomIds: state.selectedRoomIds.includes(roomId) ? state.selectedPseudoRoomIds : [],
         stickyNoteIds: state.selectedRoomIds.includes(roomId) ? state.selectedStickyNoteIds : [],
         dx: 0,
         dy: 0,
@@ -2019,11 +2114,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ selectionDrag: null, lastHistoryMergeKey: null });
   },
 
+  startPseudoRoomDrag: (pseudoRoomId) => {
+    set((state) => ({
+      lastHistoryMergeKey: null,
+      selectionDrag: {
+        roomIds: state.selectedPseudoRoomIds.includes(pseudoRoomId) ? state.selectedRoomIds : [],
+        pseudoRoomIds: state.selectedPseudoRoomIds.includes(pseudoRoomId) ? state.selectedPseudoRoomIds : [pseudoRoomId],
+        stickyNoteIds: state.selectedPseudoRoomIds.includes(pseudoRoomId) ? state.selectedStickyNoteIds : [],
+        dx: 0,
+        dy: 0,
+      },
+    }));
+  },
+
   startStickyNoteDrag: (stickyNoteId) => {
     set((state) => ({
       lastHistoryMergeKey: null,
       selectionDrag: {
         roomIds: state.selectedStickyNoteIds.includes(stickyNoteId) ? state.selectedRoomIds : [],
+        pseudoRoomIds: state.selectedStickyNoteIds.includes(stickyNoteId) ? state.selectedPseudoRoomIds : [],
         stickyNoteIds: state.selectedStickyNoteIds.includes(stickyNoteId) ? state.selectedStickyNoteIds : [stickyNoteId],
         dx: 0,
         dy: 0,
@@ -2114,6 +2223,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       canvasInteractionMode: mode,
       selectedRoomIds: mode === 'draw' ? [] : get().selectedRoomIds,
+      selectedPseudoRoomIds: mode === 'draw' ? [] : get().selectedPseudoRoomIds,
       selectedStickyNoteIds: mode === 'draw' ? [] : get().selectedStickyNoteIds,
       selectedConnectionIds: mode === 'draw' ? [] : get().selectedConnectionIds,
       selectedStickyNoteLinkIds: mode === 'draw' ? [] : get().selectedStickyNoteLinkIds,

@@ -1,4 +1,5 @@
 import type { MapDocument, MapVisualStyle, Position, Room, StickyNote } from '../domain/map-types';
+import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import { getRoomNodeDimensions } from './room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from './sticky-note-geometry';
 const ROOM_VERTICAL_GAP = 24;
@@ -28,6 +29,7 @@ interface DirectionConstraint {
 
 interface PrettifiedLayoutPositions {
   readonly roomPositions: Readonly<Record<string, Position>>;
+  readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
   readonly stickyNotePositions: Readonly<Record<string, Position>>;
 }
 
@@ -55,6 +57,25 @@ function getRoomDimensions(room: Room, visualStyle: MapVisualStyle): { readonly 
 
 function estimateRoomWidth(room: Room, visualStyle: MapVisualStyle): number {
   return getRoomDimensions(room, visualStyle).width;
+}
+
+function getLayoutRoom(doc: MapDocument, roomId: string): Room | null {
+  const room = doc.rooms[roomId];
+  if (room) {
+    return room;
+  }
+
+  const pseudoRoom = doc.pseudoRooms[roomId];
+  return pseudoRoom ? toPseudoRoomVisualRoom(pseudoRoom) : null;
+}
+
+function getLayoutPosition(doc: MapDocument, roomId: string): Position | null {
+  const room = doc.rooms[roomId];
+  if (room) {
+    return room.position;
+  }
+
+  return doc.pseudoRooms[roomId]?.position ?? null;
 }
 
 function toRoomCenter(room: Room, position: Position, visualStyle: MapVisualStyle): Vector {
@@ -97,12 +118,12 @@ function deriveDirectionConstraints(doc: MapDocument): DirectionConstraint[] {
       }
 
       const otherRoomId = connection.sourceRoomId === room.id
-        ? (connection.target.kind === 'room' ? connection.target.id : undefined)
+        ? connection.target.id
         : connection.target.kind === 'room' && connection.target.id === room.id
           ? connection.sourceRoomId
           : undefined;
 
-      if (!otherRoomId || otherRoomId === room.id || !doc.rooms[otherRoomId]) {
+      if (!otherRoomId || otherRoomId === room.id || !getLayoutRoom(doc, otherRoomId)) {
         continue;
       }
 
@@ -172,6 +193,20 @@ function comparePositionsLexicographically(
   return 0;
 }
 
+function compareLayoutPositionsLexicographically(
+  leftRooms: Readonly<Record<string, Position>>,
+  leftPseudoRooms: Readonly<Record<string, Position>>,
+  rightRooms: Readonly<Record<string, Position>>,
+  rightPseudoRooms: Readonly<Record<string, Position>>,
+): number {
+  const roomComparison = comparePositionsLexicographically(leftRooms, rightRooms);
+  if (roomComparison !== 0) {
+    return roomComparison;
+  }
+
+  return comparePositionsLexicographically(leftPseudoRooms, rightPseudoRooms);
+}
+
 function withRoomPositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
   return {
     ...doc,
@@ -179,6 +214,18 @@ function withRoomPositions(doc: MapDocument, positions: Readonly<Record<string, 
       Object.entries(doc.rooms).map(([roomId, room]) => [
         roomId,
         positions[roomId] ? { ...room, position: positions[roomId] } : room,
+      ]),
+    ),
+  };
+}
+
+function withPseudoRoomPositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
+  return {
+    ...doc,
+    pseudoRooms: Object.fromEntries(
+      Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [
+        pseudoRoomId,
+        positions[pseudoRoomId] ? { ...pseudoRoom, position: positions[pseudoRoomId] } : pseudoRoom,
       ]),
     ),
   };
@@ -290,18 +337,26 @@ function computeSeedCentroid(roomIds: readonly string[], seedPositions: Readonly
   };
 }
 
+function getCentroidAnchorRoomIds(componentRoomIds: readonly string[], doc: MapDocument): readonly string[] {
+  const realRoomIds = componentRoomIds.filter((roomId) => roomId in doc.rooms);
+  return realRoomIds.length > 0 ? realRoomIds : componentRoomIds;
+}
+
 function computeComponentSeedOffset(
   componentRoomIds: readonly string[],
   seedPositions: ReadonlyMap<string, Vector>,
   doc: MapDocument,
   lockedRoomIds: ReadonlySet<string>,
 ): Vector {
+  const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
   const visualStyle = doc.view.visualStyle;
-  const lockedComponentRoomIds = componentRoomIds.filter((roomId) => lockedRoomIds.has(roomId));
+  const lockedComponentRoomIds = centroidAnchorRoomIds.filter((roomId) => lockedRoomIds.has(roomId));
   if (lockedComponentRoomIds.length > 0) {
     const total = lockedComponentRoomIds.reduce(
       (acc, roomId) => {
-        const actualCenter = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, visualStyle);
+        const room = getLayoutRoom(doc, roomId)!;
+        const position = getLayoutPosition(doc, roomId)!;
+        const actualCenter = toRoomCenter(room, position, visualStyle);
         const seedCenter = seedPositions.get(roomId)!;
         return {
           x: acc.x + (actualCenter.x - seedCenter.x),
@@ -317,8 +372,8 @@ function computeComponentSeedOffset(
     };
   }
 
-  const seedCentroid = computeSeedCentroid(componentRoomIds, seedPositions);
-  const originalCentroid = computeOriginalCentroid(componentRoomIds, doc);
+  const seedCentroid = computeSeedCentroid(centroidAnchorRoomIds, seedPositions);
+  const originalCentroid = computeOriginalCentroid(centroidAnchorRoomIds, doc);
   return {
     x: originalCentroid.x - seedCentroid.x,
     y: originalCentroid.y - seedCentroid.y,
@@ -426,8 +481,10 @@ function relaxComponent(
 function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): Vector {
   const visualStyle = doc.view.visualStyle;
   const total = roomIds.reduce(
-    (acc, roomId) => {
-      const center = toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, visualStyle);
+      (acc, roomId) => {
+      const room = getLayoutRoom(doc, roomId)!;
+      const position = getLayoutPosition(doc, roomId)!;
+      const center = toRoomCenter(room, position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -451,7 +508,8 @@ function computePlacedCentroid(
       if (!position) {
         return acc;
       }
-      const center = toRoomCenter(doc.rooms[roomId], position, visualStyle);
+      const room = getLayoutRoom(doc, roomId)!;
+      const center = toRoomCenter(room, position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -469,7 +527,7 @@ function overlapsPlacedRooms(
   placedPositions: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): boolean {
-  const room = doc.rooms[roomId];
+  const room = getLayoutRoom(doc, roomId)!;
   const visualStyle = doc.view.visualStyle;
   const candidateDimensions = getRoomDimensions(room, visualStyle);
   const candidateLeft = candidatePosition.x;
@@ -482,7 +540,7 @@ function overlapsPlacedRooms(
       continue;
     }
 
-    const placedRoom = doc.rooms[placedRoomId];
+    const placedRoom = getLayoutRoom(doc, placedRoomId)!;
     const placedDimensions = getRoomDimensions(placedRoom, visualStyle);
     const placedLeft = placedPosition.x;
     const placedRight = placedLeft + placedDimensions.width + ROOM_HORIZONTAL_GAP;
@@ -580,7 +638,7 @@ function canTranslateComponent(
       }
 
       const room = doc.rooms[roomId];
-      const otherRoom = doc.rooms[otherRoomId];
+      const otherRoom = getLayoutRoom(doc, otherRoomId)!;
       const roomDimensions = getRoomDimensions(room, visualStyle);
       const otherRoomDimensions = getRoomDimensions(otherRoom, visualStyle);
       const candidateLeft = shiftedPosition.x;
@@ -841,12 +899,12 @@ function recenterUnlockedComponents(
 function computePrettifiedRoomPositionsSinglePass(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
-): Readonly<Record<string, Position>> {
-  const roomIds = Object.keys(doc.rooms).sort();
+): { readonly roomPositions: Readonly<Record<string, Position>>; readonly pseudoRoomPositions: Readonly<Record<string, Position>> } {
+  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms)].sort();
   if (roomIds.length === 0) {
-    return {};
+    return { roomPositions: {}, pseudoRoomPositions: {} };
   }
-  const lockedRoomIds = new Set(roomIds.filter((roomId) => doc.rooms[roomId].locked || extraLockedRoomIds.has(roomId)));
+  const lockedRoomIds = new Set(roomIds.filter((roomId) => (doc.rooms[roomId]?.locked ?? false) || extraLockedRoomIds.has(roomId)));
   const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
   const constraints = deriveDirectionConstraints(doc);
@@ -861,7 +919,9 @@ function computePrettifiedRoomPositionsSinglePass(
 
     for (const roomId of componentRoomIds) {
       if (lockedRoomIds.has(roomId)) {
-        absoluteSeedPositions.set(roomId, toRoomCenter(doc.rooms[roomId], doc.rooms[roomId].position, doc.view.visualStyle));
+        const room = getLayoutRoom(doc, roomId)!;
+        const position = getLayoutPosition(doc, roomId)!;
+        absoluteSeedPositions.set(roomId, toRoomCenter(room, position, doc.view.visualStyle));
         continue;
       }
 
@@ -873,9 +933,10 @@ function computePrettifiedRoomPositionsSinglePass(
     }
 
     const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds);
+    const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
     componentTargetCentroids.set(
       componentRoomIds.join('\0'),
-      computeSeedCentroid(componentRoomIds, relaxedPositions),
+      computeSeedCentroid(centroidAnchorRoomIds, relaxedPositions),
     );
 
     for (const roomId of componentRoomIds) {
@@ -900,7 +961,9 @@ function computePrettifiedRoomPositionsSinglePass(
       x: snapCoordinate(center.x),
       y: snapCoordinate(center.y),
     };
-    const topLeft = toRoomTopLeft(doc.rooms[roomId], snappedCenter, doc.view.visualStyle);
+    const room = getLayoutRoom(doc, roomId)!;
+    const currentPosition = getLayoutPosition(doc, roomId)!;
+    const topLeft = toRoomTopLeft(room, snappedCenter, doc.view.visualStyle);
     const snappedPosition = {
       x: topLeft.x,
       y: topLeft.y,
@@ -908,43 +971,78 @@ function computePrettifiedRoomPositionsSinglePass(
 
     placedPositions.set(
       roomId,
-      findNearestOpenPosition(roomId, snappedPosition, doc.rooms[roomId].position, placedPositions, doc),
+      findNearestOpenPosition(roomId, snappedPosition, currentPosition, placedPositions, doc),
     );
   }
 
   recenterUnlockedComponents(components, componentTargetCentroids, lockedRoomIds, placedPositions, doc);
 
-  return Object.fromEntries(placedPositions.entries());
+  const roomPositions = Object.fromEntries(
+    [...placedPositions.entries()].filter(([roomId]) => roomId in doc.rooms),
+  );
+  const pseudoRoomPositions = Object.fromEntries(
+    [...placedPositions.entries()].filter(([roomId]) => roomId in doc.pseudoRooms),
+  );
+
+  return { roomPositions, pseudoRoomPositions };
+}
+
+function computeStablePrettifiedPositions(
+  doc: MapDocument,
+  extraLockedRoomIds: ReadonlySet<string>,
+): { readonly roomPositions: Readonly<Record<string, Position>>; readonly pseudoRoomPositions: Readonly<Record<string, Position>> } {
+  const currentRoomPositions = Object.fromEntries(
+    Object.entries(doc.rooms).map(([roomId, room]) => [roomId, room.position]),
+  ) as Record<string, Position>;
+  const currentPseudoRoomPositions = Object.fromEntries(
+    Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [pseudoRoomId, pseudoRoom.position]),
+  ) as Record<string, Position>;
+  const firstPass = computePrettifiedRoomPositionsSinglePass(doc, extraLockedRoomIds);
+  const secondPassDoc = withPseudoRoomPositions(withRoomPositions(doc, firstPass.roomPositions), firstPass.pseudoRoomPositions);
+  const secondPass = computePrettifiedRoomPositionsSinglePass(secondPassDoc, extraLockedRoomIds);
+
+  if (
+    positionsEqual(firstPass.roomPositions, secondPass.roomPositions)
+    && positionsEqual(firstPass.pseudoRoomPositions, secondPass.pseudoRoomPositions)
+  ) {
+    return firstPass;
+  }
+
+  if (
+    positionsEqual(secondPass.roomPositions, currentRoomPositions)
+    && positionsEqual(secondPass.pseudoRoomPositions, currentPseudoRoomPositions)
+  ) {
+    return compareLayoutPositionsLexicographically(
+      currentRoomPositions,
+      currentPseudoRoomPositions,
+      firstPass.roomPositions,
+      firstPass.pseudoRoomPositions,
+    ) <= 0
+      ? {
+        roomPositions: currentRoomPositions,
+        pseudoRoomPositions: currentPseudoRoomPositions,
+      }
+      : firstPass;
+  }
+
+  return firstPass;
 }
 
 export function computePrettifiedRoomPositions(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
 ): Readonly<Record<string, Position>> {
-  const currentPositions = Object.fromEntries(
-    Object.entries(doc.rooms).map(([roomId, room]) => [roomId, room.position]),
-  ) as Record<string, Position>;
-  const firstPass = computePrettifiedRoomPositionsSinglePass(doc, extraLockedRoomIds);
-  const secondPass = computePrettifiedRoomPositionsSinglePass(withRoomPositions(doc, firstPass), extraLockedRoomIds);
-
-  if (positionsEqual(firstPass, secondPass)) {
-    return firstPass;
-  }
-
-  if (positionsEqual(secondPass, currentPositions)) {
-    return comparePositionsLexicographically(currentPositions, firstPass) <= 0 ? currentPositions : firstPass;
-  }
-
-  return firstPass;
+  return computeStablePrettifiedPositions(doc, extraLockedRoomIds).roomPositions;
 }
 
 export function computePrettifiedLayoutPositions(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
 ): PrettifiedLayoutPositions {
-  const roomPositions = computePrettifiedRoomPositions(doc, extraLockedRoomIds);
+  const { roomPositions, pseudoRoomPositions } = computeStablePrettifiedPositions(doc, extraLockedRoomIds);
   return {
     roomPositions,
+    pseudoRoomPositions,
     stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions),
   };
 }

@@ -660,6 +660,37 @@ describe('useEditorStore', () => {
       expect(() => useEditorStore.getState().prettifyLayout()).not.toThrow();
       expect(useEditorStore.getState().doc).toBeNull();
     });
+
+    it('moves pseudo-rooms during prettify layout', () => {
+      const room = { ...createRoom('Room'), id: 'room-a', position: { x: 0, y: 0 } };
+      const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-a', position: { x: 0, y: 0 } };
+      let doc = createEmptyMap('Pseudo Layout');
+      doc = addRoom(doc, room);
+      doc = addPseudoRoom(doc, pseudoRoom);
+      doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().prettifyLayout();
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.pseudoRooms[pseudoRoom.id].position).not.toEqual(pseudoRoom.position);
+      expect(updatedDoc.pseudoRooms[pseudoRoom.id].position).not.toEqual(updatedDoc.rooms[room.id].position);
+    });
+
+    it('pulls a distant pseudo-room back toward its connected rooms during prettify layout', () => {
+      const room = { ...createRoom('Room'), id: 'room-a', position: { x: 0, y: 0 } };
+      const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-a', position: { x: 1200, y: 0 } };
+      let doc = createEmptyMap('Pseudo Layout');
+      doc = addRoom(doc, room);
+      doc = addPseudoRoom(doc, pseudoRoom);
+      doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().prettifyLayout();
+
+      const updatedDoc = useEditorStore.getState().doc!;
+      expect(updatedDoc.pseudoRooms[pseudoRoom.id].position.x).toBeLessThan(pseudoRoom.position.x);
+    });
   });
 
   describe('grid snapping', () => {
