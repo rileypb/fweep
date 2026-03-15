@@ -4,9 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
+import { toPseudoRoomVisualRoom } from '../../src/domain/pseudo-room-helpers';
 import { addPseudoRoom, addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
+import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
+import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../../src/graph/sticky-note-geometry';
 
 function resetStore(): void {
   useEditorStore.setState(useEditorStore.getInitialState());
@@ -345,7 +348,7 @@ describe('MapCanvas', () => {
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
-      expect(rooms[0].position).toEqual({ x: 40, y: 80 });
+      expect(rooms[0].position).toEqual({ x: 0, y: 80 });
     });
 
     it('clicking the minimap recenters the map content', () => {
@@ -1675,7 +1678,7 @@ describe('MapCanvas', () => {
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms[0].position).toEqual({ x: 40, y: 80 });
+      expect(rooms[0].position).toEqual({ x: 0, y: 80 });
     });
 
     it('pans to the new room before opening the room editor', () => {
@@ -1702,7 +1705,10 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(window, { key: 'r' });
       fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
-      expect(content.style.transform).toBe('translate(310px, 100px) scale(1)');
+      const dimensions = getRoomNodeDimensions(createRoom('Room'));
+      expect(content.style.transform).toBe(
+        `translate(${450 - (100 - (dimensions.width / 2) + (dimensions.width / 2))}px, ${200 - (100 - (dimensions.height / 2))}px) scale(1)`,
+      );
       expect(content).toHaveClass('map-canvas-content--animated');
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
@@ -1720,6 +1726,27 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
+    });
+
+    it('treats a room-placement click as the center of the new room', async () => {
+      const user = userEvent.setup();
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().toggleSnapToGrid();
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.keyDown(window, { key: 'r' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
+      await user.click(screen.getByRole('button', { name: /save room editor/i }));
+
+      const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      const dimensions = getRoomNodeDimensions(createRoom('Room'));
+      expect(room.position).toEqual({
+        x: 200 - (dimensions.width / 2),
+        y: 300 - (dimensions.height / 2),
+      });
     });
 
     it('only arms room placement for a single click', () => {
@@ -1752,6 +1779,24 @@ describe('MapCanvas', () => {
       const stickyNotes = Object.values(useEditorStore.getState().doc!.stickyNotes);
       expect(stickyNotes).toHaveLength(1);
       expect(screen.queryByTestId('sticky-note-textarea')).not.toBeInTheDocument();
+    });
+
+    it('treats a sticky-note placement click as the center of the new note', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+      useEditorStore.getState().toggleSnapToGrid();
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(canvas, { clientX: 200, clientY: 300 });
+
+      const stickyNote = Object.values(useEditorStore.getState().doc!.stickyNotes)[0];
+      expect(stickyNote.position).toEqual({
+        x: 200 - (STICKY_NOTE_WIDTH / 2),
+        y: 300 - (getStickyNoteHeight('') / 2),
+      });
     });
 
     it('only arms note placement for a single click', () => {
@@ -2502,6 +2547,30 @@ describe('MapCanvas', () => {
       expect(pseudoRooms[0].kind).toBe('unknown');
       expect(Object.values(doc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
       expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
+    });
+
+    it('treats an empty-drop pseudo-room creation point as the center of the pseudo-room', () => {
+      setupTwoRooms();
+      useEditorStore.getState().toggleSnapToGrid();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
+
+      fireEvent.click(screen.getByRole('button', { name: '?' }));
+
+      const pseudoRoom = Object.values(useEditorStore.getState().doc!.pseudoRooms)[0];
+      const dimensions = getRoomNodeDimensions(toPseudoRoomVisualRoom(createPseudoRoom('unknown')));
+      expect(pseudoRoom.position).toEqual({
+        x: 500 - (dimensions.width / 2),
+        y: 500 - (dimensions.height / 2),
+      });
     });
 
     it('does not start a room drag when mousedown is on a direction handle', () => {

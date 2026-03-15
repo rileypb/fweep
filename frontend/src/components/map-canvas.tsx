@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
+import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
+import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
 import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
@@ -32,6 +33,8 @@ import { ExportPngDialog } from './export-png-dialog';
 import { PrettifyButton } from './prettify-button';
 import { RedoButton } from './redo-button';
 import { UndoButton } from './undo-button';
+import { getRoomNodeDimensions } from '../graph/room-label-geometry';
+import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import {
   BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
@@ -118,6 +121,27 @@ function isRedoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boo
     && !event.altKey
     && ((event.key.toLowerCase() === 'z' && event.shiftKey) || (event.key.toLowerCase() === 'y' && !event.shiftKey))
   );
+}
+
+function centerToTopLeft(position: Position, width: number, height: number): Position {
+  return {
+    x: position.x - (width / 2),
+    y: position.y - (height / 2),
+  };
+}
+
+function getNewRoomTopLeftPosition(position: Position, visualStyle: ReturnType<typeof useEditorStore.getState>['mapVisualStyle']): Position {
+  const dimensions = getRoomNodeDimensions(createRoom('Room'), visualStyle);
+  return centerToTopLeft(position, dimensions.width, dimensions.height);
+}
+
+function getNewPseudoRoomTopLeftPosition(position: Position, kind: PseudoRoomKind, visualStyle: ReturnType<typeof useEditorStore.getState>['mapVisualStyle']): Position {
+  const dimensions = getRoomNodeDimensions(toPseudoRoomVisualRoom(createPseudoRoom(kind)), visualStyle);
+  return centerToTopLeft(position, dimensions.width, dimensions.height);
+}
+
+function getNewStickyNoteTopLeftPosition(position: Position, text: string): Position {
+  return centerToTopLeft(position, STICKY_NOTE_WIDTH, getStickyNoteHeight(text));
 }
 
 export interface MapCanvasProps {
@@ -554,7 +578,9 @@ export function MapCanvas({
     }
 
     if (kind === 'room') {
-      const createdRoomId = completeConnectionDragToNewRoom(currentDrop.position);
+      const createdRoomId = completeConnectionDragToNewRoom(
+        getNewRoomTopLeftPosition(currentDrop.position, mapVisualStyle),
+      );
       setPendingConnectionDrop(null);
       if (createdRoomId !== null) {
         openRoomEditor(createdRoomId);
@@ -562,10 +588,15 @@ export function MapCanvas({
       return;
     }
 
-    createPseudoRoomAndConnect(kind, currentDrop.position, currentDrag.sourceRoomId, currentDrag.sourceDirection);
+    createPseudoRoomAndConnect(
+      kind,
+      getNewPseudoRoomTopLeftPosition(currentDrop.position, kind, mapVisualStyle),
+      currentDrag.sourceRoomId,
+      currentDrag.sourceDirection,
+    );
     useEditorStore.getState().cancelConnectionDrag();
     setPendingConnectionDrop(null);
-  }, [completeConnectionDragToNewRoom, createPseudoRoomAndConnect, openRoomEditor, pendingConnectionDrop]);
+  }, [completeConnectionDragToNewRoom, createPseudoRoomAndConnect, mapVisualStyle, openRoomEditor, pendingConnectionDrop]);
 
   const closeStickyNoteEditor = useCallback(() => {
     setStickyNoteEditorId(null);
@@ -1231,7 +1262,7 @@ export function MapCanvas({
 
     if (isNotePlacementArmed && doc) {
       const { x, y } = toMapPoint(e.clientX, e.clientY);
-      const stickyNoteId = addStickyNoteAtPosition('', { x, y });
+      const stickyNoteId = addStickyNoteAtPosition('', getNewStickyNoteTopLeftPosition({ x, y }, ''));
       useEditorStore.getState().selectStickyNote(stickyNoteId);
       setStickyNoteEditorId(null);
       setIsRoomPlacementArmed(false);
@@ -1243,7 +1274,7 @@ export function MapCanvas({
       const { x, y } = toMapPoint(e.clientX, e.clientY);
       setIsNotePlacementArmed(false);
       setIsRoomPlacementArmed(false);
-      openNewRoomEditor({ x, y });
+      openNewRoomEditor(getNewRoomTopLeftPosition({ x, y }, mapVisualStyle));
       return;
     }
 
@@ -1252,7 +1283,7 @@ export function MapCanvas({
     closeStickyNoteEditor();
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, openNewRoomEditor, toMapPoint]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, mapVisualStyle, openNewRoomEditor, toMapPoint]);
 
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
