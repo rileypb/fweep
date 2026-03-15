@@ -2250,7 +2250,7 @@ describe('MapCanvas', () => {
       const connections = Object.values(doc.connections);
       expect(connections).toHaveLength(1);
       expect(connections[0].sourceRoomId).toBe(kitchenId);
-      expect(connections[0].targetRoomId).toBe(hallwayId);
+      expect(connections[0].target).toEqual({ kind: 'room', id: hallwayId });
       expect(connections[0].isBidirectional).toBe(false);
 
       // Direction bindings — fallback to opposite
@@ -2308,7 +2308,7 @@ describe('MapCanvas', () => {
       const connections = Object.values(doc.connections);
       expect(connections).toHaveLength(1);
       expect(connections[0].sourceRoomId).toBe(kitchenId);
-      expect(connections[0].targetRoomId).toBe(kitchenId);
+      expect(connections[0].target).toEqual({ kind: 'room', id: kitchenId });
       expect(connections[0].isBidirectional).toBe(false);
     });
 
@@ -2331,13 +2331,13 @@ describe('MapCanvas', () => {
       const connections = Object.values(doc.connections);
       expect(connections).toHaveLength(1);
       expect(connections[0].sourceRoomId).toBe(kitchenId);
-      expect(connections[0].targetRoomId).toBe(kitchenId);
+      expect(connections[0].target).toEqual({ kind: 'room', id: kitchenId });
       expect(connections[0].isBidirectional).toBe(true);
       expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
       expect(doc.rooms[kitchenId].directions['east']).toBe(connections[0].id);
     });
 
-    it('cancels the drag when releasing on empty canvas', () => {
+    it('opens a chooser when releasing on empty canvas and can create a room from it', async () => {
       setupTwoRooms();
       render(<MapCanvas mapName="Test" />);
 
@@ -2349,14 +2349,45 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
       fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
 
-      // Release on the canvas (not on a room)
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseUp(canvas, { clientX: 500, clientY: 500 });
 
-      // No connection created
+      expect(screen.getByTestId('connection-create-menu')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Room' }));
+
       const doc = useEditorStore.getState().doc!;
-      expect(Object.values(doc.connections)).toHaveLength(0);
+      const createdRoom = Object.values(doc.rooms).find((room) => room.name === 'Room');
+      expect(createdRoom).toBeDefined();
+      expect(createdRoom!.position.x % 40).toBe(0);
+      expect(createdRoom!.position.y % 40).toBe(0);
+      expect(Object.values(doc.connections)).toHaveLength(1);
+      expect(doc.rooms[createdRoom!.id].directions).toEqual({});
+      expect(await screen.findByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(screen.getByLabelText('Room name')).toHaveValue('Room');
       expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
+    it('can create an unknown pseudo-room from the chooser', () => {
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
+
+      fireEvent.click(screen.getByRole('button', { name: '?' }));
+
+      const doc = useEditorStore.getState().doc!;
+      const pseudoRooms = Object.values(doc.pseudoRooms);
+      expect(pseudoRooms).toHaveLength(1);
+      expect(pseudoRooms[0].kind).toBe('unknown');
+      expect(Object.values(doc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
+      expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
     });
 
     it('does not start a room drag when mousedown is on a direction handle', () => {

@@ -4,12 +4,14 @@ import type {
   Item,
   MapDocument,
   Position,
+  PseudoRoom,
   Room,
   RoomShape,
   RoomStrokeStyle,
   StickyNote,
   StickyNoteLink,
 } from './map-types';
+import { isPseudoRoomTarget } from './pseudo-room-helpers';
 
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
@@ -55,6 +57,17 @@ export function addRoom(doc: MapDocument, room: Room): MapDocument {
   });
 }
 
+export function addPseudoRoom(doc: MapDocument, pseudoRoom: PseudoRoom): MapDocument {
+  if (doc.pseudoRooms[pseudoRoom.id]) {
+    throw new Error(`Pseudo-room with ID "${pseudoRoom.id}" already exists.`);
+  }
+
+  return touch({
+    ...doc,
+    pseudoRooms: { ...doc.pseudoRooms, [pseudoRoom.id]: pseudoRoom },
+  });
+}
+
 export function addStickyNote(doc: MapDocument, stickyNote: StickyNote): MapDocument {
   if (doc.stickyNotes[stickyNote.id]) {
     throw new Error(`Sticky note with ID "${stickyNote.id}" already exists.`);
@@ -94,17 +107,20 @@ export function addConnection(
     );
   }
 
-  const targetRoom = doc.rooms[connection.targetRoomId];
+  const targetRoom = connection.target.kind === 'room'
+    ? doc.rooms[connection.target.id]
+    : doc.pseudoRooms[connection.target.id];
   if (!targetRoom) {
-    throw new Error(
-      `Target room "${connection.targetRoomId}" not found.`,
-    );
+    throw new Error(`Target ${connection.target.kind} "${connection.target.id}" not found.`);
   }
 
   if (connection.isBidirectional && targetDirection === undefined) {
     throw new Error(
       'A bidirectional connection requires a reverse direction for the target room.',
     );
+  }
+  if (isPseudoRoomTarget(connection.target) && (connection.isBidirectional || targetDirection !== undefined)) {
+    throw new Error('Pseudo-rooms can only be targets of one-way connections.');
   }
 
   // Check source direction isn't already bound to a *different* connection
@@ -116,7 +132,7 @@ export function addConnection(
   }
 
   // Check target direction isn't already bound (for bidirectional)
-  if (targetDirection !== undefined) {
+  if (targetDirection !== undefined && 'directions' in targetRoom) {
     const existingTargetBinding = targetRoom.directions[targetDirection];
     if (existingTargetBinding !== undefined && existingTargetBinding !== connection.id) {
       throw new Error(
@@ -133,13 +149,16 @@ export function addConnection(
 
   // For self-connections (source === target), build target from updatedSource
   // so the source binding is not overwritten.
-  const targetBase = connection.sourceRoomId === connection.targetRoomId ? updatedSource : targetRoom;
-  let updatedTarget = targetBase;
-  if (targetDirection !== undefined) {
-    updatedTarget = {
-      ...targetBase,
-      directions: { ...targetBase.directions, [targetDirection]: connection.id },
-    };
+  let updatedTarget: Room | null = null;
+  if (connection.target.kind === 'room') {
+    const targetBase = connection.sourceRoomId === connection.target.id ? updatedSource : targetRoom as Room;
+    updatedTarget = targetBase;
+    if (targetDirection !== undefined) {
+      updatedTarget = {
+        ...targetBase,
+        directions: { ...targetBase.directions, [targetDirection]: connection.id },
+      };
+    }
   }
 
   // Add or keep the connection
@@ -148,7 +167,7 @@ export function addConnection(
   const rooms = {
     ...doc.rooms,
     [updatedSource.id]: updatedSource,
-    [updatedTarget.id]: updatedTarget,
+    ...(updatedTarget ? { [updatedTarget.id]: updatedTarget } : {}),
   };
 
   return touch({ ...doc, rooms, connections });
@@ -211,7 +230,7 @@ export function deleteRoom(doc: MapDocument, roomId: string): MapDocument {
   // Identify connections involving this room
   const removedConnectionIds = new Set<string>();
   for (const [cid, conn] of Object.entries(doc.connections)) {
-    if (conn.sourceRoomId === roomId || conn.targetRoomId === roomId) {
+    if (conn.sourceRoomId === roomId || (conn.target.kind === 'room' && conn.target.id === roomId)) {
       removedConnectionIds.add(cid);
     }
   }
@@ -228,9 +247,12 @@ export function deleteRoom(doc: MapDocument, roomId: string): MapDocument {
 
   // Remove connections
   const remainingConnections: Record<string, Connection> = {};
+  const removedPseudoRoomIds = new Set<string>();
   for (const [cid, conn] of Object.entries(doc.connections)) {
     if (!removedConnectionIds.has(cid)) {
       remainingConnections[cid] = conn;
+    } else if (conn.target.kind === 'pseudo-room') {
+      removedPseudoRoomIds.add(conn.target.id);
     }
   }
 
@@ -246,9 +268,14 @@ export function deleteRoom(doc: MapDocument, roomId: string): MapDocument {
     Object.entries(doc.stickyNoteLinks).filter(([, link]) => link.roomId !== roomId),
   );
 
+  const remainingPseudoRooms = Object.fromEntries(
+    Object.entries(doc.pseudoRooms).filter(([pseudoRoomId]) => !removedPseudoRoomIds.has(pseudoRoomId)),
+  );
+
   return touch({
     ...doc,
     rooms: cleanedRooms,
+    pseudoRooms: remainingPseudoRooms,
     connections: remainingConnections,
     stickyNoteLinks: remainingStickyNoteLinks,
     items: remainingItems,
@@ -278,11 +305,62 @@ export function deleteConnection(doc: MapDocument, connectionId: string): MapDoc
   }
 
   const { [connectionId]: _removed, ...remainingConnections } = doc.connections;
+  const remainingPseudoRooms = conn.target.kind === 'pseudo-room'
+    ? Object.fromEntries(
+      Object.entries(doc.pseudoRooms).filter(([pseudoRoomId]) => pseudoRoomId !== conn.target.id),
+    )
+    : doc.pseudoRooms;
 
   return touch({
     ...doc,
     rooms: cleanedRooms,
+    pseudoRooms: remainingPseudoRooms,
     connections: remainingConnections,
+  });
+}
+
+export function convertPseudoRoomToRoom(doc: MapDocument, pseudoRoomId: string, room: Room): MapDocument {
+  const pseudoRoom = doc.pseudoRooms[pseudoRoomId];
+  if (!pseudoRoom) {
+    throw new Error(`Pseudo-room "${pseudoRoomId}" not found.`);
+  }
+
+  const { [pseudoRoomId]: _removedPseudoRoom, ...remainingPseudoRooms } = doc.pseudoRooms;
+  const updatedConnections = Object.fromEntries(
+    Object.entries(doc.connections).map(([connectionId, connection]) => (
+      connection.target.kind === 'pseudo-room' && connection.target.id === pseudoRoomId
+        ? [connectionId, { ...connection, target: { kind: 'room', id: room.id } }]
+        : [connectionId, connection]
+    )),
+  );
+
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [room.id]: room },
+    pseudoRooms: remainingPseudoRooms,
+    connections: updatedConnections,
+  });
+}
+
+export function movePseudoRoom(doc: MapDocument, pseudoRoomId: string, position: Position): MapDocument {
+  const pseudoRoom = doc.pseudoRooms[pseudoRoomId];
+  if (!pseudoRoom) {
+    throw new Error(`Pseudo-room "${pseudoRoomId}" not found.`);
+  }
+
+  if (pseudoRoom.position.x === position.x && pseudoRoom.position.y === position.y) {
+    return doc;
+  }
+
+  return touch({
+    ...doc,
+    pseudoRooms: {
+      ...doc.pseudoRooms,
+      [pseudoRoomId]: {
+        ...pseudoRoom,
+        position,
+      },
+    },
   });
 }
 

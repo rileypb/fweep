@@ -1,4 +1,5 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
+import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import { getRoomFillColor, getRoomStrokeColor } from '../domain/room-color-palette';
 import { blobToCanvas, createSizedCanvas } from '../components/map-background-raster';
 import { getRoomStrokeDasharray } from '../components/map-canvas-helpers';
@@ -272,7 +273,9 @@ function drawConnectionLine(
   theme: ExportRenderInput['theme'],
 ): { geometry: ConnectionRenderGeometry; points: readonly Point[] } | null {
   const sourceRoom = doc.rooms[connection.sourceRoomId];
-  const targetRoom = doc.rooms[connection.targetRoomId];
+  const targetRoom = connection.target.kind === 'room'
+    ? doc.rooms[connection.target.id]
+    : (doc.pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(doc.pseudoRooms[connection.target.id]) : null);
   if (!sourceRoom || !targetRoom) {
     return null;
   }
@@ -282,25 +285,28 @@ function drawConnectionLine(
 
   const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
   const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
-  const points = computeConnectionPath(
-    effectiveSourceRoom,
-    effectiveTargetRoom,
+  const points = insetPseudoRoomConnectionEndpoint(
     connection,
-    undefined,
-    sourceDimensions,
-    targetDimensions,
+    computeConnectionPath(
+      effectiveSourceRoom,
+      effectiveTargetRoom,
+      connection,
+      undefined,
+      sourceDimensions,
+      targetDimensions,
+    ),
   );
   const geometry = createConnectionRenderGeometry(
     points,
     connection.isBidirectional,
     doc.view.useBezierConnections,
-    connection.sourceRoomId === connection.targetRoomId,
+    connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id,
   );
 
   context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
-  if (connection.sourceRoomId !== connection.targetRoomId) {
+  if (!(connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id)) {
     const visibleGapResult = getVisibleConnectionSegments(
       connection,
       geometry.kind === 'polyline' ? points : geometry,
@@ -752,7 +758,9 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   renderedConnectionGeometry.forEach(({ connection, result }) => {
     if (result) {
       const sourceRoom = input.doc.rooms[connection.sourceRoomId];
-      const targetRoom = input.doc.rooms[connection.targetRoomId];
+      const targetRoom = connection.target.kind === 'room'
+        ? input.doc.rooms[connection.target.id]
+        : (input.doc.pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(input.doc.pseudoRooms[connection.target.id]) : null);
       if (sourceRoom && targetRoom) {
         drawConnectionLabels(context, sourceRoom, targetRoom, connection, result.geometry, result.points, input.theme);
       }

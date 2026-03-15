@@ -4,12 +4,13 @@ import {
   createConnection,
   createEmptyMap,
   createItem,
+  createPseudoRoom,
   createRoom,
   type Connection,
   type Item,
   type MapDocument,
 } from '../../src/domain/map-types';
-import { addConnection, addItem, addRoom } from '../../src/domain/map-operations';
+import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
 import {
   MapValidationError,
   parseUntrustedMapDocument,
@@ -468,6 +469,21 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.connections[connectionId].endLabel).toBe('bridge');
   });
 
+  it('accepts pseudo-rooms with one incoming one-way connection', () => {
+    const room = { ...createRoom('Kitchen'), id: 'kitchen' };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'unknown-exit' };
+    let doc = addRoom(createEmptyMap('Pseudo'), room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }), 'north');
+
+    const parsed = parseUntrustedMapDocument(doc);
+    expect(parsed.pseudoRooms[pseudoRoom.id]).toMatchObject({
+      id: pseudoRoom.id,
+      kind: 'unknown',
+    });
+    expect(Object.values(parsed.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRoom.id });
+  });
+
   it('rejects text annotations without text', () => {
     const doc = validMap();
     const connectionId = Object.keys(doc.connections)[0];
@@ -727,6 +743,19 @@ describe('validateMap', () => {
     const result = validateMap(broken);
     expect(result.errors.some((e) => /missing sticky note/i.test(e.message))).toBe(true);
     expect(result.errors.some((e) => /missing room/i.test(e.message))).toBe(true);
+  });
+
+  it('reports an error when a pseudo-room has no incoming connection', () => {
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'unknown-exit' };
+    const doc = addPseudoRoom(createEmptyMap('Pseudo'), pseudoRoom);
+
+    const result = validateMap(doc);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entityType: 'pseudo-room',
+        entityId: pseudoRoom.id,
+      }),
+    ]));
   });
 
   it('returns structured paths for background reference image dimension errors', () => {

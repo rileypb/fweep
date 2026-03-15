@@ -298,6 +298,7 @@ export function ConnectionEditorOverlay({
 
 export interface RoomEditorOverlayProps {
   roomId?: string;
+  pseudoRoomId?: string;
   initialPosition?: Position;
   visibleMapLeftInset?: number;
   theme: ThemeMode;
@@ -307,6 +308,7 @@ export interface RoomEditorOverlayProps {
 
 export function RoomEditorOverlay({
   roomId,
+  pseudoRoomId,
   initialPosition,
   visibleMapLeftInset = 0,
   theme,
@@ -314,10 +316,12 @@ export function RoomEditorOverlay({
   onBackdropClose,
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => (roomId === undefined ? null : (s.doc?.rooms[roomId] ?? null)));
+  const pseudoRoom = useEditorStore((s) => (pseudoRoomId === undefined ? null : (s.doc?.pseudoRooms[pseudoRoomId] ?? null)));
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
+  const convertPseudoRoomToRoom = useEditorStore((s) => s.convertPseudoRoomToRoom);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const isNewRoomDraft = roomId === undefined;
+  const isNewRoomDraft = roomId === undefined && pseudoRoomId === undefined;
   const [draft, setDraft] = useState(() => (
     room === null
       ? {
@@ -358,6 +362,12 @@ export function RoomEditorOverlay({
             return;
           }
 
+          if (pseudoRoom !== null) {
+            const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
+            onClose(createdRoomId);
+            return;
+          }
+
           if (initialPosition) {
             const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
             onClose(createdRoomId);
@@ -372,7 +382,7 @@ export function RoomEditorOverlay({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [applyRoomEditorDraft, createRoomFromEditorDraft, draft, initialPosition, onBackdropClose, onClose, room]);
+  }, [applyRoomEditorDraft, convertPseudoRoomToRoom, createRoomFromEditorDraft, draft, initialPosition, onBackdropClose, onClose, pseudoRoom, room]);
 
   useLayoutEffect(() => {
     if (nameInputRef.current) {
@@ -381,7 +391,7 @@ export function RoomEditorOverlay({
     }
   }, []);
 
-  if ((!room && !isNewRoomDraft) || !draft || (isNewRoomDraft && !initialPosition)) {
+  if ((!room && !pseudoRoom && !isNewRoomDraft) || !draft || (isNewRoomDraft && !initialPosition)) {
     return null;
   }
 
@@ -393,7 +403,7 @@ export function RoomEditorOverlay({
       directions: {},
       isDark: false,
       locked: false,
-      position: initialPosition!,
+      position: pseudoRoom?.position ?? initialPosition!,
     }),
     name: draft.name,
     shape: draft.shape,
@@ -429,6 +439,12 @@ export function RoomEditorOverlay({
           if (room !== null) {
             applyRoomEditorDraft(room.id, draft);
             onClose(room.id);
+            return;
+          }
+
+          if (pseudoRoom !== null) {
+            const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
+            onClose(createdRoomId);
             return;
           }
 

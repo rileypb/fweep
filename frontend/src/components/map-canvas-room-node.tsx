@@ -17,6 +17,15 @@ import { PadlockGlyph } from './padlock-glyph';
 const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 const VERTICAL_HANDLE_RADIUS = 4;
+const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
+  '[data-room-id]',
+  '[data-sticky-note-id]',
+  '[data-connection-id]',
+  '[data-sticky-note-link-id]',
+  '.map-drawing-toolbar',
+  '.map-canvas-actions',
+  '[data-testid="map-minimap"]',
+].join(', ');
 
 interface DirectionHandlesProps {
   roomWidth: number;
@@ -115,6 +124,7 @@ export interface MapCanvasRoomNodeProps {
   isSelected: boolean;
   isRoomEditorOpen: boolean;
   onOpenRoomEditor: (roomId: string) => void;
+  onEmptyConnectionDrop: (position: PanOffset, clientX: number, clientY: number) => void;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
@@ -124,6 +134,7 @@ export function MapCanvasRoomNode({
   isSelected,
   isRoomEditorOpen,
   onOpenRoomEditor,
+  onEmptyConnectionDrop,
   toMapPoint,
 }: MapCanvasRoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
@@ -256,6 +267,9 @@ export function MapCanvasRoomNode({
           const handleEl = target?.closest?.('[data-direction]') as HTMLElement | null;
           const targetDir = handleEl?.getAttribute('data-direction') ?? undefined;
           completeConnectionDrag(targetRoomId, targetDir);
+        } else if (target?.closest?.('[data-testid="map-canvas"]') && !target?.closest?.(NON_EMPTY_CONNECTION_DROP_SELECTOR)) {
+          const targetPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
+          onEmptyConnectionDrop(targetPoint, upEvent.clientX, upEvent.clientY);
         } else {
           cancelConnectionDrag();
         }
@@ -264,7 +278,17 @@ export function MapCanvasRoomNode({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [room.id, isRoomEditorOpen, startConnectionDrag, updateConnectionDrag, completeConnectionDrag, cancelConnectionDrag, toMapPoint],
+    [
+      cancelConnectionDrag,
+      completeConnectionDrag,
+      isRoomEditorOpen,
+      onEmptyConnectionDrop,
+      onOpenRoomEditor,
+      room.id,
+      startConnectionDrag,
+      toMapPoint,
+      updateConnectionDrag,
+    ],
   );
 
   return (

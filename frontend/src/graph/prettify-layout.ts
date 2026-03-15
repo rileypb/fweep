@@ -97,8 +97,8 @@ function deriveDirectionConstraints(doc: MapDocument): DirectionConstraint[] {
       }
 
       const otherRoomId = connection.sourceRoomId === room.id
-        ? connection.targetRoomId
-        : connection.targetRoomId === room.id
+        ? (connection.target.kind === 'room' ? connection.target.id : undefined)
+        : connection.target.kind === 'room' && connection.target.id === room.id
           ? connection.sourceRoomId
           : undefined;
 

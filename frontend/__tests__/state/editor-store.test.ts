@@ -931,7 +931,7 @@ describe('useEditorStore', () => {
 
       const conn = connections[0];
       expect(conn.sourceRoomId).toBe(kitchenId);
-      expect(conn.targetRoomId).toBe(hallwayId);
+      expect(conn.target).toEqual({ kind: 'room', id: hallwayId });
       expect(conn.isBidirectional).toBe(false);
 
       // Source room should have 'north' bound
@@ -977,7 +977,7 @@ describe('useEditorStore', () => {
 
       const conn = connections[0];
       expect(conn.sourceRoomId).toBe(kitchenId);
-      expect(conn.targetRoomId).toBe(kitchenId);
+      expect(conn.target).toEqual({ kind: 'room', id: kitchenId });
       expect(conn.isBidirectional).toBe(false);
 
       // Source room should have 'north' bound
@@ -1000,7 +1000,7 @@ describe('useEditorStore', () => {
 
       const conn = connections[0];
       expect(conn.sourceRoomId).toBe(kitchenId);
-      expect(conn.targetRoomId).toBe(kitchenId);
+      expect(conn.target).toEqual({ kind: 'room', id: kitchenId });
       expect(conn.isBidirectional).toBe(true);
       expect(doc.rooms[kitchenId].directions['north']).toBe(conn.id);
       expect(doc.rooms[kitchenId].directions['east']).toBe(conn.id);
@@ -1031,6 +1031,92 @@ describe('useEditorStore', () => {
       useEditorStore.getState().completeConnectionDrag('r2');
 
       expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
+    it('completeConnectionDragToNewRoom creates a snapped room and one-way connection in one history step', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      const createdRoomId = useEditorStore.getState().completeConnectionDragToNewRoom({ x: 155, y: 65 });
+
+      expect(createdRoomId).not.toBeNull();
+
+      const doc = useEditorStore.getState().doc!;
+      const createdRoom = doc.rooms[createdRoomId!];
+      expect(createdRoom.position).toEqual({ x: 160, y: 80 });
+
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+      expect(connections[0].sourceRoomId).toBe(kitchenId);
+      expect(connections[0].target).toEqual({ kind: 'room', id: createdRoomId! });
+      expect(connections[0].isBidirectional).toBe(false);
+      expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
+      expect(doc.rooms[createdRoomId!].directions).toEqual({});
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([createdRoomId]);
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+      expect(useEditorStore.getState().pastEntries).toHaveLength(2);
+    });
+
+    it('completeConnectionDragToNewRoom can be undone and redone as a single edit', async () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      const createdRoomId = useEditorStore.getState().completeConnectionDragToNewRoom({ x: 160, y: 80 });
+
+      expect(createdRoomId).not.toBeNull();
+      expect(Object.keys(useEditorStore.getState().doc!.rooms)).toContain(createdRoomId!);
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(1);
+
+      await useEditorStore.getState().undo();
+
+      expect(Object.keys(useEditorStore.getState().doc!.rooms)).toEqual([kitchenId]);
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(0);
+
+      await useEditorStore.getState().redo();
+
+      expect(Object.keys(useEditorStore.getState().doc!.rooms)).toContain(createdRoomId!);
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(1);
+    });
+
+    it('createPseudoRoomAndConnect creates a pseudo-room target with a one-way connection', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      const result = useEditorStore.getState().createPseudoRoomAndConnect('unknown', { x: 160, y: 80 }, kitchenId, 'north');
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.pseudoRooms[result.pseudoRoomId]).toMatchObject({
+        id: result.pseudoRoomId,
+        kind: 'unknown',
+        position: { x: 160, y: 80 },
+      });
+      expect(doc.connections[result.connectionId].target).toEqual({ kind: 'pseudo-room', id: result.pseudoRoomId });
+      expect(doc.rooms[kitchenId].directions.north).toBe(result.connectionId);
+    });
+
+    it('convertPseudoRoomToRoom preserves the node id and retargets incoming connections', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const result = useEditorStore.getState().createPseudoRoomAndConnect('unknown', { x: 160, y: 80 }, kitchenId, 'north');
+
+      const roomId = useEditorStore.getState().convertPseudoRoomToRoom(result.pseudoRoomId, {
+        name: 'Hallway',
+        shape: 'rectangle',
+        fillColorIndex: 0,
+        strokeColorIndex: 0,
+        strokeStyle: 'solid',
+      });
+
+      const doc = useEditorStore.getState().doc!;
+      expect(roomId).toBe(result.pseudoRoomId);
+      expect(doc.pseudoRooms[result.pseudoRoomId]).toBeUndefined();
+      expect(doc.rooms[result.pseudoRoomId]).toMatchObject({
+        id: result.pseudoRoomId,
+        name: 'Hallway',
+      });
+      expect(doc.connections[result.connectionId].target).toEqual({ kind: 'room', id: result.pseudoRoomId });
     });
   });
 

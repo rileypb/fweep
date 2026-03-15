@@ -237,7 +237,7 @@ export function getMinimapConnectionPoints(
   visualStyle: MapVisualStyle = 'default',
 ): Point[] {
   const sourceRoom = rooms[connection.sourceRoomId];
-  const targetRoom = rooms[connection.targetRoomId];
+  const targetRoom = connection.target.kind === 'room' ? rooms[connection.target.id] : null;
   if (!sourceRoom || !targetRoom) {
     return [];
   }
@@ -255,7 +255,7 @@ export function getMinimapConnectionPoints(
     sourceDimensions,
     targetDimensions,
   );
-  if (connection.sourceRoomId === connection.targetRoomId || points.length < 2) {
+  if ((connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id) || points.length < 2) {
     return points.map((point) => toMinimapPoint(point, transform));
   }
 

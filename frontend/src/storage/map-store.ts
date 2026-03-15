@@ -186,6 +186,7 @@ function normalizeRoom(
 function normalizeConnection(
   connection: MapDocument['connections'][string] | (
     Omit<MapDocument['connections'][string], 'annotation' | 'strokeColorIndex' | 'strokeStyle'> & {
+      targetRoomId?: string;
       annotation?: MapDocument['connections'][string]['annotation'];
       strokeColorIndex?: number;
       strokeColor?: string;
@@ -217,6 +218,10 @@ function normalizeConnection(
 
   return {
     ...restConnection,
+    target: connection.target ?? {
+      kind: 'room',
+      id: typeof legacyConnection.targetRoomId === 'string' ? legacyConnection.targetRoomId : '',
+    },
     annotation,
     strokeColorIndex,
     strokeStyle,
@@ -241,6 +246,7 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
   const rooms = Object.fromEntries(
     Object.entries(doc.rooms).map(([roomId, room]) => [roomId, normalizeRoom(room)]),
   );
+  const pseudoRooms = doc.pseudoRooms ?? {};
   const connections = Object.fromEntries(
     Object.entries(doc.connections).map(([connectionId, connection]) => [connectionId, normalizeConnection(connection)]),
   );
@@ -253,6 +259,7 @@ function normalizeMapDocument(doc: MapDocument): MapDocument {
       ? doc.cliOutputLines.filter((line): line is string => typeof line === 'string')
       : [],
     rooms,
+    pseudoRooms,
     connections,
     stickyNotes: doc.stickyNotes ?? {},
     stickyNoteLinks: doc.stickyNoteLinks ?? {},

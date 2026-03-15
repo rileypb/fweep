@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createRoom, type Position, type Room } from '../domain/map-types';
+import { createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
 import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
@@ -20,6 +20,7 @@ import {
   RoomEditorOverlay,
 } from './map-canvas-overlays';
 import { MapCanvasRoomNode } from './map-canvas-room-node';
+import { MapCanvasPseudoRoomNode } from './map-canvas-pseudo-room-node';
 import { MapCanvasStickyNote } from './map-canvas-sticky-note';
 import { MapCanvasConnections } from './map-canvas-connections';
 import { MapCanvasBackground, type MapCanvasBackgroundHandle } from './map-canvas-background';
@@ -133,7 +134,14 @@ export interface MapCanvasProps {
 
 interface RoomEditorState {
   readonly roomId?: string;
+  readonly pseudoRoomId?: string;
   readonly initialPosition?: Position;
+}
+
+interface PendingConnectionDrop {
+  readonly position: Position;
+  readonly screenX: number;
+  readonly screenY: number;
 }
 
 export function MapCanvas({
@@ -150,6 +158,7 @@ export function MapCanvas({
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorState, setRoomEditorState] = useState<RoomEditorState | null>(null);
   const roomEditorId = roomEditorState?.roomId ?? null;
+  const isRoomEditorOpen = roomEditorState !== null;
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
   const [stickyNoteEditorId, setStickyNoteEditorId] = useState<string | null>(null);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -161,6 +170,7 @@ export function MapCanvas({
   const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
   const [isRoomPlacementArmed, setIsRoomPlacementArmed] = useState(false);
   const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
+  const [pendingConnectionDrop, setPendingConnectionDrop] = useState<PendingConnectionDrop | null>(null);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
@@ -169,6 +179,8 @@ export function MapCanvas({
   const selectedStickyNoteLinkIds = useEditorStore((s) => s.selectedStickyNoteLinkIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addStickyNoteAtPosition = useEditorStore((s) => s.addStickyNoteAtPosition);
+  const completeConnectionDragToNewRoom = useEditorStore((s) => s.completeConnectionDragToNewRoom);
+  const createPseudoRoomAndConnect = useEditorStore((s) => s.createPseudoRoomAndConnect);
   const setSelection = useEditorStore((s) => s.setSelection);
   const exportRegionDraft = useEditorStore((s) => s.exportRegionDraft);
   const exportRegion = useEditorStore((s) => s.exportRegion);
@@ -225,6 +237,7 @@ export function MapCanvas({
   };
 
   const rooms = doc ? Object.values(doc.rooms) : [];
+  const pseudoRooms = doc ? Object.values(doc.pseudoRooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
   const hasExportSelection = selectedRoomIds.length > 0
     || selectedStickyNoteIds.length > 0
@@ -286,7 +299,7 @@ export function MapCanvas({
         return;
       }
 
-      if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+      if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
         return;
       }
 
@@ -336,7 +349,7 @@ export function MapCanvas({
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown);
     };
-  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, redo, roomEditorId, setCanvasInteractionMode, undo]);
+  }, [canvasInteractionMode, connectionDrag, connectionEditorId, drawingInterfaceEnabled, isRoomEditorOpen, redo, setCanvasInteractionMode, undo]);
 
   useEffect(() => {
     if (!doc) {
@@ -460,6 +473,12 @@ export function MapCanvas({
     setRoomEditorState({ roomId });
   }, [panToRoomEditorPosition]);
 
+  const openPseudoRoomEditor = useCallback((pseudoRoomId: string) => {
+    setStickyNoteEditorId(null);
+    setConnectionEditorId(null);
+    setRoomEditorState({ pseudoRoomId });
+  }, []);
+
   const openNewRoomEditor = useCallback((position: Position) => {
     setStickyNoteEditorId(null);
     setConnectionEditorId(null);
@@ -490,6 +509,41 @@ export function MapCanvas({
     setConnectionEditorId(null);
     setStickyNoteEditorId(stickyNoteId);
   }, []);
+
+  const openConnectionCreationMenu = useCallback((position: Position, clientX: number, clientY: number) => {
+    setPendingConnectionDrop({
+      position,
+      screenX: clientX,
+      screenY: clientY,
+    });
+  }, []);
+
+  const closeConnectionCreationMenu = useCallback(() => {
+    setPendingConnectionDrop(null);
+    useEditorStore.getState().cancelConnectionDrag();
+  }, []);
+
+  const handleCreateFromPendingDrop = useCallback((kind: 'room' | PseudoRoomKind) => {
+    const currentDrop = pendingConnectionDrop;
+    const currentDrag = useEditorStore.getState().connectionDrag;
+    if (!currentDrop || !currentDrag) {
+      setPendingConnectionDrop(null);
+      return;
+    }
+
+    if (kind === 'room') {
+      const createdRoomId = completeConnectionDragToNewRoom(currentDrop.position);
+      setPendingConnectionDrop(null);
+      if (createdRoomId !== null) {
+        openRoomEditor(createdRoomId);
+      }
+      return;
+    }
+
+    createPseudoRoomAndConnect(kind, currentDrop.position, currentDrag.sourceRoomId, currentDrag.sourceDirection);
+    useEditorStore.getState().cancelConnectionDrag();
+    setPendingConnectionDrop(null);
+  }, [completeConnectionDragToNewRoom, createPseudoRoomAndConnect, openRoomEditor, pendingConnectionDrop]);
 
   const closeStickyNoteEditor = useCallback(() => {
     setStickyNoteEditorId(null);
@@ -870,7 +924,7 @@ export function MapCanvas({
   }, [cancelBackgroundStroke, commitBackgroundStroke, doc]);
 
   const handleCanvasSelectionMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (e.button !== 0 || isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1079,7 +1133,7 @@ export function MapCanvas({
     finishDrawingStroke,
     isPickingExportRegion,
     panOffsetRef,
-    roomEditorId,
+    isRoomEditorOpen,
     rooms,
     stickyNotes,
     setSelection,
@@ -1090,7 +1144,7 @@ export function MapCanvas({
   ]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1132,10 +1186,10 @@ export function MapCanvas({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [connectionDrag, connectionEditorId, effectiveCanvasInteractionMode, roomEditorId, panOffsetRef, setPanOffset]);
+  }, [connectionDrag, connectionEditorId, effectiveCanvasInteractionMode, isRoomEditorOpen, panOffsetRef, setPanOffset]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (roomEditorId || connectionEditorId || activeStroke) return;
+    if (isRoomEditorOpen || connectionEditorId || activeStroke) return;
 
     if (suppressCanvasClickRef.current) {
       suppressCanvasClickRef.current = false;
@@ -1172,10 +1226,10 @@ export function MapCanvas({
     closeStickyNoteEditor();
     canvasRef.current?.focus();
     clearSelection();
-  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, openNewRoomEditor, roomEditorId, toMapPoint]);
+  }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, openNewRoomEditor, toMapPoint]);
 
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1195,10 +1249,10 @@ export function MapCanvas({
     }
 
     panBy({ x: -e.deltaX, y: -e.deltaY });
-  }, [connectionDrag, connectionEditorId, panBy, roomEditorId, zoomAtClientPoint]);
+  }, [connectionDrag, connectionEditorId, isRoomEditorOpen, panBy, zoomAtClientPoint]);
 
   const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (roomEditorId !== null || connectionEditorId !== null || connectionDrag !== null) {
+    if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null) {
       return;
     }
 
@@ -1300,7 +1354,7 @@ export function MapCanvas({
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     centerRoomOnScreen(nearestRoom);
-  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, drawingInterfaceEnabled, openRoomEditor, redo, removeSelectedEntities, roomEditorId, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
+  }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
 
   const classes = [
     'map-canvas',
@@ -1354,17 +1408,17 @@ export function MapCanvas({
           />
         )}
         <div
-          className={`map-canvas-scene${roomEditorId || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
+          className={`map-canvas-scene${isRoomEditorOpen || connectionEditorId ? ' map-canvas-scene--editor-open' : ''}`}
           data-testid="map-canvas-scene"
         >
           {drawingInterfaceEnabled && <MapDrawingToolbar />}
-        {doc && (rooms.length > 0 || stickyNotes.length > 0 || minimapBackground.activeLayerId !== null) && (
+        {doc && (rooms.length > 0 || pseudoRooms.length > 0 || stickyNotes.length > 0 || minimapBackground.activeLayerId !== null) && (
           <MapMinimap
             mapId={doc.metadata.id}
             background={minimapBackground}
             backgroundRevision={backgroundRevision}
             rooms={doc.rooms}
-            connections={doc.connections}
+            connections={Object.fromEntries(Object.entries(doc.connections).filter(([, connection]) => connection.target.kind === 'room'))}
             stickyNotes={doc.stickyNotes}
             stickyNoteLinks={doc.stickyNoteLinks}
             selectedRoomIds={selectedRoomIds}
@@ -1377,7 +1431,7 @@ export function MapCanvas({
             canvasRect={effectiveCanvasRect}
             visibleMapLeftInset={visibleMapLeftInset}
             theme={theme}
-            disabled={roomEditorId !== null || connectionEditorId !== null}
+            disabled={isRoomEditorOpen || connectionEditorId !== null}
             onPanToMapPoint={centerOnMapPoint}
             onPanBy={panBy}
           />
@@ -1401,6 +1455,7 @@ export function MapCanvas({
           {doc && (
             <MapCanvasConnections
               rooms={doc.rooms}
+              pseudoRooms={doc.pseudoRooms}
               connections={doc.connections}
               stickyNotes={doc.stickyNotes}
               stickyNoteLinks={doc.stickyNoteLinks}
@@ -1428,12 +1483,47 @@ export function MapCanvas({
               room={room}
               theme={theme}
               isSelected={selectedRoomIds.includes(room.id)}
-              isRoomEditorOpen={roomEditorId !== null}
+              isRoomEditorOpen={isRoomEditorOpen}
               onOpenRoomEditor={openRoomEditor}
+              onEmptyConnectionDrop={openConnectionCreationMenu}
               toMapPoint={toMapPoint}
             />
           ))}
+
+          {pseudoRooms.map((pseudoRoom) => (
+            <MapCanvasPseudoRoomNode
+              key={pseudoRoom.id}
+              pseudoRoom={pseudoRoom}
+              theme={theme}
+              onOpenPseudoRoomEditor={openPseudoRoomEditor}
+            />
+          ))}
         </div>
+
+        {pendingConnectionDrop && (
+          <div
+            className="map-canvas-connection-create-menu"
+            data-testid="connection-create-menu"
+            style={{
+              position: 'absolute',
+              left: `${pendingConnectionDrop.screenX}px`,
+              top: `${pendingConnectionDrop.screenY}px`,
+              transform: 'translate(-50%, -50%)',
+              zIndex: 12,
+              display: 'flex',
+              gap: '8px',
+              padding: '8px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.95)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            }}
+          >
+            <button type="button" onClick={() => handleCreateFromPendingDrop('room')}>Room</button>
+            <button type="button" onClick={() => handleCreateFromPendingDrop('unknown')}>?</button>
+            <button type="button" onClick={() => handleCreateFromPendingDrop('infinite')}>∞</button>
+            <button type="button" onClick={closeConnectionCreationMenu}>Cancel</button>
+          </div>
+        )}
 
         {selectionBox && (
           <div
@@ -1534,8 +1624,9 @@ export function MapCanvas({
 
       {roomEditorState && (
         <RoomEditorOverlay
-          key={roomEditorId ?? `new-room-${roomEditorState.initialPosition?.x ?? 0}-${roomEditorState.initialPosition?.y ?? 0}`}
+          key={roomEditorId ?? roomEditorState?.pseudoRoomId ?? `new-room-${roomEditorState.initialPosition?.x ?? 0}-${roomEditorState.initialPosition?.y ?? 0}`}
           roomId={roomEditorId ?? undefined}
+          pseudoRoomId={roomEditorState?.pseudoRoomId}
           initialPosition={roomEditorState.initialPosition}
           visibleMapLeftInset={visibleMapLeftInset}
           theme={theme}

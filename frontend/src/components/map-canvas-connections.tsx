@@ -2,10 +2,12 @@ import { useEditorStore } from '../state/editor-store';
 import {
   type Connection,
   type MapVisualStyle,
+  type PseudoRoom,
   type Room,
   type StickyNote,
   type StickyNoteLink,
 } from '../domain/map-types';
+import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import {
   type ConnectionRenderGeometry,
@@ -218,6 +220,7 @@ function getStubLabelGeometry(
 
 export interface MapCanvasConnectionsProps {
   rooms: Readonly<Record<string, Room>>;
+  pseudoRooms: Readonly<Record<string, PseudoRoom>>;
   connections: Readonly<Record<string, Connection>>;
   stickyNotes: Readonly<Record<string, StickyNote>>;
   stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
@@ -228,6 +231,7 @@ export interface MapCanvasConnectionsProps {
 
 export function MapCanvasConnections({
   rooms,
+  pseudoRooms,
   connections,
   stickyNotes,
   stickyNoteLinks,
@@ -249,6 +253,15 @@ export function MapCanvasConnections({
   const interactionsDisabled = canvasInteractionMode === 'draw';
   const entries = Object.values(connections);
   const stickyNoteLinkEntries = Object.values(stickyNoteLinks);
+
+  const getTargetVisualRoom = (connection: Connection): Room | null => {
+    if (connection.target.kind === 'room') {
+      return rooms[connection.target.id] ?? null;
+    }
+
+    const pseudoRoom = pseudoRooms[connection.target.id];
+    return pseudoRoom ? toPseudoRoomVisualRoom(pseudoRoom) : null;
+  };
 
   const renderConnectionLine = (
     conn: Connection,
@@ -348,7 +361,7 @@ export function MapCanvasConnections({
         ),
         visualStyle,
       );
-    const usesGapRendering = conn.sourceRoomId !== conn.targetRoomId
+    const usesGapRendering = !(conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)
       && visiblePolylineResult.hasGap;
 
     return (
@@ -781,25 +794,28 @@ export function MapCanvasConnections({
       >
         {entries.map((conn) => {
           const rawSrc = rooms[conn.sourceRoomId];
-          const rawTgt = rooms[conn.targetRoomId];
+          const rawTgt = getTargetVisualRoom(conn);
           if (!rawSrc || !rawTgt) return null;
 
           const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
           const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
-          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
+          const points = insetPseudoRoomConnectionEndpoint(
+            conn,
+            computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
+          );
           const geometry = createConnectionRenderGeometry(
             points,
             conn.isBidirectional,
             useBezierConnectionsEnabled,
-            conn.sourceRoomId === conn.targetRoomId,
+            conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id,
           );
           const arrowPointSets = !conn.isBidirectional ? computeGeometryArrowheadPoints(geometry) : [];
 
           return (
             <g key={conn.id}>
-              {renderConnectionLine(conn, src, tgt, points, geometry, conn.sourceRoomId === conn.targetRoomId)}
+              {renderConnectionLine(conn, src, tgt, points, geometry, conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)}
               {arrowPointSets.map((arrowPoints, index) => (
                 <polygon
                   key={`${conn.id}-arrow-${index}`}
@@ -963,7 +979,7 @@ export function MapCanvasConnections({
       >
         {entries.map((conn) => {
           const rawSrc = rooms[conn.sourceRoomId];
-          const rawTgt = rooms[conn.targetRoomId];
+          const rawTgt = getTargetVisualRoom(conn);
           if (!rawSrc || !rawTgt) return null;
 
           const src = applyDragOffset(rawSrc, selectionDrag);
@@ -971,7 +987,10 @@ export function MapCanvasConnections({
           const effectiveSrc = getRoomForVisualStyle(src, visualStyle);
           const srcDimensions = getRoomNodeDimensions(effectiveSrc, visualStyle);
           const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
-          const points = computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions);
+          const points = insetPseudoRoomConnectionEndpoint(
+            conn,
+            computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions),
+          );
 
           return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;
         })}

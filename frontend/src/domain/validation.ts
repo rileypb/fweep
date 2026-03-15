@@ -15,6 +15,8 @@ import {
   type MapMetadata,
   type MapView,
   type Position,
+  PSEUDO_ROOM_KINDS,
+  type PseudoRoom,
   type Room,
   type StickyNote,
   type StickyNoteLink,
@@ -29,7 +31,7 @@ import {
 } from './room-color-palette';
 
 export type ValidationSeverity = 'error' | 'warning';
-export type EntityType = 'map' | 'metadata' | 'room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
+export type EntityType = 'map' | 'metadata' | 'room' | 'pseudo-room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
 export type MapValidationErrorCode =
   | 'invalid-map-document'
   | 'unsupported-schema-version'
@@ -40,6 +42,7 @@ export const MAX_ENTITY_NAME_LENGTH = 200;
 export const MAX_DESCRIPTION_LENGTH = 10_000;
 export const MAX_ROOMS = 5_000;
 export const MAX_CONNECTIONS = 10_000;
+export const MAX_PSEUDO_ROOMS = 5_000;
 export const MAX_ITEMS = 10_000;
 export const MAX_STICKY_NOTES = 10_000;
 export const MAX_STICKY_NOTE_LINKS = 10_000;
@@ -732,13 +735,33 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     'connection',
     entryKey,
   );
-  const targetRoomId = requireString(
-    connection.targetRoomId,
-    issues,
-    `connections.${entryKey}.targetRoomId`,
-    'connection',
-    entryKey,
-  );
+  const target = (() => {
+    if (connection.target !== undefined) {
+      const targetValue = asRecord(connection.target, issues, `connections.${entryKey}.target`, 'connection', entryKey);
+      if (!targetValue) {
+        return null;
+      }
+      const kind = requireString(targetValue.kind, issues, `connections.${entryKey}.target.kind`, 'connection', entryKey);
+      const id = requireString(targetValue.id, issues, `connections.${entryKey}.target.id`, 'connection', entryKey);
+      if (kind === null || id === null) {
+        return null;
+      }
+      if (kind !== 'room' && kind !== 'pseudo-room') {
+        pushIssue(issues, 'error', 'connection', entryKey, `connections.${entryKey}.target.kind`, 'Connection target kind must be "room" or "pseudo-room".');
+        return null;
+      }
+      return { kind, id } as Connection['target'];
+    }
+
+    const legacyTargetRoomId = requireString(
+      connection.targetRoomId,
+      issues,
+      `connections.${entryKey}.targetRoomId`,
+      'connection',
+      entryKey,
+    );
+    return legacyTargetRoomId === null ? null : { kind: 'room' as const, id: legacyTargetRoomId };
+  })();
   const isBidirectional = requireBoolean(
     connection.isBidirectional,
     issues,
@@ -747,7 +770,7 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
     entryKey,
   );
 
-  if (id === null || sourceRoomId === null || targetRoomId === null || isBidirectional === null) {
+  if (id === null || sourceRoomId === null || target === null || isBidirectional === null) {
     return null;
   }
 
@@ -765,7 +788,7 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
   return {
     id,
     sourceRoomId,
-    targetRoomId,
+    target,
     isBidirectional,
     annotation: parseConnectionAnnotation(connection.annotation, issues, entryKey),
     startLabel: parseOptionalString(
@@ -799,6 +822,34 @@ function parseConnection(entryKey: string, value: unknown, issues: ValidationIss
       entryKey,
       `connections.${entryKey}.strokeStyle`,
     ),
+  };
+}
+
+function parsePseudoRoom(entryKey: string, value: unknown, issues: ValidationIssue[]): PseudoRoom | null {
+  const pseudoRoom = asRecord(value, issues, `pseudoRooms.${entryKey}`, 'pseudo-room', entryKey);
+  if (!pseudoRoom) {
+    return null;
+  }
+
+  const id = requireString(pseudoRoom.id, issues, `pseudoRooms.${entryKey}.id`, 'pseudo-room', entryKey);
+  const kind = requireString(pseudoRoom.kind, issues, `pseudoRooms.${entryKey}.kind`, 'pseudo-room', entryKey);
+  const position = parsePosition(pseudoRoom.position, issues, entryKey);
+  if (id === null || kind === null || position === null) {
+    return null;
+  }
+
+  if (id !== entryKey) {
+    pushIssue(issues, 'error', 'pseudo-room', entryKey, `pseudoRooms.${entryKey}.id`, 'Pseudo-room id must match its record key.');
+  }
+  if (!PSEUDO_ROOM_KINDS.includes(kind as PseudoRoom['kind'])) {
+    pushIssue(issues, 'error', 'pseudo-room', entryKey, `pseudoRooms.${entryKey}.kind`, 'Pseudo-room kind is not supported.');
+    return null;
+  }
+
+  return {
+    id,
+    kind: kind as PseudoRoom['kind'],
+    position,
   };
 }
 
@@ -922,7 +973,7 @@ function parseStickyNoteLink(entryKey: string, value: unknown, issues: Validatio
 
 function parseRecordCollection<T>(
   value: unknown,
-  path: 'rooms' | 'connections' | 'stickyNotes' | 'stickyNoteLinks' | 'items',
+  path: 'rooms' | 'pseudoRooms' | 'connections' | 'stickyNotes' | 'stickyNoteLinks' | 'items',
   maxEntries: number,
   issues: ValidationIssue[],
   parser: (entryKey: string, entryValue: unknown, parseIssues: ValidationIssue[]) => T | null,
@@ -950,6 +1001,7 @@ function parseRecordCollection<T>(
 
 export function validateMap(doc: MapDocument): ValidationResult {
   const issues: ValidationIssue[] = [];
+  const pseudoIncomingCounts = new Map<string, number>();
 
   for (const [cid, conn] of Object.entries(doc.connections)) {
     if (!doc.rooms[conn.sourceRoomId]) {
@@ -962,15 +1014,39 @@ export function validateMap(doc: MapDocument): ValidationResult {
         `Connection "${cid}" references a missing source room "${conn.sourceRoomId}".`,
       );
     }
-    if (!doc.rooms[conn.targetRoomId]) {
-      pushIssue(
-        issues,
-        'error',
-        'connection',
-        cid,
-        `connections.${cid}.targetRoomId`,
-        `Connection "${cid}" references a missing target room "${conn.targetRoomId}".`,
-      );
+    if (conn.target.kind === 'room') {
+      if (!doc.rooms[conn.target.id]) {
+        pushIssue(
+          issues,
+          'error',
+          'connection',
+          cid,
+          `connections.${cid}.target.id`,
+          `Connection "${cid}" references a missing target room "${conn.target.id}".`,
+        );
+      }
+    } else {
+      if (!doc.pseudoRooms[conn.target.id]) {
+        pushIssue(
+          issues,
+          'error',
+          'connection',
+          cid,
+          `connections.${cid}.target.id`,
+          `Connection "${cid}" references a missing target pseudo-room "${conn.target.id}".`,
+        );
+      }
+      if (conn.isBidirectional) {
+        pushIssue(
+          issues,
+          'error',
+          'connection',
+          cid,
+          `connections.${cid}.isBidirectional`,
+          'Connections to pseudo-rooms must be one-way.',
+        );
+      }
+      pseudoIncomingCounts.set(conn.target.id, (pseudoIncomingCounts.get(conn.target.id) ?? 0) + 1);
     }
   }
 
@@ -1031,7 +1107,9 @@ export function validateMap(doc: MapDocument): ValidationResult {
     const connectedRoomIds = new Set<string>();
     for (const conn of Object.values(doc.connections)) {
       connectedRoomIds.add(conn.sourceRoomId);
-      connectedRoomIds.add(conn.targetRoomId);
+      if (conn.target.kind === 'room') {
+        connectedRoomIds.add(conn.target.id);
+      }
     }
     for (const [rid, room] of Object.entries(doc.rooms)) {
       if (!connectedRoomIds.has(rid)) {
@@ -1044,6 +1122,29 @@ export function validateMap(doc: MapDocument): ValidationResult {
           `Room "${room.name}" has no connections and may be unreachable.`,
         );
       }
+    }
+  }
+
+  for (const [pseudoRoomId] of Object.entries(doc.pseudoRooms)) {
+    const incomingCount = pseudoIncomingCounts.get(pseudoRoomId) ?? 0;
+    if (incomingCount === 0) {
+      pushIssue(
+        issues,
+        'error',
+        'pseudo-room',
+        pseudoRoomId,
+        `pseudoRooms.${pseudoRoomId}`,
+        `Pseudo-room "${pseudoRoomId}" must have exactly one incoming connection.`,
+      );
+    } else if (incomingCount > 1) {
+      pushIssue(
+        issues,
+        'error',
+        'pseudo-room',
+        pseudoRoomId,
+        `pseudoRooms.${pseudoRoomId}`,
+        `Pseudo-room "${pseudoRoomId}" must not have more than one incoming connection.`,
+      );
     }
   }
 
@@ -1070,7 +1171,7 @@ export function parseUntrustedMapDocument(
   const schemaVersion = doc.schemaVersion;
   if (typeof schemaVersion !== 'number') {
     pushIssue(issues, 'error', 'map', 'root', 'schemaVersion', 'schemaVersion must be a number.');
-  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION && schemaVersion !== 1) {
     throwForIssues(
       'unsupported-schema-version',
       'This fweep map uses an unsupported schema version.',
@@ -1089,6 +1190,7 @@ export function parseUntrustedMapDocument(
   const background = parseBackground(doc.background, issues);
   const cliOutputLines = parseStringArray(doc.cliOutputLines, issues, 'cliOutputLines', 'map', 'root');
   const rooms = parseRecordCollection(doc.rooms, 'rooms', MAX_ROOMS, issues, parseRoom);
+  const pseudoRooms = parseRecordCollection(doc.pseudoRooms ?? {}, 'pseudoRooms', MAX_PSEUDO_ROOMS, issues, parsePseudoRoom);
   const connections = parseRecordCollection(doc.connections, 'connections', MAX_CONNECTIONS, issues, parseConnection);
   const stickyNotes = parseRecordCollection(doc.stickyNotes ?? {}, 'stickyNotes', MAX_STICKY_NOTES, issues, parseStickyNote);
   const stickyNoteLinks = parseRecordCollection(doc.stickyNoteLinks ?? {}, 'stickyNoteLinks', MAX_STICKY_NOTE_LINKS, issues, parseStickyNoteLink);
@@ -1105,6 +1207,7 @@ export function parseUntrustedMapDocument(
     background,
     cliOutputLines,
     rooms,
+    pseudoRooms,
     connections,
     stickyNotes,
     stickyNoteLinks,

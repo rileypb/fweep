@@ -605,7 +605,7 @@ describe('URL routing', () => {
     expect(living).toBeDefined();
     expect(connection).toMatchObject({
       sourceRoomId: kitchen?.id,
-      targetRoomId: living?.id,
+      target: { kind: 'room', id: living?.id },
     });
     expect(await screen.findByRole('dialog', { name: /room editor/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /room name/i })).toHaveValue('Kitchen');
@@ -704,7 +704,7 @@ describe('URL routing', () => {
     const connection = Object.values(useEditorStore.getState().doc?.connections ?? {})[0];
     expect(connection).toMatchObject({
       sourceRoomId: 'gate',
-      targetRoomId: 'path',
+      target: { kind: 'room', id: 'path' },
     });
   });
 
@@ -1365,7 +1365,7 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]).toMatchObject({
       sourceRoomId: 'kitchen',
-      targetRoomId: 'hallway',
+      target: { kind: 'room', id: 'hallway' },
       isBidirectional: false,
     });
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
@@ -1490,7 +1490,7 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]).toMatchObject({
       sourceRoomId: 'kitchen',
-      targetRoomId: 'pantry',
+      target: { kind: 'room', id: 'pantry' },
     });
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.west).toBeUndefined();
@@ -1630,7 +1630,7 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]).toMatchObject({
       sourceRoomId: 'kitchen',
-      targetRoomId: 'kitchen',
+      target: { kind: 'room', id: 'kitchen' },
       isBidirectional: true,
     });
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
@@ -1739,7 +1739,7 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]).toMatchObject({
       sourceRoomId: createdRoom?.id,
-      targetRoomId: 'hallway',
+      target: { kind: 'room', id: 'hallway' },
       isBidirectional: true,
     });
     expect(state.selectedRoomIds).toEqual(expect.arrayContaining([createdRoom?.id, 'hallway']));
@@ -1928,7 +1928,7 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(connections[0]).toMatchObject({
       sourceRoomId: createdRoom?.id,
-      targetRoomId: 'hallway',
+      target: { kind: 'room', id: 'hallway' },
       isBidirectional: true,
     });
     expect(state.doc?.rooms[createdRoom!.id]?.directions.down).toBe(connections[0].id);

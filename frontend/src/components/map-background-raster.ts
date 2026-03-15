@@ -95,7 +95,7 @@ export function drawMapObstacleMask(
 
   Object.values(connections).forEach((connection) => {
     const sourceRoom = rooms[connection.sourceRoomId];
-    const targetRoom = rooms[connection.targetRoomId];
+    const targetRoom = connection.target.kind === 'room' ? rooms[connection.target.id] : null;
     if (!sourceRoom || !targetRoom) {
       return;
     }

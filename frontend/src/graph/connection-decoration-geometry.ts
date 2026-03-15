@@ -219,7 +219,10 @@ export function getVisibleConnectionSegments(
     return { segments: [], crossbars: [], hasGap: false };
   }
 
-  const unrelatedRooms = Object.values(rooms).filter((room) => room.id !== connection.sourceRoomId && room.id !== connection.targetRoomId);
+  const unrelatedRooms = Object.values(rooms).filter((room) => (
+    room.id !== connection.sourceRoomId
+    && !(connection.target.kind === 'room' && room.id === connection.target.id)
+  ));
   const segmentInfos: PolylineSegmentInfo[] = [];
   let totalLength = 0;
   for (let index = 0; index < points.length - 1; index += 1) {

@@ -90,6 +90,15 @@ export interface Room {
   readonly strokeStyle: RoomStrokeStyle;
 }
 
+export const PSEUDO_ROOM_KINDS = ['unknown', 'infinite'] as const;
+export type PseudoRoomKind = (typeof PSEUDO_ROOM_KINDS)[number];
+
+export interface PseudoRoom {
+  readonly id: string;
+  readonly kind: PseudoRoomKind;
+  readonly position: Position;
+}
+
 /* ---- Sticky Note ---- */
 
 export interface StickyNote {
@@ -109,13 +118,18 @@ export interface StickyNoteLink {
 export interface Connection {
   readonly id: string;
   readonly sourceRoomId: string;
-  readonly targetRoomId: string;
+  readonly target: ConnectionTarget;
   readonly isBidirectional: boolean;
   readonly annotation: ConnectionAnnotation | null;
   readonly startLabel: string;
   readonly endLabel: string;
   readonly strokeColorIndex: number;
   readonly strokeStyle: RoomStrokeStyle;
+}
+
+export interface ConnectionTarget {
+  readonly kind: 'room' | 'pseudo-room';
+  readonly id: string;
 }
 
 /* ---- Item ---- */
@@ -141,6 +155,7 @@ export interface MapDocument {
   readonly background: BackgroundDocument;
   readonly cliOutputLines: readonly string[];
   readonly rooms: Readonly<Record<string, Room>>;
+  readonly pseudoRooms: Readonly<Record<string, PseudoRoom>>;
   readonly connections: Readonly<Record<string, Connection>>;
   readonly stickyNotes: Readonly<Record<string, StickyNote>>;
   readonly stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
@@ -148,7 +163,7 @@ export interface MapDocument {
 }
 
 /** Current schema version for new maps. */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 export const DEFAULT_CLI_OUTPUT_LINES = [
   'fweep',
   'An interactive map creator by Phil Riley',
@@ -199,6 +214,7 @@ export function createEmptyMap(name: string): MapDocument {
     background: createEmptyBackground(),
     cliOutputLines: [...DEFAULT_CLI_OUTPUT_LINES],
     rooms: {},
+    pseudoRooms: {},
     connections: {},
     stickyNotes: {},
     stickyNoteLinks: {},
@@ -226,19 +242,27 @@ export function createRoom(name: string): Room {
 /** Create a new Connection between two rooms. */
 export function createConnection(
   sourceRoomId: string,
-  targetRoomId: string,
+  target: ConnectionTarget | string,
   isBidirectional = false,
 ): Connection {
   return {
     id: crypto.randomUUID(),
     sourceRoomId,
-    targetRoomId,
+    target: typeof target === 'string' ? { kind: 'room', id: target } : target,
     isBidirectional,
     annotation: null,
     startLabel: '',
     endLabel: '',
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,
+  };
+}
+
+export function createPseudoRoom(kind: PseudoRoomKind): PseudoRoom {
+  return {
+    id: crypto.randomUUID(),
+    kind,
+    position: { x: 0, y: 0 },
   };
 }
 

@@ -1,4 +1,5 @@
 import type { Connection, MapDocument, Position, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
+import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import {
   createConnectionRenderGeometry,
   type Point,
@@ -159,7 +160,9 @@ function getConnectionTextBounds(
   points: readonly Point[],
 ): ExportRegion | null {
   const sourceRoom = doc.rooms[connection.sourceRoomId];
-  const targetRoom = doc.rooms[connection.targetRoomId];
+  const targetRoom = connection.target.kind === 'room'
+    ? doc.rooms[connection.target.id]
+    : (doc.pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(doc.pseudoRooms[connection.target.id]) : null);
   if (!sourceRoom || !targetRoom || points.length === 0) {
     return null;
   }
@@ -168,7 +171,7 @@ function getConnectionTextBounds(
     points,
     connection.isBidirectional,
     doc.view.useBezierConnections,
-    connection.sourceRoomId === connection.targetRoomId,
+    connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id,
   );
 
   let bounds = createEmptyBounds();
@@ -215,7 +218,9 @@ function getConnectionTextBounds(
 
 function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRegion | null {
   const sourceRoom = doc.rooms[connection.sourceRoomId];
-  const targetRoom = doc.rooms[connection.targetRoomId];
+  const targetRoom = connection.target.kind === 'room'
+    ? doc.rooms[connection.target.id]
+    : (doc.pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(doc.pseudoRooms[connection.target.id]) : null);
   if (!sourceRoom || !targetRoom) {
     return null;
   }
@@ -224,13 +229,16 @@ function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRe
   const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, doc.view.visualStyle);
   const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
   const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
-  const points = computeConnectionPath(
-    effectiveSourceRoom,
-    effectiveTargetRoom,
+  const points = insetPseudoRoomConnectionEndpoint(
     connection,
-    undefined,
-    sourceDimensions,
-    targetDimensions,
+    computeConnectionPath(
+      effectiveSourceRoom,
+      effectiveTargetRoom,
+      connection,
+      undefined,
+      sourceDimensions,
+      targetDimensions,
+    ),
   );
   let bounds = createEmptyBounds();
 

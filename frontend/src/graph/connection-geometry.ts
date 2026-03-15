@@ -598,10 +598,10 @@ export function computeConnectionPath(
   srcRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
   tgtRoomDimensions: RoomDimensions = DEFAULT_ROOM_DIMENSIONS,
 ): Point[] {
-  const isSelfConnection = conn.sourceRoomId === conn.targetRoomId;
+  const isSelfConnection = conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id;
   const srcDirections = findRoomDirectionsForConnection(srcRoom, conn.id);
   const srcDir = srcDirections[0];
-  const isOneWayBetweenDifferentRooms = !conn.isBidirectional && conn.sourceRoomId !== conn.targetRoomId;
+  const isOneWayBetweenDifferentRooms = !conn.isBidirectional && !isSelfConnection;
   const tgtDir = isOneWayBetweenDifferentRooms
     ? undefined
     : isSelfConnection && conn.isBidirectional

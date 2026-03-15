@@ -1,18 +1,30 @@
 import { create } from 'zustand';
-import type { BackgroundReferenceImage, ConnectionAnnotation, MapDocument, MapVisualStyle, Position, RoomShape, RoomStrokeStyle } from '../domain/map-types';
-import { createBackgroundLayer, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
+import type {
+  BackgroundReferenceImage,
+  ConnectionAnnotation,
+  MapDocument,
+  MapVisualStyle,
+  Position,
+  PseudoRoomKind,
+  RoomShape,
+  RoomStrokeStyle,
+} from '../domain/map-types';
+import { createBackgroundLayer, createPseudoRoom, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
 import type { ExportRegion } from '../export/export-types';
 import {
   addRoom,
+  addPseudoRoom,
   addConnection,
   addStickyNote,
   addStickyNoteLink,
+  convertPseudoRoomToRoom as domainConvertPseudoRoomToRoom,
   renameRoom as domainRenameRoom,
   deleteRoom as domainDeleteRoom,
   deleteConnection as domainDeleteConnection,
   deleteStickyNote as domainDeleteStickyNote,
   deleteStickyNoteLink as domainDeleteStickyNoteLink,
   moveRoom as domainMoveRoom,
+  movePseudoRoom as domainMovePseudoRoom,
   moveStickyNote as domainMoveStickyNote,
   describeRoom as domainDescribeRoom,
   setStickyNoteText as domainSetStickyNoteText,
@@ -252,6 +264,26 @@ export interface EditorState {
     },
   ) => string;
 
+  /** Create a pseudo-room and connect it from an existing room in a single history step. */
+  createPseudoRoomAndConnect: (
+    kind: PseudoRoomKind,
+    position: Position,
+    sourceRoomId: string,
+    sourceDirection: string,
+  ) => { pseudoRoomId: string; connectionId: string };
+
+  /** Convert a pseudo-room into a standard room in place. */
+  convertPseudoRoomToRoom: (
+    pseudoRoomId: string,
+    draft: {
+      name: string;
+      shape: RoomShape;
+      fillColorIndex: number;
+      strokeColorIndex: number;
+      strokeStyle: RoomStrokeStyle;
+    },
+  ) => string;
+
   /** Create a new sticky note at the given canvas position (snapped to grid). Returns the note ID. */
   addStickyNoteAtPosition: (text: string, position: Position) => string;
 
@@ -446,6 +478,9 @@ export interface EditorState {
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
 
+  /** Move a pseudo-room to a new position (snapped to grid). */
+  movePseudoRoom: (pseudoRoomId: string, position: Position) => void;
+
   /** Move multiple rooms to new positions in a single history step. */
   moveRooms: (positions: Readonly<Record<string, Position>>) => void;
 
@@ -469,6 +504,9 @@ export interface EditorState {
 
   /** Complete a connection drag by dropping onto a target room, optionally on a specific direction handle. */
   completeConnectionDrag: (targetRoomId: string, targetDirection?: string) => void;
+
+  /** Complete a connection drag by creating a new room at the given position and connecting to it. */
+  completeConnectionDragToNewRoom: (position: Position) => string | null;
 
   /** Cancel an in-progress connection drag. */
   cancelConnectionDrag: () => void;
@@ -963,6 +1001,58 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       strokeStyle: draft.strokeStyle,
     };
     const updatedDoc = addRoom(doc, room);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, updatedDoc),
+      selectedRoomIds: [room.id],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: [],
+    }));
+    return room.id;
+  },
+
+  createPseudoRoomAndConnect: (kind, position, sourceRoomId, sourceDirection) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot create and connect a pseudo-room: no document is loaded.');
+    }
+
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
+    const pseudoRoom = { ...createPseudoRoom(kind), position: snapped };
+    const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
+    let nextDoc = addPseudoRoom(doc, pseudoRoom);
+    nextDoc = addConnection(nextDoc, connection, normalizeDirection(sourceDirection));
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc),
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connection.id],
+      selectedStickyNoteLinkIds: [],
+    }));
+    return { pseudoRoomId: pseudoRoom.id, connectionId: connection.id };
+  },
+
+  convertPseudoRoomToRoom: (pseudoRoomId, draft) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot convert a pseudo-room: no document is loaded.');
+    }
+
+    const pseudoRoom = doc.pseudoRooms[pseudoRoomId];
+    if (!pseudoRoom) {
+      throw new Error(`Pseudo-room "${pseudoRoomId}" not found.`);
+    }
+
+    const room = {
+      ...createRoom(draft.name),
+      id: pseudoRoom.id,
+      position: pseudoRoom.position,
+      shape: draft.shape,
+      fillColorIndex: draft.fillColorIndex,
+      strokeColorIndex: draft.strokeColorIndex,
+      strokeStyle: draft.strokeStyle,
+    };
+    const updatedDoc = domainConvertPseudoRoomToRoom(doc, pseudoRoomId, room);
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),
       selectedRoomIds: [room.id],
@@ -1605,6 +1695,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
+  movePseudoRoom: (pseudoRoomId, position) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot move a pseudo-room: no document is loaded.');
+    }
+
+    const updatedDoc = domainMovePseudoRoom(doc, pseudoRoomId, maybeSnapPosition(position, get().snapToGridEnabled));
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
   moveRooms: (positions) => {
     const { doc, snapToGridEnabled } = get();
     if (!doc) {
@@ -1731,6 +1831,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch {
       // Direction already bound or other validation error — just cancel
       set({ connectionDrag: null });
+    }
+  },
+
+  completeConnectionDragToNewRoom: (position) => {
+    const { doc, connectionDrag, snapToGridEnabled } = get();
+    if (!doc || !connectionDrag) {
+      set({ connectionDrag: null });
+      return null;
+    }
+
+    const { sourceRoomId, sourceDirection } = connectionDrag;
+    const snappedPosition = maybeSnapPosition(position, snapToGridEnabled);
+    const room = { ...createRoom('Room'), position: snappedPosition };
+    const connection = createConnection(sourceRoomId, room.id, false);
+
+    try {
+      let updatedDoc = addRoom(doc, room);
+      updatedDoc = addConnection(updatedDoc, connection, sourceDirection);
+      set((state) => ({
+        ...commitDocumentChange(state, doc, updatedDoc),
+        connectionDrag: null,
+        selectedRoomIds: [room.id],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [],
+        selectedStickyNoteLinkIds: [],
+      }));
+      return room.id;
+    } catch {
+      set({ connectionDrag: null });
+      return null;
     }
   },
 

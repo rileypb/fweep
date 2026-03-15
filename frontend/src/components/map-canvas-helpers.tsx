@@ -226,7 +226,7 @@ export function getConnectionsWithinSelectionBox(
   return Object.values(connections)
     .filter((connection) => {
       const sourceRoom = rooms[connection.sourceRoomId];
-      const targetRoom = rooms[connection.targetRoomId];
+      const targetRoom = connection.target.kind === 'room' ? rooms[connection.target.id] : null;
       if (!sourceRoom || !targetRoom) {
         return false;
       }

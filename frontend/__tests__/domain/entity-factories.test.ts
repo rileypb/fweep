@@ -52,7 +52,7 @@ describe('createConnection', () => {
     const conn = createConnection('room-a', 'room-b');
     expect(conn.id).toBeTruthy();
     expect(conn.sourceRoomId).toBe('room-a');
-    expect(conn.targetRoomId).toBe('room-b');
+    expect(conn.target).toEqual({ kind: 'room', id: 'room-b' });
   });
 
   it('defaults to one-way (not bidirectional)', () => {
