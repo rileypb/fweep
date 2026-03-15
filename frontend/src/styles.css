@@ -95,9 +95,7 @@ body {
 .app-game-output {
   position: static;
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  display: block;
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
@@ -127,7 +125,7 @@ body {
 }
 
 .app-game-output-content {
-  flex: 0 0 auto;
+  display: block;
   min-width: 100%;
 }
 
