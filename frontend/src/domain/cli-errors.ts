@@ -14,6 +14,7 @@ export type CliErrorCommandKind =
   | 'set-room-adjective'
   | 'put-items'
   | 'take-items'
+  | 'take-all-items'
   | null;
 
 export interface CliError {

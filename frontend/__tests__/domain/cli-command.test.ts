@@ -122,6 +122,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('take lantern, key, and sword from Kitchen')).toBe(
       'take lantern, key, and sword from Kitchen',
     );
+    expect(parseCliCommandDescription('take all from Kitchen')).toBe(
+      'take all from Kitchen',
+    );
   });
 
   it('describes undo and redo commands', () => {
@@ -261,6 +264,7 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('the way east of kitchen continues indefinitely')).toBeNull();
     expect(parseCliCommandDescription('put in Kitchen')).toBeNull();
     expect(parseCliCommandDescription('take lantern from')).toBeNull();
+    expect(parseCliCommandDescription('put all in Kitchen')).toBeNull();
   });
 });
 
@@ -289,6 +293,11 @@ describe('parseCliCommand', () => {
     expect(parseCliCommand('take lantern, key, and sword from Kitchen')).toEqual({
       kind: 'take-items',
       itemNames: ['lantern', 'key', 'sword'],
+      room: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('take all from Kitchen')).toEqual({
+      kind: 'take-all-items',
       room: { text: 'Kitchen', exact: false },
     });
   });

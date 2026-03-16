@@ -79,6 +79,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Placed.';
     case 'take-items':
       return 'Took.';
+    case 'take-all-items':
+      return 'Took.';
     case 'create-pseudo-room':
       if (command.pseudoKind === 'unknown') {
         return 'Marked exit as unknown.';
@@ -179,6 +181,7 @@ export function useAppCli({
   const setPseudoRoomExit = useEditorStore((s) => s.setPseudoRoomExit);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const redo = useEditorStore((s) => s.redo);
+  const removeAllItemsFromRoom = useEditorStore((s) => s.removeAllItemsFromRoom);
   const removeItemsFromRoom = useEditorStore((s) => s.removeItemsFromRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const setRoomDark = useEditorStore((s) => s.setRoomDark);
@@ -364,7 +367,7 @@ export function useAppCli({
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'put-items' | 'take-items',
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'put-items' | 'take-items' | 'take-all-items',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -474,6 +477,22 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
+      setCliPronounRoomReference(roomMatch.room.id);
+      selectRoom(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'take-all-items' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'take-all-items', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      removeAllItemsFromRoom(roomMatch.room.id);
       setCliPronounRoomReference(roomMatch.room.id);
       selectRoom(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);

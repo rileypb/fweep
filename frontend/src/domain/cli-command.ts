@@ -18,6 +18,7 @@ export type CliCommand =
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
   | { readonly kind: 'take-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
+  | { readonly kind: 'take-all-items'; readonly room: CliRoomReference }
   | {
     readonly kind: 'create-pseudo-room';
     readonly pseudoKind: PseudoRoomKind;
@@ -77,6 +78,7 @@ export const CLI_COMMAND_FORMS = [
   'put <item>, <item>, and <item> in <room name>',
   'take <item> from <room name>',
   'take <item>, <item>, and <item> from <room name>',
+  'take all from <room name>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
@@ -533,6 +535,9 @@ function parseItemNameList(tokens: readonly Token[]): readonly string[] | null {
     if (itemName.length === 0) {
       return null;
     }
+    if (itemName.toLowerCase() === 'all') {
+      return null;
+    }
 
     itemNames.push(itemName);
     segmentStart = index + 1;
@@ -837,6 +842,18 @@ export function parseCliCommand(input: string): CliCommand | null {
   }
 
   if (isTokenValue(tokens[0], 'take')) {
+    if (isTokenValue(tokens[1], 'all') && isTokenValue(tokens[2], 'from')) {
+      const room = readRoomName(tokens, 3, () => false);
+      if (room === null || room.nextIndex !== tokens.length) {
+        return null;
+      }
+
+      return {
+        kind: 'take-all-items',
+        room: room.reference,
+      };
+    }
+
     return parseItemTransferCommand(tokens, 'take-items', 'from');
   }
 
@@ -932,6 +949,8 @@ function describeCliCommand(command: CliCommand): string {
       return `put ${formatCliList(command.itemNames)} in ${command.room.text}`;
     case 'take-items':
       return `take ${formatCliList(command.itemNames)} from ${command.room.text}`;
+    case 'take-all-items':
+      return `take all from ${command.room.text}`;
     case 'delete':
       return `delete the room called ${command.room.text}`;
     case 'create-pseudo-room':

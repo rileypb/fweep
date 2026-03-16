@@ -373,6 +373,9 @@ export interface EditorState {
     readonly missingItemNames: readonly string[];
   };
 
+  /** Remove every item from a room in a single history step. */
+  removeAllItemsFromRoom: (roomId: string) => readonly string[];
+
   /** Create or replace a connection between two rooms and select it. */
   connectRooms: (
     sourceRoomId: string,
@@ -1385,6 +1388,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     set((state) => commitDocumentChange(state, doc, updatedDoc));
     return { removedItemIds, missingItemNames };
+  },
+
+  removeAllItemsFromRoom: (roomId) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot remove items: no document is loaded.');
+    }
+    if (!doc.rooms[roomId]) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+
+    const itemIds = Object.values(doc.items)
+      .filter((item) => item.roomId === roomId)
+      .map((item) => item.id);
+
+    if (itemIds.length === 0) {
+      return [];
+    }
+
+    let updatedDoc = doc;
+    for (const itemId of itemIds) {
+      updatedDoc = domainDeleteItem(updatedDoc, itemId);
+    }
+
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    return itemIds;
   },
 
   connectRooms: (sourceRoomId, sourceDirection, targetRoomId, options) => {
