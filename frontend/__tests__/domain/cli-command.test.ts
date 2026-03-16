@@ -85,6 +85,7 @@ describe('parseCliCommandDescription', () => {
   it('describes show commands', () => {
     expect(parseCliCommandDescription('show Kitchen')).toBe('scroll the map to Kitchen');
     expect(parseCliCommandDescription('s Kitchen')).toBe('scroll the map to Kitchen');
+    expect(parseCliCommandDescription('go to Kitchen')).toBe('scroll the map to Kitchen');
   });
 
   it('describes room lighting commands', () => {

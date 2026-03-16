@@ -69,7 +69,7 @@ export const CLI_COMMAND_FORMS = [
   'above/below <room name> leads nowhere',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
-  'show/s <room name>',
+  'show/s/go to <room name>',
   '<room name> is dark',
   '<room name> is lit',
   'create/c <room name>, which is <adjective>',
@@ -893,6 +893,18 @@ export function parseCliCommand(input: string): CliCommand | null {
 
   if (isFirstWordAlias(tokens[0], 'show', 's')) {
     const roomName = readRoomName(tokens, 1, () => false);
+    if (roomName === null || roomName.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      kind: 'show',
+      room: roomName.reference,
+    };
+  }
+
+  if (isTokenValue(tokens[0], 'go') && isTokenValue(tokens[1], 'to')) {
+    const roomName = readRoomName(tokens, 2, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
     }

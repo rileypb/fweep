@@ -573,7 +573,7 @@ export function useAppCli({
         roomId: roomMatch.room.id,
         requestId: issueUiRequestId(),
       });
-      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      appendGameOutput([formatCliEcho(trimmedInput), roomMatch.room.name]);
       return { ok: true, shouldSelectCliInput };
     }
 

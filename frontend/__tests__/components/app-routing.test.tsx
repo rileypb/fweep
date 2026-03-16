@@ -287,6 +287,20 @@ describe('URL routing', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('reveals a room for go to <room> CLI commands', async () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 120, y: 160 } };
+    let doc = createEmptyMap('CLI Go To Map');
+    doc = addRoom(doc, kitchen);
+    await saveMap(doc);
+    navigateTo(`#/map/${doc.metadata.id}`);
+    render(<App />);
+    await screen.findByLabelText('Map name: CLI Go To Map');
+
+    await submitCliCommand('go to Kitchen');
+
+    expectGameOutputToContain('go to Kitchen', 'Kitchen');
+  });
+
   it('imports a script file by executing each CLI line in order', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Script Import Map');
@@ -1092,7 +1106,7 @@ describe('URL routing', () => {
         x: visibleCenterX - (1200 + (getRoomNodeWidth(doc.rooms['room-1']) / 2)),
         y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
       });
-      expectGameOutputToContain('show kitchen', 'shown');
+      expectGameOutputToContain('show kitchen', 'Kitchen');
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(input.value.length);
     } finally {

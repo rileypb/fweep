@@ -5,7 +5,7 @@
 - `create/c <room name>`
 - `delete/d/del <room name>`
 - `edit/e/ed <room name>`
-- `show/s <room name>`
+- `show/s/go to <room name>`
 - `<room name> is dark`
 - `<room name> is lit`
 - `create/c <room name>, which is <adjective>`
@@ -50,4 +50,3 @@
 
 - `arrange/arr/prettify`
 - `undo/redo`
-
