@@ -19,6 +19,7 @@ import { PadlockGlyph } from './padlock-glyph';
 const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 const VERTICAL_HANDLE_RADIUS = 4;
+const ROOM_LABEL_FONT_FAMILY = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
   '[data-room-id]',
   '[data-sticky-note-id]',
@@ -358,7 +359,7 @@ export function MapCanvasRoomNode({
         y={labelLayout.firstLineY}
         dominantBaseline="middle"
         textAnchor="middle"
-        style={{ fill: roomLabelColor }}
+        style={{ fill: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
       >
         {labelLayout.lines.map((line, index) => (
           <tspan
@@ -401,7 +402,7 @@ export function MapCanvasRoomNode({
           y={roomHeight + 14}
           dominantBaseline="hanging"
           textAnchor="middle"
-          style={{ fill: roomLabelColor }}
+          style={{ fill: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
         >
           {itemLabelLines.map((line, index) => (
             <tspan

@@ -299,6 +299,7 @@ describe('URL routing', () => {
     await submitCliCommand('go to Kitchen');
 
     expectGameOutputToContain('go to Kitchen', 'Kitchen');
+    expect(getGameOutputBox().querySelector('strong')?.textContent).toBe('Kitchen');
   });
 
   it('imports a script file by executing each CLI line in order', async () => {
@@ -1107,6 +1108,7 @@ describe('URL routing', () => {
         y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
       });
       expectGameOutputToContain('show kitchen', 'Kitchen');
+      expect(getGameOutputBox().querySelector('strong')?.textContent).toBe('Kitchen');
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(input.value.length);
     } finally {

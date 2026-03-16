@@ -1,4 +1,24 @@
-import type React from 'react';
+import React from 'react';
+
+function renderCliOutputLine(line: string): React.ReactNode {
+  const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return segments.map((segment, index) => {
+    const isBold = segment.startsWith('**') && segment.endsWith('**') && segment.length >= 4;
+    if (!isBold) {
+      return <span key={`text-${index}`}>{segment}</span>;
+    }
+
+    return (
+      <strong key={`strong-${index}`} className="app-game-output-strong">
+        {segment.slice(2, -2)}
+      </strong>
+    );
+  });
+}
 
 interface AppCliPanelProps {
   readonly gameOutputRef: React.RefObject<HTMLDivElement | null>;
@@ -52,7 +72,12 @@ export function AppCliPanel({
         onClick={onGameOutputClick}
       >
         <div className="app-game-output-content">
-          {gameOutputLines.join('\n')}
+          {gameOutputLines.map((line, index) => (
+            <React.Fragment key={`game-output-line-${index}`}>
+              {renderCliOutputLine(line)}
+              {index < gameOutputLines.length - 1 ? '\n' : null}
+            </React.Fragment>
+          ))}
         </div>
       </div>
       <div className="app-cli-bar">
