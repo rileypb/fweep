@@ -11,7 +11,7 @@ export const DEFAULT_ROOM_MIN_WIDTH = 64;
 export const DEFAULT_ROOM_HEIGHT = 36;
 export const SQUARE_CLASSIC_ROOM_SIZE = 84;
 export const SQUARE_CLASSIC_LINE_HEIGHT = 16;
-export const SQUARE_CLASSIC_HORIZONTAL_PADDING = 10;
+export const SQUARE_CLASSIC_HORIZONTAL_PADDING = 4;
 export const SQUARE_CLASSIC_VERTICAL_PADDING = 10;
 
 type RoomLabelTarget = Pick<Room, 'name' | 'locked' | 'isDark'>;

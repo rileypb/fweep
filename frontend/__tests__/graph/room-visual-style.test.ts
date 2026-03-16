@@ -22,9 +22,18 @@ describe('room visual style helpers', () => {
 
     expect(getRoomLabelLines(room, SQUARE_CLASSIC_ROOM_SIZE, SQUARE_CLASSIC_ROOM_SIZE, 'square-classic')).toEqual([
       'An',
-      'exception',
-      'ally long',
+      'exceptiona',
+      'lly long',
       'room name',
+    ]);
+  });
+
+  it('uses the tighter square-classic horizontal inset for label wrapping', () => {
+    const room = createRoom('ABCDEFGHIJ KLMNOPQRST');
+
+    expect(getRoomLabelLines(room, SQUARE_CLASSIC_ROOM_SIZE, SQUARE_CLASSIC_ROOM_SIZE, 'square-classic')).toEqual([
+      'ABCDEFGHIJ',
+      'KLMNOPQRST',
     ]);
   });
 
