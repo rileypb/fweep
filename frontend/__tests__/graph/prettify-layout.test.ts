@@ -264,6 +264,76 @@ describe('computePrettifiedRoomPositions', () => {
     expect(secondPositions).toEqual(firstPositions);
   });
 
+  it('does not walk when prettified repeatedly for a connected layout', () => {
+    let doc = createEmptyMap('Connected Stable Repeat');
+    const roomA = { ...createRoom('Alpha'), position: { x: 0, y: 0 } };
+    const roomB = { ...createRoom('Beta'), position: { x: 320, y: 200 } };
+    const roomC = { ...createRoom('Gamma'), position: { x: 640, y: 0 } };
+    doc = addRoom(addRoom(addRoom(doc, roomA), roomB), roomC);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
+    doc = addConnection(doc, createConnection(roomB.id, roomC.id, true), 'east', 'west');
+
+    const firstPositions = computePrettifiedRoomPositions(doc);
+    let nextDoc = setRoomPositions(doc, firstPositions);
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPositions = computePrettifiedRoomPositions(nextDoc);
+      expect(nextPositions).toEqual(firstPositions);
+      nextDoc = setRoomPositions(nextDoc, nextPositions);
+    }
+  });
+
+  it('does not walk when prettified repeatedly for a room with an attached pseudo-room', () => {
+    let doc = createEmptyMap('Pseudo Stable Repeat');
+    const room = { ...createRoom('Alpha'), position: { x: 320, y: 200 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 0, y: 0 } };
+    doc = addRoom(doc, room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    let nextDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [room.id]: {
+          ...doc.rooms[room.id],
+          position: firstPass.roomPositions[room.id],
+        },
+      },
+      pseudoRooms: {
+        ...doc.pseudoRooms,
+        [pseudoRoom.id]: {
+          ...doc.pseudoRooms[pseudoRoom.id],
+          position: firstPass.pseudoRoomPositions[pseudoRoom.id],
+        },
+      },
+    };
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPass = computePrettifiedLayoutPositions(nextDoc);
+      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
+      expect(nextPass.pseudoRoomPositions).toEqual(firstPass.pseudoRoomPositions);
+      nextDoc = {
+        ...nextDoc,
+        rooms: {
+          ...nextDoc.rooms,
+          [room.id]: {
+            ...nextDoc.rooms[room.id],
+            position: nextPass.roomPositions[room.id],
+          },
+        },
+        pseudoRooms: {
+          ...nextDoc.pseudoRooms,
+          [pseudoRoom.id]: {
+            ...nextDoc.pseudoRooms[pseudoRoom.id],
+            position: nextPass.pseudoRoomPositions[pseudoRoom.id],
+          },
+        },
+      };
+    }
+  });
+
   it('moves a linked sticky note near its linked room without overlapping it', () => {
     let doc = createEmptyMap('Linked Note');
     const room = { ...createRoom('Kitchen'), position: { x: 200, y: 200 } };

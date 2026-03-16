@@ -165,48 +165,6 @@ function positionsEqual(
   return true;
 }
 
-function comparePositionsLexicographically(
-  left: Readonly<Record<string, Position>>,
-  right: Readonly<Record<string, Position>>,
-): number {
-  const roomIds = Array.from(new Set([...Object.keys(left), ...Object.keys(right)])).sort();
-  for (const roomId of roomIds) {
-    const leftPosition = left[roomId];
-    const rightPosition = right[roomId];
-    if (!leftPosition && !rightPosition) {
-      continue;
-    }
-    if (!leftPosition) {
-      return -1;
-    }
-    if (!rightPosition) {
-      return 1;
-    }
-    if (leftPosition.y !== rightPosition.y) {
-      return leftPosition.y - rightPosition.y;
-    }
-    if (leftPosition.x !== rightPosition.x) {
-      return leftPosition.x - rightPosition.x;
-    }
-  }
-
-  return 0;
-}
-
-function compareLayoutPositionsLexicographically(
-  leftRooms: Readonly<Record<string, Position>>,
-  leftPseudoRooms: Readonly<Record<string, Position>>,
-  rightRooms: Readonly<Record<string, Position>>,
-  rightPseudoRooms: Readonly<Record<string, Position>>,
-): number {
-  const roomComparison = comparePositionsLexicographically(leftRooms, rightRooms);
-  if (roomComparison !== 0) {
-    return roomComparison;
-  }
-
-  return comparePositionsLexicographically(leftPseudoRooms, rightPseudoRooms);
-}
-
 function withRoomPositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
   return {
     ...doc,
@@ -888,7 +846,8 @@ function recenterUnlockedComponents(
       continue;
     }
 
-    const currentCentroid = computePlacedCentroid(componentRoomIds, placedPositions, doc);
+    const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
+    const currentCentroid = computePlacedCentroid(centroidAnchorRoomIds, placedPositions, doc);
     const delta = {
       x: snapCoordinate(targetCentroid.x - currentCentroid.x),
       y: snapCoordinate(targetCentroid.y - currentCentroid.y),
@@ -1024,17 +983,10 @@ function computeStablePrettifiedPositions(
     positionsEqual(secondPass.roomPositions, currentRoomPositions)
     && positionsEqual(secondPass.pseudoRoomPositions, currentPseudoRoomPositions)
   ) {
-    return compareLayoutPositionsLexicographically(
-      currentRoomPositions,
-      currentPseudoRoomPositions,
-      firstPass.roomPositions,
-      firstPass.pseudoRoomPositions,
-    ) <= 0
-      ? {
-        roomPositions: currentRoomPositions,
-        pseudoRoomPositions: currentPseudoRoomPositions,
-      }
-      : firstPass;
+    return {
+      roomPositions: currentRoomPositions,
+      pseudoRoomPositions: currentPseudoRoomPositions,
+    };
   }
 
   return firstPass;
