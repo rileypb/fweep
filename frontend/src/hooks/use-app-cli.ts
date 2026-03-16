@@ -14,7 +14,7 @@ import {
   type CliError,
 } from '../domain/cli-errors';
 import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference } from '../domain/cli-execution';
-import type { MapDocument } from '../domain/map-types';
+import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
 import { saveMap } from '../storage/map-store';
 
@@ -235,7 +235,11 @@ export function useAppCli({
       setCliPronounRoomId(null);
       pendingInitialSaveSkipDocRef.current = activeMap;
       pendingInitialGameOutputSkipRef.current = activeMap.cliOutputLines;
-      setGameOutputLines([...activeMap.cliOutputLines]);
+      setGameOutputLines(
+        activeMap.cliOutputLines.length > 0
+          ? [...activeMap.cliOutputLines]
+          : [...DEFAULT_CLI_OUTPUT_LINES],
+      );
       loadDocument(activeMap);
     } else {
       cliPronounRoomIdRef.current = null;

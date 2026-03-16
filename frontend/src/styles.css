@@ -106,7 +106,8 @@ body {
 .app-game-output {
   position: static;
   pointer-events: auto;
-  display: block;
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
@@ -138,6 +139,7 @@ body {
 .app-game-output-content {
   display: block;
   min-width: 100%;
+  margin-top: auto;
 }
 
 .app-cli-bar {

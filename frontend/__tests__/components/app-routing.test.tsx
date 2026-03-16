@@ -2546,6 +2546,25 @@ describe('URL routing', () => {
     expect(getGameOutputBox().textContent ?? '').toContain('create/c <room name>');
   });
 
+  it('persists the default CLI banner when an existing map has an empty output log', async () => {
+    const doc = {
+      ...createEmptyMap('Empty Output Banner Map'),
+      cliOutputLines: [],
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+    render(<App />);
+
+    await screen.findByText(/empty output banner map/i);
+    expect(getGameOutputBox().textContent ?? '').toContain(DEFAULT_CLI_OUTPUT_LINES[0]);
+    expect(getGameOutputBox().textContent ?? '').toContain(DEFAULT_CLI_OUTPUT_LINES[1]);
+
+    await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
+      expect(persisted?.cliOutputLines).toEqual([...DEFAULT_CLI_OUTPUT_LINES]);
+    }));
+  });
+
   it('does not reopen a stale edit request after returning to the map list and reopening the map', async () => {
     const user = userEvent.setup();
     const doc = createEmptyMap('Stale Edit Request Map');
