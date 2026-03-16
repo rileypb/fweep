@@ -480,6 +480,8 @@ export function renderRoomShape(
         y={0}
         width={width}
         height={height}
+        rx={0}
+        ry={0}
         {...shapeStyleProps}
       />
     );

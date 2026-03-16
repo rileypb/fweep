@@ -207,7 +207,7 @@ describe('MapMinimap', () => {
     });
 
     const path = document.querySelector('.map-minimap__room path')?.getAttribute('d') ?? '';
-    expect(path).toContain('Q');
+    expect(path).not.toContain('Q');
   });
 
   it('renders sticky notes and keeps connection lines behind rooms and notes', () => {

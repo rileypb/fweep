@@ -110,6 +110,16 @@ export function getRoomShapePath(shape: RoomShape, width: number, height: number
   }
 
   const radius = Math.min(cornerRadius, width / 5, height / 5);
+  if (radius <= 0) {
+    return [
+      'M 0 0',
+      `L ${width} 0`,
+      `L ${width} ${height}`,
+      `L 0 ${height}`,
+      'Z',
+    ].join(' ');
+  }
+
   return [
     `M ${radius} 0`,
     `L ${width - radius} 0`,
@@ -157,6 +167,15 @@ export function traceRoomShapePath(
   }
 
   const radius = Math.min(cornerRadius, width / 2, height / 2);
+  if (radius <= 0) {
+    context.moveTo(left, top);
+    context.lineTo(left + width, top);
+    context.lineTo(left + width, top + height);
+    context.lineTo(left, top + height);
+    context.closePath();
+    return;
+  }
+
   context.moveTo(left + radius, top);
   context.lineTo(left + width - radius, top);
   context.quadraticCurveTo(left + width, top, left + width, top + radius);

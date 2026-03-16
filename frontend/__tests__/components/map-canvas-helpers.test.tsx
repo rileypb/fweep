@@ -270,6 +270,12 @@ describe('map-canvas-helpers', () => {
     const rect = container.querySelector('rect');
     expect(rect).toBeInTheDocument();
     expect(rect).toHaveAttribute('rx');
+
+    rerender(<svg>{renderRoomShape('diamond', 84, 84, roomStyle, 'light', 'square-classic')}</svg>);
+    const squareClassicRect = container.querySelector('rect');
+    expect(squareClassicRect).toBeInTheDocument();
+    expect(squareClassicRect).toHaveAttribute('rx', '0');
+    expect(squareClassicRect).toHaveAttribute('ry', '0');
   });
 
   it('tracks document theme changes through the hook', async () => {

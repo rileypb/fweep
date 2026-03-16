@@ -1,12 +1,15 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { type PseudoRoom } from '../domain/map-types';
 import { type ThemeMode, getRoomLabelColor } from '../domain/room-color-palette';
 import {
-  PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
-  PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
   getPseudoRoomSymbolLayout,
   toPseudoRoomVisualRoom,
 } from '../domain/pseudo-room-helpers';
+import {
+  getPseudoRoomSymbolDefinition,
+  PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE,
+  pseudoRoomPathCommandsToSvgPath,
+} from '../domain/pseudo-room-symbols';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
 
@@ -34,30 +37,11 @@ export function MapCanvasPseudoRoomNode({
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
   const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
-  const textRef = useRef<SVGTextElement | null>(null);
-  const [symbolAdjustment, setSymbolAdjustment] = useState({ x: 0, y: 0 });
+  const symbolDefinition = getPseudoRoomSymbolDefinition(pseudoRoom.kind);
   const roomLabelColor = getRoomLabelColor(theme);
   const isDragging = selectionDrag !== null && selectionDrag.pseudoRoomIds.includes(pseudoRoom.id);
   const visualX = pseudoRoom.position.x + (isDragging ? selectionDrag.dx : 0);
   const visualY = pseudoRoom.position.y + (isDragging ? selectionDrag.dy : 0);
-
-  useLayoutEffect(() => {
-    if (!textRef.current || typeof textRef.current.getBBox !== 'function') {
-      return;
-    }
-
-    const bbox = textRef.current.getBBox();
-    const nextAdjustment = {
-      x: symbolLayout.x - (bbox.x + (bbox.width / 2)),
-      y: symbolLayout.y - (bbox.y + (bbox.height / 2)),
-    };
-
-    setSymbolAdjustment((previous) => (
-      previous.x === nextAdjustment.x && previous.y === nextAdjustment.y
-        ? previous
-        : nextAdjustment
-    ));
-  }, [symbolLayout.x, symbolLayout.y, symbolLayout.fontSize, visualRoom.name]);
 
   const handleMouseDown = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
     if (event.button !== 0) {
@@ -182,22 +166,34 @@ export function MapCanvasPseudoRoomNode({
           pointerEvents="none"
         />
       )}
-      <text
-        ref={textRef}
-        x={symbolLayout.x + symbolAdjustment.x}
-        y={symbolLayout.y + symbolAdjustment.y}
-        textAnchor="start"
-        dominantBaseline="alphabetic"
+      <g
+        transform={`translate(${symbolLayout.x - (symbolLayout.size / 2)} ${symbolLayout.y - (symbolLayout.size / 2)}) scale(${symbolLayout.size / PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE})`}
         style={{
-          fill: roomLabelColor,
+          color: roomLabelColor,
           pointerEvents: 'none',
-          fontFamily: PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
-          fontSize: `${symbolLayout.fontSize}px`,
-          fontWeight: PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
         }}
       >
-        {visualRoom.name}
-      </text>
+        {symbolDefinition.paths.map((path, index) => (
+          <path
+            key={`path-${pseudoRoom.id}-${index}`}
+            d={pseudoRoomPathCommandsToSvgPath(path.commands)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={path.strokeWidth}
+            strokeLinecap={path.lineCap}
+            strokeLinejoin={path.lineJoin}
+          />
+        ))}
+        {(symbolDefinition.circles ?? []).map((circle, index) => (
+          <circle
+            key={`circle-${pseudoRoom.id}-${index}`}
+            cx={circle.cx}
+            cy={circle.cy}
+            r={circle.r}
+            fill="currentColor"
+          />
+        ))}
+      </g>
     </svg>
   );
 }

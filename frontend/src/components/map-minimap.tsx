@@ -71,6 +71,20 @@ function getMinimapShapePath(shape: RoomShape, width: number, height: number): s
   return getRoomShapePath(shape, width, height, 8);
 }
 
+function getMinimapShapePathForVisualStyle(
+  shape: RoomShape,
+  width: number,
+  height: number,
+  visualStyle: MapVisualStyle,
+): string {
+  return getRoomShapePath(
+    getEffectiveMinimapShape(shape, visualStyle),
+    width,
+    height,
+    visualStyle === 'square-classic' ? 0 : 8,
+  );
+}
+
 function getEffectiveMinimapShape(shape: RoomShape, visualStyle: MapVisualStyle): RoomShape {
   return visualStyle === 'square-classic' ? 'rectangle' : shape;
 }
@@ -374,7 +388,7 @@ export function MapMinimap({
               className={`map-minimap__room${isSelected ? ' map-minimap__room--selected' : ''}`}
               transform={`translate(${rect.left} ${rect.top})`}
             >
-              <path d={getMinimapShapePath(getEffectiveMinimapShape(room.shape, visualStyle), rect.width, rect.height)} />
+              <path d={getMinimapShapePathForVisualStyle(room.shape, rect.width, rect.height, visualStyle)} />
             </g>
           );
         })}
@@ -387,7 +401,7 @@ export function MapMinimap({
               className="map-minimap__room map-minimap__pseudo-room"
               transform={`translate(${rect.left} ${rect.top})`}
             >
-              <path d={getMinimapShapePath(getEffectiveMinimapShape(pseudoRoom.shape, visualStyle), rect.width, rect.height)} />
+              <path d={getMinimapShapePathForVisualStyle(pseudoRoom.shape, rect.width, rect.height, visualStyle)} />
             </g>
           );
         })}

@@ -1,12 +1,15 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
 import {
-  PSEUDO_ROOM_SYMBOL_FONT_FAMILY,
+  getPseudoRoomGlyph,
   getPseudoRoomSymbolLayoutForRoom,
-  PSEUDO_ROOM_SYMBOL_FONT_WEIGHT,
   insetPseudoRoomConnectionEndpoint,
-  PSEUDO_ROOM_SYMBOL_FONT_SIZE,
   toPseudoRoomVisualRoom,
 } from '../domain/pseudo-room-helpers';
+import {
+  getPseudoRoomSymbolDefinition,
+  PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE,
+  tracePseudoRoomPathCommands,
+} from '../domain/pseudo-room-symbols';
 import { getRoomFillColor, getRoomLabelColor, getRoomStrokeColor } from '../domain/room-color-palette';
 import { blobToCanvas, createSizedCanvas } from '../components/map-background-raster';
 import { getRoomStrokeDasharray } from '../components/map-canvas-helpers';
@@ -179,26 +182,36 @@ function drawPseudoRoomSymbol(
   visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
 ): void {
   const symbolLayout = getPseudoRoomSymbolLayoutForRoom(room, visualStyle);
-  const centerX = room.position.x + symbolLayout.x;
-  const centerY = room.position.y + symbolLayout.y;
-
-  context.fillStyle = getRoomLabelColor(theme);
-  context.font = `${PSEUDO_ROOM_SYMBOL_FONT_WEIGHT} ${PSEUDO_ROOM_SYMBOL_FONT_SIZE}px ${PSEUDO_ROOM_SYMBOL_FONT_FAMILY}`;
-  const canMeasureText = typeof context.measureText === 'function';
-  context.textAlign = canMeasureText ? 'left' : 'center';
-  context.textBaseline = canMeasureText ? 'alphabetic' : 'middle';
-  const metrics = canMeasureText ? context.measureText(room.name) : null;
-  const left = metrics?.actualBoundingBoxLeft ?? 0;
-  const right = metrics?.actualBoundingBoxRight ?? metrics?.width ?? 0;
-  const ascent = metrics?.actualBoundingBoxAscent ?? (PSEUDO_ROOM_SYMBOL_FONT_SIZE * 0.7);
-  const descent = metrics?.actualBoundingBoxDescent ?? (PSEUDO_ROOM_SYMBOL_FONT_SIZE * 0.3);
-  const drawX = canMeasureText ? centerX - ((right - left) / 2) : centerX;
-  const drawY = canMeasureText ? centerY - ((descent - ascent) / 2) : centerY;
-  context.fillText(
-    room.name,
-    drawX,
-    drawY,
+  const symbolDefinition = getPseudoRoomSymbolDefinition(
+    room.name === getPseudoRoomGlyph('unknown') ? 'unknown' : 'infinite',
   );
+  const scale = symbolLayout.size / PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE;
+
+  context.save();
+  context.translate(
+    room.position.x + symbolLayout.x - (symbolLayout.size / 2),
+    room.position.y + symbolLayout.y - (symbolLayout.size / 2),
+  );
+  context.scale(scale, scale);
+  context.strokeStyle = getRoomLabelColor(theme);
+  context.fillStyle = getRoomLabelColor(theme);
+
+  symbolDefinition.paths.forEach((path) => {
+    context.beginPath();
+    tracePseudoRoomPathCommands(context, path.commands);
+    context.lineWidth = path.strokeWidth;
+    context.lineCap = path.lineCap ?? 'butt';
+    context.lineJoin = path.lineJoin ?? 'miter';
+    context.stroke();
+  });
+
+  (symbolDefinition.circles ?? []).forEach((circle) => {
+    context.beginPath();
+    context.arc(circle.cx, circle.cy, circle.r, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  context.restore();
 }
 
 function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNote): void {

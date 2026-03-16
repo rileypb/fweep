@@ -94,6 +94,7 @@ type FakeContext = {
   lineWidth: number;
   font: string;
   lineCap: CanvasLineCap;
+  lineJoin: CanvasLineJoin;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
   globalAlpha: number;
@@ -126,6 +127,7 @@ function createFakeContext(): FakeContext {
     lineWidth: 0,
     font: '',
     lineCap: 'butt',
+    lineJoin: 'miter',
     textAlign: 'start',
     textBaseline: 'alphabetic',
     globalAlpha: 1,
@@ -360,13 +362,13 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Oval', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('Octagon', expect.any(Number), expect.any(Number));
-    expect(context.fillText).toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('north', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('south', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
     expect(context.fillText).toHaveBeenCalledWith('up', expect.any(Number), expect.any(Number));
     expect(context.setLineDash).toHaveBeenCalled();
+    expect(context.arc).toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
     expect(context.lineTo).toHaveBeenCalledWith(40, 18);
     expect(context.translate).toHaveBeenCalledWith(80, 20);
@@ -429,7 +431,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).not.toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
-    expect(context.fillText).not.toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
+    expect(context.arc).not.toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
   });
 
@@ -454,7 +456,7 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas(input);
 
-    expect(context.fillText).toHaveBeenCalledWith('?', expect.any(Number), expect.any(Number));
+    expect(context.arc).toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
   });
 
   it('skips background image rendering when disabled', async () => {
