@@ -58,4 +58,26 @@ describe('MapCanvas export flow', () => {
     expect(overlay).toBeInTheDocument();
     expect(overlay).toHaveStyle({ width: '120px', height: '80px' });
   });
+
+  it('clears the region overlay when the export dialog is closed', async () => {
+    const user = userEvent.setup();
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Export PNG' }));
+    await user.selectOptions(screen.getByLabelText('Scope'), 'region');
+    await user.click(screen.getByRole('button', { name: 'Select Region' }));
+
+    const canvas = screen.getByTestId('map-canvas');
+    fireEvent.mouseDown(canvas, { clientX: 20, clientY: 30, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 140, clientY: 110 });
+    fireEvent.mouseUp(document, { clientX: 140, clientY: 110 });
+
+    expect(screen.getByTestId('map-canvas-export-region')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByTestId('export-png-dialog')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('map-canvas-export-region')).not.toBeInTheDocument();
+    expect(useEditorStore.getState().exportRegion).toBeNull();
+  });
 });

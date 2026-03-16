@@ -228,6 +228,44 @@ describe('useEditorStore', () => {
         height: 480,
       });
     });
+
+    it('clears the background reference image when one is set', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      useEditorStore.getState().setBackgroundReferenceImage({
+        id: 'background-image-1',
+        name: 'overlay.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AAAA',
+        sourceUrl: null,
+        width: 640,
+        height: 480,
+        zoom: 1,
+      });
+
+      useEditorStore.getState().clearBackgroundReferenceImage();
+
+      expect(useEditorStore.getState().doc?.background.referenceImage).toBeNull();
+    });
+
+    it('leaves history unchanged when clearing a missing background reference image', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const beforeDoc = useEditorStore.getState().doc;
+      const beforePastEntries = useEditorStore.getState().pastEntries.length;
+
+      useEditorStore.getState().clearBackgroundReferenceImage();
+
+      expect(useEditorStore.getState().doc).toBe(beforeDoc);
+      expect(useEditorStore.getState().pastEntries).toHaveLength(beforePastEntries);
+    });
+
+    it('throws when updating background image zoom without an image', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      expect(() => useEditorStore.getState().setBackgroundReferenceImageZoom(1.5)).toThrow(
+        'Cannot update the background image zoom: no background image is set.',
+      );
+    });
   });
 
   describe('room locking', () => {
@@ -636,6 +674,43 @@ describe('useEditorStore', () => {
       useEditorStore.getState().moveRoom(roomId, { x: 55, y: 85 });
 
       expect(useEditorStore.getState().doc!.rooms[roomId].position).toEqual({ x: 55, y: 85 });
+    });
+  });
+
+  describe('movePseudoRoom', () => {
+    it('updates the pseudo-room position', () => {
+      const pseudoRoom = { ...createPseudoRoom('death'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addPseudoRoom(testDoc, pseudoRoom));
+
+      useEditorStore.getState().movePseudoRoom(pseudoRoom.id, { x: 150, y: 90 });
+
+      expect(useEditorStore.getState().doc?.pseudoRooms[pseudoRoom.id]?.position).toEqual({ x: 160, y: 80 });
+    });
+
+    it('throws when no document is loaded', () => {
+      expect(() => useEditorStore.getState().movePseudoRoom('pseudo-1', { x: 0, y: 0 })).toThrow();
+    });
+  });
+
+  describe('movePseudoRooms', () => {
+    it('updates multiple pseudo-room positions in one step', () => {
+      const left = { ...createPseudoRoom('unknown'), position: { x: 0, y: 0 } };
+      const right = { ...createPseudoRoom('nowhere'), position: { x: 200, y: 0 } };
+      let doc = addPseudoRoom(testDoc, left);
+      doc = addPseudoRoom(doc, right);
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().movePseudoRooms({
+        [left.id]: { x: 41, y: 79 },
+        [right.id]: { x: 239, y: 121 },
+      });
+
+      expect(useEditorStore.getState().doc?.pseudoRooms[left.id]?.position).toEqual({ x: 40, y: 80 });
+      expect(useEditorStore.getState().doc?.pseudoRooms[right.id]?.position).toEqual({ x: 240, y: 120 });
+    });
+
+    it('throws when moving pseudo-rooms without a document', () => {
+      expect(() => useEditorStore.getState().movePseudoRooms({ 'pseudo-1': { x: 0, y: 0 } })).toThrow();
     });
   });
 
@@ -1146,6 +1221,15 @@ describe('useEditorStore', () => {
       expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(1);
     });
 
+    it('completeConnectionDragToNewRoom returns null and clears drag state when no drag is active', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+
+      const createdRoomId = useEditorStore.getState().completeConnectionDragToNewRoom({ x: 160, y: 80 });
+
+      expect(createdRoomId).toBeNull();
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
     it('createPseudoRoomAndConnect creates a pseudo-room target with a one-way connection', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
@@ -1159,6 +1243,54 @@ describe('useEditorStore', () => {
         position: { x: 160, y: 80 },
       });
       expect(doc.connections[result.connectionId].target).toEqual({ kind: 'pseudo-room', id: result.pseudoRoomId });
+      expect(doc.rooms[kitchenId].directions.north).toBe(result.connectionId);
+    });
+
+    it('createPseudoRoomAndConnect snaps pseudo-room positions to the grid', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      const result = useEditorStore.getState().createPseudoRoomAndConnect('nowhere', { x: 174, y: 93 }, kitchenId, 'north');
+
+      expect(useEditorStore.getState().doc?.pseudoRooms[result.pseudoRoomId]).toMatchObject({
+        kind: 'nowhere',
+        position: { x: 160, y: 80 },
+      });
+    });
+
+    it('setPseudoRoomExit replaces an existing pseudo-room in place', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const created = useEditorStore.getState().createPseudoRoomAndConnect('unknown', { x: 160, y: 80 }, kitchenId, 'north');
+
+      const result = useEditorStore.getState().setPseudoRoomExit(kitchenId, 'north', 'death');
+
+      expect(result).toEqual(created);
+      expect(useEditorStore.getState().doc?.pseudoRooms[created.pseudoRoomId]?.kind).toBe('death');
+      expect(useEditorStore.getState().doc?.connections[created.connectionId]?.target).toEqual({
+        kind: 'pseudo-room',
+        id: created.pseudoRoomId,
+      });
+    });
+
+    it('setPseudoRoomExit replaces an existing room connection with a pseudo-room connection', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const hallwayId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 160, y: 80 });
+      const connectionId = useEditorStore.getState().connectRooms(kitchenId, 'north', hallwayId, {
+        oneWay: false,
+        targetDirection: 'south',
+      });
+
+      const result = useEditorStore.getState().setPseudoRoomExit(kitchenId, 'north', 'death');
+      const doc = useEditorStore.getState().doc!;
+
+      expect(doc.connections[connectionId]).toBeUndefined();
+      expect(doc.pseudoRooms[result.pseudoRoomId]).toMatchObject({ kind: 'death' });
+      expect(doc.connections[result.connectionId]).toMatchObject({
+        sourceRoomId: kitchenId,
+        target: { kind: 'pseudo-room', id: result.pseudoRoomId },
+      });
       expect(doc.rooms[kitchenId].directions.north).toBe(result.connectionId);
     });
 
@@ -1203,6 +1335,12 @@ describe('useEditorStore', () => {
         cursorX: 180,
         cursorY: 200,
       });
+    });
+
+    it('ignores endpoint drag updates when no endpoint drag is active', () => {
+      useEditorStore.getState().updateConnectionEndpointDrag(180, 200);
+
+      expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
     });
 
     it('reroutes a selected connection endpoint in one undoable history step', async () => {
@@ -1260,6 +1398,25 @@ describe('useEditorStore', () => {
       const updatedDoc = useEditorStore.getState().doc!;
       expect(updatedDoc.pseudoRooms[unknown.id]).toBeUndefined();
       expect(updatedDoc.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: hallway.id },
+        isBidirectional: true,
+      });
+    });
+
+    it('cancels endpoint reroute when the target room is invalid', () => {
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let doc = addRoom(testDoc, kitchen);
+      doc = addRoom(doc, hallway);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      doc = addConnection(doc, connection, 'east', 'west');
+      useEditorStore.getState().loadDocument(doc);
+
+      useEditorStore.getState().startConnectionEndpointDrag(connection.id, 'end', 240, 140);
+      useEditorStore.getState().completeConnectionEndpointDrag('missing-room');
+
+      expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
+      expect(useEditorStore.getState().doc?.connections[connection.id]).toMatchObject({
         target: { kind: 'room', id: hallway.id },
         isBidirectional: true,
       });
@@ -1511,6 +1668,11 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startStickyNoteLinkDrag('note-1', 0, 0);
       resetStore();
       useEditorStore.getState().completeStickyNoteLinkDrag('room-1');
+      expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
+    });
+
+    it('ignores sticky-note link drag updates when no drag is active', () => {
+      useEditorStore.getState().updateStickyNoteLinkDrag(30, 40);
       expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
     });
 
