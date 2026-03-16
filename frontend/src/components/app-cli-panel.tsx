@@ -1,10 +1,6 @@
 import React from 'react';
 
 function renderCliOutputLine(line: string): React.ReactNode {
-  if (line === 'fweep') {
-    return <span className="app-game-output-banner">fweep</span>;
-  }
-
   const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
   if (segments.length === 0) {
     return null;

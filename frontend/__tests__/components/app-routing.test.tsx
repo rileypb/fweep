@@ -38,6 +38,10 @@ function expectGameOutputToContain(...fragments: readonly string[]) {
   }
 }
 
+function getRenderedCliLine(line: string): string {
+  return line.replace(/\*\*(.+?)\*\*/g, '$1');
+}
+
 async function submitCliCommand(command: string): Promise<HTMLInputElement> {
   const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
   await act(async () => {
@@ -299,7 +303,7 @@ describe('URL routing', () => {
     await submitCliCommand('go to Kitchen');
 
     expectGameOutputToContain('go to Kitchen', 'Kitchen');
-    expect(getGameOutputBox().querySelector('strong')?.textContent).toBe('Kitchen');
+    expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Kitchen')).toBe(true);
   });
 
   it('imports a script file by executing each CLI line in order', async () => {
@@ -1108,7 +1112,7 @@ describe('URL routing', () => {
         y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
       });
       expectGameOutputToContain('show kitchen', 'Kitchen');
-      expect(getGameOutputBox().querySelector('strong')?.textContent).toBe('Kitchen');
+      expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Kitchen')).toBe(true);
       expect(input.selectionStart).toBe(0);
       expect(input.selectionEnd).toBe(input.value.length);
     } finally {
@@ -2630,7 +2634,9 @@ describe('URL routing', () => {
 
     const outputLines = (getGameOutputBox().textContent ?? '').split('\n');
     expect(outputLines).toHaveLength(DEFAULT_CLI_OUTPUT_LINES.length + 21);
-    expect(outputLines.slice(0, DEFAULT_CLI_OUTPUT_LINES.length)).toEqual(DEFAULT_CLI_OUTPUT_LINES);
+    expect(outputLines.slice(0, DEFAULT_CLI_OUTPUT_LINES.length)).toEqual(
+      DEFAULT_CLI_OUTPUT_LINES.map(getRenderedCliLine),
+    );
     expect(outputLines[4]).toBe('>blorb room 1');
     expect(outputLines[5]).toContain("I didn't understand you.");
     expect(outputLines[6]).toBe('');
@@ -2728,7 +2734,7 @@ describe('URL routing', () => {
     render(<App />);
 
     await screen.findByText(/empty output banner map/i);
-    expect(getGameOutputBox().textContent ?? '').toContain(DEFAULT_CLI_OUTPUT_LINES[0]);
+    expect(getGameOutputBox().textContent ?? '').toContain(getRenderedCliLine(DEFAULT_CLI_OUTPUT_LINES[0]));
     expect(getGameOutputBox().textContent ?? '').toContain(DEFAULT_CLI_OUTPUT_LINES[1]);
 
     await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {

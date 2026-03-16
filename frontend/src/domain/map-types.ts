@@ -171,7 +171,7 @@ export interface MapDocument {
 /** Current schema version for new maps. */
 export const CURRENT_SCHEMA_VERSION = 2;
 export const DEFAULT_CLI_OUTPUT_LINES = [
-  'fweep',
+  '**fweep**',
   'An interactive map creator by Phil Riley',
   'Release 31 / Serial number 415926',
   '',
