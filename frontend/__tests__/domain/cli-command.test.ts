@@ -16,6 +16,9 @@ describe('parseCliCommandDescription', () => {
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
     expect(parseCliCommandDescription('c Kitchen')).toBe('create a room called Kitchen');
+    expect(parseCliCommandDescription('create Kitchen, which is dark')).toBe(
+      'create a room called Kitchen and mark it as dark',
+    );
   });
 
   it('describes pseudo-room unknown commands', () => {
@@ -83,6 +86,11 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('s Kitchen')).toBe('scroll the map to Kitchen');
   });
 
+  it('describes room lighting commands', () => {
+    expect(parseCliCommandDescription('Kitchen is dark')).toBe('mark Kitchen as dark');
+    expect(parseCliCommandDescription('Kitchen is lit')).toBe('mark Kitchen as lit');
+  });
+
   it('describes notate commands', () => {
     expect(parseCliCommandDescription('notate Kitchen with this room has nice wallpaper')).toBe(
       'create a sticky note on Kitchen saying this room has nice wallpaper',
@@ -143,6 +151,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('create and connect Kitchen east to Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
     );
+    expect(parseCliCommandDescription('create and connect Kitchen, which is dark, east to Hallway')).toBe(
+      'create a room called Kitchen and mark it as dark and create a two-way connection from Kitchen going east to Hallway going west',
+    );
     expect(parseCliCommandDescription('c and connect Kitchen east to Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
     );
@@ -157,6 +168,9 @@ describe('parseCliCommandDescription', () => {
   it('describes relative create commands using the inverse source direction', () => {
     expect(parseCliCommandDescription('create Kitchen east of Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going west to Hallway going east',
+    );
+    expect(parseCliCommandDescription('create Kitchen, which is dark, east of Hallway')).toBe(
+      'create a room called Kitchen and mark it as dark and create a two-way connection from Kitchen going west to Hallway going east',
     );
     expect(parseCliCommandDescription('create Kitchen n of Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going south to Hallway going north',
@@ -182,6 +196,9 @@ describe('parseCliCommandDescription', () => {
   it('supports quoted names and escaped quotes', () => {
     expect(parseCliCommandDescription('connect "Living Room \\"East\\"" east to "Dining Room"')).toBe(
       'create a two-way connection from Living Room "East" going east to Dining Room going west',
+    );
+    expect(parseCliCommandDescription('create "Living Room, East", which is dark')).toBe(
+      'create a room called Living Room, East and mark it as dark',
     );
   });
 

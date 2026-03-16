@@ -23,6 +23,7 @@ import {
   type ConnectionRenderGeometry,
   type Point,
 } from '../graph/connection-geometry';
+import { DARK_ROOM_INNER, DARK_ROOM_OUTER } from '../graph/dark-room-geometry';
 import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
 import { getRoomForVisualStyle, getRoomLabelLayout, getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
@@ -112,6 +113,7 @@ function drawRoomLabel(
   const width = dimensions.width;
   const labelLayout = getRoomLabelLayout(room, width, dimensions.height, visualStyle);
   const foreground = getForegroundColor(theme);
+  const roomFill = getRoomFillColor(room.fillColorIndex, theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
   if (room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null) {
@@ -159,6 +161,24 @@ function drawRoomLabel(
     context.strokeStyle = theme === 'dark' ? '#111827' : '#ffffff';
     context.lineWidth = 1;
     context.stroke();
+    context.restore();
+  }
+
+  if (room.isDark && labelLayout.darkX !== null && labelLayout.darkY !== null) {
+    const offsetX = room.position.x + labelLayout.darkX;
+    const offsetY = room.position.y + labelLayout.darkY;
+
+    context.save();
+    context.translate(offsetX, offsetY);
+    context.fillStyle = roomStroke;
+    context.beginPath();
+    context.arc(DARK_ROOM_OUTER.cx, DARK_ROOM_OUTER.cy, DARK_ROOM_OUTER.r, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = roomFill;
+    context.beginPath();
+    context.arc(DARK_ROOM_INNER.cx, DARK_ROOM_INNER.cy, DARK_ROOM_INNER.r, 0, Math.PI * 2);
+    context.fill();
     context.restore();
   }
 

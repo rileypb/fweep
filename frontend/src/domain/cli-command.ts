@@ -6,10 +6,16 @@ export interface CliRoomReference {
   readonly exact: boolean;
 }
 
+export interface CliRoomAdjective {
+  readonly kind: 'lighting';
+  readonly text: 'dark' | 'lit';
+  readonly isDark: boolean;
+}
+
 export type CliCommand =
   | { readonly kind: 'help' }
   | { readonly kind: 'arrange' }
-  | { readonly kind: 'create'; readonly roomName: string }
+  | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | {
     readonly kind: 'create-pseudo-room';
     readonly pseudoKind: PseudoRoomKind;
@@ -19,6 +25,7 @@ export type CliCommand =
   | { readonly kind: 'delete'; readonly room: CliRoomReference }
   | { readonly kind: 'edit'; readonly room: CliRoomReference }
   | { readonly kind: 'show'; readonly room: CliRoomReference }
+  | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | { readonly kind: 'notate'; readonly room: CliRoomReference; readonly noteText: string }
   | {
     readonly kind: 'connect';
@@ -31,6 +38,7 @@ export type CliCommand =
   | {
     readonly kind: 'create-and-connect';
     readonly sourceRoomName: string;
+    readonly adjective: CliRoomAdjective | null;
     readonly sourceDirection: string;
     readonly targetRoom: CliRoomReference;
     readonly targetDirection: string | null;
@@ -58,6 +66,11 @@ export const CLI_COMMAND_FORMS = [
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'show/s <room name>',
+  '<room name> is dark',
+  '<room name> is lit',
+  'create/c <room name>, which is <adjective>',
+  'create/c <room name>, which is <adjective>, <direction> of <room name>',
+  'create and connect <room name>, which is <adjective>, <direction> to <room name> [<direction>]',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
@@ -101,6 +114,12 @@ function tokenizeCliInput(input: string): Token[] | null {
       continue;
     }
 
+    if (char === ',') {
+      tokens.push({ value: ',', quoted: false });
+      index += 1;
+      continue;
+    }
+
     if (char === '"') {
       let value = '';
       let closed = false;
@@ -136,7 +155,7 @@ function tokenizeCliInput(input: string): Token[] | null {
     }
 
     let value = '';
-    while (index < input.length && input[index] !== ' ') {
+    while (index < input.length && input[index] !== ' ' && input[index] !== ',') {
       if (input[index] === '"') {
         return null;
       }
@@ -153,12 +172,55 @@ function isTokenValue(token: Token | undefined, expected: string): boolean {
   return token !== undefined && token.value.toLowerCase() === expected;
 }
 
+function isCommaToken(token: Token | undefined): boolean {
+  return token !== undefined && !token.quoted && token.value === ',';
+}
+
 function isFirstWordAlias(token: Token | undefined, ...acceptedValues: readonly string[]): boolean {
   return token !== undefined && acceptedValues.some((acceptedValue) => token.value.toLowerCase() === acceptedValue);
 }
 
 function isDirectionToken(token: Token | undefined): boolean {
   return token !== undefined && !token.quoted && DIRECTION_WORDS.has(normalizeDirection(token.value));
+}
+
+function parseRoomAdjective(token: Token | undefined): CliRoomAdjective | null {
+  if (isTokenValue(token, 'dark')) {
+    return {
+      kind: 'lighting',
+      text: 'dark',
+      isDark: true,
+    };
+  }
+
+  if (isTokenValue(token, 'lit')) {
+    return {
+      kind: 'lighting',
+      text: 'lit',
+      isDark: false,
+    };
+  }
+
+  return null;
+}
+
+function parseWhichIsAdjectiveClause(
+  tokens: readonly Token[],
+  startIndex: number,
+): { adjective: CliRoomAdjective; nextIndex: number } | null {
+  if (!isTokenValue(tokens[startIndex], 'which') || !isTokenValue(tokens[startIndex + 1], 'is')) {
+    return null;
+  }
+
+  const adjective = parseRoomAdjective(tokens[startIndex + 2]);
+  if (adjective === null) {
+    return null;
+  }
+
+  return {
+    adjective,
+    nextIndex: startIndex + 3,
+  };
 }
 
 function isOneWayMarker(tokens: readonly Token[], index: number): { matched: boolean; nextIndex: number } {
@@ -207,6 +269,67 @@ interface ParsedConnectTail {
   readonly targetRoom: CliRoomReference;
   readonly targetDirection: string | null;
   readonly oneWay: boolean;
+}
+
+function parseConnectTailFromSourceReference(
+  tokens: readonly Token[],
+  startIndex: number,
+  sourceRoom: CliRoomReference,
+): ParsedConnectTail | null {
+  const sourceDirectionToken = tokens[startIndex];
+  if (!isDirectionToken(sourceDirectionToken)) {
+    return null;
+  }
+
+  const sourceDirection = normalizeDirection(sourceDirectionToken.value);
+  let index = startIndex + 1;
+
+  const oneWayMarker = isOneWayMarker(tokens, index);
+  if (oneWayMarker.matched) {
+    index = oneWayMarker.nextIndex;
+    if (!isTokenValue(tokens[index], 'to')) {
+      return null;
+    }
+    index += 1;
+
+    const targetRoom = readRoomName(tokens, index, () => false);
+    if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      sourceRoom,
+      sourceDirection,
+      targetRoom: targetRoom.reference,
+      targetDirection: null,
+      oneWay: true,
+    };
+  }
+
+  if (!isTokenValue(tokens[index], 'to')) {
+    return null;
+  }
+  index += 1;
+
+  const toIndex = index;
+  let targetDirection: string | null = null;
+  if (tokens.length - index >= 2 && isDirectionToken(tokens[tokens.length - 1])) {
+    targetDirection = normalizeDirection(tokens[tokens.length - 1].value);
+  }
+
+  const targetRoomEnd = targetDirection === null ? tokens.length : tokens.length - 1;
+  const targetRoom = readRoomName(tokens.slice(toIndex, targetRoomEnd), 0, () => false);
+  if (targetRoom === null) {
+    return null;
+  }
+
+  return {
+    sourceRoom,
+    sourceDirection,
+    targetRoom: targetRoom.reference,
+    targetDirection: targetDirection ?? oppositeDirection(sourceDirection) ?? null,
+    oneWay: false,
+  };
 }
 
 interface ParsedDirectionReference {
@@ -370,64 +493,66 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedC
   if (sourceRoom === null) {
     return null;
   }
+  return parseConnectTailFromSourceReference(tokens, sourceRoom.nextIndex, sourceRoom.reference);
+}
 
-  const sourceDirectionToken = tokens[sourceRoom.nextIndex];
-  if (!isDirectionToken(sourceDirectionToken)) {
-    return null;
-  }
-
-  const sourceDirection = normalizeDirection(sourceDirectionToken.value);
-  let index = sourceRoom.nextIndex + 1;
-
-  const oneWayMarker = isOneWayMarker(tokens, index);
-  if (oneWayMarker.matched) {
-    index = oneWayMarker.nextIndex;
-    if (!isTokenValue(tokens[index], 'to')) {
+function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
+  const commaIndex = tokens.findIndex((token, index) => index > 1 && isCommaToken(token));
+  if (commaIndex !== -1) {
+    const sourceRoom = readRoomName(tokens, 1, (token) => token === tokens[commaIndex]);
+    if (sourceRoom === null || sourceRoom.nextIndex !== commaIndex) {
       return null;
     }
-    index += 1;
 
-    const targetRoom = readRoomName(tokens, index, () => false);
+    const adjectiveClause = parseWhichIsAdjectiveClause(tokens, commaIndex + 1);
+    if (adjectiveClause === null || !isCommaToken(tokens[adjectiveClause.nextIndex])) {
+      return null;
+    }
+
+    const index = adjectiveClause.nextIndex + 1;
+    if (isTokenValue(tokens[index], 'above') || isTokenValue(tokens[index], 'below')) {
+      const targetRoom = readRoomName(tokens, index + 1, () => false);
+      if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+        return null;
+      }
+
+      return {
+        kind: 'create-and-connect',
+        sourceRoomName: sourceRoom.reference.text,
+        adjective: adjectiveClause.adjective,
+        sourceDirection: isTokenValue(tokens[index], 'above') ? 'down' : 'up',
+        targetRoom: targetRoom.reference,
+        targetDirection: isTokenValue(tokens[index], 'above') ? 'up' : 'down',
+        oneWay: false,
+      };
+    }
+
+    if (!isDirectionToken(tokens[index]) || !isTokenValue(tokens[index + 1], 'of')) {
+      return null;
+    }
+
+    const relationDirection = normalizeDirection(tokens[index]!.value);
+    const sourceDirection = oppositeDirection(relationDirection);
+    if (sourceDirection === null || sourceDirection === undefined) {
+      return null;
+    }
+
+    const targetRoom = readRoomName(tokens, index + 2, () => false);
     if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
       return null;
     }
 
     return {
-      sourceRoom: sourceRoom.reference,
+      kind: 'create-and-connect',
+      sourceRoomName: sourceRoom.reference.text,
+      adjective: adjectiveClause.adjective,
       sourceDirection,
       targetRoom: targetRoom.reference,
-      targetDirection: null,
-      oneWay: true,
+      targetDirection: relationDirection,
+      oneWay: false,
     };
   }
 
-  if (!isTokenValue(tokens[index], 'to')) {
-    return null;
-  }
-  index += 1;
-
-  const toIndex = index;
-  let targetDirection: string | null = null;
-  if (tokens.length - index >= 2 && isDirectionToken(tokens[tokens.length - 1])) {
-    targetDirection = normalizeDirection(tokens[tokens.length - 1].value);
-  }
-
-  const targetRoomEnd = targetDirection === null ? tokens.length : tokens.length - 1;
-  const targetRoom = readRoomName(tokens.slice(toIndex, targetRoomEnd), 0, () => false);
-  if (targetRoom === null) {
-    return null;
-  }
-
-  return {
-    sourceRoom: sourceRoom.reference,
-    sourceDirection,
-    targetRoom: targetRoom.reference,
-    targetDirection: targetDirection ?? oppositeDirection(sourceDirection) ?? null,
-    oneWay: false,
-  };
-}
-
-function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
   const aboveBelowIndex = tokens.findIndex((token, index) =>
     index > 1 && !token.quoted && (isTokenValue(token, 'above') || isTokenValue(token, 'below')),
   );
@@ -445,6 +570,7 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
     return {
       kind: 'create-and-connect',
       sourceRoomName: sourceRoom.reference.text,
+      adjective: null,
       sourceDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'down' : 'up',
       targetRoom: targetRoom.reference,
       targetDirection: isTokenValue(tokens[aboveBelowIndex], 'above') ? 'up' : 'down',
@@ -475,12 +601,7 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
     return null;
   }
 
-  const ofIndex = relationDirectionIndex + 1;
-  if (!isTokenValue(tokens[ofIndex], 'of')) {
-    return null;
-  }
-
-  const targetRoom = readRoomName(tokens, ofIndex + 1, () => false);
+  const targetRoom = readRoomName(tokens, relationDirectionIndex + 2, () => false);
   if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
     return null;
   }
@@ -488,10 +609,74 @@ function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliComman
   return {
     kind: 'create-and-connect',
     sourceRoomName: sourceRoom.reference.text,
+    adjective: null,
     sourceDirection,
     targetRoom: targetRoom.reference,
     targetDirection: relationDirection,
     oneWay: false,
+  };
+}
+
+function parseCreateAndConnectCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
+  const sourceRoom = readRoomName(tokens, 3, (token) => isCommaToken(token) || isDirectionToken(token));
+  if (sourceRoom === null) {
+    return null;
+  }
+
+  let adjective: CliRoomAdjective | null = null;
+  let index = sourceRoom.nextIndex;
+  if (isCommaToken(tokens[index])) {
+    const adjectiveClause = parseWhichIsAdjectiveClause(tokens, index + 1);
+    if (adjectiveClause === null || !isCommaToken(tokens[adjectiveClause.nextIndex])) {
+      return null;
+    }
+    adjective = adjectiveClause.adjective;
+    index = adjectiveClause.nextIndex + 1;
+  }
+
+  const tail = parseConnectTailFromSourceReference(tokens, index, sourceRoom.reference);
+  if (tail === null) {
+    return null;
+  }
+
+  return {
+    kind: 'create-and-connect',
+    sourceRoomName: tail.sourceRoom.text,
+    adjective,
+    sourceDirection: tail.sourceDirection,
+    targetRoom: tail.targetRoom,
+    targetDirection: tail.targetDirection,
+    oneWay: tail.oneWay,
+  };
+}
+
+function parseCreateCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create' }> | null {
+  const roomName = readRoomName(tokens, 1, isCommaToken);
+  if (roomName === null) {
+    return null;
+  }
+
+  if (roomName.nextIndex === tokens.length) {
+    return {
+      kind: 'create',
+      roomName: roomName.reference.text,
+      adjective: null,
+    };
+  }
+
+  if (!isCommaToken(tokens[roomName.nextIndex])) {
+    return null;
+  }
+
+  const adjectiveClause = parseWhichIsAdjectiveClause(tokens, roomName.nextIndex + 1);
+  if (adjectiveClause === null || adjectiveClause.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind: 'create',
+    roomName: roomName.reference.text,
+    adjective: adjectiveClause.adjective,
   };
 }
 
@@ -528,19 +713,12 @@ export function parseCliCommand(input: string): CliCommand | null {
   }
 
   if (isFirstWordAlias(tokens[0], 'create', 'c') && isTokenValue(tokens[1], 'and') && isFirstWordAlias(tokens[2], 'connect', 'con')) {
-    const tail = parseConnectTail(tokens, 3);
-    if (tail === null) {
+    const createAndConnectCommand = parseCreateAndConnectCommand(tokens);
+    if (createAndConnectCommand === null) {
       return null;
     }
 
-    return {
-      kind: 'create-and-connect',
-      sourceRoomName: tail.sourceRoom.text,
-      sourceDirection: tail.sourceDirection,
-      targetRoom: tail.targetRoom,
-      targetDirection: tail.targetDirection,
-      oneWay: tail.oneWay,
-    };
+    return createAndConnectCommand;
   }
 
   if (isFirstWordAlias(tokens[0], 'create', 'c')) {
@@ -563,15 +741,7 @@ export function parseCliCommand(input: string): CliCommand | null {
   }
 
   if (isFirstWordAlias(tokens[0], 'create', 'c')) {
-    const roomName = readRoomName(tokens, 1, () => false);
-    if (roomName === null || roomName.nextIndex !== tokens.length) {
-      return null;
-    }
-
-    return {
-      kind: 'create',
-      roomName: roomName.reference.text,
-    };
+    return parseCreateCommand(tokens);
   }
 
   if (isFirstWordAlias(tokens[0], 'delete', 'd', 'del')) {
@@ -610,6 +780,22 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
+  const lightingRoom = readRoomName(tokens, 0, (token) => isTokenValue(token, 'is'));
+  if (
+    lightingRoom !== null
+    && isTokenValue(tokens[lightingRoom.nextIndex], 'is')
+    && lightingRoom.nextIndex + 2 === tokens.length
+  ) {
+    const adjective = parseRoomAdjective(tokens[lightingRoom.nextIndex + 1]);
+    if (adjective !== null) {
+      return {
+        kind: 'set-room-adjective',
+        room: lightingRoom.reference,
+        adjective,
+      };
+    }
+  }
+
   if (isFirstWordAlias(tokens[0], 'notate', 'annotate', 'ann')) {
     const withIndex = tokens.findIndex((token, index) => index > 0 && isTokenValue(token, 'with'));
     if (withIndex === -1) {
@@ -643,7 +829,9 @@ function describeCliCommand(command: CliCommand): string {
     case 'arrange':
       return 'rearrange the map layout';
     case 'create':
-      return `create a room called ${command.roomName}`;
+      return command.adjective === null
+        ? `create a room called ${command.roomName}`
+        : `create a room called ${command.roomName} and mark it as ${command.adjective.text}`;
     case 'delete':
       return `delete the room called ${command.room.text}`;
     case 'create-pseudo-room':
@@ -661,6 +849,8 @@ function describeCliCommand(command: CliCommand): string {
       return `open the room editor for ${command.room.text}`;
     case 'show':
       return `scroll the map to ${command.room.text}`;
+    case 'set-room-adjective':
+      return `mark ${command.room.text} as ${command.adjective.text}`;
     case 'notate':
       return `create a sticky note on ${command.room.text} saying ${command.noteText}`;
     case 'undo':
@@ -675,10 +865,18 @@ function describeCliCommand(command: CliCommand): string {
       return `create a two-way connection from ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
     case 'create-and-connect':
       if (command.oneWay) {
-        return `create a room called ${command.sourceRoomName} and create a one-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text}`;
+        const prefix = command.adjective === null
+          ? `create a room called ${command.sourceRoomName}`
+          : `create a room called ${command.sourceRoomName} and mark it as ${command.adjective.text}`;
+        return `${prefix} and create a one-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text}`;
       }
 
-      return `create a room called ${command.sourceRoomName} and create a two-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
+      {
+        const prefix = command.adjective === null
+          ? `create a room called ${command.sourceRoomName}`
+          : `create a room called ${command.sourceRoomName} and mark it as ${command.adjective.text}`;
+        return `${prefix} and create a two-way connection from ${command.sourceRoomName} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
+      }
   }
 }
 

@@ -1,10 +1,12 @@
 import type { MapVisualStyle, Room, RoomShape } from '../domain/map-types';
+import { DARK_ROOM_GLYPH_HEIGHT, DARK_ROOM_GLYPH_WIDTH } from './dark-room-geometry';
 import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from './padlock-geometry';
 
 export const DEFAULT_ROOM_TEXT_CHAR_WIDTH = 6.78;
 export const DEFAULT_ROOM_HORIZONTAL_PADDING = 24;
 export const ROOM_LOCK_GAP = 6;
 export const ROOM_LOCK_EXTRA_WIDTH = PADLOCK_WIDTH + ROOM_LOCK_GAP;
+export const ROOM_DARK_EXTRA_WIDTH = DARK_ROOM_GLYPH_WIDTH + ROOM_LOCK_GAP;
 export const DEFAULT_ROOM_MIN_WIDTH = 80;
 export const DEFAULT_ROOM_HEIGHT = 36;
 export const SQUARE_CLASSIC_ROOM_SIZE = 84;
@@ -12,7 +14,7 @@ export const SQUARE_CLASSIC_LINE_HEIGHT = 16;
 export const SQUARE_CLASSIC_HORIZONTAL_PADDING = 10;
 export const SQUARE_CLASSIC_VERTICAL_PADDING = 10;
 
-type RoomLabelTarget = Pick<Room, 'name' | 'locked'>;
+type RoomLabelTarget = Pick<Room, 'name' | 'locked' | 'isDark'>;
 
 export function getEffectiveRoomShape(shape: RoomShape, visualStyle: MapVisualStyle): RoomShape {
   return visualStyle === 'square-classic' ? 'rectangle' : shape;
@@ -32,7 +34,7 @@ export function getRoomForVisualStyle(room: Room, visualStyle: MapVisualStyle): 
 
 function getRoomLabelTarget(target: RoomLabelTarget | string, locked: boolean): RoomLabelTarget {
   return typeof target === 'string'
-    ? { name: target, locked }
+    ? { name: target, locked, isDark: false }
     : target;
 }
 
@@ -53,7 +55,7 @@ export function getRoomNodeDimensions(
     };
   }
 
-  const extraWidth = room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0;
+  const extraWidth = (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0) + (room.isDark ? ROOM_DARK_EXTRA_WIDTH : 0);
   return {
     width: Math.max(DEFAULT_ROOM_MIN_WIDTH, Math.round(getEstimatedRoomNameWidth(room.name) + DEFAULT_ROOM_HORIZONTAL_PADDING + extraWidth)),
     height: DEFAULT_ROOM_HEIGHT,
@@ -180,6 +182,8 @@ export function getRoomLabelLayout(
   readonly firstLineY: number;
   readonly lockX: number | null;
   readonly lockY: number | null;
+  readonly darkX: number | null;
+  readonly darkY: number | null;
 } {
   if (visualStyle === 'square-classic') {
     const lines = getRoomLabelLines(room, roomWidth, roomHeight, visualStyle);
@@ -191,12 +195,19 @@ export function getRoomLabelLayout(
       firstLineY: ((roomHeight - blockHeight) / 2) + (SQUARE_CLASSIC_LINE_HEIGHT / 2),
       lockX: null,
       lockY: room.locked ? SQUARE_CLASSIC_VERTICAL_PADDING / 2 : null,
+      darkX: room.isDark ? roomWidth - (SQUARE_CLASSIC_HORIZONTAL_PADDING / 2) - DARK_ROOM_GLYPH_WIDTH : null,
+      darkY: room.isDark ? SQUARE_CLASSIC_VERTICAL_PADDING / 2 : null,
     };
   }
 
-  const contentWidth = getEstimatedRoomNameWidth(room.name) + (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0);
+  const contentWidth = getEstimatedRoomNameWidth(room.name)
+    + (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0)
+    + (room.isDark ? ROOM_DARK_EXTRA_WIDTH : 0);
   const contentLeft = (roomWidth - contentWidth) / 2;
-  const textX = contentLeft + (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0) + (getEstimatedRoomNameWidth(room.name) / 2);
+  const textX = contentLeft
+    + (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0)
+    + (room.isDark ? ROOM_DARK_EXTRA_WIDTH : 0)
+    + (getEstimatedRoomNameWidth(room.name) / 2);
 
   return {
     lines: [room.name],
@@ -205,5 +216,7 @@ export function getRoomLabelLayout(
     firstLineY: roomHeight / 2,
     lockX: room.locked ? contentLeft : null,
     lockY: room.locked ? ((roomHeight - PADLOCK_HEIGHT) / 2) : null,
+    darkX: room.isDark ? contentLeft + (room.locked ? ROOM_LOCK_EXTRA_WIDTH : 0) : null,
+    darkY: room.isDark ? ((roomHeight - DARK_ROOM_GLYPH_HEIGHT) / 2) : null,
   };
 }

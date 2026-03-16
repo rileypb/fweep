@@ -246,6 +246,7 @@ export interface MapCanvasConnectionsProps {
   stickyNotes: Readonly<Record<string, StickyNote>>;
   stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>;
   onOpenConnectionEditor: (connectionId: string) => void;
+  suppressCanvasClick: () => void;
   theme: ThemeMode;
   visualStyle: MapVisualStyle;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
@@ -258,6 +259,7 @@ export function MapCanvasConnections({
   stickyNotes,
   stickyNoteLinks,
   onOpenConnectionEditor,
+  suppressCanvasClick,
   theme,
   visualStyle,
   toMapPoint,
@@ -302,10 +304,12 @@ export function MapCanvasConnections({
 
     event.preventDefault();
     event.stopPropagation();
+    suppressCanvasClick();
     const startPoint = toMapPoint(event.clientX, event.clientY);
     startConnectionEndpointDrag(connectionId, endpoint, startPoint.x, startPoint.y);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      suppressCanvasClick();
       const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
       updateConnectionEndpointDrag(cursorPoint.x, cursorPoint.y);
     };

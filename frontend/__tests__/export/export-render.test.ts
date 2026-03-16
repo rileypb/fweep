@@ -653,6 +653,36 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
   });
 
+  it('renders a dark-room glyph for dark rooms', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const darkRoom = {
+      ...baseInput.doc.rooms['room-rect'],
+      isDark: true,
+    };
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        rooms: {
+          ...baseInput.doc.rooms,
+          [darkRoom.id]: darkRoom,
+        },
+      },
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.save).toHaveBeenCalled();
+    expect(context.translate).toHaveBeenCalled();
+    expect(context.arc).toHaveBeenCalled();
+    expect(context.restore).toHaveBeenCalled();
+    expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
+  });
+
   it('skips background raster rendering when there is no active visible layer', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;

@@ -28,6 +28,7 @@ import {
   setConnectionAnnotation,
   setConnectionLabels,
   setConnectionStyle,
+  setRoomDark,
   setRoomLocked,
   setRoomStyle,
   setRoomPositions,
@@ -731,6 +732,18 @@ describe('convertPseudoRoomToRoom', () => {
       stickyNoteId: stickyNote.id,
       target: { kind: 'room', id: replacementRoom.id },
     });
+  });
+});
+
+describe('setRoomDark', () => {
+  it('updates the room lighting flag', () => {
+    const room = createRoom('Kitchen');
+    const doc = addRoom(createEmptyMap('Test'), room);
+
+    const next = setRoomDark(doc, room.id, true);
+
+    expect(next.rooms[room.id]?.isDark).toBe(true);
+    expect(doc.rooms[room.id]?.isDark).toBe(false);
   });
 });
 

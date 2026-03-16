@@ -2038,6 +2038,17 @@ body {
   gap: 0.45rem;
 }
 
+.room-editor-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.room-editor-toggle input[type='checkbox'] {
+  margin: 0;
+}
+
 .room-shape-picker {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

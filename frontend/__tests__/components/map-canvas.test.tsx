@@ -1008,6 +1008,16 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`room-lock-glyph-${room.id}`)).toBeInTheDocument();
     });
 
+    it('renders a dark glyph for dark rooms', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), isDark: true, position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument(addRoom(doc, room));
+
+      render(<MapCanvas mapName="Test" />);
+
+      expect(screen.getByTestId(`room-dark-glyph-${room.id}`)).toBeInTheDocument();
+    });
+
     it('renders room labels with an explicit theme color', () => {
       document.documentElement.setAttribute('data-theme', 'dark');
 
@@ -1529,11 +1539,13 @@ describe('MapCanvas', () => {
       await user.click(screen.getByTestId('room-fill-color-chip-2'));
       await user.click(screen.getByTestId('room-stroke-color-chip-4'));
       await user.selectOptions(screen.getByLabelText('Stroke style'), 'dashed');
+      await user.click(screen.getByLabelText('Dark room'));
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
       expect(room.name).toBe('Pantry');
       expect(room.shape).toBe('diamond');
+      expect(room.isDark).toBe(true);
       expect(room.fillColorIndex).toBe(2);
       expect(room.strokeColorIndex).toBe(4);
       expect(room.strokeStyle).toBe('dashed');
@@ -2915,6 +2927,67 @@ describe('MapCanvas', () => {
 
       expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
       expect(screen.queryByTestId('connection-reroute-preview-line')).not.toBeInTheDocument();
+    });
+
+    it('selects only the dragged connection when rerouting begins', () => {
+      const { connection, kitchen } = setupRerouteMap();
+      act(() => {
+        useEditorStore.setState((state) => ({
+          ...state,
+          selectedRoomIds: [kitchen.id],
+          selectedPseudoRoomIds: ['some-pseudo-room'],
+          selectedStickyNoteIds: ['some-sticky-note'],
+          selectedConnectionIds: [connection.id],
+          selectedStickyNoteLinkIds: ['some-link'],
+        }));
+      });
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedPseudoRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connection.id]);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+    });
+
+    it('selects only the rerouted connection after rerouting completes', () => {
+      const { connection, kitchen, cellar } = setupRerouteMap();
+      const stickyNote = { ...createStickyNote('remember this'), id: 'sticky-note-extra', position: { x: 20, y: 20 } };
+      const stickyNoteLink = createStickyNoteLink(stickyNote.id, kitchen.id);
+      let updatedDoc = useEditorStore.getState().doc!;
+      updatedDoc = addStickyNote(updatedDoc, stickyNote);
+      updatedDoc = {
+        ...updatedDoc,
+        stickyNoteLinks: {
+          ...updatedDoc.stickyNoteLinks,
+          [stickyNoteLink.id]: stickyNoteLink,
+        },
+      };
+      useEditorStore.getState().loadDocument(updatedDoc);
+      act(() => {
+        useEditorStore.setState((state) => ({
+          ...state,
+          selectedRoomIds: [kitchen.id],
+          selectedPseudoRoomIds: ['some-pseudo-room'],
+          selectedStickyNoteIds: [stickyNote.id],
+          selectedConnectionIds: [connection.id],
+          selectedStickyNoteLinkIds: [stickyNoteLink.id],
+        }));
+      });
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      const cellarNode = screen.getAllByTestId('room-node').find((node) => node.getAttribute('data-room-id') === cellar.id) as HTMLElement;
+      fireEvent.mouseUp(cellarNode, { clientX: 300, clientY: 76, button: 0 });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedPseudoRoomIds).toEqual([]);
+      expect(useEditorStore.getState().selectedStickyNoteIds).toEqual([]);
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connection.id]);
+      expect(useEditorStore.getState().selectedStickyNoteLinkIds).toEqual([]);
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: cellar.id },
+      });
     });
 
     it('does not render a reroute preview when the dragged connection is missing', () => {

@@ -871,6 +871,21 @@ export function setRoomLocked(doc: MapDocument, roomId: string, locked: boolean)
   });
 }
 
+/** Return a new document with the room's lighting state updated. */
+export function setRoomDark(doc: MapDocument, roomId: string, isDark: boolean): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+  if (room.isDark === isDark) {
+    return doc;
+  }
+  return touch({
+    ...doc,
+    rooms: { ...doc.rooms, [roomId]: { ...room, isDark } },
+  });
+}
+
 /** Return a new document with multiple rooms' lock states updated. */
 export function setRoomsLocked(
   doc: MapDocument,

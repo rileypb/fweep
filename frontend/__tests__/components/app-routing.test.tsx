@@ -1102,6 +1102,76 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('updates room lighting for the dark and lit CLI commands', async () => {
+    let doc = createEmptyMap('CLI Lighting Map');
+    doc = addRoom(doc, {
+      ...createRoom('Kitchen'),
+      id: 'kitchen',
+      position: { x: 240, y: 160 },
+    });
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli lighting map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'Kitchen is dark{enter}');
+    expect(useEditorStore.getState().doc?.rooms.kitchen?.isDark).toBe(true);
+    expectGameOutputToContain('Kitchen is dark', 'marked as dark');
+
+    await user.type(input, 'Kitchen is lit{enter}');
+    expect(useEditorStore.getState().doc?.rooms.kitchen?.isDark).toBe(false);
+    expectGameOutputToContain('Kitchen is lit', 'marked as lit');
+  });
+
+  it('creates a dark room with the adjective create syntax', async () => {
+    await renderAppWithOpenMap('CLI Adjective Create Map');
+
+    const user = userEvent.setup();
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen, which is dark{enter}');
+
+    const createdRoom = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
+    expect(createdRoom?.isDark).toBe(true);
+    expectGameOutputToContain('create Kitchen, which is dark', 'created');
+  });
+
+  it('creates and connects a dark room with adjective modifiers', async () => {
+    let doc = createEmptyMap('CLI Adjective Connection Map');
+    doc = addRoom(doc, {
+      ...createRoom('Hallway'),
+      id: 'hallway',
+      position: { x: 240, y: 160 },
+    });
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli adjective connection map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'create Kitchen, which is dark, east of Hallway{enter}');
+
+    const stateAfterRelativeCreate = useEditorStore.getState();
+    const relativeCreateRoom = Object.values(stateAfterRelativeCreate.doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
+    expect(relativeCreateRoom?.isDark).toBe(true);
+    expect(relativeCreateRoom?.directions.west).toBeDefined();
+
+    await user.type(input, 'create and connect Pantry, which is lit, east to Hallway{enter}');
+
+    const stateAfterCreateAndConnect = useEditorStore.getState();
+    const createdAndConnectedRoom = Object.values(stateAfterCreateAndConnect.doc?.rooms ?? {}).find((room) => room.name === 'Pantry');
+    expect(createdAndConnectedRoom?.isDark).toBe(false);
+    expect(createdAndConnectedRoom?.directions.east).toBeDefined();
+    expectGameOutputToContain('create Kitchen, which is dark, east of Hallway', 'created and connected');
+    expectGameOutputToContain('create and connect Pantry, which is lit, east to Hallway', 'created and connected');
+  });
+
   it('accepts annotate as a synonym for the notate CLI command', async () => {
     let doc = createEmptyMap('CLI Annotate Map');
     doc = {

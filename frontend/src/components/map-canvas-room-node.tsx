@@ -7,11 +7,13 @@ import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { renderRoomShape } from './map-canvas-helpers';
 import {
+  getRoomFillColor,
   getRoomLabelColor,
   getRoomStrokeColor,
   type ThemeMode,
 } from '../domain/room-color-palette';
 import type { PanOffset } from './use-map-viewport';
+import { DarkRoomGlyph } from './dark-room-glyph';
 import { PadlockGlyph } from './padlock-glyph';
 
 const HANDLE_RADIUS = 5;
@@ -162,6 +164,7 @@ export function MapCanvasRoomNode({
   const roomHeight = roomDimensions.height;
   const labelLayout = getRoomLabelLayout(room, roomWidth, roomHeight, mapVisualStyle);
   const roomLabelColor = getRoomLabelColor(theme);
+  const roomFill = getRoomFillColor(room.fillColorIndex, theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
 
   const openRoomEditor = useCallback(() => {
@@ -369,6 +372,18 @@ export function MapCanvasRoomNode({
           <PadlockGlyph
             bodyColor={roomStroke}
             keyholeColor={theme === 'dark' ? '#111827' : '#ffffff'}
+          />
+        </g>
+      )}
+      {room.isDark && labelLayout.darkX !== null && labelLayout.darkY !== null && (
+        <g
+          data-testid={`room-dark-glyph-${room.id}`}
+          transform={`translate(${labelLayout.darkX} ${labelLayout.darkY})`}
+          pointerEvents="none"
+        >
+          <DarkRoomGlyph
+            bodyColor={roomStroke}
+            cutoutColor={roomFill}
           />
         </g>
       )}

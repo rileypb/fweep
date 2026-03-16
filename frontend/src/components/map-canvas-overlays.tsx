@@ -327,6 +327,7 @@ export function RoomEditorOverlay({
       ? {
         name: 'Room',
         shape: 'box' as const,
+        isDark: false,
         fillColorIndex: 0,
         strokeColorIndex: 0,
         strokeStyle: 'solid' as const,
@@ -334,6 +335,7 @@ export function RoomEditorOverlay({
       : {
         name: room.name,
         shape: room.shape,
+        isDark: room.isDark,
         fillColorIndex: room.fillColorIndex,
         strokeColorIndex: room.strokeColorIndex,
         strokeStyle: room.strokeStyle,
@@ -407,6 +409,7 @@ export function RoomEditorOverlay({
     }),
     name: draft.name,
     shape: draft.shape,
+    isDark: draft.isDark,
     fillColorIndex: draft.fillColorIndex,
     strokeColorIndex: draft.strokeColorIndex,
     strokeStyle: draft.strokeStyle,
@@ -543,6 +546,17 @@ export function RoomEditorOverlay({
                 </div>
               </div>
             )}
+
+            <label className="room-editor-toggle" htmlFor="room-editor-dark-input">
+              <input
+                id="room-editor-dark-input"
+                type="checkbox"
+                aria-label="Dark room"
+                checked={draft.isDark}
+                onChange={(e) => setDraft((current) => current === null ? current : { ...current, isDark: e.target.checked })}
+              />
+              <span>Dark room</span>
+            </label>
 
             <div className="room-editor-actions">
               <button

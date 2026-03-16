@@ -1601,6 +1601,9 @@ export function MapCanvas({
               stickyNotes={doc.stickyNotes}
               stickyNoteLinks={doc.stickyNoteLinks}
               onOpenConnectionEditor={openConnectionEditor}
+              suppressCanvasClick={() => {
+                suppressCanvasClickRef.current = true;
+              }}
               theme={theme}
               visualStyle={mapVisualStyle}
               toMapPoint={toMapPoint}

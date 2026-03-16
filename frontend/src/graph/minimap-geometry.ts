@@ -66,7 +66,7 @@ export interface StickyNoteBounds {
 }
 
 export function getRoomNodeWidth(
-  room: Pick<Room, 'name' | 'locked'> | string,
+  room: Pick<Room, 'name' | 'locked' | 'isDark'> | string,
   locked: boolean = false,
   visualStyle: MapVisualStyle = 'default',
 ): number {

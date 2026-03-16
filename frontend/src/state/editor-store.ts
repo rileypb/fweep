@@ -35,6 +35,7 @@ import {
   setConnectionAnnotation as domainSetConnectionAnnotation,
   setConnectionLabels as domainSetConnectionLabels,
   setConnectionStyle as domainSetConnectionStyle,
+  setRoomDark as domainSetRoomDark,
   setPseudoRoomKind as domainSetPseudoRoomKind,
   setRoomsLocked as domainSetRoomsLocked,
   setRoomPositions as domainSetRoomPositions,
@@ -279,6 +280,7 @@ export interface EditorState {
     draft: {
       name: string;
       shape: RoomShape;
+      isDark: boolean;
       fillColorIndex: number;
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
@@ -306,6 +308,7 @@ export interface EditorState {
     draft: {
       name: string;
       shape: RoomShape;
+      isDark: boolean;
       fillColorIndex: number;
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
@@ -353,6 +356,9 @@ export interface EditorState {
   /** Update an existing room's shape. */
   setRoomShape: (roomId: string, shape: RoomShape) => void;
 
+  /** Update an existing room's lighting. */
+  setRoomDark: (roomId: string, isDark: boolean) => void;
+
   /** Update an existing room's visual styling. */
   setRoomStyle: (
     roomId: string,
@@ -369,6 +375,7 @@ export interface EditorState {
     draft: {
       name: string;
       shape: RoomShape;
+      isDark: boolean;
       fillColorIndex: number;
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
@@ -1124,6 +1131,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...createRoom(draft.name),
       position: snapped,
       shape: draft.shape,
+      isDark: draft.isDark,
       fillColorIndex: draft.fillColorIndex,
       strokeColorIndex: draft.strokeColorIndex,
       strokeStyle: draft.strokeStyle,
@@ -1230,6 +1238,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       id: pseudoRoom.id,
       position: pseudoRoom.position,
       shape: draft.shape,
+      isDark: draft.isDark,
       fillColorIndex: draft.fillColorIndex,
       strokeColorIndex: draft.strokeColorIndex,
       strokeStyle: draft.strokeStyle,
@@ -1403,6 +1412,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
+  setRoomDark: (roomId, isDark) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set room lighting: no document is loaded.');
+    }
+    const updatedDoc = domainSetRoomDark(doc, roomId, isDark);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
   setRoomStyle: (roomId, style) => {
     const { doc } = get();
     if (!doc) {
@@ -1421,6 +1439,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let updatedDoc = doc;
     updatedDoc = domainRenameRoom(updatedDoc, roomId, draft.name);
     updatedDoc = domainSetRoomShape(updatedDoc, roomId, draft.shape);
+    updatedDoc = domainSetRoomDark(updatedDoc, roomId, draft.isDark);
     updatedDoc = domainSetRoomStyle(updatedDoc, roomId, {
       fillColorIndex: draft.fillColorIndex,
       strokeColorIndex: draft.strokeColorIndex,
@@ -2190,6 +2209,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startConnectionEndpointDrag: (connectionId, endpoint, cursorX, cursorY) => {
     set({
       lastHistoryMergeKey: null,
+      selectedRoomIds: [],
+      selectedPseudoRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connectionId],
+      selectedStickyNoteLinkIds: [],
       connectionEndpointDrag: {
         connectionId,
         endpoint,
@@ -2233,7 +2257,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set((state) => ({
         ...commitDocumentChange(state, doc, updatedDoc),
         connectionEndpointDrag: null,
+        selectedRoomIds: [],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
         selectedConnectionIds: [connectionEndpointDrag.connectionId],
+        selectedStickyNoteLinkIds: [],
       }));
     } catch {
       set({ connectionEndpointDrag: null });

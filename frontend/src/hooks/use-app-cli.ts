@@ -3,6 +3,7 @@ import {
   CLI_COMMAND_FORMS,
   parseCliCommand,
   parseCliCommandDescription,
+  type CliRoomAdjective,
   type CliCommand,
 } from '../domain/cli-command';
 import { parseCliScript } from '../domain/cli-script';
@@ -93,6 +94,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Notated.';
     case 'show':
       return 'Shown.';
+    case 'set-room-adjective':
+      return `Marked as ${command.adjective.text}.`;
     case 'connect':
       return 'Connected.';
     case 'create-and-connect':
@@ -172,6 +175,7 @@ export function useAppCli({
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const redo = useEditorStore((s) => s.redo);
   const removeRoom = useEditorStore((s) => s.removeRoom);
+  const setRoomDark = useEditorStore((s) => s.setRoomDark);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const storeDoc = useEditorStore((s) => s.doc);
   const undo = useEditorStore((s) => s.undo);
@@ -343,10 +347,18 @@ export function useAppCli({
     return requestId;
   };
 
+  const applyCliRoomAdjective = (roomId: string, adjective: CliRoomAdjective): void => {
+    switch (adjective.kind) {
+      case 'lighting':
+        setRoomDark(roomId, adjective.isDark);
+        return;
+    }
+  };
+
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect',
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -409,6 +421,9 @@ export function useAppCli({
         currentMapPanOffset,
       );
       const roomId = addRoomAtPosition(plan.roomName, plan.position);
+      if (command.adjective !== null) {
+        applyCliRoomAdjective(roomId, command.adjective);
+      }
       setCliPronounRoomReference(roomId);
       selectRoom(roomId);
       setRequestedViewportFocusRequest({
@@ -494,6 +509,20 @@ export function useAppCli({
       return { ok: true, shouldSelectCliInput };
     }
 
+    if (command.kind === 'set-room-adjective' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'set-room-adjective', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+      applyCliRoomAdjective(roomMatch.room.id, command.adjective);
+      setCliPronounRoomReference(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
     if (command.kind === 'notate' && currentDoc !== null) {
       const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
       if (reportRoomReferenceError(trimmedInput, roomMatch, 'notate', command.room.text)) {
@@ -566,6 +595,9 @@ export function useAppCli({
           targetDirection: command.targetDirection,
         },
       );
+      if (command.adjective !== null) {
+        applyCliRoomAdjective(result.roomId, command.adjective);
+      }
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(result.roomId);
       }

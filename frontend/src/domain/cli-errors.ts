@@ -4,7 +4,7 @@ export type CliErrorCode =
   | 'ambiguous-room'
   | 'unbound-pronoun';
 
-export type CliErrorCommandKind = 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | null;
+export type CliErrorCommandKind = 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | null;
 
 export interface CliError {
   readonly code: CliErrorCode;

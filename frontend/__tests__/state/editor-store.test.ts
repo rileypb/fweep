@@ -1302,6 +1302,7 @@ describe('useEditorStore', () => {
       const roomId = useEditorStore.getState().convertPseudoRoomToRoom(result.pseudoRoomId, {
         name: 'Hallway',
         shape: 'rectangle',
+        isDark: true,
         fillColorIndex: 0,
         strokeColorIndex: 0,
         strokeStyle: 'solid',
