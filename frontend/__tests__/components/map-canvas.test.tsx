@@ -1172,6 +1172,20 @@ describe('MapCanvas', () => {
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
     });
 
+    it('deletes the selected room even when focus has moved to the minimap', () => {
+      const { kitchenNode } = setupTwoRooms();
+
+      fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+      screen.getByTestId('map-minimap').focus();
+      fireEvent.keyDown(window, { key: 'Delete' });
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(Object.keys(useEditorStore.getState().doc!.rooms)).toHaveLength(1);
+      expect(screen.queryAllByTestId('room-node')).toHaveLength(1);
+    });
+
     it('ignores Delete when nothing is selected', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
@@ -3015,6 +3029,27 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(screen.getByTestId('pseudo-room-node'), { clientX: 260, clientY: 40, button: 0 });
       fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
       fireEvent.keyDown(screen.getByTestId('map-canvas'), { key: 'Delete' });
+
+      expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id]).toBeUndefined();
+      expect(useEditorStore.getState().doc!.connections[connection.id]).toBeUndefined();
+    });
+
+    it('deletes a selected pseudo-room even when focus has moved to the minimap', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      updated = addConnection(updated, connection, 'north');
+      useEditorStore.getState().loadDocument(updated);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.mouseDown(screen.getByTestId('pseudo-room-node'), { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
+      screen.getByTestId('map-minimap').focus();
+      fireEvent.keyDown(window, { key: 'Delete' });
 
       expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id]).toBeUndefined();
       expect(useEditorStore.getState().doc!.connections[connection.id]).toBeUndefined();

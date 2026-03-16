@@ -412,6 +412,29 @@ export function MapCanvas({
         return;
       }
 
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const {
+          selectedRoomIds: currentSelectedRoomIds,
+          selectedPseudoRoomIds: currentSelectedPseudoRoomIds,
+          selectedStickyNoteIds: currentSelectedStickyNoteIds,
+          selectedConnectionIds: currentSelectedConnectionIds,
+          selectedStickyNoteLinkIds: currentSelectedStickyNoteLinkIds,
+        } = useEditorStore.getState();
+        if (
+          currentSelectedRoomIds.length === 0
+          && currentSelectedPseudoRoomIds.length === 0
+          && currentSelectedStickyNoteIds.length === 0
+          && currentSelectedConnectionIds.length === 0
+          && currentSelectedStickyNoteLinkIds.length === 0
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        removeSelectedEntities();
+        return;
+      }
+
       if (drawingInterfaceEnabled && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
@@ -450,6 +473,7 @@ export function MapCanvas({
     connectionEndpointDrag,
     drawingInterfaceEnabled,
     isRoomEditorOpen,
+    removeSelectedEntities,
     redo,
     setCanvasInteractionMode,
     undo,
