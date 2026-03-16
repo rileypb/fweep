@@ -1094,7 +1094,7 @@ describe('URL routing', () => {
     expect(stickyNoteLinks).toHaveLength(1);
     expect(stickyNoteLinks[0]).toMatchObject({
       stickyNoteId: stickyNotes[0].id,
-      roomId: 'kitchen',
+      target: { kind: 'room', id: 'kitchen' },
     });
     expect(state.selectedStickyNoteIds).toEqual([stickyNotes[0].id]);
     expectGameOutputToContain('notate kitchen with this room has nice wallpaper', 'notated.');

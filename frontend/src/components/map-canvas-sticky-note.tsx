@@ -99,9 +99,14 @@ export function MapCanvasStickyNote({
 
               const roomEl = (upEvent.target as Element | null)?.closest?.('[data-room-id]') as HTMLElement | null;
               if (roomEl) {
-                completeStickyNoteLinkDrag(roomEl.getAttribute('data-room-id')!);
+                completeStickyNoteLinkDrag({ kind: 'room', id: roomEl.getAttribute('data-room-id')! });
               } else {
-                cancelStickyNoteLinkDrag();
+                const pseudoRoomEl = (upEvent.target as Element | null)?.closest?.('[data-pseudo-room-id]') as HTMLElement | null;
+                if (pseudoRoomEl) {
+                  completeStickyNoteLinkDrag({ kind: 'pseudo-room', id: pseudoRoomEl.getAttribute('data-pseudo-room-id')! });
+                } else {
+                  cancelStickyNoteLinkDrag();
+                }
               }
             };
 

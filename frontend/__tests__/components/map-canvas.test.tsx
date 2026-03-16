@@ -1971,6 +1971,32 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`sticky-note-link-${stickyNoteLinkId}`)).toBeInTheDocument();
     });
 
+    it('creates a sticky-note link when dragging from a note link handle to a pseudo-room', () => {
+      const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+      const doc = addPseudoRoom(createEmptyMap('Test'), pseudoRoom);
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      fireEvent.keyDown(window, { key: 'n' });
+      fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120 });
+
+      const linkHandle = screen.getByTestId('sticky-note-link-handle');
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+
+      fireEvent.mouseDown(linkHandle, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 140 });
+      expect(screen.getByTestId('sticky-note-link-preview')).toBeInTheDocument();
+      fireEvent.mouseUp(pseudoRoomNode, { clientX: 260, clientY: 140, button: 0 });
+
+      const stickyNoteLinks = Object.values(useEditorStore.getState().doc!.stickyNoteLinks);
+
+      expect(stickyNoteLinks).toHaveLength(1);
+      expect(stickyNoteLinks[0]).toMatchObject({
+        target: { kind: 'pseudo-room', id: pseudoRoom.id },
+      });
+    });
+
     it('shift-clicking a sticky-note link adds it to a mixed selection', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
       const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };

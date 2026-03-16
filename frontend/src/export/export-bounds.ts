@@ -104,7 +104,9 @@ function getStickyNoteBounds(stickyNote: StickyNote): ExportRegion {
 
 function getStickyNoteLinkBounds(doc: MapDocument, stickyNoteLink: StickyNoteLink): ExportRegion | null {
   const stickyNote = doc.stickyNotes[stickyNoteLink.stickyNoteId];
-  const room = doc.rooms[stickyNoteLink.roomId];
+  const room = stickyNoteLink.target.kind === 'room'
+    ? doc.rooms[stickyNoteLink.target.id]
+    : (doc.pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(doc.pseudoRooms[stickyNoteLink.target.id]) : undefined);
   if (!stickyNote || !room) {
     return null;
   }

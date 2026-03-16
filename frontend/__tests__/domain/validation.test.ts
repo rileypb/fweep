@@ -560,7 +560,7 @@ describe('parseUntrustedMapDocument', () => {
         link1: {
           id: 'different-link-id',
           stickyNoteId: 'note1',
-          roomId: secondRoomId,
+          target: { kind: 'room', id: secondRoomId },
         },
       },
     };
@@ -738,7 +738,7 @@ describe('validateMap', () => {
         link1: {
           id: 'link1',
           stickyNoteId: 'missing-note',
-          roomId: 'missing-room',
+          target: { kind: 'room', id: 'missing-room' },
         },
       },
     };

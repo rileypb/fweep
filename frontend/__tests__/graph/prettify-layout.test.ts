@@ -291,6 +291,38 @@ describe('computePrettifiedRoomPositions', () => {
     expect(overlapsHorizontally && overlapsVertically).toBe(false);
   });
 
+  it('moves a linked sticky note near its linked pseudo-room without overlapping it', () => {
+    let doc = createEmptyMap('Linked Pseudo Note');
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 260, y: 200 } };
+    const stickyNote = { ...createStickyNote('What does this mean?'), position: { x: 260, y: 200 } };
+    doc = addRoom(doc, room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id }));
+
+    const { pseudoRoomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(doc);
+    const pseudoRoomPosition = pseudoRoomPositions[pseudoRoom.id];
+    const stickyNotePosition = stickyNotePositions[stickyNote.id];
+
+    expect(stickyNotePosition).toBeDefined();
+    expect(pseudoRoomPosition).toBeDefined();
+
+    const stickyNoteLeft = stickyNotePosition.x;
+    const stickyNoteRight = stickyNoteLeft + STICKY_NOTE_WIDTH;
+    const stickyNoteTop = stickyNotePosition.y;
+    const stickyNoteBottom = stickyNoteTop + getStickyNoteHeight(stickyNote.text);
+    const pseudoRoomLeft = pseudoRoomPosition.x;
+    const pseudoRoomRight = pseudoRoomLeft + 80;
+    const pseudoRoomTop = pseudoRoomPosition.y;
+    const pseudoRoomBottom = pseudoRoomTop + 36;
+
+    const overlapsHorizontally = stickyNoteLeft < pseudoRoomRight && stickyNoteRight > pseudoRoomLeft;
+    const overlapsVertically = stickyNoteTop < pseudoRoomBottom && stickyNoteBottom > pseudoRoomTop;
+    expect(overlapsHorizontally && overlapsVertically).toBe(false);
+  });
+
   it('separates overlapping sticky notes during prettify', () => {
     let doc = createEmptyMap('Overlapping Notes');
     const room = { ...createRoom('Anchor'), position: { x: 320, y: 200 } };

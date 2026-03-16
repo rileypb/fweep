@@ -361,7 +361,7 @@ export function MapMinimap({
           );
         })}
         {!isPlaceholder && Object.values(stickyNoteLinks).map((stickyNoteLink) => {
-          const points = getMinimapStickyNoteLinkPoints(rooms, stickyNotes, stickyNoteLink, transform, visualStyle);
+          const points = getMinimapStickyNoteLinkPoints(rooms, pseudoRooms, stickyNotes, stickyNoteLink, transform, visualStyle);
           if (points.length !== 2) {
             return null;
           }

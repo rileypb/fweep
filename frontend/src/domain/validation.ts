@@ -953,9 +953,37 @@ function parseStickyNoteLink(entryKey: string, value: unknown, issues: Validatio
     'sticky-note-link',
     entryKey,
   );
-  const roomId = requireString(stickyNoteLink.roomId, issues, `stickyNoteLinks.${entryKey}.roomId`, 'sticky-note-link', entryKey);
+  const target = (() => {
+    if (stickyNoteLink.target !== undefined) {
+      const targetValue = asRecord(stickyNoteLink.target, issues, `stickyNoteLinks.${entryKey}.target`, 'sticky-note-link', entryKey);
+      if (!targetValue) {
+        return null;
+      }
 
-  if (id === null || stickyNoteId === null || roomId === null) {
+      const kind = requireString(targetValue.kind, issues, `stickyNoteLinks.${entryKey}.target.kind`, 'sticky-note-link', entryKey);
+      const id = requireString(targetValue.id, issues, `stickyNoteLinks.${entryKey}.target.id`, 'sticky-note-link', entryKey);
+      if (kind === null || id === null) {
+        return null;
+      }
+      if (kind !== 'room' && kind !== 'pseudo-room') {
+        pushIssue(
+          issues,
+          'error',
+          'sticky-note-link',
+          entryKey,
+          `stickyNoteLinks.${entryKey}.target.kind`,
+          'Sticky note link target kind must be "room" or "pseudo-room".',
+        );
+        return null;
+      }
+      return { kind, id } as StickyNoteLink['target'];
+    }
+
+    const legacyRoomId = requireString(stickyNoteLink.roomId, issues, `stickyNoteLinks.${entryKey}.roomId`, 'sticky-note-link', entryKey);
+    return legacyRoomId === null ? null : { kind: 'room' as const, id: legacyRoomId };
+  })();
+
+  if (id === null || stickyNoteId === null || target === null) {
     return null;
   }
 
@@ -973,7 +1001,7 @@ function parseStickyNoteLink(entryKey: string, value: unknown, issues: Validatio
   return {
     id,
     stickyNoteId,
-    roomId,
+    target,
   };
 }
 
@@ -1096,14 +1124,17 @@ export function validateMap(doc: MapDocument): ValidationResult {
       );
     }
 
-    if (!doc.rooms[stickyNoteLink.roomId]) {
+    const targetExists = stickyNoteLink.target.kind === 'room'
+      ? Boolean(doc.rooms[stickyNoteLink.target.id])
+      : Boolean(doc.pseudoRooms[stickyNoteLink.target.id]);
+    if (!targetExists) {
       pushIssue(
         issues,
         'error',
         'sticky-note-link',
         stickyNoteLinkId,
-        `stickyNoteLinks.${stickyNoteLinkId}.roomId`,
-        `Sticky note link "${stickyNoteLinkId}" references a missing room "${stickyNoteLink.roomId}".`,
+        `stickyNoteLinks.${stickyNoteLinkId}.target.id`,
+        `Sticky note link "${stickyNoteLinkId}" references a missing ${stickyNoteLink.target.kind} "${stickyNoteLink.target.id}".`,
       );
     }
   }

@@ -274,7 +274,9 @@ function drawStickyNoteLink(
   stickyNoteLink: StickyNoteLink,
 ): void {
   const stickyNote = doc.stickyNotes[stickyNoteLink.stickyNoteId];
-  const room = doc.rooms[stickyNoteLink.roomId];
+  const room = stickyNoteLink.target.kind === 'room'
+    ? doc.rooms[stickyNoteLink.target.id]
+    : (doc.pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(doc.pseudoRooms[stickyNoteLink.target.id]) : undefined);
   if (!stickyNote || !room) {
     return;
   }

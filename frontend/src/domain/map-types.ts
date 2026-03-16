@@ -108,10 +108,15 @@ export interface StickyNote {
   readonly position: Position;
 }
 
+export interface StickyNoteLinkTarget {
+  readonly kind: 'room' | 'pseudo-room';
+  readonly id: string;
+}
+
 export interface StickyNoteLink {
   readonly id: string;
   readonly stickyNoteId: string;
-  readonly roomId: string;
+  readonly target: StickyNoteLinkTarget;
 }
 
 /* ---- Connection ---- */
@@ -277,12 +282,15 @@ export function createStickyNote(text: string = ''): StickyNote {
   };
 }
 
-/** Create a new sticky-note-to-room annotation link. */
-export function createStickyNoteLink(stickyNoteId: string, roomId: string): StickyNoteLink {
+/** Create a new sticky-note annotation link to a room or pseudo-room. */
+export function createStickyNoteLink(
+  stickyNoteId: string,
+  target: StickyNoteLinkTarget | string,
+): StickyNoteLink {
   return {
     id: crypto.randomUUID(),
     stickyNoteId,
-    roomId,
+    target: typeof target === 'string' ? { kind: 'room', id: target } : target,
   };
 }
 

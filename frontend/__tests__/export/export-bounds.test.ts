@@ -185,7 +185,7 @@ describe('export-bounds', () => {
         'sticky-note-link-1': {
           id: 'sticky-note-link-1',
           stickyNoteId: stickyNote.id,
-          roomId: room.id,
+          target: { kind: 'room', id: room.id },
         },
       },
     };
@@ -206,6 +206,41 @@ describe('export-bounds', () => {
       top: 98,
       right: 410,
       bottom: 210,
+    });
+  });
+
+  it('includes pseudo-room sticky-note links in export bounds', () => {
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-1', position: { x: 40, y: 80 } };
+    const stickyNote = {
+      ...createStickyNote('A note'),
+      id: 'sticky-note-1',
+      position: { x: 320, y: 160 },
+    };
+    const doc = {
+      ...createEmptyMap('Test'),
+      pseudoRooms: {
+        [pseudoRoom.id]: pseudoRoom,
+      },
+      stickyNotes: {
+        [stickyNote.id]: stickyNote,
+      },
+      stickyNoteLinks: {
+        'sticky-note-link-1': {
+          id: 'sticky-note-link-1',
+          stickyNoteId: stickyNote.id,
+          target: { kind: 'pseudo-room' as const, id: pseudoRoom.id },
+        },
+      },
+    };
+
+    const entireMap = getEntireMapExportBounds(doc, 0);
+
+    expect(entireMap.validationError).toBeNull();
+    expect(entireMap.bounds).toEqual({
+      left: 40,
+      top: 80,
+      right: 500,
+      bottom: 260,
     });
   });
 

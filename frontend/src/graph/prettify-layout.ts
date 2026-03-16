@@ -782,8 +782,8 @@ function getPreferredStickyNotePosition(
   const stickyNote = doc.stickyNotes[stickyNoteId];
   const visualStyle = doc.view.visualStyle;
   const linkedRoomIds = Object.values(doc.stickyNoteLinks)
-    .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && roomPositions[stickyNoteLink.roomId] !== undefined)
-    .map((stickyNoteLink) => stickyNoteLink.roomId)
+    .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && roomPositions[stickyNoteLink.target.id] !== undefined)
+    .map((stickyNoteLink) => stickyNoteLink.target.id)
     .sort();
 
   if (linkedRoomIds.length === 0) {
@@ -793,8 +793,14 @@ function getPreferredStickyNotePosition(
     };
   }
 
-  const linkedRoom = doc.rooms[linkedRoomIds[0]];
+  const linkedRoom = getLayoutRoom(doc, linkedRoomIds[0]);
   const linkedRoomPosition = roomPositions[linkedRoomIds[0]];
+  if (!linkedRoom) {
+    return {
+      x: snapCoordinate(stickyNote.position.x),
+      y: snapCoordinate(stickyNote.position.y),
+    };
+  }
   const roomDimensions = getRoomDimensions(linkedRoom, visualStyle);
   const noteHeight = getStickyNoteHeight(stickyNote.text);
 

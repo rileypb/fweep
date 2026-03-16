@@ -991,7 +991,9 @@ export function MapCanvasConnections({
 
         {stickyNoteLinkEntries.map((stickyNoteLink) => {
           const rawStickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
-          const rawRoom = rooms[stickyNoteLink.roomId];
+          const rawRoom = stickyNoteLink.target.kind === 'room'
+            ? rooms[stickyNoteLink.target.id]
+            : (pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(pseudoRooms[stickyNoteLink.target.id]) : undefined);
           if (!rawStickyNote || !rawRoom) {
             return null;
           }

@@ -10,6 +10,7 @@ import type {
   RoomStrokeStyle,
 } from '../domain/map-types';
 import { createBackgroundLayer, createPseudoRoom, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
+import type { StickyNoteLinkTarget } from '../domain/map-types';
 import type { ExportRegion } from '../export/export-types';
 import {
   addRoom,
@@ -581,8 +582,8 @@ export interface EditorState {
   /** Update the cursor position during a sticky-note link drag. */
   updateStickyNoteLinkDrag: (cursorX: number, cursorY: number) => void;
 
-  /** Complete a sticky-note link drag by dropping onto a room. */
-  completeStickyNoteLinkDrag: (targetRoomId: string) => void;
+  /** Complete a sticky-note link drag by dropping onto a room or pseudo-room. */
+  completeStickyNoteLinkDrag: (target: StickyNoteLinkTarget) => void;
 
   /** Cancel an in-progress sticky-note link drag. */
   cancelStickyNoteLinkDrag: () => void;
@@ -2263,14 +2264,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ stickyNoteLinkDrag: { ...stickyNoteLinkDrag, cursorX, cursorY }, lastHistoryMergeKey: null });
   },
 
-  completeStickyNoteLinkDrag: (targetRoomId) => {
+  completeStickyNoteLinkDrag: (target) => {
     const { doc, stickyNoteLinkDrag } = get();
     if (!doc || !stickyNoteLinkDrag) {
       set({ stickyNoteLinkDrag: null });
       return;
     }
 
-    const stickyNoteLink = createStickyNoteLink(stickyNoteLinkDrag.sourceStickyNoteId, targetRoomId);
+    const stickyNoteLink = createStickyNoteLink(stickyNoteLinkDrag.sourceStickyNoteId, target);
     const updatedDoc = addStickyNoteLink(doc, stickyNoteLink);
     set((state) => ({
       ...commitDocumentChange(state, doc, updatedDoc),

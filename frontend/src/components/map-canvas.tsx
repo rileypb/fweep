@@ -1186,7 +1186,7 @@ export function MapCanvas({
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle),
           getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
           doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
-          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
+          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
         );
         pseudoRooms
           .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))

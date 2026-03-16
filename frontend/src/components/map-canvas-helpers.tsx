@@ -274,6 +274,7 @@ export function getConnectionsWithinSelectionBox(
 
 export function getStickyNoteLinksWithinSelectionBox(
   rooms: Readonly<Record<string, Room>>,
+  pseudoRooms: Readonly<Record<string, PseudoRoom>>,
   stickyNotes: Readonly<Record<string, StickyNote>>,
   stickyNoteLinks: Readonly<Record<string, StickyNoteLink>>,
   panOffset: PanOffset,
@@ -284,7 +285,9 @@ export function getStickyNoteLinksWithinSelectionBox(
 
   return Object.values(stickyNoteLinks)
     .filter((stickyNoteLink) => {
-      const room = rooms[stickyNoteLink.roomId];
+      const room = stickyNoteLink.target.kind === 'room'
+        ? rooms[stickyNoteLink.target.id]
+        : (pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(pseudoRooms[stickyNoteLink.target.id]) : undefined);
       const stickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
       if (!room || !stickyNote) {
         return false;

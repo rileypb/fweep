@@ -1645,7 +1645,7 @@ describe('useEditorStore', () => {
       useEditorStore.getState().startStickyNoteLinkDrag(stickyNote.id, 10, 20);
       useEditorStore.getState().updateStickyNoteLinkDrag(30, 40);
       expect(useEditorStore.getState().stickyNoteLinkDrag).toMatchObject({ cursorX: 30, cursorY: 40 });
-      useEditorStore.getState().completeStickyNoteLinkDrag(room.id);
+      useEditorStore.getState().completeStickyNoteLinkDrag({ kind: 'room', id: room.id });
       expect(Object.values(useEditorStore.getState().doc!.stickyNoteLinks)).toHaveLength(1);
 
       useEditorStore.getState().setSelection(['room-1'], [stickyNote.id], [], []);
@@ -1662,12 +1662,12 @@ describe('useEditorStore', () => {
     });
 
     it('gracefully clears drag state when sticky note link completion occurs without a document or drag', () => {
-      useEditorStore.getState().completeStickyNoteLinkDrag('room-1');
+      useEditorStore.getState().completeStickyNoteLinkDrag({ kind: 'room', id: 'room-1' });
       expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
 
       useEditorStore.getState().startStickyNoteLinkDrag('note-1', 0, 0);
       resetStore();
-      useEditorStore.getState().completeStickyNoteLinkDrag('room-1');
+      useEditorStore.getState().completeStickyNoteLinkDrag({ kind: 'room', id: 'room-1' });
       expect(useEditorStore.getState().stickyNoteLinkDrag).toBeNull();
     });
 

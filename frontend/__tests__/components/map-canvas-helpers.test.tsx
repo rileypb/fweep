@@ -84,7 +84,7 @@ describe('map-canvas-helpers', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 220, y: 40 } };
     const nearNote = { ...createStickyNote('Check desk'), position: { x: 40, y: 40 } };
     const farNote = { ...createStickyNote('Remember cellar'), position: { x: 320, y: 40 } };
-    const stickyNoteLink = { id: 'sl-1', stickyNoteId: nearNote.id, roomId: room.id };
+    const stickyNoteLink = { id: 'sl-1', stickyNoteId: nearNote.id, target: { kind: 'room' as const, id: room.id } };
 
     expect(getStickyNotesWithinSelectionBox(
       [nearNote, farNote],
@@ -95,6 +95,7 @@ describe('map-canvas-helpers', () => {
 
     expect(getStickyNoteLinksWithinSelectionBox(
       { [room.id]: room },
+      {},
       { [nearNote.id]: nearNote, [farNote.id]: farNote },
       { [stickyNoteLink.id]: stickyNoteLink },
       { x: 0, y: 0 },

@@ -248,12 +248,17 @@ export function addStickyNoteLink(doc: MapDocument, stickyNoteLink: StickyNoteLi
     throw new Error(`Sticky note "${stickyNoteLink.stickyNoteId}" not found.`);
   }
 
-  if (!doc.rooms[stickyNoteLink.roomId]) {
-    throw new Error(`Room "${stickyNoteLink.roomId}" not found.`);
+  const targetExists = stickyNoteLink.target.kind === 'room'
+    ? Boolean(doc.rooms[stickyNoteLink.target.id])
+    : Boolean(doc.pseudoRooms[stickyNoteLink.target.id]);
+  if (!targetExists) {
+    throw new Error(`${stickyNoteLink.target.kind === 'room' ? 'Room' : 'Pseudo-room'} "${stickyNoteLink.target.id}" not found.`);
   }
 
   const duplicate = Object.values(doc.stickyNoteLinks).some((link) => (
-    link.stickyNoteId === stickyNoteLink.stickyNoteId && link.roomId === stickyNoteLink.roomId
+    link.stickyNoteId === stickyNoteLink.stickyNoteId
+    && link.target.kind === stickyNoteLink.target.kind
+    && link.target.id === stickyNoteLink.target.id
   ));
   if (duplicate) {
     return doc;
@@ -335,7 +340,10 @@ export function deleteRoom(doc: MapDocument, roomId: string): MapDocument {
   }
 
   const remainingStickyNoteLinks = Object.fromEntries(
-    Object.entries(doc.stickyNoteLinks).filter(([, link]) => link.roomId !== roomId),
+    Object.entries(doc.stickyNoteLinks).filter(([, link]) => (
+      !(link.target.kind === 'room' && link.target.id === roomId)
+      && !(link.target.kind === 'pseudo-room' && removedPseudoRoomIds.has(link.target.id))
+    )),
   );
 
   const remainingPseudoRooms = Object.fromEntries(
@@ -380,12 +388,20 @@ export function deleteConnection(doc: MapDocument, connectionId: string): MapDoc
       Object.entries(doc.pseudoRooms).filter(([pseudoRoomId]) => pseudoRoomId !== conn.target.id),
     )
     : doc.pseudoRooms;
+  const remainingStickyNoteLinks = conn.target.kind === 'pseudo-room'
+    ? Object.fromEntries(
+      Object.entries(doc.stickyNoteLinks).filter(([, stickyNoteLink]) => (
+        !(stickyNoteLink.target.kind === 'pseudo-room' && stickyNoteLink.target.id === conn.target.id)
+      )),
+    )
+    : doc.stickyNoteLinks;
 
   return touch({
     ...doc,
     rooms: cleanedRooms,
     pseudoRooms: remainingPseudoRooms,
     connections: remainingConnections,
+    stickyNoteLinks: remainingStickyNoteLinks,
   });
 }
 
@@ -403,12 +419,20 @@ export function convertPseudoRoomToRoom(doc: MapDocument, pseudoRoomId: string, 
         : [connectionId, connection]
     )),
   );
+  const updatedStickyNoteLinks: Record<string, StickyNoteLink> = Object.fromEntries(
+    Object.entries(doc.stickyNoteLinks).map(([stickyNoteLinkId, stickyNoteLink]) => (
+      stickyNoteLink.target.kind === 'pseudo-room' && stickyNoteLink.target.id === pseudoRoomId
+        ? [stickyNoteLinkId, { ...stickyNoteLink, target: { kind: 'room' as const, id: room.id } }]
+        : [stickyNoteLinkId, stickyNoteLink]
+    )),
+  );
 
   return touch({
     ...doc,
     rooms: { ...doc.rooms, [room.id]: room },
     pseudoRooms: remainingPseudoRooms,
     connections: updatedConnections,
+    stickyNoteLinks: updatedStickyNoteLinks,
   });
 }
 

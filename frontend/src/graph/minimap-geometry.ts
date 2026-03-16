@@ -290,12 +290,15 @@ export function getMinimapConnectionPoints(
 
 export function getMinimapStickyNoteLinkPoints(
   rooms: Readonly<Record<string, Room>>,
+  pseudoRooms: Readonly<Record<string, PseudoRoom>>,
   stickyNotes: Readonly<Record<string, StickyNote>>,
   stickyNoteLink: StickyNoteLink,
   transform: MinimapTransform,
   visualStyle: MapVisualStyle = 'default',
 ): readonly Point[] {
-  const room = rooms[stickyNoteLink.roomId];
+  const room = stickyNoteLink.target.kind === 'room'
+    ? rooms[stickyNoteLink.target.id]
+    : (pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(pseudoRooms[stickyNoteLink.target.id]) : undefined);
   const stickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
   if (!room || !stickyNote) {
     return [];

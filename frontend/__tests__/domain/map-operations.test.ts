@@ -15,6 +15,7 @@ import {
   addItem,
   addStickyNote,
   addStickyNoteLink,
+  convertPseudoRoomToRoom,
   deleteRoom,
   deleteConnection,
   deleteStickyNote,
@@ -301,6 +302,18 @@ describe('sticky notes', () => {
     expect(next.stickyNoteLinks[duplicateLink.id]).toBeUndefined();
   });
 
+  it('adds sticky-note links to pseudo-rooms', () => {
+    const stickyNote = createStickyNote('This needs context.');
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    let doc = addPseudoRoom(createEmptyMap('Test'), pseudoRoom);
+    doc = addStickyNote(doc, stickyNote);
+
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id });
+    const next = addStickyNoteLink(doc, stickyNoteLink);
+
+    expect(next.stickyNoteLinks[stickyNoteLink.id]).toEqual(stickyNoteLink);
+  });
+
   it('updates sticky note text', () => {
     const doc = createEmptyMap('Test');
     const stickyNote = createStickyNote('');
@@ -514,6 +527,23 @@ describe('deleteRoom', () => {
     expect(next.stickyNoteLinks[hallLink.id]).toEqual(hallLink);
   });
 
+  it('removes sticky-note links attached to pseudo-rooms orphaned by room deletion', () => {
+    const kitchen = createRoom('Kitchen');
+    const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    const note = createStickyNote('What kind of exit is this?');
+    let doc = addRoom(createEmptyMap('Test'), kitchen);
+    doc = addPseudoRoom(doc, unknown);
+    doc = addConnection(doc, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'west');
+    doc = addStickyNote(doc, note);
+    const stickyNoteLink = createStickyNoteLink(note.id, { kind: 'pseudo-room', id: unknown.id });
+    doc = addStickyNoteLink(doc, stickyNoteLink);
+
+    const next = deleteRoom(doc, kitchen.id);
+
+    expect(next.pseudoRooms[unknown.id]).toBeUndefined();
+    expect(next.stickyNoteLinks[stickyNoteLink.id]).toBeUndefined();
+  });
+
   it('throws if the room does not exist', () => {
     const doc = createEmptyMap('Test');
     expect(() => deleteRoom(doc, 'no-such-room')).toThrow(/not found/i);
@@ -575,6 +605,24 @@ describe('deleteConnection', () => {
     const next = deleteConnection(d, conn.id);
     expect(next.rooms[r1.id].directions['north']).toBeUndefined();
     expect(next.rooms[r1.id].directions['up']).toBeUndefined();
+  });
+
+  it('removes sticky-note links attached to a pseudo-room removed with its connection', () => {
+    const kitchen = createRoom('Kitchen');
+    const pseudoRoom = { ...createPseudoRoom('death'), position: { x: 240, y: 120 } };
+    const stickyNote = createStickyNote('Fatal to enter.');
+    let doc = addRoom(createEmptyMap('Test'), kitchen);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
+    doc = addConnection(doc, connection, 'west');
+    doc = addStickyNote(doc, stickyNote);
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id });
+    doc = addStickyNoteLink(doc, stickyNoteLink);
+
+    const next = deleteConnection(doc, connection.id);
+
+    expect(next.pseudoRooms[pseudoRoom.id]).toBeUndefined();
+    expect(next.stickyNoteLinks[stickyNoteLink.id]).toBeUndefined();
   });
 });
 
@@ -662,6 +710,27 @@ describe('rerouteConnectionEndpoint', () => {
       isBidirectional: true,
     });
     expect(next.rooms[hallway.id].directions.west).toBe(connection.id);
+  });
+});
+
+describe('convertPseudoRoomToRoom', () => {
+  it('retargets sticky-note links from a pseudo-room to the replacement room', () => {
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+    const replacementRoom = { ...createRoom('Closet'), position: pseudoRoom.position };
+    const stickyNote = createStickyNote('Actually this is a real place.');
+    let doc = addPseudoRoom(createEmptyMap('Test'), pseudoRoom);
+    doc = addStickyNote(doc, stickyNote);
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id });
+    doc = addStickyNoteLink(doc, stickyNoteLink);
+
+    const next = convertPseudoRoomToRoom(doc, pseudoRoom.id, replacementRoom);
+
+    expect(next.pseudoRooms[pseudoRoom.id]).toBeUndefined();
+    expect(next.rooms[replacementRoom.id]).toEqual(replacementRoom);
+    expect(next.stickyNoteLinks[stickyNoteLink.id]).toMatchObject({
+      stickyNoteId: stickyNote.id,
+      target: { kind: 'room', id: replacementRoom.id },
+    });
   });
 });
 

@@ -184,7 +184,7 @@ function createBaseInput(): ExportRenderInput {
       'sticky-note-link-1': {
         id: 'sticky-note-link-1',
         stickyNoteId: 'sticky-note-1',
-        roomId: rectangleRoom.id,
+        target: { kind: 'room', id: rectangleRoom.id },
       },
     },
     background: {
@@ -461,6 +461,42 @@ describe('renderExportCanvas', () => {
     await renderExportCanvas(input);
 
     expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: expect.stringContaining('M224 224C224 171') }));
+  });
+
+  it('renders sticky-note links attached to pseudo-rooms', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    const input: ExportRenderInput = {
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        stickyNoteLinks: {
+          'sticky-note-link-1': {
+            id: 'sticky-note-link-1',
+            stickyNoteId: 'sticky-note-1',
+            target: { kind: 'pseudo-room', id: 'pseudo-room-unknown' },
+          },
+        },
+      },
+      settings: {
+        ...baseInput.settings,
+        scope: 'selection',
+        scale: 1,
+      },
+      selectedRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [],
+      selectedStickyNoteLinkIds: ['sticky-note-link-1'],
+    };
+
+    await renderExportCanvas(input);
+
+    expect(context.moveTo).toHaveBeenCalledWith(130, 170);
+    expect(context.lineTo.mock.calls).toContainEqual([220, 138]);
+    expect(context.stroke).toHaveBeenCalled();
   });
 
   it('skips background image rendering when disabled', async () => {
