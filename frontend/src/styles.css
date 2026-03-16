@@ -1676,6 +1676,13 @@ body {
   pointer-events: none;
 }
 
+.room-node-items {
+  font-size: 0.67rem;
+  font-weight: 500;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .sticky-note-wrapper {
   position: absolute;
   z-index: var(--map-layer-sticky-notes);

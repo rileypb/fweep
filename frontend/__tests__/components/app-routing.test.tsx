@@ -2,8 +2,8 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CLI_COMMAND_FORMS } from '../../src/domain/cli-command';
-import { addConnection, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
+import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
 import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
@@ -315,6 +315,45 @@ describe('URL routing', () => {
     await waitFor(() => {
       expect(fileInput).toHaveValue('');
     });
+  });
+
+  it('puts items into a room through the CLI', async () => {
+    await renderAppWithOpenMap('CLI Put Items Map');
+
+    await submitCliCommand('create Kitchen');
+    await submitCliCommand('put lantern, key, and sword in Kitchen');
+
+    await waitFor(() => {
+      const items = Object.values(useEditorStore.getState().doc?.items ?? {});
+      expect(items).toHaveLength(3);
+      expect(items.map((item) => item.name)).toEqual(['lantern', 'key', 'sword']);
+      expect(new Set(items.map((item) => item.roomId))).toEqual(new Set([Object.keys(useEditorStore.getState().doc?.rooms ?? {})[0]]));
+    });
+
+    expectGameOutputToContain('put lantern, key, and sword in Kitchen', 'Placed.');
+  });
+
+  it('takes items from a room through the CLI', async () => {
+    const doc = createEmptyMap('CLI Take Items Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let savedDoc = addRoom(doc, kitchen);
+    savedDoc = addItem(savedDoc, createItem('lantern', kitchen.id));
+    savedDoc = addItem(savedDoc, createItem('key', kitchen.id));
+    savedDoc = addItem(savedDoc, createItem('sword', kitchen.id));
+    await saveMap(savedDoc);
+    navigateTo(`#/map/${savedDoc.metadata.id}`);
+    render(<App />);
+    await screen.findByLabelText('Map name: CLI Take Items Map');
+
+    await submitCliCommand('take lantern, key from Kitchen');
+
+    await waitFor(() => {
+      const items = Object.values(useEditorStore.getState().doc?.items ?? {});
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe('sword');
+    });
+
+    expectGameOutputToContain('take lantern, key from Kitchen', 'Took.');
   });
 
   it('rolls back script import changes when a later line fails', async () => {

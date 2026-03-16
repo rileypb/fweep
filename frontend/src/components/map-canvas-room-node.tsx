@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import { normalizeDirection } from '../domain/directions';
-import { type MapVisualStyle, type Room, type RoomShape } from '../domain/map-types';
+import { type Item, type MapVisualStyle, type Room, type RoomShape } from '../domain/map-types';
 import { getHandleOffset } from '../graph/connection-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
@@ -122,6 +122,7 @@ function DirectionHandles({
 
 export interface MapCanvasRoomNodeProps {
   room: Room;
+  roomItems: readonly Item[];
   theme: ThemeMode;
   isSelected: boolean;
   isRoomEditorOpen: boolean;
@@ -132,6 +133,7 @@ export interface MapCanvasRoomNodeProps {
 
 export function MapCanvasRoomNode({
   room,
+  roomItems,
   theme,
   isSelected,
   isRoomEditorOpen,
@@ -166,6 +168,11 @@ export function MapCanvasRoomNode({
   const roomLabelColor = getRoomLabelColor(theme);
   const roomFill = getRoomFillColor(room.fillColorIndex, theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
+  const visibleItemNames = roomItems.slice(0, 3).map((item) => item.name);
+  const hiddenItemCount = Math.max(0, roomItems.length - visibleItemNames.length);
+  const itemLabelLines = hiddenItemCount > 0
+    ? [...visibleItemNames, `+${hiddenItemCount} more`]
+    : visibleItemNames;
 
   const openRoomEditor = useCallback(() => {
     onOpenRoomEditor(room.id);
@@ -386,6 +393,26 @@ export function MapCanvasRoomNode({
             cutoutColor={roomFill}
           />
         </g>
+      )}
+      {itemLabelLines.length > 0 && (
+        <text
+          className="room-node-items"
+          x={roomWidth / 2}
+          y={roomHeight + 14}
+          dominantBaseline="hanging"
+          textAnchor="middle"
+          style={{ fill: roomLabelColor }}
+        >
+          {itemLabelLines.map((line, index) => (
+            <tspan
+              key={`${room.id}-item-${index}`}
+              x={roomWidth / 2}
+              y={roomHeight + 14 + (index * 12)}
+            >
+              {line}
+            </tspan>
+          ))}
+        </text>
       )}
       {hovered && !isDragging && !isRoomEditorOpen && !interactionsDisabled && (
         <DirectionHandles

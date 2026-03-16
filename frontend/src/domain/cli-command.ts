@@ -16,6 +16,8 @@ export type CliCommand =
   | { readonly kind: 'help' }
   | { readonly kind: 'arrange' }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
+  | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
+  | { readonly kind: 'take-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
   | {
     readonly kind: 'create-pseudo-room';
     readonly pseudoKind: PseudoRoomKind;
@@ -71,6 +73,10 @@ export const CLI_COMMAND_FORMS = [
   'create/c <room name>, which is <adjective>',
   'create/c <room name>, which is <adjective>, <direction> of <room name>',
   'create and connect <room name>, which is <adjective>, <direction> to <room name> [<direction>]',
+  'put <item> in <room name>',
+  'put <item>, <item>, and <item> in <room name>',
+  'take <item> from <room name>',
+  'take <item>, <item>, and <item> from <room name>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
@@ -496,6 +502,88 @@ function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedC
   return parseConnectTailFromSourceReference(tokens, sourceRoom.nextIndex, sourceRoom.reference);
 }
 
+function trimLeadingConjunction(tokens: readonly Token[]): readonly Token[] {
+  if (tokens.length > 0 && isTokenValue(tokens[0], 'and')) {
+    return tokens.slice(1);
+  }
+
+  return tokens;
+}
+
+function parseItemNameList(tokens: readonly Token[]): readonly string[] | null {
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const itemNames: string[] = [];
+  let segmentStart = 0;
+
+  for (let index = 0; index <= tokens.length; index += 1) {
+    const isBoundary = index === tokens.length || isCommaToken(tokens[index]);
+    if (!isBoundary) {
+      continue;
+    }
+
+    const segmentTokens = trimLeadingConjunction(tokens.slice(segmentStart, index));
+    if (segmentTokens.length === 0) {
+      return null;
+    }
+
+    const itemName = normalizeCliWhitespace(segmentTokens.map((token) => token.value).join(' '));
+    if (itemName.length === 0) {
+      return null;
+    }
+
+    itemNames.push(itemName);
+    segmentStart = index + 1;
+  }
+
+  return itemNames;
+}
+
+function parseItemTransferCommand(
+  tokens: readonly Token[],
+  kind: 'put-items' | 'take-items',
+  preposition: 'in' | 'from',
+): Extract<CliCommand, { kind: 'put-items' | 'take-items' }> | null {
+  const prepositionIndex = tokens.findIndex((token, index) => index > 0 && isTokenValue(token, preposition));
+  if (prepositionIndex <= 1) {
+    return null;
+  }
+
+  const itemNames = parseItemNameList(tokens.slice(1, prepositionIndex));
+  if (itemNames === null || itemNames.length === 0) {
+    return null;
+  }
+
+  const room = readRoomName(tokens, prepositionIndex + 1, () => false);
+  if (room === null || room.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind,
+    itemNames,
+    room: room.reference,
+  };
+}
+
+function formatCliList(values: readonly string[]): string {
+  if (values.length === 0) {
+    return '';
+  }
+
+  if (values.length === 1) {
+    return values[0];
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+}
+
 function parseCreateRelativeCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-and-connect' }> | null {
   const commaIndex = tokens.findIndex((token, index) => index > 1 && isCommaToken(token));
   if (commaIndex !== -1) {
@@ -744,6 +832,14 @@ export function parseCliCommand(input: string): CliCommand | null {
     return parseCreateCommand(tokens);
   }
 
+  if (isTokenValue(tokens[0], 'put')) {
+    return parseItemTransferCommand(tokens, 'put-items', 'in');
+  }
+
+  if (isTokenValue(tokens[0], 'take')) {
+    return parseItemTransferCommand(tokens, 'take-items', 'from');
+  }
+
   if (isFirstWordAlias(tokens[0], 'delete', 'd', 'del')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
@@ -832,6 +928,10 @@ function describeCliCommand(command: CliCommand): string {
       return command.adjective === null
         ? `create a room called ${command.roomName}`
         : `create a room called ${command.roomName} and mark it as ${command.adjective.text}`;
+    case 'put-items':
+      return `put ${formatCliList(command.itemNames)} in ${command.room.text}`;
+    case 'take-items':
+      return `take ${formatCliList(command.itemNames)} from ${command.room.text}`;
     case 'delete':
       return `delete the room called ${command.room.text}`;
     case 'create-pseudo-room':

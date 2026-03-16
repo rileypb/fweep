@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { parseCliCommandDescription } from '../../src/domain/cli-command';
+import { parseCliCommand, parseCliCommandDescription } from '../../src/domain/cli-command';
 
 describe('parseCliCommandDescription', () => {
   it('describes help commands', () => {
@@ -100,6 +100,27 @@ describe('parseCliCommandDescription', () => {
     );
     expect(parseCliCommandDescription('ann Kitchen with this room has nice wallpaper')).toBe(
       'create a sticky note on Kitchen saying this room has nice wallpaper',
+    );
+  });
+
+  it('describes put-item commands', () => {
+    expect(parseCliCommandDescription('put lantern in Kitchen')).toBe(
+      'put lantern in Kitchen',
+    );
+    expect(parseCliCommandDescription('put lantern, key, and sword in Kitchen')).toBe(
+      'put lantern, key, and sword in Kitchen',
+    );
+    expect(parseCliCommandDescription('put "red book, volume 2" in Library')).toBe(
+      'put red book, volume 2 in Library',
+    );
+  });
+
+  it('describes take-item commands', () => {
+    expect(parseCliCommandDescription('take lantern from Kitchen')).toBe(
+      'take lantern from Kitchen',
+    );
+    expect(parseCliCommandDescription('take lantern, key, and sword from Kitchen')).toBe(
+      'take lantern, key, and sword from Kitchen',
     );
   });
 
@@ -238,5 +259,37 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('kitchen east goes on forever')).toBeNull();
     expect(parseCliCommandDescription("bedroom's west exit is unknown")).toBeNull();
     expect(parseCliCommandDescription('the way east of kitchen continues indefinitely')).toBeNull();
+    expect(parseCliCommandDescription('put in Kitchen')).toBeNull();
+    expect(parseCliCommandDescription('take lantern from')).toBeNull();
+  });
+});
+
+describe('parseCliCommand', () => {
+  it('parses put-item lists', () => {
+    expect(parseCliCommand('put lantern in Kitchen')).toEqual({
+      kind: 'put-items',
+      itemNames: ['lantern'],
+      room: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('put lantern, key, and sword in Kitchen')).toEqual({
+      kind: 'put-items',
+      itemNames: ['lantern', 'key', 'sword'],
+      room: { text: 'Kitchen', exact: false },
+    });
+  });
+
+  it('parses take-item lists', () => {
+    expect(parseCliCommand('take lantern from Kitchen')).toEqual({
+      kind: 'take-items',
+      itemNames: ['lantern'],
+      room: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('take lantern, key, and sword from Kitchen')).toEqual({
+      kind: 'take-items',
+      itemNames: ['lantern', 'key', 'sword'],
+      room: { text: 'Kitchen', exact: false },
+    });
   });
 });

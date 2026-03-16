@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   BackgroundReferenceImage,
   ConnectionAnnotation,
+  Item,
   MapDocument,
   MapVisualStyle,
   Position,
@@ -9,7 +10,7 @@ import type {
   RoomShape,
   RoomStrokeStyle,
 } from '../domain/map-types';
-import { createBackgroundLayer, createPseudoRoom, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
+import { createBackgroundLayer, createItem, createPseudoRoom, createRoom, createConnection, createStickyNote, createStickyNoteLink } from '../domain/map-types';
 import type { StickyNoteLinkTarget } from '../domain/map-types';
 import type { ExportRegion } from '../export/export-types';
 import {
@@ -18,12 +19,14 @@ import {
   addConnection,
   addStickyNote,
   addStickyNoteLink,
+  addItem as domainAddItem,
   convertPseudoRoomToRoom as domainConvertPseudoRoomToRoom,
   renameRoom as domainRenameRoom,
   deleteRoom as domainDeleteRoom,
   deleteConnection as domainDeleteConnection,
   deleteStickyNote as domainDeleteStickyNote,
   deleteStickyNoteLink as domainDeleteStickyNoteLink,
+  deleteItem as domainDeleteItem,
   moveRoom as domainMoveRoom,
   movePseudoRoom as domainMovePseudoRoom,
   moveStickyNote as domainMoveStickyNote,
@@ -70,6 +73,43 @@ function maybeSnapPosition(pos: Position, snapToGridEnabled: boolean): Position 
 
 function clampBackgroundReferenceImageZoom(zoom: number): number {
   return Math.min(Math.max(zoom, 0.05), 20);
+}
+
+function normalizeEntityName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function findMatchingItemIdsInRoom(
+  items: Readonly<Record<string, Item>>,
+  roomId: string,
+  itemNames: readonly string[],
+): {
+  readonly removedItemIds: readonly string[];
+  readonly missingItemNames: readonly string[];
+} {
+  const availableItems = Object.values(items)
+    .filter((item) => item.roomId === roomId)
+    .map((item) => ({
+      id: item.id,
+      normalizedName: normalizeEntityName(item.name),
+    }));
+  const usedItemIds = new Set<string>();
+  const removedItemIds: string[] = [];
+  const missingItemNames: string[] = [];
+
+  for (const itemName of itemNames) {
+    const normalizedName = normalizeEntityName(itemName);
+    const matchingItem = availableItems.find((item) => item.normalizedName === normalizedName && !usedItemIds.has(item.id));
+    if (matchingItem === undefined) {
+      missingItemNames.push(itemName);
+      continue;
+    }
+
+    usedItemIds.add(matchingItem.id);
+    removedItemIds.push(matchingItem.id);
+  }
+
+  return { removedItemIds, missingItemNames };
 }
 
 function getStickyNotePlacementForRoom(
@@ -320,6 +360,18 @@ export interface EditorState {
 
   /** Create a sticky note linked to a room in a single history step. Returns the note ID. */
   addStickyNoteForRoom: (roomId: string, text: string) => string;
+
+  /** Create one or more items in a room in a single history step. */
+  addItemsToRoom: (roomId: string, itemNames: readonly string[]) => readonly string[];
+
+  /** Remove named items from a room in a single history step. */
+  removeItemsFromRoom: (
+    roomId: string,
+    itemNames: readonly string[],
+  ) => {
+    readonly removedItemIds: readonly string[];
+    readonly missingItemNames: readonly string[];
+  };
 
   /** Create or replace a connection between two rooms and select it. */
   connectRooms: (
@@ -1291,6 +1343,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedStickyNoteLinkIds: [],
     }));
     return stickyNote.id;
+  },
+
+  addItemsToRoom: (roomId, itemNames) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot add items: no document is loaded.');
+    }
+    if (!doc.rooms[roomId]) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+
+    let updatedDoc = doc;
+    const createdItems = itemNames.map((itemName) => createItem(itemName, roomId));
+    for (const item of createdItems) {
+      updatedDoc = domainAddItem(updatedDoc, item);
+    }
+
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    return createdItems.map((item) => item.id);
+  },
+
+  removeItemsFromRoom: (roomId, itemNames) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot remove items: no document is loaded.');
+    }
+    if (!doc.rooms[roomId]) {
+      throw new Error(`Room "${roomId}" not found.`);
+    }
+
+    const { removedItemIds, missingItemNames } = findMatchingItemIdsInRoom(doc.items, roomId, itemNames);
+    if (removedItemIds.length === 0 || missingItemNames.length > 0) {
+      return { removedItemIds, missingItemNames };
+    }
+
+    let updatedDoc = doc;
+    for (const itemId of removedItemIds) {
+      updatedDoc = domainDeleteItem(updatedDoc, itemId);
+    }
+
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    return { removedItemIds, missingItemNames };
   },
 
   connectRooms: (sourceRoomId, sourceDirection, targetRoomId, options) => {

@@ -3,9 +3,9 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
-import { createEmptyMap, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
+import { createEmptyMap, createItem, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import { toPseudoRoomVisualRoom } from '../../src/domain/pseudo-room-helpers';
-import { addPseudoRoom, addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
+import { addItem, addPseudoRoom, addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
 import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
@@ -99,6 +99,19 @@ describe('MapCanvas', () => {
 
     expect(screen.getByTestId('room-node')).not.toHaveStyle({ pointerEvents: 'none' });
     expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ pointerEvents: 'none' });
+  });
+
+  it('renders room items beneath the room name', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Test" />);
+
+    expect(screen.getByText('Lantern')).toBeInTheDocument();
+    expect(screen.getByText('Brass Key')).toBeInTheDocument();
   });
 
   it('renders pseudo-rooms beneath sticky notes and rooms', () => {

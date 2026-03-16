@@ -324,6 +324,13 @@ export function MapCanvas({
   };
 
   const rooms = doc ? Object.values(doc.rooms) : [];
+  const itemsByRoomId = doc
+    ? Object.values(doc.items).reduce<Record<string, (typeof doc.items)[string][]>>((groups, item) => {
+      groups[item.roomId] ??= [];
+      groups[item.roomId].push(item);
+      return groups;
+    }, {})
+    : {};
   const pseudoRooms = doc ? Object.values(doc.pseudoRooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
   const hasExportSelection = selectedRoomIds.length > 0
@@ -1637,6 +1644,7 @@ export function MapCanvas({
             <MapCanvasRoomNode
               key={room.id}
               room={room}
+              roomItems={itemsByRoomId[room.id] ?? []}
               theme={theme}
               isSelected={selectedRoomIds.includes(room.id)}
               isRoomEditorOpen={isRoomEditorOpen}

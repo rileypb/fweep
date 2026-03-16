@@ -75,6 +75,10 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Arranged.';
     case 'create':
       return 'Created.';
+    case 'put-items':
+      return 'Placed.';
+    case 'take-items':
+      return 'Took.';
     case 'create-pseudo-room':
       if (command.pseudoKind === 'unknown') {
         return 'Marked exit as unknown.';
@@ -168,12 +172,14 @@ export function useAppCli({
   setRequestedViewportFocusRequest,
 }: UseAppCliOptions): UseAppCliResult {
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
+  const addItemsToRoom = useEditorStore((s) => s.addItemsToRoom);
   const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
   const connectRooms = useEditorStore((s) => s.connectRooms);
   const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
   const setPseudoRoomExit = useEditorStore((s) => s.setPseudoRoomExit);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const redo = useEditorStore((s) => s.redo);
+  const removeItemsFromRoom = useEditorStore((s) => s.removeItemsFromRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const setRoomDark = useEditorStore((s) => s.setRoomDark);
   const selectRoom = useEditorStore((s) => s.selectRoom);
@@ -358,7 +364,7 @@ export function useAppCli({
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective',
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'put-items' | 'take-items',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -430,6 +436,46 @@ export function useAppCli({
         roomIds: [roomId],
         requestId: issueUiRequestId(),
       });
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'put-items' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'put-items', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      addItemsToRoom(roomMatch.room.id, command.itemNames);
+      setCliPronounRoomReference(roomMatch.room.id);
+      selectRoom(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'take-items' && currentDoc !== null) {
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'take-items', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const removal = removeItemsFromRoom(roomMatch.room.id, command.itemNames);
+      if (removal.missingItemNames.length > 0) {
+        appendGameOutput([
+          formatCliEcho(trimmedInput),
+          `Could not find ${removal.missingItemNames.join(', ')} in ${roomMatch.room.name}.`,
+        ]);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      setCliPronounRoomReference(roomMatch.room.id);
+      selectRoom(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }
