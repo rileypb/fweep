@@ -696,7 +696,7 @@ function intersectsWithGap(
 function overlapsRoomOrStickyNote(
   stickyNoteId: string,
   candidatePosition: Position,
-  roomPositions: Readonly<Record<string, Position>>,
+  layoutPositions: Readonly<Record<string, Position>>,
   placedStickyNotes: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): boolean {
@@ -704,8 +704,9 @@ function overlapsRoomOrStickyNote(
   const candidateBounds = getStickyNoteBounds(stickyNote, candidatePosition);
   const visualStyle = doc.view.visualStyle;
 
-  for (const [roomId, roomPosition] of Object.entries(roomPositions)) {
-    if (intersectsWithGap(candidateBounds, getRoomBounds(doc.rooms[roomId], roomPosition, visualStyle), STICKY_NOTE_GAP)) {
+  for (const [roomId, roomPosition] of Object.entries(layoutPositions)) {
+    const room = getLayoutRoom(doc, roomId);
+    if (room && intersectsWithGap(candidateBounds, getRoomBounds(room, roomPosition, visualStyle), STICKY_NOTE_GAP)) {
       return true;
     }
   }
@@ -728,11 +729,11 @@ function findNearestOpenStickyNotePosition(
   stickyNoteId: string,
   preferredPosition: Position,
   currentPosition: Position,
-  roomPositions: Readonly<Record<string, Position>>,
+  layoutPositions: Readonly<Record<string, Position>>,
   placedStickyNotes: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): Position {
-  if (!overlapsRoomOrStickyNote(stickyNoteId, preferredPosition, roomPositions, placedStickyNotes, doc)) {
+  if (!overlapsRoomOrStickyNote(stickyNoteId, preferredPosition, layoutPositions, placedStickyNotes, doc)) {
     return preferredPosition;
   }
 
@@ -749,7 +750,7 @@ function findNearestOpenStickyNotePosition(
     }
 
     const validCandidates = candidates
-      .filter((candidate) => !overlapsRoomOrStickyNote(stickyNoteId, candidate, roomPositions, placedStickyNotes, doc))
+      .filter((candidate) => !overlapsRoomOrStickyNote(stickyNoteId, candidate, layoutPositions, placedStickyNotes, doc))
       .sort((left, right) => {
         const leftPreferredDistance = ((left.x - preferredPosition.x) ** 2) + ((left.y - preferredPosition.y) ** 2);
         const rightPreferredDistance = ((right.x - preferredPosition.x) ** 2) + ((right.y - preferredPosition.y) ** 2);
@@ -776,13 +777,13 @@ function findNearestOpenStickyNotePosition(
 
 function getPreferredStickyNotePosition(
   stickyNoteId: string,
-  roomPositions: Readonly<Record<string, Position>>,
+  layoutPositions: Readonly<Record<string, Position>>,
   doc: MapDocument,
 ): Position {
   const stickyNote = doc.stickyNotes[stickyNoteId];
   const visualStyle = doc.view.visualStyle;
   const linkedRoomIds = Object.values(doc.stickyNoteLinks)
-    .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && roomPositions[stickyNoteLink.target.id] !== undefined)
+    .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && layoutPositions[stickyNoteLink.target.id] !== undefined)
     .map((stickyNoteLink) => stickyNoteLink.target.id)
     .sort();
 
@@ -794,7 +795,7 @@ function getPreferredStickyNotePosition(
   }
 
   const linkedRoom = getLayoutRoom(doc, linkedRoomIds[0]);
-  const linkedRoomPosition = roomPositions[linkedRoomIds[0]];
+  const linkedRoomPosition = layoutPositions[linkedRoomIds[0]];
   if (!linkedRoom) {
     return {
       x: snapCoordinate(stickyNote.position.x),
@@ -833,7 +834,12 @@ function getPreferredStickyNotePosition(
 function computePrettifiedStickyNotePositions(
   doc: MapDocument,
   roomPositions: Readonly<Record<string, Position>>,
+  pseudoRoomPositions: Readonly<Record<string, Position>>,
 ): Readonly<Record<string, Position>> {
+  const layoutPositions = {
+    ...roomPositions,
+    ...pseudoRoomPositions,
+  };
   const stickyNoteIds = Object.keys(doc.stickyNotes).sort((leftId, rightId) => {
     const leftLinked = Object.values(doc.stickyNoteLinks).some((link) => link.stickyNoteId === leftId);
     const rightLinked = Object.values(doc.stickyNoteLinks).some((link) => link.stickyNoteId === rightId);
@@ -847,14 +853,14 @@ function computePrettifiedStickyNotePositions(
   const placedStickyNotes = new Map<string, Position>();
   for (const stickyNoteId of stickyNoteIds) {
     const stickyNote = doc.stickyNotes[stickyNoteId];
-    const preferredPosition = getPreferredStickyNotePosition(stickyNoteId, roomPositions, doc);
+    const preferredPosition = getPreferredStickyNotePosition(stickyNoteId, layoutPositions, doc);
     placedStickyNotes.set(
       stickyNoteId,
       findNearestOpenStickyNotePosition(
         stickyNoteId,
         preferredPosition,
         stickyNote.position,
-        roomPositions,
+        layoutPositions,
         placedStickyNotes,
         doc,
       ),
@@ -1049,6 +1055,6 @@ export function computePrettifiedLayoutPositions(
   return {
     roomPositions,
     pseudoRoomPositions,
-    stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions),
+    stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions, pseudoRoomPositions),
   };
 }

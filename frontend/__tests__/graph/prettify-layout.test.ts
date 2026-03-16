@@ -295,7 +295,7 @@ describe('computePrettifiedRoomPositions', () => {
     let doc = createEmptyMap('Linked Pseudo Note');
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
     const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 260, y: 200 } };
-    const stickyNote = { ...createStickyNote('What does this mean?'), position: { x: 260, y: 200 } };
+    const stickyNote = { ...createStickyNote('What does this mean?'), position: { x: 20, y: 20 } };
     doc = addRoom(doc, room);
     doc = addPseudoRoom(doc, pseudoRoom);
     doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
@@ -308,6 +308,7 @@ describe('computePrettifiedRoomPositions', () => {
 
     expect(stickyNotePosition).toBeDefined();
     expect(pseudoRoomPosition).toBeDefined();
+    expect(stickyNotePosition).not.toEqual(stickyNote.position);
 
     const stickyNoteLeft = stickyNotePosition.x;
     const stickyNoteRight = stickyNoteLeft + STICKY_NOTE_WIDTH;
@@ -321,6 +322,10 @@ describe('computePrettifiedRoomPositions', () => {
     const overlapsHorizontally = stickyNoteLeft < pseudoRoomRight && stickyNoteRight > pseudoRoomLeft;
     const overlapsVertically = stickyNoteTop < pseudoRoomBottom && stickyNoteBottom > pseudoRoomTop;
     expect(overlapsHorizontally && overlapsVertically).toBe(false);
+
+    const initialDistance = Math.hypot(stickyNote.position.x - pseudoRoomPosition.x, stickyNote.position.y - pseudoRoomPosition.y);
+    const finalDistance = Math.hypot(stickyNotePosition.x - pseudoRoomPosition.x, stickyNotePosition.y - pseudoRoomPosition.y);
+    expect(finalDistance).toBeLessThan(initialDistance);
   });
 
   it('separates overlapping sticky notes during prettify', () => {
