@@ -20,6 +20,7 @@ const mockGetConnectionGeometryLength = jest.fn<typeof import('../../src/graph/c
 const mockSampleConnectionGeometryAtFraction = jest.fn<typeof import('../../src/graph/connection-geometry').sampleConnectionGeometryAtFraction>();
 const mockGetRoomNodeWidth = jest.fn<typeof import('../../src/graph/minimap-geometry').getRoomNodeWidth>();
 const mockListBackgroundChunksInBounds = jest.fn<typeof import('../../src/storage/map-store').listBackgroundChunksInBounds>();
+const mockPath2D = jest.fn<(pathData?: string) => { readonly pathData: string | undefined }>();
 
 await jest.unstable_mockModule('../../src/export/export-bounds', () => ({
   validateExportBounds: mockValidateExportBounds,
@@ -239,6 +240,8 @@ function createBaseInput(): ExportRenderInput {
 describe('renderExportCanvas', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (globalThis as typeof globalThis & { Path2D?: typeof Path2D }).Path2D = mockPath2D as unknown as typeof Path2D;
+    mockPath2D.mockImplementation((pathData) => ({ pathData }));
 
     mockValidateExportBounds.mockReturnValue(null);
     mockBlobToCanvas.mockResolvedValue({ width: 64, height: 64 } as HTMLCanvasElement);
@@ -368,7 +371,8 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
     expect(context.fillText).toHaveBeenCalledWith('up', expect.any(Number), expect.any(Number));
     expect(context.setLineDash).toHaveBeenCalled();
-    expect(context.arc).toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
+    expect(mockPath2D).toHaveBeenCalledWith(expect.stringContaining('M224 224C224 171'));
+    expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: expect.stringContaining('M224 224C224 171') }));
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
     expect(context.lineTo).toHaveBeenCalledWith(40, 18);
     expect(context.translate).toHaveBeenCalledWith(80, 20);
@@ -431,7 +435,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
     expect(context.fillText).toHaveBeenCalledWith('remember this', expect.any(Number), expect.any(Number));
     expect(context.fillText).not.toHaveBeenCalledWith('Diamond', expect.any(Number), expect.any(Number));
-    expect(context.arc).not.toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
+    expect(context.fill).not.toHaveBeenCalledWith(expect.objectContaining({ pathData: expect.stringContaining('M224 224C224 171') }));
     expect(mockListBackgroundChunksInBounds).not.toHaveBeenCalled();
   });
 
@@ -456,7 +460,7 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas(input);
 
-    expect(context.arc).toHaveBeenCalledWith(50, 86, 6, 0, Math.PI * 2);
+    expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: expect.stringContaining('M224 224C224 171') }));
   });
 
   it('skips background image rendering when disabled', async () => {

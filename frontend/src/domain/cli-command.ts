@@ -1,4 +1,5 @@
 import { normalizeDirection, oppositeDirection } from './directions';
+import type { PseudoRoomKind } from './map-types';
 
 export interface CliRoomReference {
   readonly text: string;
@@ -11,7 +12,7 @@ export type CliCommand =
   | { readonly kind: 'create'; readonly roomName: string }
   | {
     readonly kind: 'create-pseudo-room';
-    readonly pseudoKind: 'unknown' | 'infinite';
+    readonly pseudoKind: PseudoRoomKind;
     readonly sourceRoom: CliRoomReference;
     readonly sourceDirection: string;
   }
@@ -50,6 +51,10 @@ export const CLI_COMMAND_FORMS = [
   'above/below <room name> goes on forever',
   'the way <direction> of <room name> goes on forever',
   'the way above/below <room name> goes on forever',
+  '<direction> of <room name> lies death',
+  'above/below <room name> lies death',
+  '<direction> of <room name> leads nowhere',
+  'above/below <room name> leads nowhere',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'show/s <room name>',
@@ -221,7 +226,7 @@ function parseDirectionReference(tokens: readonly Token[], startIndex: number): 
   }
 
   const sourceRoom = readRoomName(tokens, startIndex + 2, (token) => (
-    isTokenValue(token, 'is') || isTokenValue(token, 'goes')
+    isTokenValue(token, 'is') || isTokenValue(token, 'goes') || isTokenValue(token, 'lies') || isTokenValue(token, 'leads')
   ));
   if (sourceRoom === null) {
     return null;
@@ -246,7 +251,7 @@ function parseVerticalPseudoDirectionReference(tokens: readonly Token[], startIn
   }
 
   const sourceRoom = readRoomName(tokens, startIndex + 1, (token) => (
-    isTokenValue(token, 'is') || isTokenValue(token, 'goes')
+    isTokenValue(token, 'is') || isTokenValue(token, 'goes') || isTokenValue(token, 'lies') || isTokenValue(token, 'leads')
   ));
   if (sourceRoom === null) {
     return null;
@@ -305,6 +310,50 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
     };
   };
 
+  const parseDeath = (startIndex: number) => {
+    const directionReference = parseDirectionReference(tokens, startIndex)
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+    if (directionReference === null) {
+      return null;
+    }
+    if (
+      !isTokenValue(tokens[directionReference.nextIndex], 'lies')
+      || !isTokenValue(tokens[directionReference.nextIndex + 1], 'death')
+      || directionReference.nextIndex + 2 !== tokens.length
+    ) {
+      return null;
+    }
+
+    return {
+      kind: 'create-pseudo-room' as const,
+      pseudoKind: 'death' as const,
+      sourceRoom: directionReference.sourceRoom,
+      sourceDirection: directionReference.sourceDirection,
+    };
+  };
+
+  const parseNowhere = (startIndex: number) => {
+    const directionReference = parseDirectionReference(tokens, startIndex)
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+    if (directionReference === null) {
+      return null;
+    }
+    if (
+      !isTokenValue(tokens[directionReference.nextIndex], 'leads')
+      || !isTokenValue(tokens[directionReference.nextIndex + 1], 'nowhere')
+      || directionReference.nextIndex + 2 !== tokens.length
+    ) {
+      return null;
+    }
+
+    return {
+      kind: 'create-pseudo-room' as const,
+      pseudoKind: 'nowhere' as const,
+      sourceRoom: directionReference.sourceRoom,
+      sourceDirection: directionReference.sourceDirection,
+    };
+  };
+
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'room')) {
     return parseUnknown(2);
   }
@@ -313,7 +362,7 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
     return parseInfinite(2);
   }
 
-  return parseUnknown(0) ?? parseInfinite(0);
+  return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0);
 }
 
 function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedConnectTail | null {
@@ -598,9 +647,16 @@ function describeCliCommand(command: CliCommand): string {
     case 'delete':
       return `delete the room called ${command.room.text}`;
     case 'create-pseudo-room':
-      return command.pseudoKind === 'unknown'
-        ? `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as unknown`
-        : `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as going on forever`;
+      if (command.pseudoKind === 'unknown') {
+        return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as unknown`;
+      }
+      if (command.pseudoKind === 'infinite') {
+        return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as going on forever`;
+      }
+      if (command.pseudoKind === 'death') {
+        return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as death`;
+      }
+      return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as leading nowhere`;
     case 'edit':
       return `open the room editor for ${command.room.text}`;
     case 'show':

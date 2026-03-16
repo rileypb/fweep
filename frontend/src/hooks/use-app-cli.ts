@@ -75,9 +75,16 @@ function describeCliOutcome(command: CliCommand): string {
     case 'create':
       return 'Created.';
     case 'create-pseudo-room':
-      return command.pseudoKind === 'unknown'
-        ? 'Marked exit as unknown.'
-        : 'Marked exit as going on forever.';
+      if (command.pseudoKind === 'unknown') {
+        return 'Marked exit as unknown.';
+      }
+      if (command.pseudoKind === 'infinite') {
+        return 'Marked exit as going on forever.';
+      }
+      if (command.pseudoKind === 'death') {
+        return 'Marked exit as death.';
+      }
+      return 'Marked exit as leading nowhere.';
     case 'delete':
       return 'Deleted.';
     case 'edit':

@@ -36,6 +36,10 @@ export function getPseudoRoomGlyph(kind: PseudoRoomKind): string {
       return '?';
     case 'infinite':
       return '∞';
+    case 'death':
+      return '☠';
+    case 'nowhere':
+      return '✕';
   }
 }
 

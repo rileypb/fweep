@@ -48,6 +48,24 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('describes pseudo-room death commands', () => {
+    expect(parseCliCommandDescription('west of Castle lies death')).toBe(
+      'mark the west exit from Castle as death',
+    );
+    expect(parseCliCommandDescription('Above Kitchen lies death')).toBe(
+      'mark the up exit from Kitchen as death',
+    );
+  });
+
+  it('describes pseudo-room nowhere commands', () => {
+    expect(parseCliCommandDescription('west of Castle leads nowhere')).toBe(
+      'mark the west exit from Castle as leading nowhere',
+    );
+    expect(parseCliCommandDescription('Above Kitchen leads nowhere')).toBe(
+      'mark the up exit from Kitchen as leading nowhere',
+    );
+  });
+
   it('describes delete commands', () => {
     expect(parseCliCommandDescription('delete Kitchen')).toBe('delete the room called Kitchen');
     expect(parseCliCommandDescription('d Kitchen')).toBe('delete the room called Kitchen');

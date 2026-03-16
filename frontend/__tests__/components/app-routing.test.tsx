@@ -1918,6 +1918,82 @@ describe('URL routing', () => {
     expectGameOutputToContain('Below Bedroom goes on forever', 'marked exit as going on forever');
   });
 
+  it('creates a death pseudo-room from a natural-language CLI phrase', async () => {
+    const castle = {
+      id: 'castle',
+      name: 'Castle',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    let doc = createEmptyMap('CLI Death Exit Map');
+    doc = addRoom(doc, castle);
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli death exit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'west of castle lies death{enter}');
+
+    const state = useEditorStore.getState();
+    const pseudoRooms = Object.values(state.doc?.pseudoRooms ?? {});
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(pseudoRooms).toHaveLength(1);
+    expect(pseudoRooms[0]).toMatchObject({ kind: 'death' });
+    expect(connections).toHaveLength(1);
+    expect(state.doc?.rooms.castle?.directions.west).toBe(connections[0].id);
+    expectGameOutputToContain('west of castle lies death', 'marked exit as death');
+  });
+
+  it('creates a nowhere pseudo-room from a natural-language CLI phrase', async () => {
+    const castle = {
+      id: 'castle',
+      name: 'Castle',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    let doc = createEmptyMap('CLI Nowhere Exit Map');
+    doc = addRoom(doc, castle);
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli nowhere exit map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'west of castle leads nowhere{enter}');
+
+    const state = useEditorStore.getState();
+    const pseudoRooms = Object.values(state.doc?.pseudoRooms ?? {});
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(pseudoRooms).toHaveLength(1);
+    expect(pseudoRooms[0]).toMatchObject({ kind: 'nowhere' });
+    expect(connections).toHaveLength(1);
+    expect(state.doc?.rooms.castle?.directions.west).toBe(connections[0].id);
+    expectGameOutputToContain('west of castle leads nowhere', 'marked exit as leading nowhere');
+  });
+
   it('creates and connects a room in one CLI command', async () => {
     let doc = createEmptyMap('CLI Create Connect Map');
     doc = {

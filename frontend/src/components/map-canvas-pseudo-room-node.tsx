@@ -41,6 +41,7 @@ export function MapCanvasPseudoRoomNode({
   const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
   const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
   const symbolDefinition = getPseudoRoomSymbolDefinition(pseudoRoom.kind);
+  const symbolViewBoxSize = symbolDefinition.viewBoxSize ?? PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE;
   const roomLabelColor = getRoomLabelColor(theme);
   const isDragging = selectionDrag !== null && selectionDrag.pseudoRoomIds.includes(pseudoRoom.id);
   const visualX = pseudoRoom.position.x + (isDragging ? selectionDrag.dx : 0);
@@ -173,7 +174,7 @@ export function MapCanvasPseudoRoomNode({
         />
       )}
       <g
-        transform={`translate(${symbolLayout.x - (symbolLayout.size / 2)} ${symbolLayout.y - (symbolLayout.size / 2)}) scale(${symbolLayout.size / PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE})`}
+        transform={`translate(${symbolLayout.x - (symbolLayout.size / 2)} ${symbolLayout.y - (symbolLayout.size / 2)}) scale(${symbolLayout.size / symbolViewBoxSize})`}
         style={{
           color: roomLabelColor,
           pointerEvents: 'none',
@@ -196,6 +197,13 @@ export function MapCanvasPseudoRoomNode({
             cx={circle.cx}
             cy={circle.cy}
             r={circle.r}
+            fill="currentColor"
+          />
+        ))}
+        {(symbolDefinition.filledPaths ?? []).map((path, index) => (
+          <path
+            key={`filled-path-${pseudoRoom.id}-${index}`}
+            d={path.d}
             fill="currentColor"
           />
         ))}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
 import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
@@ -167,6 +168,63 @@ interface PendingConnectionDrop {
   readonly position: Position;
   readonly screenX: number;
   readonly screenY: number;
+}
+
+interface PseudoRoomMenuButtonProps {
+  readonly kind: PseudoRoomKind;
+  readonly label: string;
+  readonly onSelect: (kind: PseudoRoomKind) => void;
+}
+
+function PseudoRoomMenuButton({ kind, label, onSelect }: PseudoRoomMenuButtonProps): React.JSX.Element {
+  const symbolDefinition = getPseudoRoomSymbolDefinition(kind);
+  const symbolViewBoxSize = symbolDefinition.viewBoxSize ?? PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE;
+
+  return (
+    <button
+      type="button"
+      className="map-canvas-connection-create-icon-button"
+      aria-label={label}
+      title={label}
+      onClick={() => onSelect(kind)}
+    >
+      <svg
+        className="map-canvas-connection-create-icon"
+        width="52"
+        height="52"
+        viewBox={`0 0 ${symbolViewBoxSize} ${symbolViewBoxSize}`}
+        aria-hidden="true"
+      >
+        {symbolDefinition.paths.map((path, index) => (
+          <path
+            key={`${kind}-stroke-${index}`}
+            d={pseudoRoomPathCommandsToSvgPath(path.commands)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={path.strokeWidth}
+            strokeLinecap={path.lineCap}
+            strokeLinejoin={path.lineJoin}
+          />
+        ))}
+        {(symbolDefinition.circles ?? []).map((circle, index) => (
+          <circle
+            key={`${kind}-circle-${index}`}
+            cx={circle.cx}
+            cy={circle.cy}
+            r={circle.r}
+            fill="currentColor"
+          />
+        ))}
+        {(symbolDefinition.filledPaths ?? []).map((path, index) => (
+          <path
+            key={`${kind}-fill-${index}`}
+            d={path.d}
+            fill="currentColor"
+          />
+        ))}
+      </svg>
+    </button>
+  );
 }
 
 export function MapCanvas({
@@ -1571,19 +1629,16 @@ export function MapCanvas({
               left: `${pendingConnectionDrop.screenX}px`,
               top: `${pendingConnectionDrop.screenY}px`,
               transform: 'translate(-50%, -50%)',
-              zIndex: 12,
-              display: 'flex',
-              gap: '8px',
-              padding: '8px',
-              borderRadius: '12px',
-              background: 'rgba(255,255,255,0.95)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
             }}
           >
-            <button type="button" onClick={() => handleCreateFromPendingDrop('room')}>Room</button>
-            <button type="button" onClick={() => handleCreateFromPendingDrop('unknown')}>?</button>
-            <button type="button" onClick={() => handleCreateFromPendingDrop('infinite')}>∞</button>
-            <button type="button" onClick={closeConnectionCreationMenu}>Cancel</button>
+            <button type="button" className="room-editor-primary" onClick={() => handleCreateFromPendingDrop('room')}>Room</button>
+            <div className="map-canvas-connection-create-icon-grid" role="group" aria-label="Pseudo-room choices">
+              <PseudoRoomMenuButton kind="unknown" label="Unknown" onSelect={handleCreateFromPendingDrop} />
+              <PseudoRoomMenuButton kind="infinite" label="Infinite" onSelect={handleCreateFromPendingDrop} />
+              <PseudoRoomMenuButton kind="death" label="Death" onSelect={handleCreateFromPendingDrop} />
+              <PseudoRoomMenuButton kind="nowhere" label="Nowhere" onSelect={handleCreateFromPendingDrop} />
+            </div>
+            <button type="button" className="room-editor-secondary" onClick={closeConnectionCreationMenu}>Cancel</button>
           </div>
         )}
 

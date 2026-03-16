@@ -2600,12 +2600,58 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
       fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
 
-      fireEvent.click(screen.getByRole('button', { name: '?' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Unknown' }));
 
       const doc = useEditorStore.getState().doc!;
       const pseudoRooms = Object.values(doc.pseudoRooms);
       expect(pseudoRooms).toHaveLength(1);
       expect(pseudoRooms[0].kind).toBe('unknown');
+      expect(Object.values(doc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
+      expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
+    });
+
+    it('can create a death pseudo-room from the chooser', () => {
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Death' }));
+
+      const doc = useEditorStore.getState().doc!;
+      const pseudoRooms = Object.values(doc.pseudoRooms);
+      expect(pseudoRooms).toHaveLength(1);
+      expect(pseudoRooms[0].kind).toBe('death');
+      expect(Object.values(doc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
+      expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
+    });
+
+    it('can create a nowhere pseudo-room from the chooser', () => {
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nowhere' }));
+
+      const doc = useEditorStore.getState().doc!;
+      const pseudoRooms = Object.values(doc.pseudoRooms);
+      expect(pseudoRooms).toHaveLength(1);
+      expect(pseudoRooms[0].kind).toBe('nowhere');
       expect(Object.values(doc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
       expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
     });
@@ -2624,7 +2670,7 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
       fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
 
-      fireEvent.click(screen.getByRole('button', { name: '?' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Unknown' }));
 
       const pseudoRoom = Object.values(useEditorStore.getState().doc!.pseudoRooms)[0];
       const dimensions = getRoomNodeDimensions(toPseudoRoomVisualRoom(createPseudoRoom('unknown')));

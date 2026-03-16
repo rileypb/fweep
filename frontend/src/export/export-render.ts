@@ -182,10 +182,15 @@ function drawPseudoRoomSymbol(
   visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
 ): void {
   const symbolLayout = getPseudoRoomSymbolLayoutForRoom(room, visualStyle);
-  const symbolDefinition = getPseudoRoomSymbolDefinition(
-    room.name === getPseudoRoomGlyph('unknown') ? 'unknown' : 'infinite',
-  );
-  const scale = symbolLayout.size / PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE;
+  const symbolKind = room.name === getPseudoRoomGlyph('unknown')
+    ? 'unknown'
+    : room.name === getPseudoRoomGlyph('infinite')
+      ? 'infinite'
+      : room.name === getPseudoRoomGlyph('death')
+        ? 'death'
+        : 'nowhere';
+  const symbolDefinition = getPseudoRoomSymbolDefinition(symbolKind);
+  const scale = symbolLayout.size / (symbolDefinition.viewBoxSize ?? PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE);
 
   context.save();
   context.translate(
@@ -210,6 +215,12 @@ function drawPseudoRoomSymbol(
     context.arc(circle.cx, circle.cy, circle.r, 0, Math.PI * 2);
     context.fill();
   });
+
+  if (typeof Path2D !== 'undefined') {
+    (symbolDefinition.filledPaths ?? []).forEach((path) => {
+      context.fill(new Path2D(path.d));
+    });
+  }
 
   context.restore();
 }
