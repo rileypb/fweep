@@ -13,6 +13,8 @@ export default {
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   moduleNameMapper: {
     '\\.(css|less|scss)$': '<rootDir>/__tests__/__mocks__/style-mock.ts',
+    'cli-help\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/cli-help-markdown.ts',
+    'cli-help\\.md$': '<rootDir>/__tests__/__mocks__/cli-help-markdown.ts',
     '\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
     '\\.md$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
   },

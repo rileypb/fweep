@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  CLI_COMMAND_FORMS,
   parseCliCommand,
   parseCliCommandDescription,
   type CliRoomAdjective,
   type CliCommand,
 } from '../domain/cli-command';
+import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../domain/cli-help';
 import { parseCliScript } from '../domain/cli-script';
 import {
   createAmbiguousRoomCliError,
@@ -412,7 +412,10 @@ export function useAppCli({
     }
 
     if (command.kind === 'help') {
-      appendGameOutput([formatCliEcho(trimmedInput), ...CLI_COMMAND_FORMS]);
+      appendGameOutput([
+        formatCliEcho(trimmedInput),
+        ...(command.topic === null ? getCliHelpOverviewLines() : getCliHelpTopicLines(command.topic)),
+      ]);
       return { ok: true, shouldSelectCliInput };
     }
 

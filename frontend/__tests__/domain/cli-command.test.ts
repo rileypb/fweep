@@ -3,8 +3,9 @@ import { parseCliCommand, parseCliCommandDescription } from '../../src/domain/cl
 
 describe('parseCliCommandDescription', () => {
   it('describes help commands', () => {
-    expect(parseCliCommandDescription('help')).toBe('list the available CLI command forms');
-    expect(parseCliCommandDescription('h')).toBe('list the available CLI command forms');
+    expect(parseCliCommandDescription('help')).toBe('list the available CLI help topics');
+    expect(parseCliCommandDescription('h')).toBe('list the available CLI help topics');
+    expect(parseCliCommandDescription('help rooms')).toBe('show CLI help for rooms');
   });
 
   it('describes arrange commands', () => {

@@ -1,4 +1,5 @@
 import { normalizeDirection, oppositeDirection } from './directions';
+import { parseCliHelpTopic, type CliHelpTopic } from './cli-help';
 import type { PseudoRoomKind } from './map-types';
 
 export interface CliRoomReference {
@@ -13,7 +14,7 @@ export interface CliRoomAdjective {
 }
 
 export type CliCommand =
-  | { readonly kind: 'help' }
+  | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
@@ -792,8 +793,17 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'redo' };
   }
 
-  if (tokens.length === 1 && isFirstWordAlias(tokens[0], 'help', 'h')) {
-    return { kind: 'help' };
+  if (isFirstWordAlias(tokens[0], 'help', 'h')) {
+    if (tokens.length === 1) {
+      return { kind: 'help', topic: null };
+    }
+
+    if (tokens.length === 2) {
+      const topic = parseCliHelpTopic(tokens[1].value);
+      return topic === null ? null : { kind: 'help', topic };
+    }
+
+    return null;
   }
 
   if (tokens.length === 1 && (isFirstWordAlias(tokens[0], 'arrange', 'arr') || isTokenValue(tokens[0], 'prettify'))) {
@@ -938,7 +948,9 @@ export function parseCliCommand(input: string): CliCommand | null {
 function describeCliCommand(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
-      return 'list the available CLI command forms';
+      return command.topic === null
+        ? 'list the available CLI help topics'
+        : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
     case 'create':

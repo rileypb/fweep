@@ -1,28 +1,5 @@
 # Fweep Help
 
-## CLI, or how to type out a map
-
-- `create <room name>` creates a new room.
-- `delete <room name>` deletes a room with that name.
-- `edit <room name>` opens the room editor for that room.
-- `show <room name>` centers that room on screen.
-- `connect <room> <direction> [one-way] to <room> [<direction>]` creates a connection. `one-way` is optional, and the target direction is optional for two-way connections.
-- `create and connect <room> <direction> [one-way] to <room> [<direction>]` creates a new room and immediately connects it.
-- `create <new room> <direction> of <existing room>` creates a new room and a two-way relative connection.
-- `create <new room> above/below <existing room>` creates a new room and a two-way vertical connection. `above` means `down` from the new room and `up` from the existing room; `below` does the opposite.
-- `notate` / `annotate <room name> with <note text>` creates a new sticky note linked to that room.
-- `help` lists the available CLI command forms.
-- `arrange` / `prettify` runs the automatic layout.
-- `undo` / `redo` steps backward or forward through command history.
-- Room names can be quoted, for example `create "Machine Room"`.
-- In quoted names, `\"` inserts a literal quote.
-- Unquoted room references in commands may be partial and may use words in any order. For example, `edit living` matches `Living Room`, and `edit room living` also matches `Living Room`.
-- Quoted room references are taken as exact names instead. For example, `connect "path through the iron gate" e to "path"` matches those two room names exactly rather than using partial-name matching.
-- Short direction aliases also work in the CLI, such as `n`, `s`, `e`, `w`, `u`, and `d`.
-- If a two-way `connect` command omits the target direction, fweep uses the opposite direction by default.
-- After a successful command, the direct object becomes `it` for later commands such as `edit it` or `show it`.
-- While the CLI input is focused, `Up` and `Down` move through recent command history.
-
 ## Mouse and Trackpad
 
 - `R`, then click empty canvas: create a room.

@@ -1,8 +1,8 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CLI_COMMAND_FORMS } from '../../src/domain/cli-command';
 import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../../src/domain/cli-help';
 import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
 import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
 import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
@@ -483,7 +483,7 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
-  it('lists all supported CLI command forms for the help command', async () => {
+  it('lists CLI help topics for the help command', async () => {
     const doc = createEmptyMap('CLI Command List Map');
     await saveMap(doc);
 
@@ -496,19 +496,25 @@ describe('URL routing', () => {
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'help{enter}');
 
-    expectGameOutputToContain(
-      'help/h',
-      'arrange/arr/prettify',
-      'create/c <room name>',
-      'delete/d/del <room name>',
-      'edit/e/ed <room name>',
-      'show/s <room name>',
-      'notate/annotate/ann <room name> with <note text>',
-      'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
-      'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
-      'create/c <room name> above/below <room name>',
-      'undo/redo',
-    );
+    expectGameOutputToContain(...getCliHelpOverviewLines());
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('lists room help for help rooms', async () => {
+    const doc = createEmptyMap('CLI Room Help Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli room help map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'help rooms{enter}');
+
+    expectGameOutputToContain(...getCliHelpTopicLines('rooms'));
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
   });
@@ -2635,8 +2641,7 @@ describe('URL routing', () => {
     await renderAppWithOpenMap('Help Escape Map');
 
     await user.click(screen.getByRole('button', { name: /help/i }));
-    expect(screen.getByRole('heading', { name: /undo\/redo/i })).toBeInTheDocument();
-    expect(document.querySelectorAll('.help-rule').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: /creating, editing and deleting rooms/i })).toBeInTheDocument();
 
     await user.click(document.querySelector('.help-backdrop') as HTMLElement);
     expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
@@ -2683,9 +2688,9 @@ describe('URL routing', () => {
       expect(persisted?.cliOutputLines).toEqual(expect.arrayContaining([
         ...DEFAULT_CLI_OUTPUT_LINES,
         '>help',
-        ...CLI_COMMAND_FORMS,
+        ...getCliHelpOverviewLines(),
       ]));
-      expect(persisted?.cliOutputLines).toContain('create/c <room name>');
+      expect(persisted?.cliOutputLines).toContain('help rooms');
     }));
 
     firstRender.unmount();
@@ -2693,7 +2698,7 @@ describe('URL routing', () => {
 
     await screen.findByText(/persisted output map/i);
     expect(getGameOutputBox().textContent ?? '').toContain('>help');
-    expect(getGameOutputBox().textContent ?? '').toContain('create/c <room name>');
+    expect(getGameOutputBox().textContent ?? '').toContain('help rooms');
   });
 
   it('persists the default CLI banner when an existing map has an empty output log', async () => {
