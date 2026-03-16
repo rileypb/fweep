@@ -119,10 +119,16 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('take lantern from Kitchen')).toBe(
       'take lantern from Kitchen',
     );
+    expect(parseCliCommandDescription('get lantern from Kitchen')).toBe(
+      'take lantern from Kitchen',
+    );
     expect(parseCliCommandDescription('take lantern, key, and sword from Kitchen')).toBe(
       'take lantern, key, and sword from Kitchen',
     );
     expect(parseCliCommandDescription('take all from Kitchen')).toBe(
+      'take all from Kitchen',
+    );
+    expect(parseCliCommandDescription('get all from Kitchen')).toBe(
       'take all from Kitchen',
     );
   });
@@ -290,6 +296,12 @@ describe('parseCliCommand', () => {
       room: { text: 'Kitchen', exact: false },
     });
 
+    expect(parseCliCommand('get lantern from Kitchen')).toEqual({
+      kind: 'take-items',
+      itemNames: ['lantern'],
+      room: { text: 'Kitchen', exact: false },
+    });
+
     expect(parseCliCommand('take lantern, key, and sword from Kitchen')).toEqual({
       kind: 'take-items',
       itemNames: ['lantern', 'key', 'sword'],
@@ -297,6 +309,11 @@ describe('parseCliCommand', () => {
     });
 
     expect(parseCliCommand('take all from Kitchen')).toEqual({
+      kind: 'take-all-items',
+      room: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('get all from Kitchen')).toEqual({
       kind: 'take-all-items',
       room: { text: 'Kitchen', exact: false },
     });

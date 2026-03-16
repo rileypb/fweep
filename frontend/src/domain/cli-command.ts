@@ -76,9 +76,9 @@ export const CLI_COMMAND_FORMS = [
   'create and connect <room name>, which is <adjective>, <direction> to <room name> [<direction>]',
   'put <item> in <room name>',
   'put <item>, <item>, and <item> in <room name>',
-  'take <item> from <room name>',
-  'take <item>, <item>, and <item> from <room name>',
-  'take all from <room name>',
+  'take/get <item> from <room name>',
+  'take/get <item>, <item>, and <item> from <room name>',
+  'take/get all from <room name>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
@@ -841,7 +841,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     return parseItemTransferCommand(tokens, 'put-items', 'in');
   }
 
-  if (isTokenValue(tokens[0], 'take')) {
+  if (isFirstWordAlias(tokens[0], 'take', 'get')) {
     if (isTokenValue(tokens[1], 'all') && isTokenValue(tokens[2], 'from')) {
       const room = readRoomName(tokens, 3, () => false);
       if (room === null || room.nextIndex !== tokens.length) {

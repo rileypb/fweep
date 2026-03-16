@@ -377,6 +377,26 @@ describe('URL routing', () => {
     expectGameOutputToContain('take all from Kitchen', 'Took.');
   });
 
+  it('gets items from a room through the CLI', async () => {
+    const doc = createEmptyMap('CLI Get Items Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let savedDoc = addRoom(doc, kitchen);
+    savedDoc = addItem(savedDoc, createItem('lantern', kitchen.id));
+    savedDoc = addItem(savedDoc, createItem('key', kitchen.id));
+    await saveMap(savedDoc);
+    navigateTo(`#/map/${savedDoc.metadata.id}`);
+    render(<App />);
+    await screen.findByLabelText('Map name: CLI Get Items Map');
+
+    await submitCliCommand('get all from Kitchen');
+
+    await waitFor(() => {
+      expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
+    });
+
+    expectGameOutputToContain('get all from Kitchen', 'Took.');
+  });
+
   it('rolls back script import changes when a later line fails', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Script Rollback Map');
