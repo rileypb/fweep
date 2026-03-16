@@ -185,7 +185,7 @@ describe('export-bounds', () => {
         'sticky-note-link-1': {
           id: 'sticky-note-link-1',
           stickyNoteId: stickyNote.id,
-          target: { kind: 'room', id: room.id },
+          target: { kind: 'room' as const, id: room.id },
         },
       },
     };

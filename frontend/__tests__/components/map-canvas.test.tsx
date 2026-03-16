@@ -2072,9 +2072,9 @@ describe('MapCanvas', () => {
   describe('directional handles', () => {
     const DIRECTIONS = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
 
-    function setupRoomAndHover() {
+    function setupRoomAndHover(roomOverride?: Partial<ReturnType<typeof createRoom>>) {
       const doc = createEmptyMap('Test');
-      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 }, ...roomOverride };
       const docWithRoom = addRoom(doc, room);
       useEditorStore.getState().loadDocument(docWithRoom);
 
@@ -2106,7 +2106,7 @@ describe('MapCanvas', () => {
     });
 
     it('renders handle circles at the shared SVG geometry coordinates', () => {
-      setupRoomAndHover();
+      setupRoomAndHover({ shape: 'rectangle' });
 
       const handle = screen.getByTestId('direction-handle-ne');
       const expectedOffset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT });

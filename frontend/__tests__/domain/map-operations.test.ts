@@ -442,7 +442,7 @@ describe('setRoomShape', () => {
     const next = setRoomShape(withRoom, room.id, 'diamond');
 
     expect(next.rooms[room.id].shape).toBe('diamond');
-    expect(withRoom.rooms[room.id].shape).toBe('rectangle');
+    expect(withRoom.rooms[room.id].shape).toBe('box');
   });
 });
 

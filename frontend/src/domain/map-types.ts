@@ -239,7 +239,7 @@ export function createRoom(name: string): Room {
     directions: {},
     isDark: false,
     locked: false,
-    shape: 'rectangle',
+    shape: 'box',
     fillColorIndex: DEFAULT_ROOM_FILL_COLOR_INDEX,
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,

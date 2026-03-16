@@ -36,9 +36,9 @@ describe('createRoom', () => {
     expect(room.isDark).toBe(false);
   });
 
-  it('starts with rectangle as the default shape', () => {
+  it('starts with box as the default shape', () => {
     const room = createRoom('Gallery');
-    expect(room.shape).toBe('rectangle');
+    expect(room.shape).toBe('box');
   });
 
   it('starts with a default position at 0,0', () => {
