@@ -2098,6 +2098,44 @@ describe('MapCanvas', () => {
       expect(room.position).toEqual({ x: 160, y: 160 });
     });
 
+    it('uses map-space deltas for room drags while zoomed', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      useEditorStore.getState().loadDocument({
+        ...addRoom(doc, room),
+        view: {
+          ...doc.view,
+          zoom: 2,
+        },
+      });
+
+      render(<MapCanvas mapName="Test" />);
+
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 400,
+        bottom: 300,
+        width: 400,
+        height: 300,
+        toJSON: () => ({}),
+      });
+
+      const roomNode = screen.getByTestId('room-node');
+
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 180, clientY: 180 });
+
+      expect(roomNode.style.transform).toBe('translate(120px, 140px)');
+
+      fireEvent.mouseUp(document, { clientX: 180, clientY: 180 });
+
+      expect(useEditorStore.getState().doc!.rooms[room.id].position).toEqual({ x: 120, y: 160 });
+    });
+
     it('updates the visual position during drag', () => {
       const { roomNode } = setupDraggableRoom(80, 120);
 

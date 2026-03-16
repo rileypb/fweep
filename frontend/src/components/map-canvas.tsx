@@ -1532,6 +1532,7 @@ export function MapCanvas({
               theme={theme}
               isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
               onOpenPseudoRoomEditor={openPseudoRoomEditor}
+              toMapPoint={toMapPoint}
             />
           ))}
 

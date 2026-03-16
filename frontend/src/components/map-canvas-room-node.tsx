@@ -181,20 +181,21 @@ export function MapCanvasRoomNode({
 
       const startX = e.clientX;
       const startY = e.clientY;
+      const startPoint = toMapPoint(startX, startY);
       startRoomDrag(room.id);
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const dx = moveEvent.clientX - startX;
-        const dy = moveEvent.clientY - startY;
-        updateRoomDrag(dx, dy);
+        const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+        updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
       };
 
       const handleMouseUp = (upEvent: MouseEvent) => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
 
-        const dx = upEvent.clientX - startX;
-        const dy = upEvent.clientY - startY;
+        const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
+        const dx = endPoint.x - startPoint.x;
+        const dy = endPoint.y - startPoint.y;
         const dragSelection = useEditorStore.getState().selectionDrag;
         endRoomDrag();
 
@@ -254,7 +255,7 @@ export function MapCanvasRoomNode({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveSelection, room.id, selectRoom, startRoomDrag, updateRoomDrag],
+    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveSelection, room.id, selectRoom, startRoomDrag, toMapPoint, updateRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(

@@ -158,18 +158,21 @@ export function MapCanvasStickyNote({
 
           const startX = event.clientX;
           const startY = event.clientY;
+          const startPoint = toMapPoint(startX, startY);
           startStickyNoteDrag(stickyNote.id);
 
           const handleMouseMove = (moveEvent: MouseEvent) => {
-            updateStickyNoteDrag(moveEvent.clientX - startX, moveEvent.clientY - startY);
+            const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+            updateStickyNoteDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
           };
 
           const handleMouseUp = (upEvent: MouseEvent) => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
 
-            const dx = upEvent.clientX - startX;
-            const dy = upEvent.clientY - startY;
+            const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
+            const dx = endPoint.x - startPoint.x;
+            const dy = endPoint.y - startPoint.y;
             const dragSelection = useEditorStore.getState().selectionDrag;
             endStickyNoteDrag();
 

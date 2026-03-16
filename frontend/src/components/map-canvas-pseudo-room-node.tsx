@@ -12,12 +12,14 @@ import {
 } from '../domain/pseudo-room-symbols';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
+import type { PanOffset } from './use-map-viewport';
 
 export interface MapCanvasPseudoRoomNodeProps {
   pseudoRoom: PseudoRoom;
   theme: ThemeMode;
   isSelected: boolean;
   onOpenPseudoRoomEditor: (pseudoRoomId: string) => void;
+  toMapPoint: (clientX: number, clientY: number) => PanOffset;
 }
 
 export function MapCanvasPseudoRoomNode({
@@ -25,6 +27,7 @@ export function MapCanvasPseudoRoomNode({
   theme,
   isSelected,
   onOpenPseudoRoomEditor,
+  toMapPoint,
 }: MapCanvasPseudoRoomNodeProps): React.JSX.Element {
   const visualRoom = toPseudoRoomVisualRoom(pseudoRoom);
   const moveSelection = useEditorStore((s) => s.moveSelection);
@@ -52,18 +55,21 @@ export function MapCanvasPseudoRoomNode({
     event.stopPropagation();
     const startX = event.clientX;
     const startY = event.clientY;
+    const startPoint = toMapPoint(startX, startY);
     startPseudoRoomDrag(pseudoRoom.id);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      updateRoomDrag(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
+      updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
 
-      const dx = upEvent.clientX - startX;
-      const dy = upEvent.clientY - startY;
+      const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
+      const dx = endPoint.x - startPoint.x;
+      const dy = endPoint.y - startPoint.y;
       const currentDoc = useEditorStore.getState().doc;
       const dragSelection = useEditorStore.getState().selectionDrag;
       endRoomDrag();
@@ -127,7 +133,7 @@ export function MapCanvasPseudoRoomNode({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [addPseudoRoomToSelection, endRoomDrag, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, updateRoomDrag]);
+  }, [addPseudoRoomToSelection, endRoomDrag, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, toMapPoint, updateRoomDrag]);
 
   return (
     <svg
