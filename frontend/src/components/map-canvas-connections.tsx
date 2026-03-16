@@ -993,13 +993,15 @@ export function MapCanvasConnections({
           const rawStickyNote = stickyNotes[stickyNoteLink.stickyNoteId];
           const rawRoom = stickyNoteLink.target.kind === 'room'
             ? rooms[stickyNoteLink.target.id]
-            : (pseudoRooms[stickyNoteLink.target.id] ? toPseudoRoomVisualRoom(pseudoRooms[stickyNoteLink.target.id]) : undefined);
+            : (pseudoRooms[stickyNoteLink.target.id]
+              ? toPseudoRoomVisualRoom(applyPseudoRoomDragOffset(pseudoRooms[stickyNoteLink.target.id], selectionDrag))
+              : undefined);
           if (!rawStickyNote || !rawRoom) {
             return null;
           }
 
           const stickyNote = getStickyNoteWithDrag(rawStickyNote);
-          const room = applyDragOffset(rawRoom, selectionDrag);
+          const room = stickyNoteLink.target.kind === 'room' ? applyDragOffset(rawRoom, selectionDrag) : rawRoom;
           const stickyNoteCenter = getStickyNoteCenter(stickyNote);
           const roomCenter = {
             x: room.position.x + (getRoomNodeDimensions(room, visualStyle).width / 2),

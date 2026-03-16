@@ -1966,7 +1966,7 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('sticky-note-link-preview')).toBeInTheDocument();
       fireEvent.mouseUp(roomNode, { clientX: 260, clientY: 140, button: 0 });
 
-      const stickyNoteLinkId = Object.keys(useEditorStore.getState().doc!.stickyNoteLinks)[0];
+      const stickyNoteLinkId = Object.values(useEditorStore.getState().doc!.stickyNoteLinks)[0].id;
       expect(Object.values(useEditorStore.getState().doc!.stickyNoteLinks)).toHaveLength(1);
       expect(screen.getByTestId(`sticky-note-link-${stickyNoteLinkId}`)).toBeInTheDocument();
     });
@@ -4086,6 +4086,39 @@ describe('MapCanvas', () => {
 
       const pointsDuring = connectionLine.getAttribute('points');
       expect(pointsDuring).not.toBe(pointsBefore);
+
+      fireEvent.mouseUp(document, { clientX: 320, clientY: 100 });
+    });
+
+    it('updates sticky-note links to pseudo-rooms in real time during pseudo-room drag', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 260, y: 40 } };
+      const stickyNote = { ...createStickyNote('Why is this here?'), position: { x: 40, y: 40 } };
+      let d = addRoom(doc, kitchen);
+      d = addPseudoRoom(d, unknown);
+      d = addConnection(d, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
+      d = addStickyNote(d, stickyNote);
+      d = {
+        ...d,
+        stickyNoteLinks: {
+          'sticky-note-link-1': createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: unknown.id }),
+        },
+      };
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const stickyNoteLinkId = Object.values(useEditorStore.getState().doc!.stickyNoteLinks)[0].id;
+      const stickyNoteLink = screen.getByTestId(`sticky-note-link-${stickyNoteLinkId}`);
+      const endpointBefore = stickyNoteLink.getAttribute('x2');
+      const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
+
+      fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 320, clientY: 100 });
+
+      const endpointDuring = stickyNoteLink.getAttribute('x2');
+      expect(endpointDuring).not.toBe(endpointBefore);
 
       fireEvent.mouseUp(document, { clientX: 320, clientY: 100 });
     });
