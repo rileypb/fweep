@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
-import { clampMapViewportZoom, useMapViewport } from './use-map-viewport';
+import { useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
@@ -18,6 +18,10 @@ import {
   type SelectionBox,
   useDocumentTheme,
 } from './map-canvas-helpers';
+import { isRedoShortcut, isUndoShortcut } from './map-canvas-shortcuts';
+import { useMapCanvasRoomFocus, type MapCanvasRoomEditorState } from './use-map-canvas-room-focus';
+import { useMapCanvasViewportPersistence } from './use-map-canvas-viewport-persistence';
+import { useMapCanvasWindowControls } from './use-map-canvas-window-controls';
 import {
   ConnectionEditorOverlay,
   RoomEditorOverlay,
@@ -116,18 +120,6 @@ function isCanvasChromeTarget(target: Element | null): boolean {
   ));
 }
 
-function isUndoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; key: string }): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z';
-}
-
-function isRedoShortcut(event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; key: string }): boolean {
-  return (
-    (event.ctrlKey || event.metaKey)
-    && !event.altKey
-    && ((event.key.toLowerCase() === 'z' && event.shiftKey) || (event.key.toLowerCase() === 'y' && !event.shiftKey))
-  );
-}
-
 function centerToTopLeft(position: Position, width: number, height: number): Position {
   return {
     x: position.x - (width / 2),
@@ -160,12 +152,6 @@ export interface MapCanvasProps {
   onRequestedRoomEditorHandled?: (requestId: number) => void;
   onRequestedRoomRevealHandled?: (requestId: number) => void;
   onRequestedViewportFocusHandled?: (requestId: number) => void;
-}
-
-interface RoomEditorState {
-  readonly roomId?: string;
-  readonly pseudoRoomId?: string;
-  readonly initialPosition?: Position;
 }
 
 interface PendingConnectionDrop {
@@ -243,7 +229,7 @@ export function MapCanvas({
   onRequestedViewportFocusHandled,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
-  const [roomEditorState, setRoomEditorState] = useState<RoomEditorState | null>(null);
+  const [roomEditorState, setRoomEditorState] = useState<MapCanvasRoomEditorState | null>(null);
   const roomEditorId = roomEditorState?.roomId ?? null;
   const isRoomEditorOpen = roomEditorState !== null;
   const [connectionEditorId, setConnectionEditorId] = useState<string | null>(null);
@@ -299,8 +285,6 @@ export function MapCanvas({
   const cancelBackgroundStroke = useEditorStore((s) => s.cancelBackgroundStroke);
   const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
   const suppressCanvasClickRef = useRef(false);
-  const persistPanTimeoutRef = useRef<number | null>(null);
-  const persistZoomTimeoutRef = useRef<number | null>(null);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
   const theme = useDocumentTheme();
@@ -364,187 +348,32 @@ export function MapCanvas({
     }
   }, [selectedStickyNoteIds, stickyNoteEditorId]);
 
-  useEffect(() => {
-    const handleKeyChange = (event: KeyboardEvent) => {
-      setIsShiftKeyDown(event.shiftKey);
-    };
-
-    const handleWindowBlur = () => {
-      setIsShiftKeyDown(false);
-    };
-
-    window.addEventListener('keydown', handleKeyChange);
-    window.addEventListener('keyup', handleKeyChange);
-    window.addEventListener('blur', handleWindowBlur);
-    return () => {
-      window.removeEventListener('keydown', handleKeyChange);
-      window.removeEventListener('keyup', handleKeyChange);
-      window.removeEventListener('blur', handleWindowBlur);
-    };
-  }, []);
-
-  useEffect(() => () => {
-    if (persistPanTimeoutRef.current !== null) {
-      window.clearTimeout(persistPanTimeoutRef.current);
-    }
-    if (persistZoomTimeoutRef.current !== null) {
-      window.clearTimeout(persistZoomTimeoutRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleWindowKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      if (event.key === 'Escape' && connectionEndpointDrag !== null) {
-        cancelConnectionEndpointDrag();
-        return;
-      }
-
-      if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
-        return;
-      }
-
-      if (isEditableTarget(event.target) || isEditableTarget(document.activeElement)) {
-        return;
-      }
-
-      if (isRedoShortcut(event)) {
-        event.preventDefault();
-        void redo();
-        return;
-      }
-
-      if (isUndoShortcut(event)) {
-        event.preventDefault();
-        void undo();
-        return;
-      }
-
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        const {
-          selectedRoomIds: currentSelectedRoomIds,
-          selectedPseudoRoomIds: currentSelectedPseudoRoomIds,
-          selectedStickyNoteIds: currentSelectedStickyNoteIds,
-          selectedConnectionIds: currentSelectedConnectionIds,
-          selectedStickyNoteLinkIds: currentSelectedStickyNoteLinkIds,
-        } = useEditorStore.getState();
-        if (
-          currentSelectedRoomIds.length === 0
-          && currentSelectedPseudoRoomIds.length === 0
-          && currentSelectedStickyNoteIds.length === 0
-          && currentSelectedConnectionIds.length === 0
-          && currentSelectedStickyNoteLinkIds.length === 0
-        ) {
-          return;
-        }
-
-        event.preventDefault();
-        removeSelectedEntities();
-        return;
-      }
-
-      if (drawingInterfaceEnabled && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
-        return;
-      }
-
-      if (!event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
-        event.preventDefault();
-        setIsRoomPlacementArmed(false);
-        setIsNotePlacementArmed(true);
-        return;
-      }
-
-      if (!event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
-        event.preventDefault();
-        setIsNotePlacementArmed(false);
-        setIsRoomPlacementArmed(true);
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        setIsRoomPlacementArmed(false);
-        setIsNotePlacementArmed(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleWindowKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleWindowKeyDown);
-    };
-  }, [
-    cancelConnectionEndpointDrag,
-    canvasInteractionMode,
-    connectionDrag,
-    connectionEditorId,
-    connectionEndpointDrag,
+  useMapCanvasWindowControls({
     drawingInterfaceEnabled,
-    isRoomEditorOpen,
-    removeSelectedEntities,
-    redo,
+    canvasInteractionMode,
     setCanvasInteractionMode,
+    isRoomEditorOpen,
+    connectionEditorId,
+    connectionDrag,
+    connectionEndpointDrag,
+    cancelConnectionEndpointDrag,
+    removeSelectedEntities,
     undo,
-  ]);
+    redo,
+    setIsRoomPlacementArmed,
+    setIsNotePlacementArmed,
+    setIsShiftKeyDown,
+  });
 
-  useEffect(() => {
-    if (!doc) {
-      return;
-    }
-
-    if (
-      persistedPanOffset.x === panOffset.x
-      && persistedPanOffset.y === panOffset.y
-    ) {
-      return;
-    }
-
-    if (persistPanTimeoutRef.current !== null) {
-      window.clearTimeout(persistPanTimeoutRef.current);
-    }
-
-    persistPanTimeoutRef.current = window.setTimeout(() => {
-      setMapPanOffset(panOffset);
-      persistPanTimeoutRef.current = null;
-    }, 150);
-
-    return () => {
-      if (persistPanTimeoutRef.current !== null) {
-        window.clearTimeout(persistPanTimeoutRef.current);
-        persistPanTimeoutRef.current = null;
-      }
-    };
-  }, [doc, panOffset, persistedPanOffset.x, persistedPanOffset.y, setMapPanOffset]);
-
-  useEffect(() => {
-    if (!doc) {
-      return;
-    }
-
-    const safePersistedZoom = clampMapViewportZoom(persistedZoom);
-    if (safePersistedZoom === zoom) {
-      return;
-    }
-
-    if (persistZoomTimeoutRef.current !== null) {
-      window.clearTimeout(persistZoomTimeoutRef.current);
-    }
-
-    persistZoomTimeoutRef.current = window.setTimeout(() => {
-      setMapZoom(zoom);
-      persistZoomTimeoutRef.current = null;
-    }, 150);
-
-    return () => {
-      if (persistZoomTimeoutRef.current !== null) {
-        window.clearTimeout(persistZoomTimeoutRef.current);
-        persistZoomTimeoutRef.current = null;
-      }
-    };
-  }, [doc, persistedZoom, setMapZoom, zoom]);
+  useMapCanvasViewportPersistence({
+    doc,
+    panOffset,
+    persistedPanOffset,
+    setMapPanOffset,
+    zoom,
+    persistedZoom,
+    setMapZoom,
+  });
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorState(null);
@@ -573,69 +402,31 @@ export function MapCanvas({
   const startAutoPanAnimation = useCallback(() => {
     setIsAutoPanning(true);
   }, []);
-
-  const panToRoomEditorPositionForRoom = useCallback((room: Room) => {
-    const canvasEl = canvasRef.current;
-    if (!canvasEl) {
-      return;
-    }
-
-    const nextCanvasRect = canvasEl.getBoundingClientRect();
-    const canvasWidth = nextCanvasRect.width || canvasEl.clientWidth;
-    const canvasHeight = nextCanvasRect.height || canvasEl.clientHeight;
-    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, nextCanvasRect, zoomRef.current, mapVisualStyle);
-    const roomCenterX = roomGeometry.centerX - nextCanvasRect.left;
-    const roomTopY = roomGeometry.top - nextCanvasRect.top;
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
-    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
-
-    startAutoPanAnimation();
-    setPanOffset((prev) => ({
-      x: prev.x + (visibleCenterX - roomCenterX),
-      y: prev.y + ((canvasHeight / 3) - roomTopY),
-    }));
-  }, [canvasRef, mapVisualStyle, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
-
-  const panToRoomEditorPosition = useCallback((roomId: string) => {
-    const room = useEditorStore.getState().doc?.rooms[roomId];
-    if (!room) {
-      return;
-    }
-
-    panToRoomEditorPositionForRoom(room);
-  }, [panToRoomEditorPositionForRoom]);
-
-  const openRoomEditor = useCallback((roomId: string) => {
-    setStickyNoteEditorId(null);
-    setConnectionEditorId(null);
-    panToRoomEditorPosition(roomId);
-    setRoomEditorState({ roomId });
-  }, [panToRoomEditorPosition]);
-
-  const openPseudoRoomEditor = useCallback((pseudoRoomId: string) => {
-    setStickyNoteEditorId(null);
-    setConnectionEditorId(null);
-    setRoomEditorState({ pseudoRoomId });
-  }, []);
-
-  const openNewRoomEditor = useCallback((position: Position) => {
-    setStickyNoteEditorId(null);
-    setConnectionEditorId(null);
-    panToRoomEditorPositionForRoom({
-      ...createRoom('Room'),
-      position,
-    });
-    setRoomEditorState({ initialPosition: position });
-  }, [panToRoomEditorPositionForRoom]);
-
-  useLayoutEffect(() => {
-    if (requestedRoomEditorRequest === null) {
-      return;
-    }
-
-    openRoomEditor(requestedRoomEditorRequest.roomId);
-    onRequestedRoomEditorHandled?.(requestedRoomEditorRequest.requestId);
-  }, [onRequestedRoomEditorHandled, openRoomEditor, requestedRoomEditorRequest]);
+  const {
+    openRoomEditor,
+    openPseudoRoomEditor,
+    openNewRoomEditor,
+    centerRoomOnScreen,
+  } = useMapCanvasRoomFocus({
+    canvasRef,
+    canvasRect,
+    panOffsetRef,
+    zoomRef,
+    setPanOffset,
+    setMapPanOffset,
+    mapVisualStyle,
+    visibleMapLeftInset,
+    startAutoPanAnimation,
+    setStickyNoteEditorId,
+    setConnectionEditorId,
+    setRoomEditorState,
+    requestedRoomEditorRequest,
+    requestedRoomRevealRequest,
+    requestedViewportFocusRequest,
+    onRequestedRoomEditorHandled,
+    onRequestedRoomRevealHandled,
+    onRequestedViewportFocusHandled,
+  });
 
   const openConnectionEditor = useCallback((connectionId: string) => {
     setStickyNoteEditorId(null);
@@ -694,94 +485,6 @@ export function MapCanvas({
   const closeStickyNoteEditor = useCallback(() => {
     setStickyNoteEditorId(null);
   }, []);
-
-  const centerRoomOnScreen = useCallback((room: Room) => {
-    const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
-    const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current, mapVisualStyle);
-    const canvasWidth = currentCanvasRect?.width ?? canvasRef.current?.clientWidth ?? 0;
-    const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
-    const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
-    const roomCenterY = (roomGeometry.top - (currentCanvasRect?.top ?? 0)) + (roomGeometry.height / 2);
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
-    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
-
-    if (canvasWidth === 0 && canvasHeight === 0) {
-      return;
-    }
-
-    startAutoPanAnimation();
-    const nextPanOffset = {
-      x: panOffsetRef.current.x + (visibleCenterX - roomCenterX),
-      y: panOffsetRef.current.y + ((canvasHeight / 2) - roomCenterY),
-    };
-    panOffsetRef.current = nextPanOffset;
-    setPanOffset(nextPanOffset);
-    setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
-
-  const centerRoomsOnScreen = useCallback((targetRooms: readonly Room[]) => {
-    if (targetRooms.length === 0) {
-      return;
-    }
-
-    if (targetRooms.length === 1) {
-      centerRoomOnScreen(targetRooms[0]);
-      return;
-    }
-
-    const currentCanvasRect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
-    const canvasWidth = currentCanvasRect?.width ?? canvasRef.current?.clientWidth ?? 0;
-    const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
-    if (canvasWidth === 0 && canvasHeight === 0) {
-      return;
-    }
-
-    const screenBounds = targetRooms.map((room) => getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current, mapVisualStyle));
-    const groupLeft = Math.min(...screenBounds.map((room) => room.left - (currentCanvasRect?.left ?? 0)));
-    const groupRight = Math.max(...screenBounds.map((room) => (room.left - (currentCanvasRect?.left ?? 0)) + room.width));
-    const groupTop = Math.min(...screenBounds.map((room) => room.top - (currentCanvasRect?.top ?? 0)));
-    const groupBottom = Math.max(...screenBounds.map((room) => (room.top - (currentCanvasRect?.top ?? 0)) + room.height));
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
-    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
-    const groupCenterX = (groupLeft + groupRight) / 2;
-    const groupCenterY = (groupTop + groupBottom) / 2;
-
-    startAutoPanAnimation();
-    const nextPanOffset = {
-      x: panOffsetRef.current.x + (visibleCenterX - groupCenterX),
-      y: panOffsetRef.current.y + ((canvasHeight / 2) - groupCenterY),
-    };
-    panOffsetRef.current = nextPanOffset;
-    setPanOffset(nextPanOffset);
-    setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, centerRoomOnScreen, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
-
-  useLayoutEffect(() => {
-    if (requestedRoomRevealRequest === null) {
-      return;
-    }
-
-    const room = useEditorStore.getState().doc?.rooms[requestedRoomRevealRequest.roomId];
-    if (room) {
-      centerRoomOnScreen(room);
-    }
-    onRequestedRoomRevealHandled?.(requestedRoomRevealRequest.requestId);
-  }, [centerRoomOnScreen, onRequestedRoomRevealHandled, requestedRoomRevealRequest]);
-
-  useLayoutEffect(() => {
-    if (requestedViewportFocusRequest === null) {
-      return;
-    }
-
-    const roomsToFocus = requestedViewportFocusRequest.roomIds
-      .map((roomId) => useEditorStore.getState().doc?.rooms[roomId] ?? null)
-      .filter((room): room is Room => room !== null);
-
-    if (roomsToFocus.length > 0) {
-      centerRoomsOnScreen(roomsToFocus);
-    }
-    onRequestedViewportFocusHandled?.(requestedViewportFocusRequest.requestId);
-  }, [centerRoomsOnScreen, onRequestedViewportFocusHandled, requestedViewportFocusRequest]);
 
   const getOrCreateStrokeChunk = useCallback(async (
     coordinates: { chunkX: number; chunkY: number },
