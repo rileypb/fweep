@@ -67,6 +67,10 @@ function formatCliEcho(input: string): string {
   return `>${input}`;
 }
 
+const FWEEP_EASTER_EGG_LINES = [
+  'With keen disappointment, you note that nothing has changed. Then, you slowly realize that you are black, have two wing-like appendages, and are flying a few feet above the ground. Thanks to your sonar-like bat senses, you can tell that there are surfaces above you, below you, to the south and to the east.',
+] as const;
+
 function getRoomNavigationTarget(doc: MapDocument, room: Room, direction: string): Room | null {
   const connectionId = room.directions[direction];
   if (!connectionId) {
@@ -432,6 +436,11 @@ export function useAppCli({
     const currentCanUndo = liveEditorState.canUndo;
     const currentCanRedo = liveEditorState.canRedo;
     const currentPronounRoomId = cliPronounRoomIdRef.current;
+
+    if (trimmedInput.toLowerCase() === 'fweep') {
+      appendGameOutput([formatCliEcho(trimmedInput), ...FWEEP_EASTER_EGG_LINES]);
+      return { ok: true, shouldSelectCliInput };
+    }
 
     const command = parseCliCommand(trimmedInput);
     if (command === null) {

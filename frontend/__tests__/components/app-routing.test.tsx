@@ -587,6 +587,25 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('shows the hidden easter egg output for the fweep command', async () => {
+    const doc = createEmptyMap('CLI Fweep Egg Map');
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    render(<App />);
+    await screen.findByText(/cli fweep egg map/i);
+
+    await submitCliCommand('fweep');
+
+    expectGameOutputToContain(
+      'fweep',
+      'With keen disappointment, you note that nothing has changed.',
+      'Then, you slowly realize that you are black, have two wing-like appendages, and are flying a few feet above the ground.',
+      'Thanks to your sonar-like bat senses, you can tell that there are surfaces above you, below you, to the south and to the east.',
+    );
+  });
+
   it('creates, selects, and centers a room for the create CLI command', async () => {
     const doc = createEmptyMap('CLI Map');
     await saveMap(doc);
