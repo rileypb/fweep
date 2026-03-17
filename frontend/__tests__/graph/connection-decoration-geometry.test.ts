@@ -6,7 +6,7 @@ import {
 import type { ConnectionRenderGeometry } from '../../src/graph/connection-geometry';
 
 const verticalBezierGeometry: ConnectionRenderGeometry = {
-  kind: 'bezier',
+  kind: 'cubic',
   start: { x: 0, y: 0 },
   control1: { x: 0, y: 40 },
   control2: { x: 0, y: 80 },
