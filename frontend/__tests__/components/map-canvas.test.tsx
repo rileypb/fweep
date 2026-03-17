@@ -2814,6 +2814,28 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().connectionDrag).toBeNull();
     });
 
+    it('cancels the empty-drop chooser without creating a connection', () => {
+      setupTwoRooms();
+      renderMapCanvas();
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 500, clientY: 500 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 500, clientY: 500 });
+
+      expect(screen.getByTestId('connection-create-menu')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+      expect(screen.queryByTestId('connection-create-menu')).not.toBeInTheDocument();
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(0);
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
     it('can create an unknown pseudo-room from the chooser', () => {
       setupTwoRooms();
       renderMapCanvas();
@@ -3020,6 +3042,22 @@ describe('MapCanvas', () => {
       fireEvent.mouseMove(document, { clientX: 260, clientY: 60 });
       fireEvent.keyDown(window, { key: 'Escape' });
 
+      expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
+      expect(screen.queryByTestId('connection-reroute-preview-line')).not.toBeInTheDocument();
+    });
+
+    it('cancels rerouting when the endpoint is dropped away from any room', () => {
+      const { connection, hallway } = setupRerouteMap();
+
+      fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 420, clientY: 20 });
+      fireEvent.mouseUp(document.body, { clientX: 420, clientY: 20, button: 0 });
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[connection.id]).toMatchObject({
+        target: { kind: 'room', id: hallway.id },
+        isBidirectional: true,
+      });
       expect(useEditorStore.getState().connectionEndpointDrag).toBeNull();
       expect(screen.queryByTestId('connection-reroute-preview-line')).not.toBeInTheDocument();
     });

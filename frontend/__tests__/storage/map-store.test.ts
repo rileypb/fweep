@@ -38,6 +38,22 @@ function makeFile(content: string, name: string, sizeOverride?: number): File {
   return file;
 }
 
+function createSuccessfulOpenRequest(db: IDBDatabase): IDBOpenDBRequest {
+  const request = {
+    result: db,
+    error: null,
+    onsuccess: null,
+    onerror: null,
+    onupgradeneeded: null,
+  } as unknown as IDBOpenDBRequest;
+
+  setTimeout(() => {
+    request.onsuccess?.(new Event('success'));
+  }, 0);
+
+  return request;
+}
+
 async function putRawStoredMap(rawValue: unknown): Promise<void> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 2);
@@ -61,6 +77,10 @@ async function putRawStoredMap(rawValue: unknown): Promise<void> {
 }
 
 describe('map-store', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   describe('saveMap / loadMap round-trip', () => {
     it('persists and retrieves a map by ID', async () => {
       const doc = {
@@ -76,6 +96,31 @@ describe('map-store', () => {
     it('returns undefined for a non-existent ID', async () => {
       const loaded = await loadMap('does-not-exist');
       expect(loaded).toBeUndefined();
+    });
+
+    it('rejects when the IndexedDB put request fails while saving', async () => {
+      const putError = new Error('IndexedDB put failed.');
+      const putRequest = {
+        error: putError,
+        onsuccess: null,
+        onerror: null,
+      } as unknown as IDBRequest<IDBValidKey>;
+      const fakeDb = {
+        transaction: () => ({
+          objectStore: () => ({
+            put: () => {
+              setTimeout(() => {
+                putRequest.onerror?.(new Event('error'));
+              }, 0);
+              return putRequest;
+            },
+          }),
+        }),
+      } as unknown as IDBDatabase;
+
+      jest.spyOn(indexedDB, 'open').mockReturnValue(createSuccessfulOpenRequest(fakeDb));
+
+      await expect(saveMap(createEmptyMap('Broken Save'))).rejects.toBe(putError);
     });
 
     it('hydrates missing room shapes from older saved maps', async () => {
@@ -396,6 +441,53 @@ describe('map-store', () => {
 
       await deleteMap(doc.metadata.id);
       expect(await loadMap(doc.metadata.id)).toBeUndefined();
+    });
+
+    it('rejects when the delete transaction fails', async () => {
+      const transactionError = new Error('Delete transaction failed.');
+      const mapDeleteRequest = {
+        error: null,
+        onsuccess: null,
+        onerror: null,
+      } as unknown as IDBRequest<undefined>;
+      const cursorRequest = {
+        error: null,
+        result: null,
+        onsuccess: null,
+        onerror: null,
+      } as unknown as IDBRequest<IDBCursorWithValue | null>;
+      const fakeDb = {
+        transaction: () => {
+          const transaction = {
+            error: transactionError,
+            objectStore: (storeName: string) => {
+              if (storeName === STORE_NAME) {
+                return {
+                  delete: () => mapDeleteRequest,
+                };
+              }
+
+              return {
+                index: () => ({
+                  openCursor: () => cursorRequest,
+                }),
+              };
+            },
+            oncomplete: null,
+            onerror: null,
+          };
+
+          setTimeout(() => {
+            transaction.onerror?.(new Event('error'));
+          }, 0);
+
+          return transaction;
+        },
+      } as unknown as IDBDatabase;
+
+      jest.spyOn(indexedDB, 'open').mockReturnValue(createSuccessfulOpenRequest(fakeDb));
+
+      await expect(deleteMap('broken-delete')).rejects.toBe(transactionError);
     });
 
     it('removes background chunks associated with the map', async () => {
