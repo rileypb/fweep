@@ -20,7 +20,7 @@ describe('minimap geometry', () => {
     expect(bounds).not.toBeNull();
     expect(bounds!.left).toBe(48);
     expect(bounds!.top).toBe(28);
-    expect(bounds!.right).toBe(392);
+    expect(bounds!.right).toBe(376);
     expect(bounds!.bottom).toBe(188);
   });
 

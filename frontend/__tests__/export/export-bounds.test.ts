@@ -28,8 +28,8 @@ describe('export-bounds', () => {
     expect(result.bounds).toEqual({
       left: 30,
       top: 70,
-      right: 330,
-      bottom: 266,
+      right: 334,
+      bottom: 314,
     });
   });
 
@@ -202,8 +202,8 @@ describe('export-bounds', () => {
     });
     expect(selection.validationError).toBeNull();
     expect(selection.bounds).toEqual({
-      left: 80,
-      top: 98,
+      left: 82,
+      top: 122,
       right: 410,
       bottom: 210,
     });

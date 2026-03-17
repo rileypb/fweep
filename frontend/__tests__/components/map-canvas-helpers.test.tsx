@@ -210,7 +210,7 @@ describe('map-canvas-helpers', () => {
     expect(getPanDeltaToRevealRoom(room, { x: 0, y: 0 }, makeRect(300, 200))).toEqual({ x: 44, y: 54 });
 
     const farRoom = { ...createRoom('Far Room'), position: { x: 260, y: 170 } };
-    expect(getPanDeltaToRevealRoom(farRoom, { x: 0, y: 0 }, makeRect(300, 200))).toEqual({ x: -64, y: -30 });
+    expect(getPanDeltaToRevealRoom(farRoom, { x: 0, y: 0 }, makeRect(300, 200))).toEqual({ x: -50, y: -30 });
 
     const visibleRoom = { ...createRoom('Visible'), position: { x: 80, y: 60 } };
     expect(getPanDeltaToRevealRoom(visibleRoom, { x: 0, y: 0 }, makeRect(300, 200))).toEqual({ x: 0, y: 0 });

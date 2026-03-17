@@ -193,7 +193,7 @@ export function getRoomLabelLayout(
       lineHeight: SQUARE_CLASSIC_LINE_HEIGHT,
       textX: roomWidth / 2,
       firstLineY: ((roomHeight - blockHeight) / 2) + (SQUARE_CLASSIC_LINE_HEIGHT / 2),
-      lockX: null,
+      lockX: room.locked ? SQUARE_CLASSIC_HORIZONTAL_PADDING / 2 : null,
       lockY: room.locked ? SQUARE_CLASSIC_VERTICAL_PADDING / 2 : null,
       darkX: room.isDark ? roomWidth - (SQUARE_CLASSIC_HORIZONTAL_PADDING / 2) - DARK_ROOM_GLYPH_WIDTH : null,
       darkY: room.isDark ? SQUARE_CLASSIC_VERTICAL_PADDING / 2 : null,

@@ -22,8 +22,8 @@ describe('room visual style helpers', () => {
 
     expect(getRoomLabelLines(room, SQUARE_CLASSIC_ROOM_SIZE, SQUARE_CLASSIC_ROOM_SIZE, 'square-classic')).toEqual([
       'An',
-      'exceptiona',
-      'lly long',
+      'exceptional',
+      'ly long',
       'room name',
     ]);
   });

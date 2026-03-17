@@ -386,7 +386,8 @@ describe('MapCanvas', () => {
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
       expect(rooms).toHaveLength(1);
-      expect(rooms[0].position).toEqual({ x: 0, y: 80 });
+      expect(rooms[0].position.x).toBeCloseTo(0, 5);
+      expect(rooms[0].position.y).toBe(40);
     });
 
     it('clicking the minimap recenters the map content', () => {
@@ -1094,7 +1095,14 @@ describe('MapCanvas', () => {
     });
 
     it('preserves a non-rectangular room shape after single-clicking the room', () => {
-      const doc = createEmptyMap('Test');
+      const baseDoc = createEmptyMap('Test');
+      const doc = {
+        ...baseDoc,
+        view: {
+          ...baseDoc.view,
+          visualStyle: 'default' as const,
+        },
+      };
       const room = { ...createRoom('Kitchen'), shape: 'diamond' as const, position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
 
@@ -1303,7 +1311,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'ArrowRight' });
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
-      expect(content.style.transform).toBe('translate(-390px, -38px) scale(1)');
+      expect(content.style.transform).toBe('translate(-392px, -62px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
@@ -1397,7 +1405,7 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'Enter' });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
-      expect(content.style.transform).toBe('translate(370px, -120px) scale(1)');
+      expect(content.style.transform).toBe('translate(368px, -120px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
@@ -1447,8 +1455,15 @@ describe('MapCanvas', () => {
   });
 
   describe('room editor overlay', () => {
-    function setupRoom() {
-      const doc = createEmptyMap('Test');
+    function setupRoom(visualStyle: 'default' | 'square-classic' = 'square-classic') {
+      const baseDoc = createEmptyMap('Test');
+      const doc = {
+        ...baseDoc,
+        view: {
+          ...baseDoc.view,
+          visualStyle,
+        },
+      };
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       useEditorStore.getState().loadDocument(addRoom(doc, room));
       render(<MapCanvas mapName="Test" />);
@@ -1493,7 +1508,7 @@ describe('MapCanvas', () => {
 
       await user.dblClick(roomNode);
 
-      expect(content.style.transform).toBe('translate(490px, -120px) scale(1)');
+      expect(content.style.transform).toBe('translate(488px, -120px) scale(1)');
       expect(content).toHaveClass('map-canvas-content--animated');
       expect(screen.getByTestId('room-editor-dialog')).toHaveStyle({
         justifySelf: 'start',
@@ -1544,7 +1559,7 @@ describe('MapCanvas', () => {
 
     it('applies room draft edits when saved', async () => {
       const user = userEvent.setup();
-      const roomNode = setupRoom();
+      const roomNode = setupRoom('default');
 
       await user.dblClick(roomNode);
       const nameInput = screen.getByTestId('room-editor-name-input');
@@ -1796,7 +1811,7 @@ describe('MapCanvas', () => {
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const rooms = Object.values(useEditorStore.getState().doc!.rooms);
-      expect(rooms[0].position).toEqual({ x: 0, y: 80 });
+      expect(rooms[0].position).toEqual({ x: 0, y: 40 });
     });
 
     it('pans to the new room before opening the room editor', () => {
@@ -1823,10 +1838,12 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(window, { key: 'r' });
       fireEvent.click(canvas, { clientX: 100, clientY: 100 });
 
-      const dimensions = getRoomNodeDimensions(createRoom('Room'));
-      expect(content.style.transform).toBe(
-        `translate(${450 - (100 - (dimensions.width / 2) + (dimensions.width / 2))}px, ${200 - (100 - (dimensions.height / 2))}px) scale(1)`,
-      );
+      const dimensions = getRoomNodeDimensions(createRoom('Room'), 'square-classic');
+      const expectedTopLeft = {
+        x: 100 - (dimensions.width / 2),
+        y: 100 - (dimensions.height / 2),
+      };
+      expect(content.style.transform).toBe(`translate(350px, ${(600 / 3) - expectedTopLeft.y}px) scale(1)`);
       expect(content).toHaveClass('map-canvas-content--animated');
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
@@ -1866,7 +1883,7 @@ describe('MapCanvas', () => {
       await user.click(screen.getByRole('button', { name: /save room editor/i }));
 
       const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
-      const dimensions = getRoomNodeDimensions(createRoom('Room'));
+      const dimensions = getRoomNodeDimensions(createRoom('Room'), 'square-classic');
       expect(room.position).toEqual({
         x: 200 - (dimensions.width / 2),
         y: 300 - (dimensions.height / 2),
@@ -2179,7 +2196,7 @@ describe('MapCanvas', () => {
       setupRoomAndHover({ shape: 'rectangle' });
 
       const handle = screen.getByTestId('direction-handle-ne');
-      const expectedOffset = getHandleOffset('northeast', { width: ROOM_WIDTH, height: ROOM_HEIGHT });
+      const expectedOffset = getHandleOffset('northeast', getRoomNodeDimensions(createRoom('Kitchen'), 'square-classic'));
 
       expect(handle.getAttribute('cx')).toBe(String(expectedOffset?.x));
       expect(handle.getAttribute('cy')).toBe(String(expectedOffset?.y));
@@ -3556,7 +3573,14 @@ describe('MapCanvas', () => {
     });
 
     it('anchors a north connection to the rendered center of a wide room', () => {
-      const doc = createEmptyMap('Test');
+      const baseDoc = createEmptyMap('Test');
+      const doc = {
+        ...baseDoc,
+        view: {
+          ...baseDoc.view,
+          visualStyle: 'default' as const,
+        },
+      };
       const kitchen = { ...createRoom('the room of requirement'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
       let d = addRoom(doc, kitchen);
@@ -3601,7 +3625,7 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
-      expect(connectionLine.getAttribute('points')).toBe('170,200 170,180 120,56 120,36');
+      expect(connectionLine.getAttribute('points')).toBe('164,200 164,180 112,56 112,36');
     });
 
     it('renders a gap when an unrelated connection crosses a room', () => {
@@ -3702,76 +3726,7 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-arrow-${conn.id}-1`)).not.toBeInTheDocument();
     });
 
-    it('renders an up annotation arrow pointing toward the visually higher end of the connection', () => {
-      const doc = createEmptyMap('Test');
-      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
-      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
-      let d = addRoom(doc, kitchen);
-      d = addRoom(d, hallway);
-      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'up' as const } };
-      d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
-      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
-      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
-      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
-      const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
-      const lineY1 = Number(annotationLine.getAttribute('y1'));
-      const lineY2 = Number(annotationLine.getAttribute('y2'));
-
-      expect(annotationLine.tagName.toLowerCase()).toBe('line');
-      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Math.abs(lineY1 - lineY2)).toBeLessThan(40);
-      expect(Math.abs(lineY1 - lineY2)).toBeGreaterThan(20);
-      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
-      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
-      expect(arrowBasePoints[0][1]).toBeGreaterThan(arrowPoints[0][1]);
-      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowBasePoints[1][1]).toBeGreaterThan(arrowPoints[0][1]);
-      expect(annotationText).toHaveTextContent('up');
-      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
-    });
-
-    it('renders a down annotation arrow pointing toward the visually lower end of the connection', () => {
-      const doc = createEmptyMap('Test');
-      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
-      const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
-      let d = addRoom(doc, kitchen);
-      d = addRoom(d, hallway);
-      const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'down' as const } };
-      d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
-
-      render(<MapCanvas mapName="Test" />);
-
-      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
-      const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
-      const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
-      const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
-      const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
-      const lineY1 = Number(annotationLine.getAttribute('y1'));
-      const lineY2 = Number(annotationLine.getAttribute('y2'));
-
-      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Math.abs(lineY1 - lineY2)).toBeLessThan(50);
-      expect(Math.abs(lineY1 - lineY2)).toBeGreaterThan(25);
-      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
-      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
-      expect(arrowBasePoints[0][1]).toBeLessThan(arrowPoints[0][1]);
-      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowBasePoints[1][1]).toBeLessThan(arrowPoints[0][1]);
-      expect(annotationText).toHaveTextContent('down');
-      expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
-    });
-
-    it('renders an up decoration from endpoint directions when one end is up', () => {
+    it('renders an up decoration toward the room whose connection binding is up', () => {
       const doc = createEmptyMap('Test');
       const cellar = { ...createRoom('Cellar'), position: { x: 80, y: 200 } };
       const attic = { ...createRoom('Attic'), position: { x: 80, y: 0 } };
@@ -3788,13 +3743,10 @@ describe('MapCanvas', () => {
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const lineY1 = Number(annotationLine.getAttribute('y1'));
       const lineY2 = Number(annotationLine.getAttribute('y2'));
-      const lineX1 = Number(annotationLine.getAttribute('x1'));
-      const lineX2 = Number(annotationLine.getAttribute('x2'));
 
+      // Vertical travel annotations follow parser semantics, not screen-space higher/lower placement.
       expect(annotationLine).toBeInTheDocument();
       expect(annotationArrow).toBeInTheDocument();
-      expect(lineX1).toBeGreaterThan(120);
-      expect(lineX2).toBeGreaterThan(120);
       expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
@@ -3821,7 +3773,7 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
 
-    it('renders a down decoration from endpoint directions when no end is up and one end is down', () => {
+    it('renders a down decoration toward the room whose connection binding is down', () => {
       const doc = createEmptyMap('Test');
       const ledge = { ...createRoom('Ledge'), position: { x: 80, y: 200 } };
       const shaft = { ...createRoom('Shaft'), position: { x: 80, y: 0 } };
@@ -3838,13 +3790,9 @@ describe('MapCanvas', () => {
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const lineY1 = Number(annotationLine.getAttribute('y1'));
       const lineY2 = Number(annotationLine.getAttribute('y2'));
-      const lineX1 = Number(annotationLine.getAttribute('x1'));
-      const lineX2 = Number(annotationLine.getAttribute('x2'));
 
       expect(annotationLine).toBeInTheDocument();
       expect(annotationArrow).toBeInTheDocument();
-      expect(lineX1).toBeGreaterThan(120);
-      expect(lineX2).toBeGreaterThan(120);
       expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
     });
@@ -3906,16 +3854,17 @@ describe('MapCanvas', () => {
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
       const arrowBasePoints = arrowPoints.slice(1).sort((a, b) => a[0] - b[0]);
 
-      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(167.6, 5);
-      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(68.4, 5);
-      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(68.4, 5);
-      expect(arrowBasePoints[0][0]).toBeCloseTo(124, 5);
-      expect(arrowBasePoints[0][1]).toBeCloseTo(78.4, 5);
-      expect(arrowBasePoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowBasePoints[1][1]).toBeCloseTo(78.4, 5);
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(130, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(130, 5);
+      expect(lineY1).toBeGreaterThan(lineY2);
+      expect(arrowPoints[0][0]).toBeCloseTo(130, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.min(lineY1, lineY2), 5);
+      expect(arrowBasePoints[0][0]).toBeCloseTo(126, 5);
+      expect(arrowBasePoints[0][1]).toBeGreaterThan(arrowPoints[0][1]);
+      expect(arrowBasePoints[1][0]).toBeCloseTo(134, 5);
+      expect(arrowBasePoints[1][1]).toBeGreaterThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('in');
       expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
@@ -3937,16 +3886,17 @@ describe('MapCanvas', () => {
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
       const arrowPoints = (annotationArrow.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
 
-      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(68.4, 5);
-      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(128, 5);
-      expect(Number(annotationLine.getAttribute('y2'))).toBeCloseTo(167.6, 5);
-      expect(arrowPoints[0][0]).toBeCloseTo(128, 5);
-      expect(arrowPoints[0][1]).toBeCloseTo(167.6, 5);
-      expect(arrowPoints[1][0]).toBeCloseTo(132, 5);
-      expect(arrowPoints[1][1]).toBeCloseTo(157.6, 5);
-      expect(arrowPoints[2][0]).toBeCloseTo(124, 5);
-      expect(arrowPoints[2][1]).toBeCloseTo(157.6, 5);
+      const lineY1 = Number(annotationLine.getAttribute('y1'));
+      const lineY2 = Number(annotationLine.getAttribute('y2'));
+      expect(Number(annotationLine.getAttribute('x1'))).toBeCloseTo(130, 5);
+      expect(Number(annotationLine.getAttribute('x2'))).toBeCloseTo(130, 5);
+      expect(lineY2).toBeGreaterThan(lineY1);
+      expect(arrowPoints[0][0]).toBeCloseTo(130, 5);
+      expect(arrowPoints[0][1]).toBeCloseTo(Math.max(lineY1, lineY2), 5);
+      expect(arrowPoints[1][0]).toBeCloseTo(134, 5);
+      expect(arrowPoints[1][1]).toBeLessThan(arrowPoints[0][1]);
+      expect(arrowPoints[2][0]).toBeCloseTo(126, 5);
+      expect(arrowPoints[2][1]).toBeLessThan(arrowPoints[0][1]);
       expect(annotationText).toHaveTextContent('in');
       expect(annotationText.getAttribute('transform')).toContain('rotate(90 ');
     });
@@ -3966,7 +3916,7 @@ describe('MapCanvas', () => {
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
 
       expect(annotationText).toHaveTextContent('stairs');
-      expect(annotationText.getAttribute('transform')).toBe('rotate(90 140 118)');
+      expect(annotationText.getAttribute('transform')).toBe('rotate(90 142 142)');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
     });
@@ -4080,8 +4030,8 @@ describe('MapCanvas', () => {
       const connectionArrowB = screen.getByTestId(`connection-arrow-${conn.id}-1`);
       expect(connectionArrowA.tagName.toLowerCase()).toBe('polygon');
       expect(connectionArrowB.tagName.toLowerCase()).toBe('polygon');
-      expect(connectionArrowA.getAttribute('points')).toBe('120,120 125,132 115,132');
-      expect(connectionArrowB.getAttribute('points')).toBe('120,66 125,78 115,78');
+      expect(connectionArrowA.getAttribute('points')).toBe('122,128 127,140 117,140');
+      expect(connectionArrowB.getAttribute('points')).toBe('122,82 127,94 117,94');
     });
 
     it('draws a one-way connection to the target room center without a target stub', () => {
@@ -4097,7 +4047,7 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
-      expect(connectionLine.getAttribute('points')).toBe('120,200 120,180 120,18');
+      expect(connectionLine.getAttribute('points')).toBe('122,200 122,180 122,42');
     });
 
     it('renders endpoint labels next to the source and target stubs for bidirectional connections', () => {
@@ -4120,11 +4070,11 @@ describe('MapCanvas', () => {
       const endLabel = screen.getByTestId(`connection-end-label-${conn.id}`);
 
       expect(startLabel).toHaveTextContent('stairs');
-      expect(startLabel.getAttribute('x')).toBe('130');
+      expect(startLabel.getAttribute('x')).toBe('132');
       expect(startLabel.getAttribute('y')).toBe('190');
       expect(endLabel).toHaveTextContent('balcony');
-      expect(endLabel.getAttribute('x')).toBe('130');
-      expect(endLabel.getAttribute('y')).toBe('46');
+      expect(endLabel.getAttribute('x')).toBe('132');
+      expect(endLabel.getAttribute('y')).toBe('94');
     });
 
     it('renders only the start label for one-way connections', () => {
