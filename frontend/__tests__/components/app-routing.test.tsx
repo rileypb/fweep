@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
 import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../../src/domain/cli-help';
 import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
+import type { MapDocument } from '../../src/domain/map-types';
 import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
@@ -18,12 +19,24 @@ function getGameOutputBox(): HTMLElement {
   return screen.getByRole('textbox', { name: /game output/i });
 }
 
-async function renderAppWithOpenMap(mapName = 'Opened Map') {
-  const doc = createEmptyMap(mapName);
+function renderApp(): ReturnType<typeof render> {
+  return render(<App />);
+}
+
+async function openSavedMap(doc: MapDocument): Promise<void> {
   await saveMap(doc);
   navigateTo(`#/map/${doc.metadata.id}`);
-  render(<App />);
-  await screen.findByLabelText(`Map name: ${mapName}`);
+}
+
+async function renderAppWithSavedMap(doc: MapDocument): Promise<void> {
+  await openSavedMap(doc);
+  renderApp();
+  await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
+}
+
+async function renderAppWithOpenMap(mapName = 'Opened Map') {
+  const doc = createEmptyMap(mapName);
+  await renderAppWithSavedMap(doc);
   return doc;
 }
 
@@ -59,7 +72,7 @@ beforeEach(() => {
 
 describe('URL routing', () => {
   it('renders selection-screen controls', () => {
-    render(<App />);
+    renderApp();
 
     expect(screen.queryByRole('button', { name: /disable grid snapping/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /switch to .+ mode/i })).not.toBeInTheDocument();
@@ -195,10 +208,7 @@ describe('URL routing', () => {
     const hallway = { ...createRoom('Hallway'), position: { x: 160, y: 120 } };
     let savedDoc = addRoom(doc, kitchen);
     savedDoc = addRoom(savedDoc, hallway);
-    await saveMap(savedDoc);
-    navigateTo(`#/map/${savedDoc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Collapse Map');
+    await renderAppWithSavedMap(savedDoc);
 
     const canvas = await screen.findByTestId('map-canvas');
     jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -294,10 +304,7 @@ describe('URL routing', () => {
     const kitchen = { ...createRoom('Kitchen'), position: { x: 120, y: 160 } };
     let doc = createEmptyMap('CLI Go To Map');
     doc = addRoom(doc, kitchen);
-    await saveMap(doc);
-    navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Go To Map');
+    await renderAppWithSavedMap(doc);
 
     await submitCliCommand('go to Kitchen');
 
@@ -358,10 +365,7 @@ describe('URL routing', () => {
     savedDoc = addItem(savedDoc, createItem('lantern', kitchen.id));
     savedDoc = addItem(savedDoc, createItem('key', kitchen.id));
     savedDoc = addItem(savedDoc, createItem('sword', kitchen.id));
-    await saveMap(savedDoc);
-    navigateTo(`#/map/${savedDoc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Take Items Map');
+    await renderAppWithSavedMap(savedDoc);
 
     await submitCliCommand('take lantern, key from Kitchen');
 
@@ -381,10 +385,7 @@ describe('URL routing', () => {
     savedDoc = addItem(savedDoc, createItem('lantern', kitchen.id));
     savedDoc = addItem(savedDoc, createItem('key', kitchen.id));
     savedDoc = addItem(savedDoc, createItem('sword', kitchen.id));
-    await saveMap(savedDoc);
-    navigateTo(`#/map/${savedDoc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Take All Items Map');
+    await renderAppWithSavedMap(savedDoc);
 
     await submitCliCommand('take all from Kitchen');
 
@@ -401,10 +402,7 @@ describe('URL routing', () => {
     let savedDoc = addRoom(doc, kitchen);
     savedDoc = addItem(savedDoc, createItem('lantern', kitchen.id));
     savedDoc = addItem(savedDoc, createItem('key', kitchen.id));
-    await saveMap(savedDoc);
-    navigateTo(`#/map/${savedDoc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Get Items Map');
+    await renderAppWithSavedMap(savedDoc);
 
     await submitCliCommand('get all from Kitchen');
 
@@ -485,10 +483,7 @@ describe('URL routing', () => {
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 40 } };
     let doc = createEmptyMap('CLI Connect Parse Map');
     doc = addRoom(addRoom(doc, kitchen), hallway);
-    await saveMap(doc);
-    navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
-    await screen.findByLabelText('Map name: CLI Connect Parse Map');
+    await renderAppWithSavedMap(doc);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
     await user.type(input, 'connect Kitchen east to Hallway{enter}');
@@ -503,12 +498,10 @@ describe('URL routing', () => {
 
   it('lists CLI help topics for the help command', async () => {
     const doc = createEmptyMap('CLI Command List Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli command list map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -521,12 +514,10 @@ describe('URL routing', () => {
 
   it('lists room help for help rooms', async () => {
     const doc = createEmptyMap('CLI Room Help Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli room help map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -543,12 +534,10 @@ describe('URL routing', () => {
     let doc = createEmptyMap('CLI Arrange Map');
     doc = addRoom(addRoom(doc, roomA), roomB);
     doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'north', 'south');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli arrange map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -568,12 +557,10 @@ describe('URL routing', () => {
     let doc = createEmptyMap('CLI Prettify Map');
     doc = addRoom(addRoom(doc, roomA), roomB);
     doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'north', 'south');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli prettify map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -589,11 +576,9 @@ describe('URL routing', () => {
 
   it('shows the hidden easter egg output for the fweep command', async () => {
     const doc = createEmptyMap('CLI Fweep Egg Map');
-    await saveMap(doc);
+    await openSavedMap(doc);
 
-    navigateTo(`#/map/${doc.metadata.id}`);
-
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli fweep egg map/i);
 
     await submitCliCommand('fweep');
@@ -608,13 +593,11 @@ describe('URL routing', () => {
 
   it('creates, selects, and centers a room for the create CLI command', async () => {
     const doc = createEmptyMap('CLI Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
     jest.useFakeTimers();
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli map/i);
 
       const canvas = screen.getByTestId('map-canvas');
@@ -673,13 +656,11 @@ describe('URL routing', () => {
 
   it('centers a created room correctly after zooming out', async () => {
     const doc = createEmptyMap('CLI Zoomed Create Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
     jest.useFakeTimers();
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli zoomed create map/i);
 
       const canvas = screen.getByTestId('map-canvas');
@@ -757,11 +738,9 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
+    await openSavedMap(doc);
 
-    navigateTo(`#/map/${doc.metadata.id}`);
-
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli pronoun map/i);
 
     await submitCliCommand('create Kitchen');
@@ -816,11 +795,9 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
+    await openSavedMap(doc);
 
-    navigateTo(`#/map/${doc.metadata.id}`);
-
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli pronoun preserve map/i);
 
     await submitCliCommand('show living room');
@@ -864,11 +841,9 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
+    await openSavedMap(doc);
 
-    navigateTo(`#/map/${doc.metadata.id}`);
-
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli exact quote map/i);
 
     await submitCliCommand('connect "path through the iron gate" w to "path"');
@@ -882,12 +857,10 @@ describe('URL routing', () => {
 
   it('reports an error when it is unbound', async () => {
     const doc = createEmptyMap('CLI Pronoun Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli pronoun error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -919,13 +892,11 @@ describe('URL routing', () => {
         [room.id]: room,
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
 
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli delete map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -940,13 +911,11 @@ describe('URL routing', () => {
 
   it('reports an unknown room for delete when no matching room exists', async () => {
     const doc = createEmptyMap('CLI Delete Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
 
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli delete error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -993,13 +962,11 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
 
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli duplicate delete map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1035,12 +1002,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli edit map/i);
 
       const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1088,12 +1053,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli show map/i);
 
       const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1198,12 +1161,10 @@ describe('URL routing', () => {
         'kitchen-east': kitchenEastConnection,
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli direction go map/i);
 
       act(() => {
@@ -1289,12 +1250,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli direction bare map/i);
 
     act(() => {
@@ -1313,12 +1272,10 @@ describe('URL routing', () => {
 
   it('reports an unknown room for edit when no matching room exists', async () => {
     const doc = createEmptyMap('CLI Edit Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli edit error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1332,12 +1289,10 @@ describe('URL routing', () => {
 
   it('reports an unknown room for show when no matching room exists', async () => {
     const doc = createEmptyMap('CLI Show Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli show error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1368,12 +1323,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli notate map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1403,12 +1356,10 @@ describe('URL routing', () => {
       id: 'kitchen',
       position: { x: 240, y: 160 },
     });
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli lighting map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1440,12 +1391,10 @@ describe('URL routing', () => {
       id: 'hallway',
       position: { x: 240, y: 160 },
     });
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli adjective connection map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1486,12 +1435,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli annotate map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1536,12 +1483,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli notate prettify map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -1585,12 +1530,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli duplicate edit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1639,12 +1582,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli duplicate show map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1661,12 +1602,10 @@ describe('URL routing', () => {
 
   it('reports an unknown room for notate when no matching room exists', async () => {
     const doc = createEmptyMap('CLI Notate Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli notate error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1709,12 +1648,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli duplicate notate map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1760,12 +1697,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -1818,12 +1753,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect two way map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -1883,12 +1816,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect replace map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -1955,12 +1886,10 @@ describe('URL routing', () => {
         [reverseOneWay.id]: reverseOneWay,
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connection annotation map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2000,12 +1929,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2060,12 +1987,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect ambiguous map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2097,12 +2022,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli self connect map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2167,12 +2090,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli connect prettify map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2201,12 +2122,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli unknown exit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2249,12 +2168,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli vertical unknown exit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2290,12 +2207,10 @@ describe('URL routing', () => {
     let doc = addRoom(createEmptyMap('CLI Replace Pseudo Map'), bedroom);
     doc = addPseudoRoom(doc, unknown);
     doc = addConnection(doc, placeholderConnection, 'west');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli replace pseudo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2332,12 +2247,10 @@ describe('URL routing', () => {
     let doc = addRoom(createEmptyMap('CLI Replace Vertical Pseudo Map'), bedroom);
     doc = addPseudoRoom(doc, unknown);
     doc = addConnection(doc, placeholderConnection, 'down');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli replace vertical pseudo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2370,12 +2283,10 @@ describe('URL routing', () => {
     };
     let doc = createEmptyMap('CLI Death Exit Map');
     doc = addRoom(doc, castle);
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli death exit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2408,12 +2319,10 @@ describe('URL routing', () => {
     };
     let doc = createEmptyMap('CLI Nowhere Exit Map');
     doc = addRoom(doc, castle);
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli nowhere exit map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2450,12 +2359,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli create connect map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2506,13 +2413,11 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
     jest.useFakeTimers();
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/cli zoomed create connect map/i);
 
       const canvas = screen.getByTestId('map-canvas');
@@ -2598,12 +2503,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli relative create connect map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2641,12 +2544,10 @@ describe('URL routing', () => {
     let doc = addRoom(createEmptyMap('CLI Convert Placeholder Map'), bedroom);
     doc = addPseudoRoom(doc, unknown);
     doc = addConnection(doc, placeholderConnection, 'west');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli convert placeholder map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2686,12 +2587,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli relative above below map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2748,12 +2647,10 @@ describe('URL routing', () => {
         },
       },
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli create connect prettify map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2766,12 +2663,10 @@ describe('URL routing', () => {
 
   it('reports an unknown room for create and connect when the target room does not exist', async () => {
     const doc = createEmptyMap('CLI Create Connect Error Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli create connect error map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i });
@@ -2787,12 +2682,10 @@ describe('URL routing', () => {
 
   it('undoes the previous command for the undo CLI command', async () => {
     const doc = createEmptyMap('CLI Undo Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli undo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2807,12 +2700,10 @@ describe('URL routing', () => {
 
   it('redoes the previous undone command for the redo CLI command', async () => {
     const doc = createEmptyMap('CLI Redo Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli redo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2830,12 +2721,10 @@ describe('URL routing', () => {
 
   it('reports when there is nothing to undo for the undo CLI command', async () => {
     const doc = createEmptyMap('CLI Empty Undo Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli empty undo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2848,12 +2737,10 @@ describe('URL routing', () => {
 
   it('reports when there is nothing to redo for the redo CLI command', async () => {
     const doc = createEmptyMap('CLI Empty Redo Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
     await screen.findByText(/cli empty redo map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2937,16 +2824,14 @@ describe('URL routing', () => {
 
   it('shows the map selection dialog at the root URL', async () => {
     navigateTo('#/');
-    render(<App />);
+    renderApp();
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
 
   it('loads and displays a saved map when URL is #/map/<id>', async () => {
     const doc = createEmptyMap('Routed Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
+    await openSavedMap(doc);
+    renderApp();
 
     expect(await screen.findByText(/routed map/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /prettify layout/i })).toBeInTheDocument();
@@ -2959,10 +2844,8 @@ describe('URL routing', () => {
   it('restores the saved CLI output log when the map is reloaded', async () => {
     const user = userEvent.setup();
     const doc = createEmptyMap('Persisted Output Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
-    const firstRender = render(<App />);
+    await openSavedMap(doc);
+    const firstRender = renderApp();
     await screen.findByText(/persisted output map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -2978,7 +2861,7 @@ describe('URL routing', () => {
     }));
 
     firstRender.unmount();
-    render(<App />);
+    renderApp();
 
     await screen.findByText(/persisted output map/i);
     expect(getGameOutputBox().textContent ?? '').toContain('>help');
@@ -2990,10 +2873,8 @@ describe('URL routing', () => {
       ...createEmptyMap('Empty Output Banner Map'),
       cliOutputLines: [],
     };
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
+    await openSavedMap(doc);
+    renderApp();
 
     await screen.findByText(/empty output banner map/i);
     expect(getGameOutputBox().textContent ?? '').toContain(getRenderedCliLine(DEFAULT_CLI_OUTPUT_LINES[0]));
@@ -3007,10 +2888,8 @@ describe('URL routing', () => {
   it('does not reopen a stale edit request after returning to the map list and reopening the map', async () => {
     const user = userEvent.setup();
     const doc = createEmptyMap('Stale Edit Request Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
+    await openSavedMap(doc);
+    renderApp();
     await screen.findByText(/stale edit request map/i);
 
     const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
@@ -3029,12 +2908,10 @@ describe('URL routing', () => {
   it('opens the room editor after creating a room and then editing it from the CLI', async () => {
     jest.useFakeTimers();
     const doc = createEmptyMap('Create Then Edit Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
 
     try {
-      render(<App />);
+      renderApp();
       await screen.findByText(/create then edit map/i);
 
       const canvas = screen.getByTestId('map-canvas');
@@ -3075,11 +2952,9 @@ describe('URL routing', () => {
 
   it('returns to the selection screen from the map header back button', async () => {
     const doc = createEmptyMap('Return Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
+    await openSavedMap(doc);
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
 
     await screen.findByText(/return map/i);
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
@@ -3092,10 +2967,8 @@ describe('URL routing', () => {
 
   it('autosaves after undoing back to the originally loaded state', async () => {
     const originalDoc = createEmptyMap('Undo Save Map');
-    await saveMap(originalDoc);
-
-    navigateTo(`#/map/${originalDoc.metadata.id}`);
-    render(<App />);
+    await openSavedMap(originalDoc);
+    renderApp();
 
     await screen.findByText(/undo save map/i);
 
@@ -3118,10 +2991,8 @@ describe('URL routing', () => {
 
   it('persists a room added immediately before the app unmounts', async () => {
     const doc = createEmptyMap('Immediate Refresh Map');
-    await saveMap(doc);
-
-    navigateTo(`#/map/${doc.metadata.id}`);
-    const rendered = render(<App />);
+    await openSavedMap(doc);
+    const rendered = renderApp();
 
     await screen.findByText(/immediate refresh map/i);
 
@@ -3142,7 +3013,7 @@ describe('URL routing', () => {
 
     navigateTo('#/');
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
 
     const mapBtn = await screen.findByText('Clickable Map');
     await user.click(mapBtn);
@@ -3156,7 +3027,7 @@ describe('URL routing', () => {
   it('updates the URL when a new map is created', async () => {
     navigateTo('#/');
     const user = userEvent.setup();
-    render(<App />);
+    renderApp();
 
     const input = screen.getByPlaceholderText('Map name');
     await user.type(input, 'Fresh Map');
@@ -3170,7 +3041,7 @@ describe('URL routing', () => {
 
   it('falls back to the selection dialog for an invalid map ID in the URL', async () => {
     navigateTo('#/map/nonexistent-id');
-    render(<App />);
+    renderApp();
 
     // Should fall back to showing the selection dialog
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
@@ -3189,7 +3060,7 @@ describe('URL routing', () => {
     await saveMap(brokenDoc as never);
 
     navigateTo(`#/map/${doc.metadata.id}`);
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(
