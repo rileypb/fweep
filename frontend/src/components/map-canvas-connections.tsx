@@ -23,7 +23,6 @@ import {
   findRoomDirectionForConnection,
   findRoomDirectionsForConnection,
   getRoomCenter,
-  getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
   pointsToSvgString,
   type Point,
@@ -39,9 +38,9 @@ import {
 } from './connection-annotation-icon';
 import type { PanOffset } from './use-map-viewport';
 import {
-  getAnnotationGeometryFromRenderGeometry,
   getAnnotationGeometryFromSegment,
-  getDirectionalAnnotationReverseDirection,
+  getAnnotationGeometryFromRenderGeometry,
+  getDirectionalAnnotationRenderIntent,
   getDerivedVerticalAnnotationKind,
   getLongestSegment,
   getVisibleConnectionSegments,
@@ -109,79 +108,6 @@ interface ConnectionLabelGeometry {
   readonly x: number;
   readonly y: number;
   readonly textAnchor: 'start' | 'middle';
-}
-
-interface AnnotationGeometryBase {
-  readonly reverseDirection: boolean;
-  readonly preferPositiveNormalX: boolean;
-}
-
-interface AnnotationSegmentSample {
-  readonly kind: 'segment';
-  readonly segment: { start: Point; end: Point };
-}
-
-interface AnnotationCurveSample {
-  readonly kind: 'curve';
-  readonly geometry: ConnectionRenderGeometry;
-}
-
-type AnnotationPositionSample = AnnotationSegmentSample | AnnotationCurveSample;
-
-interface DirectionalAnnotationRenderIntent extends AnnotationGeometryBase {
-  readonly label: 'up' | 'down' | 'in';
-  readonly compactLength: boolean;
-  readonly positionSample: AnnotationPositionSample | null;
-}
-
-function getVerticalAnnotationReverseDirection(
-  annotationKind: 'up' | 'down',
-  dy: number,
-): boolean {
-  if (dy === 0) {
-    return false;
-  }
-
-  return annotationKind === 'up' ? dy > 0 : dy < 0;
-}
-
-function getDirectionalAnnotationRenderIntent(
-  annotationKind: 'up' | 'down' | 'in' | 'out',
-  geometry: ConnectionRenderGeometry,
-  longestSegment: { start: Point; end: Point } | null,
-  sourceDirection: string | null,
-  targetDirection: string | null,
-): DirectionalAnnotationRenderIntent {
-  const positionSample: AnnotationPositionSample | null = geometry.kind === 'polyline'
-    ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
-    : { kind: 'curve', geometry };
-
-  if (annotationKind === 'up' || annotationKind === 'down') {
-    const semanticReverseDirection = getDirectionalAnnotationReverseDirection(
-      annotationKind,
-      sourceDirection,
-      targetDirection,
-    );
-    const dy = positionSample?.kind === 'segment'
-      ? positionSample.segment.end.y - positionSample.segment.start.y
-      : sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0;
-
-    return {
-      label: annotationKind,
-      compactLength: true,
-      reverseDirection: semanticReverseDirection ?? getVerticalAnnotationReverseDirection(annotationKind, dy),
-      preferPositiveNormalX: true,
-      positionSample,
-    };
-  }
-
-  return {
-    label: 'in',
-    compactLength: false,
-    reverseDirection: annotationKind === 'out',
-    preferPositiveNormalX: false,
-    positionSample,
-  };
 }
 
 function getSelfAnnotationPosition(points: readonly Point[]): Point | null {
