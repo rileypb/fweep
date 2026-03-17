@@ -5,6 +5,7 @@
   --app-title-size-mobile: clamp(2rem, 12vw, 3rem);
   --room-label-color: #111827;
   --app-game-output-text-color: #374151;
+  --app-game-output-bold-color: #000000;
   --app-cli-stack-left: calc(1rem + 2vw);
   --app-cli-stack-width: min(37.5vw, 27rem);
   --app-cli-stack-gutter: 1rem;
@@ -33,6 +34,7 @@
   color-scheme: dark;
   --room-label-color: #f3f4f6;
   --app-game-output-text-color: #f9fafb;
+  --app-game-output-bold-color: #ffffff;
   color: #f3f4f6;
   background-color: #111827;
 }
@@ -149,7 +151,7 @@ body {
 
 .app-game-output-strong {
   font-weight: 800;
-  color: #000000;
+  color: var(--app-game-output-bold-color);
 }
 
 .app-cli-bar {

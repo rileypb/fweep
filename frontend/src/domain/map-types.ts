@@ -170,10 +170,30 @@ export interface MapDocument {
 
 /** Current schema version for new maps. */
 export const CURRENT_SCHEMA_VERSION = 2;
+
+function getBuildMetadataValue(key: 'VITE_BUILD_RELEASE' | 'VITE_BUILD_SERIAL'): string | undefined {
+  const viteValue = import.meta.env?.[key];
+  if (typeof viteValue === 'string' && viteValue.trim().length > 0) {
+    return viteValue.trim();
+  }
+
+  if (typeof process !== 'undefined') {
+    const processValue = process.env[key];
+    if (typeof processValue === 'string' && processValue.trim().length > 0) {
+      return processValue.trim();
+    }
+  }
+
+  return undefined;
+}
+
+const BUILD_RELEASE = getBuildMetadataValue('VITE_BUILD_RELEASE') ?? '0000000';
+const BUILD_SERIAL = getBuildMetadataValue('VITE_BUILD_SERIAL') ?? '000000';
+
 export const DEFAULT_CLI_OUTPUT_LINES = [
   '**fweep**',
   'An interactive map creator by Phil Riley',
-  'Release 31 / Serial number 415926',
+  `Release ${BUILD_RELEASE} / Serial number ${BUILD_SERIAL}`,
   '',
 ] as const;
 
