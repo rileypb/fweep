@@ -1,5 +1,7 @@
 import { useEditorStore } from '../state/editor-store';
 
+const WAND_MAGIC_SPARKLES_PATH = 'M295.4 37L310.2 73.8L347 88.6C350 89.8 352 92.8 352 96C352 99.2 350 102.2 347 103.4L310.2 118.2L295.4 155C294.2 158 291.2 160 288 160C284.8 160 281.8 158 280.6 155L265.8 118.2L229 103.4C226 102.2 224 99.2 224 96C224 92.8 226 89.8 229 88.6L265.8 73.8L280.6 37C281.8 34 284.8 32 288 32C291.2 32 294.2 34 295.4 37zM142.7 105.7L164.2 155.8L214.3 177.3C220.2 179.8 224 185.6 224 192C224 198.4 220.2 204.2 214.3 206.7L164.2 228.2L142.7 278.3C140.2 284.2 134.4 288 128 288C121.6 288 115.8 284.2 113.3 278.3L91.8 228.2L41.7 206.7C35.8 204.2 32 198.4 32 192C32 185.6 35.8 179.8 41.7 177.3L91.8 155.8L113.3 105.7C115.8 99.8 121.6 96 128 96C134.4 96 140.2 99.8 142.7 105.7zM496 368C502.4 368 508.2 371.8 510.7 377.7L532.2 427.8L582.3 449.3C588.2 451.8 592 457.6 592 464C592 470.4 588.2 476.2 582.3 478.7L532.2 500.2L510.7 550.3C508.2 556.2 502.4 560 496 560C489.6 560 483.8 556.2 481.3 550.3L459.8 500.2L409.7 478.7C403.8 476.2 400 470.4 400 464C400 457.6 403.8 451.8 409.7 449.3L459.8 427.8L481.3 377.7C483.8 371.8 489.6 368 496 368zM492 64C503 64 513.6 68.4 521.5 76.2L563.8 118.5C571.6 126.4 576 137 576 148C576 159 571.6 169.6 563.8 177.5L475.6 265.7L374.3 164.4L462.5 76.2C470.4 68.4 481 64 492 64zM76.2 462.5L340.4 198.3L441.7 299.6L177.5 563.8C169.6 571.6 159 576 148 576C137 576 126.4 571.6 118.5 563.8L76.2 521.5C68.4 513.6 64 503 64 492C64 481 68.4 470.4 76.2 462.5z';
+
 export function PrettifyButton(): React.JSX.Element {
   const doc = useEditorStore((state) => state.doc);
   const prettifyLayout = useEditorStore((state) => state.prettifyLayout);
@@ -13,16 +15,8 @@ export function PrettifyButton(): React.JSX.Element {
       type="button"
       disabled={doc === null}
     >
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-        <ellipse cx="10" cy="6.2" rx="1.8" ry="3" />
-        <ellipse cx="13.1" cy="7.7" rx="1.8" ry="3" transform="rotate(55 13.1 7.7)" />
-        <ellipse cx="13" cy="11.1" rx="1.8" ry="3" transform="rotate(110 13 11.1)" />
-        <ellipse cx="10" cy="12.5" rx="1.8" ry="3" />
-        <ellipse cx="7" cy="11.1" rx="1.8" ry="3" transform="rotate(70 7 11.1)" />
-        <ellipse cx="6.9" cy="7.7" rx="1.8" ry="3" transform="rotate(125 6.9 7.7)" />
-        <circle cx="10" cy="9.3" r="2.2" />
-        <path d="M10 11.7C10.1 13.2 9.7 14.3 9.2 15.4C8.9 16.1 8.7 16.9 8.8 17.8" strokeLinecap="round" />
-        <path d="M9.3 15.1C10.1 14.9 10.8 15.2 11.4 15.9" strokeLinecap="round" />
+      <svg width="20" height="20" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+        <path d={WAND_MAGIC_SPARKLES_PATH} />
       </svg>
     </button>
   );

@@ -4002,8 +4002,8 @@ describe('MapCanvas', () => {
       const doorPath = doorGlyph.querySelector('path');
 
       expect(doorGlyph.getAttribute('transform')).toMatch(/^translate\([\d.]+ [\d.]+\)$/);
-      expect(doorSvg?.getAttribute('width')).toBe('14');
-      expect(doorSvg?.getAttribute('height')).toBe('14');
+      expect(doorSvg?.getAttribute('width')).toBe('20');
+      expect(doorSvg?.getAttribute('height')).toBe('20');
       expect(doorPath?.getAttribute('d')).toContain('M411.5 208.8');
       expect(doorPath).toHaveAttribute('fill', '#6366f1');
       expect(doorGlyph.querySelector('circle')).toBeNull();
@@ -4030,8 +4030,8 @@ describe('MapCanvas', () => {
       const lockPath = padlockGlyph.querySelector('path');
 
       expect(padlockGlyph.getAttribute('transform')).toMatch(/^translate\([\d.]+ [\d.]+\)$/);
-      expect(padlockSvg?.getAttribute('width')).toBe('14');
-      expect(padlockSvg?.getAttribute('height')).toBe('14');
+      expect(padlockSvg?.getAttribute('width')).toBe('20');
+      expect(padlockSvg?.getAttribute('height')).toBe('20');
       expect(lockPath?.getAttribute('d')).toContain('M256 160L256 224L384 224');
       expect(lockPath).toHaveAttribute('fill', '#6366f1');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
