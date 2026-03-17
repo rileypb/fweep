@@ -46,11 +46,24 @@ import {
   setStickyNotePositions as domainSetStickyNotePositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
-import { createDefaultMapView } from '../domain/map-defaults';
 import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
 import { getRoomNodeWidth } from '../graph/room-label-geometry';
 import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import { restoreBackgroundChunks, type RasterChunkHistoryEntry } from '../storage/map-store';
+import { commitDocumentChange, pushHistoryEntry } from './editor-store-history';
+import {
+  filterConnectionSelectionForDoc,
+  filterPseudoRoomSelectionForDoc,
+  filterSelectionForDoc,
+  filterStickyNoteLinkSelectionForDoc,
+  filterStickyNoteSelectionForDoc,
+} from './editor-store-selection';
+import {
+  getDefaultEditorViewState,
+  getLoadedDocumentState,
+  getUnloadedDocumentState,
+  patchDocumentView,
+} from './editor-store-view';
 
 /** Grid size in pixels used for snapping room positions. */
 const GRID_SIZE = 40;
@@ -727,99 +740,6 @@ export interface EditorState {
   commitBackgroundStroke: (entry: BackgroundStrokeHistoryEntry) => void;
 }
 
-function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonly string[]): readonly string[] {
-  if (!doc) {
-    return [];
-  }
-
-  return selectedRoomIds.filter((roomId) => roomId in doc.rooms);
-}
-
-function filterPseudoRoomSelectionForDoc(doc: MapDocument | null, selectedPseudoRoomIds: readonly string[]): readonly string[] {
-  if (!doc) {
-    return [];
-  }
-
-  return selectedPseudoRoomIds.filter((pseudoRoomId) => pseudoRoomId in doc.pseudoRooms);
-}
-
-function filterStickyNoteSelectionForDoc(doc: MapDocument | null, selectedStickyNoteIds: readonly string[]): readonly string[] {
-  if (!doc) {
-    return [];
-  }
-
-  return selectedStickyNoteIds.filter((stickyNoteId) => stickyNoteId in doc.stickyNotes);
-}
-
-function filterConnectionSelectionForDoc(doc: MapDocument | null, selectedConnectionIds: readonly string[]): readonly string[] {
-  if (!doc) {
-    return [];
-  }
-
-  return selectedConnectionIds.filter((connectionId) => connectionId in doc.connections);
-}
-
-function filterStickyNoteLinkSelectionForDoc(
-  doc: MapDocument | null,
-  selectedStickyNoteLinkIds: readonly string[],
-): readonly string[] {
-  if (!doc) {
-    return [];
-  }
-
-  return selectedStickyNoteLinkIds.filter((stickyNoteLinkId) => stickyNoteLinkId in doc.stickyNoteLinks);
-}
-
-function pushHistoryEntry(
-  currentState: EditorState,
-  entry: EditorHistoryEntry,
-  mergeKey: string | null,
-): Pick<EditorState, 'pastEntries' | 'futureEntries' | 'canUndo' | 'canRedo' | 'lastHistoryMergeKey'> {
-  const shouldMerge = mergeKey !== null && currentState.lastHistoryMergeKey === mergeKey;
-  const nextPastEntries = shouldMerge
-    ? currentState.pastEntries.slice(0, -1).concat((() => {
-      const previousEntry = currentState.pastEntries[currentState.pastEntries.length - 1];
-      if (entry.kind === 'document' && previousEntry?.kind === 'document') {
-        return {
-          kind: 'document' as const,
-          before: previousEntry.before,
-          after: entry.after,
-        };
-      }
-      return entry;
-    })())
-    : [...currentState.pastEntries, entry];
-
-  return {
-    pastEntries: nextPastEntries,
-    futureEntries: [],
-    canUndo: nextPastEntries.length > 0,
-    canRedo: false,
-    lastHistoryMergeKey: mergeKey,
-  };
-}
-
-function commitDocumentChange(
-  currentState: EditorState,
-  currentDoc: MapDocument,
-  updatedDoc: MapDocument,
-  options?: HistoryOptions,
-): Partial<EditorState> {
-  if (updatedDoc === currentDoc) {
-    return {};
-  }
-
-  const mergeKey = options?.historyMergeKey ?? null;
-  return {
-    doc: updatedDoc,
-    ...pushHistoryEntry(
-      currentState,
-      { kind: 'document', before: currentDoc, after: updatedDoc },
-      mergeKey,
-    ),
-  };
-}
-
 function applyCliConnection(
   doc: MapDocument,
   sourceRoomId: string,
@@ -924,46 +844,6 @@ function prettifyCliPseudoRoomResult(doc: MapDocument): MapDocument {
   return domainSetPseudoRoomPositions(doc, pseudoRoomPositions);
 }
 
-function patchDocumentView(
-  doc: MapDocument,
-  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled' | 'cliOutputCollapsedEnabled'>,
-): MapDocument {
-  return {
-    ...doc,
-    view: {
-      pan: state.mapPanOffset,
-      zoom: state.mapZoom,
-      visualStyle: state.mapVisualStyle,
-      showGrid: state.showGridEnabled,
-      snapToGrid: state.snapToGridEnabled,
-      useBezierConnections: state.useBezierConnectionsEnabled,
-      cliOutputCollapsed: state.cliOutputCollapsedEnabled,
-    },
-  };
-}
-
-function getDefaultEditorViewState(): Pick<
-  EditorState,
-  'snapToGridEnabled'
-  | 'showGridEnabled'
-  | 'useBezierConnectionsEnabled'
-  | 'cliOutputCollapsedEnabled'
-  | 'mapPanOffset'
-  | 'mapZoom'
-  | 'mapVisualStyle'
-> {
-  const defaultMapView = createDefaultMapView();
-  return {
-    snapToGridEnabled: defaultMapView.snapToGrid,
-    showGridEnabled: defaultMapView.showGrid,
-    useBezierConnectionsEnabled: defaultMapView.useBezierConnections,
-    cliOutputCollapsedEnabled: defaultMapView.cliOutputCollapsed,
-    mapPanOffset: defaultMapView.pan,
-    mapZoom: defaultMapView.zoom,
-    mapVisualStyle: defaultMapView.visualStyle,
-  };
-}
-
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
   pastEntries: [],
@@ -998,67 +878,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeStroke: null,
   backgroundRevision: 0,
 
-  loadDocument: (doc) => set({
-    doc: patchDocumentView(doc, {
-      mapPanOffset: doc.view.pan,
-      mapZoom: doc.view.zoom,
-      mapVisualStyle: doc.view.visualStyle,
-      showGridEnabled: doc.view.showGrid,
-      snapToGridEnabled: doc.view.snapToGrid,
-      useBezierConnectionsEnabled: doc.view.useBezierConnections,
-      cliOutputCollapsedEnabled: doc.view.cliOutputCollapsed,
-    }),
-    pastEntries: [],
-    futureEntries: [],
-    canUndo: false,
-    canRedo: false,
-    lastHistoryMergeKey: null,
-    selectedRoomIds: [],
-    selectedPseudoRoomIds: [],
-    selectedStickyNoteIds: [],
-    selectedConnectionIds: [],
-    selectedStickyNoteLinkIds: [],
-    snapToGridEnabled: doc.view.snapToGrid,
-    showGridEnabled: doc.view.showGrid,
-    useBezierConnectionsEnabled: doc.view.useBezierConnections,
-    cliOutputCollapsedEnabled: doc.view.cliOutputCollapsed,
-    mapPanOffset: doc.view.pan,
-    mapZoom: doc.view.zoom,
-    mapVisualStyle: doc.view.visualStyle,
-    connectionDrag: null,
-    stickyNoteLinkDrag: null,
-    connectionEndpointDrag: null,
-    selectionDrag: null,
-    exportRegionDraft: null,
-    exportRegion: null,
-    canvasInteractionMode: 'map',
-    activeStroke: null,
-    backgroundRevision: 0,
-  }),
+  loadDocument: (doc) => set(getLoadedDocumentState(doc)),
 
-  unloadDocument: () => set({
-    doc: null,
-    pastEntries: [],
-    futureEntries: [],
-    canUndo: false,
-    canRedo: false,
-    lastHistoryMergeKey: null,
-    selectedRoomIds: [],
-    selectedPseudoRoomIds: [],
-    selectedStickyNoteIds: [],
-    selectedConnectionIds: [],
-    selectedStickyNoteLinkIds: [],
-    ...getDefaultEditorViewState(),
-    connectionDrag: null,
-    stickyNoteLinkDrag: null,
-    connectionEndpointDrag: null,
-    selectionDrag: null,
-    exportRegionDraft: null,
-    exportRegion: null,
-    canvasInteractionMode: 'map',
-    activeStroke: null,
-    backgroundRevision: 0,
-  }),
+  unloadDocument: () => set(getUnloadedDocumentState()),
 
   undo: async () => {
     const {
