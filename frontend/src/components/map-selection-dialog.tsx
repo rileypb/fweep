@@ -27,6 +27,12 @@ export interface MapSelectionDialogProps {
   initialError?: string | null;
 }
 
+function sortMapsByUpdatedAt(maps: readonly MapMetadata[]): MapMetadata[] {
+  return [...maps].sort((left, right) => (
+    new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+  ));
+}
+
 export function MapSelectionDialog({
   onMapSelected,
   storage = defaultStorage,
@@ -36,6 +42,8 @@ export function MapSelectionDialog({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(initialError);
   const [newMapName, setNewMapName] = useState('');
+  const [editingMapId, setEditingMapId] = useState<string | null>(null);
+  const [editingMapName, setEditingMapName] = useState('');
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +53,7 @@ export function MapSelectionDialog({
     storage.listMaps()
       .then((nextMaps) => {
         if (!cancelled) {
-          setMaps(nextMaps);
+          setMaps(sortMapsByUpdatedAt(nextMaps));
         }
       })
       .catch((err: unknown) => {
@@ -69,6 +77,7 @@ export function MapSelectionDialog({
   }, [initialError]);
 
   const canCreate = newMapName.trim().length > 0;
+  const canSaveRename = editingMapName.trim().length > 0;
 
   const handleCreate = async () => {
     const name = newMapName.trim();
@@ -86,6 +95,50 @@ export function MapSelectionDialog({
       } else {
         setError(`Map not found: ${id}`);
       }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleRenameStart = (map: MapMetadata) => {
+    setConfirmingDeleteId(null);
+    setEditingMapId(map.id);
+    setEditingMapName(map.name);
+    setError(null);
+  };
+
+  const handleRenameCancel = () => {
+    setEditingMapId(null);
+    setEditingMapName('');
+  };
+
+  const handleRenameSave = async (id: string) => {
+    const nextName = editingMapName.trim();
+    if (!nextName) {
+      return;
+    }
+
+    try {
+      const doc = await storage.loadMap(id);
+      if (!doc) {
+        setError(`Map not found: ${id}`);
+        return;
+      }
+
+      const renamedDoc: MapDocument = {
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          name: nextName,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+      await storage.saveMap(renamedDoc);
+      setMaps((prev) => sortMapsByUpdatedAt(prev.map((map) => (
+        map.id === id ? renamedDoc.metadata : map
+      ))));
+      handleRenameCancel();
+      setError(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -145,15 +198,58 @@ export function MapSelectionDialog({
               <ul className="map-selection-list">
                 {maps.map((m) => (
                   <li key={m.id} className="map-selection-list-item">
-                    <button
-                      className="map-selection-item"
-                      type="button"
-                      onClick={() => void handleSelect(m.id)}
-                    >
-                      <span className="map-selection-item-name">{m.name}</span>
-                      <span className="map-selection-item-date">{formatDate(m.updatedAt)}</span>
-                    </button>
-                    {confirmingDeleteId === m.id ? (
+                    {editingMapId === m.id ? (
+                      <>
+                        <div className="map-selection-rename-row">
+                          <input
+                            className="map-selection-input map-selection-input--inline"
+                            type="text"
+                            aria-label={`Rename ${m.name}`}
+                            value={editingMapName}
+                            autoFocus
+                            onChange={(e) => setEditingMapName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && canSaveRename) {
+                                void handleRenameSave(m.id);
+                              }
+                              if (e.key === 'Escape') {
+                                handleRenameCancel();
+                              }
+                            }}
+                          />
+                          <span className="map-selection-rename-actions">
+                            <button
+                              className="map-selection-rename-save-btn"
+                              type="button"
+                              aria-label="Confirm rename"
+                              disabled={!canSaveRename}
+                              onClick={() => void handleRenameSave(m.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="map-selection-rename-cancel-btn"
+                              type="button"
+                              aria-label="Cancel rename"
+                              onClick={handleRenameCancel}
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        </div>
+                        <span className="map-selection-item-date map-selection-item-date--inline">{formatDate(m.updatedAt)}</span>
+                      </>
+                    ) : (
+                      <button
+                        className="map-selection-item"
+                        type="button"
+                        onClick={() => void handleSelect(m.id)}
+                      >
+                        <span className="map-selection-item-name">{m.name}</span>
+                        <span className="map-selection-item-date">{formatDate(m.updatedAt)}</span>
+                      </button>
+                    )}
+                    {editingMapId === m.id ? null : confirmingDeleteId === m.id ? (
                       <span className="map-selection-delete-confirm">
                         <button
                           className="map-selection-delete-confirm-btn"
@@ -173,14 +269,24 @@ export function MapSelectionDialog({
                         </button>
                       </span>
                     ) : (
-                      <button
-                        className="map-selection-delete-btn"
-                        type="button"
-                        aria-label={`Delete ${m.name}`}
-                        onClick={() => setConfirmingDeleteId(m.id)}
-                      >
-                        🗑
-                      </button>
+                      <span className="map-selection-item-actions">
+                        <button
+                          className="map-selection-rename-btn"
+                          type="button"
+                          aria-label={`Rename ${m.name}`}
+                          onClick={() => handleRenameStart(m)}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          className="map-selection-delete-btn"
+                          type="button"
+                          aria-label={`Delete ${m.name}`}
+                          onClick={() => setConfirmingDeleteId(m.id)}
+                        >
+                          🗑
+                        </button>
+                      </span>
                     )}
                   </li>
                 ))}

@@ -15,6 +15,14 @@ function navigateTo(hashRoute: string) {
   window.history.pushState({}, '', hashRoute);
 }
 
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+}
+
 function getGameOutputBox(): HTMLElement {
   return screen.getByRole('textbox', { name: /game output/i });
 }
@@ -66,6 +74,7 @@ async function submitCliCommand(command: string): Promise<HTMLInputElement> {
 beforeEach(() => {
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
+  setViewportWidth(1024);
   // Reset editor store
   useEditorStore.setState(useEditorStore.getInitialState());
 });
@@ -82,6 +91,31 @@ describe('URL routing', () => {
     expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /redo/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a desktop-only message when the viewport is narrower than 960px', () => {
+    setViewportWidth(959);
+
+    renderApp();
+
+    expect(screen.getByRole('heading', { name: /optimized for desktop/i })).toBeInTheDocument();
+    expect(screen.getByText(/please come back on a desktop or laptop/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /create a new map/i })).not.toBeInTheDocument();
+  });
+
+  it('returns to the normal app when the viewport grows back to desktop width', async () => {
+    setViewportWidth(959);
+    renderApp();
+
+    expect(screen.getByRole('heading', { name: /optimized for desktop/i })).toBeInTheDocument();
+
+    act(() => {
+      setViewportWidth(1024);
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /import from file/i })).toBeInTheDocument();
   });
 
   it('switches the CLI placeholder after the input has been used once', async () => {
@@ -450,7 +484,9 @@ describe('URL routing', () => {
 
     await user.upload(fileInput, scriptFile);
 
-    expectGameOutputToContain('No commands found in "empty-script.txt".');
+    await waitFor(() => {
+      expectGameOutputToContain('No commands found in "empty-script.txt".');
+    });
     await waitFor(() => {
       expect(fileInput).toHaveValue('');
     });

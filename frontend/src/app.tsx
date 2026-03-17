@@ -9,11 +9,17 @@ import { useAppCli } from './hooks/use-app-cli';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 
+const DESKTOP_ONLY_MIN_WIDTH_PX = 960;
 const SHAPES_SOLID_FULL_PATH = 'M288 96C288 78.3 273.7 64 256 64L96 64C78.3 64 64 78.3 64 96L64 256C64 273.7 78.3 288 96 288L256 288C273.7 288 288 273.7 288 256L288 96zM384 64C348.7 64 320 92.7 320 128L320 224C320 259.3 348.7 288 384 288L512 288C547.3 288 576 259.3 576 224L576 128C576 92.7 547.3 64 512 64L384 64zM192 352C174.3 352 160 366.3 160 384L160 544C160 561.7 174.3 576 192 576L448 576C465.7 576 480 561.7 480 544L480 384C480 366.3 465.7 352 448 352L192 352z';
 const SQUARE_REGULAR_FULL_PATH = 'M480 144C488.8 144 496 151.2 496 160L496 480C496 488.8 488.8 496 480 496L160 496C151.2 496 144 488.8 144 480L144 160C144 151.2 151.2 144 160 144L480 144zM160 96C124.7 96 96 124.7 96 160L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 160C544 124.7 515.3 96 480 96L160 96z';
 const QUESTION_SOLID_FULL_PATH = 'M224 224C224 171 267 128 320 128C373 128 416 171 416 224C416 266.7 388.1 302.9 349.5 315.4C321.1 324.6 288 350.7 288 392L288 416C288 433.7 302.3 448 320 448C337.7 448 352 433.7 352 416L352 392C352 390.3 352.6 387.9 355.5 384.7C358.5 381.4 363.4 378.2 369.2 376.3C433.5 355.6 480 295.3 480 224C480 135.6 408.4 64 320 64C231.6 64 160 135.6 160 224C160 241.7 174.3 256 192 256C209.7 256 224 241.7 224 224zM320 576C342.1 576 360 558.1 360 536C360 513.9 342.1 496 320 496C297.9 496 280 513.9 280 536C280 558.1 297.9 576 320 576z';
 const BEZIER_CURVE_SOLID_FULL_PATH = 'M296 200L296 152L344 152L344 200L296 200zM288 96C261.5 96 240 117.5 240 144L240 148L121.6 148C111.2 126.7 89.3 112 64 112C28.7 112 0 140.7 0 176C0 211.3 28.7 240 64 240C89.3 240 111.2 225.3 121.6 204L188.5 204C129.6 243.6 89.6 309 84.5 384L80 384C53.5 384 32 405.5 32 432L32 496C32 522.5 53.5 544 80 544L144 544C170.5 544 192 522.5 192 496L192 432C192 405.5 170.5 384 144 384L140.7 384C146.6 317 189.2 260.6 248.2 234.9C256.8 247.6 271.4 256 288 256L352 256C368.6 256 383.1 247.6 391.8 234.9C450.8 260.6 493.4 317 499.3 384L496 384C469.5 384 448 405.5 448 432L448 496C448 522.5 469.5 544 496 544L560 544C586.5 544 608 522.5 608 496L608 432C608 405.5 586.5 384 560 384L555.5 384C550.5 309 510.4 243.6 451.5 204L518.4 204C528.8 225.3 550.7 240 576 240C611.3 240 640 211.3 640 176C640 140.7 611.3 112 576 112C550.7 112 528.8 126.7 518.4 148L400 148L400 144C400 117.5 378.5 96 352 96L288 96zM88 440L136 440L136 488L88 488L88 440zM504 488L504 440L552 440L552 488L504 488z';
 const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
+const batImage = new URL('../bat.png', import.meta.url).href;
+
+function isDesktopViewport(): boolean {
+  return typeof window === 'undefined' || window.innerWidth >= DESKTOP_ONLY_MIN_WIDTH_PX;
+}
 
 function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
   return rootFontSizePx + (viewportWidth * 0.02);
@@ -40,6 +46,7 @@ export function App(): React.JSX.Element {
   const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
@@ -80,6 +87,18 @@ export function App(): React.JSX.Element {
   });
 
   useEffect(() => {
+    const updateViewportAvailability = () => {
+      setHasDesktopViewport(isDesktopViewport());
+    };
+
+    updateViewportAvailability();
+    window.addEventListener('resize', updateViewportAvailability);
+    return () => {
+      window.removeEventListener('resize', updateViewportAvailability);
+    };
+  }, []);
+
+  useEffect(() => {
     if (activeMap !== null) {
       return;
     }
@@ -118,6 +137,25 @@ export function App(): React.JSX.Element {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isHelpOpen]);
+
+  if (!hasDesktopViewport) {
+    return (
+      <main className="app-shell app-shell--desktop-only">
+        <section className="desktop-only-panel" aria-labelledby="desktop-only-title">
+          <div className="desktop-only-art" aria-hidden="true">
+            <img className="desktop-only-art-image" src={batImage} alt="" />
+          </div>
+          <div className="desktop-only-copy">
+            <p className="desktop-only-eyebrow">Too Small For Mapping</p>
+            <h1 id="desktop-only-title" className="desktop-only-title">Optimized for desktop</h1>
+            <p className="desktop-only-body">
+              fweep works best on a wider screen. Please come back on a desktop or laptop to create and edit maps.
+            </p>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">

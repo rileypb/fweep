@@ -172,6 +172,67 @@ describe('MapSelectionDialog', () => {
     expect(deleteBtn).toBeInTheDocument();
   });
 
+  it('shows a rename button for each saved map', async () => {
+    const doc = createEmptyMap('Renamable Map');
+    await saveMap(doc);
+
+    render(<MapSelectionDialog onMapSelected={noop} />);
+    await screen.findByText('Renamable Map');
+
+    expect(screen.getByRole('button', { name: /rename renamable map/i })).toBeInTheDocument();
+  });
+
+  it('renames a saved map inline and updates the visible list entry', async () => {
+    const user = userEvent.setup();
+    const existingDoc = createEmptyMap('Old Name');
+    const savedDocs = new Map([[existingDoc.metadata.id, existingDoc]]);
+    const storage = createStorageOverrides({
+      listMaps: async () => [existingDoc.metadata],
+      loadMap: async (id) => savedDocs.get(id),
+      saveMap: async (doc) => {
+        savedDocs.set(doc.metadata.id, doc);
+      },
+    });
+
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
+    await screen.findByText('Old Name');
+
+    await user.click(screen.getByRole('button', { name: /rename old name/i }));
+
+    const renameInput = screen.getByRole('textbox', { name: /rename old name/i });
+    await user.clear(renameInput);
+    await user.type(renameInput, 'New Name');
+    await user.click(screen.getByRole('button', { name: /confirm rename/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('New Name')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Old Name')).not.toBeInTheDocument();
+    expect(savedDocs.get(existingDoc.metadata.id)?.metadata.name).toBe('New Name');
+  });
+
+  it('cancels rename without saving changes', async () => {
+    const user = userEvent.setup();
+    const existingDoc = createEmptyMap('Keep Name');
+    const saveMapMock = jest.fn<typeof saveMap>();
+    const storage = createStorageOverrides({
+      listMaps: async () => [existingDoc.metadata],
+      loadMap: async () => existingDoc,
+      saveMap: saveMapMock,
+    });
+
+    render(<MapSelectionDialog onMapSelected={noop} storage={storage} />);
+    await screen.findByText('Keep Name');
+
+    await user.click(screen.getByRole('button', { name: /rename keep name/i }));
+    await user.clear(screen.getByRole('textbox', { name: /rename keep name/i }));
+    await user.type(screen.getByRole('textbox', { name: /rename keep name/i }), 'Changed');
+    await user.click(screen.getByRole('button', { name: /cancel rename/i }));
+
+    expect(screen.getByText('Keep Name')).toBeInTheDocument();
+    expect(saveMapMock).not.toHaveBeenCalled();
+  });
+
   it('removes a map from the list when delete is clicked and confirmed', async () => {
     const doc = createEmptyMap('To Be Deleted');
     await saveMap(doc);
