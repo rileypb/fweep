@@ -326,7 +326,7 @@ export function RoomEditorOverlay({
     room === null
       ? {
         name: 'Room',
-        shape: 'box' as const,
+        shape: 'rectangle' as const,
         isDark: false,
         fillColorIndex: 0,
         strokeColorIndex: 0,

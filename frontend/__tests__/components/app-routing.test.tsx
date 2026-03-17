@@ -4,8 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
 import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../../src/domain/cli-help';
 import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom, DEFAULT_CLI_OUTPUT_LINES } from '../../src/domain/map-types';
-import { ROOM_HEIGHT } from '../../src/graph/connection-geometry';
-import { getRoomNodeWidth } from '../../src/graph/minimap-geometry';
+import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -635,11 +634,12 @@ describe('URL routing', () => {
       expect(rooms).toHaveLength(1);
       expect(rooms[0].name).toBe('Kitchen');
       expect(state.selectedRoomIds).toEqual([rooms[0].id]);
+      const roomDimensions = getRoomNodeDimensions(rooms[0], 'square-classic');
       expect(state.mapPanOffset.x).toBeCloseTo(
-        visibleCenterX - (rooms[0].position.x + (getRoomNodeWidth(rooms[0]) / 2)),
+        visibleCenterX - (rooms[0].position.x + (roomDimensions.width / 2)),
       );
       expect(state.mapPanOffset.y).toBeCloseTo(
-        (200 / 2) - (rooms[0].position.y + (ROOM_HEIGHT / 2)),
+        (200 / 2) - (rooms[0].position.y + (roomDimensions.height / 2)),
       );
       expectGameOutputToContain('create Kitchen', 'created');
       expect(input.selectionStart).toBe(0);
@@ -703,11 +703,12 @@ describe('URL routing', () => {
       const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
 
       expect(room).toBeDefined();
+      const roomDimensions = getRoomNodeDimensions(room, 'square-classic');
       expect(state.mapPanOffset.x).toBeCloseTo(
-        visibleCenterX - ((room.position.x + (getRoomNodeWidth(room) / 2)) * zoom),
+        visibleCenterX - ((room.position.x + (roomDimensions.width / 2)) * zoom),
       );
       expect(state.mapPanOffset.y).toBeCloseTo(
-        (200 / 2) - ((room.position.y + (ROOM_HEIGHT / 2)) * zoom),
+        (200 / 2) - ((room.position.y + (roomDimensions.height / 2)) * zoom),
       );
     } finally {
       await act(async () => {
@@ -1107,9 +1108,10 @@ describe('URL routing', () => {
       const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
 
       expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
+      const roomDimensions = getRoomNodeDimensions(doc.rooms['room-1'], 'square-classic');
       expect(useEditorStore.getState().mapPanOffset).toEqual({
-        x: visibleCenterX - (1200 + (getRoomNodeWidth(doc.rooms['room-1']) / 2)),
-        y: (200 / 2) - (160 + (ROOM_HEIGHT / 2)),
+        x: visibleCenterX - (1200 + (roomDimensions.width / 2)),
+        y: (200 / 2) - (160 + (roomDimensions.height / 2)),
       });
       expectGameOutputToContain('show kitchen', 'Kitchen');
       expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Kitchen')).toBe(true);
@@ -1121,6 +1123,173 @@ describe('URL routing', () => {
       });
       jest.useRealTimers();
     }
+  });
+
+  it('navigates with go <direction> using the selected room connection in that exact direction', async () => {
+    jest.useFakeTimers();
+    const kitchenEastConnection = {
+      ...createConnection('kitchen', { kind: 'room', id: 'hallway' }),
+      id: 'kitchen-east',
+    };
+    let doc = createEmptyMap('CLI Direction Go Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 1200, y: 160 },
+          directions: { east: 'kitchen-east' },
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 1400, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 1400, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+      connections: {
+        'kitchen-east': kitchenEastConnection,
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    try {
+      render(<App />);
+      await screen.findByText(/cli direction go map/i);
+
+      act(() => {
+        useEditorStore.getState().setSelectedRoomIds(['kitchen']);
+      });
+
+      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'go east' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const visibleCenterX = visibleMapLeftInset + (Math.max(300 - visibleMapLeftInset, 0) / 2);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['hallway']);
+      const roomDimensions = getRoomNodeDimensions(doc.rooms.hallway, 'square-classic');
+      expect(useEditorStore.getState().mapPanOffset).toEqual({
+        x: visibleCenterX - (1400 + (roomDimensions.width / 2)),
+        y: (200 / 2) - (160 + (roomDimensions.height / 2)),
+      });
+      expectGameOutputToContain('go east', 'Hallway');
+      expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Hallway')).toBe(true);
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
+  });
+
+  it('navigates with a bare direction using only connected exits from the selected room', async () => {
+    let doc = createEmptyMap('CLI Direction Bare Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        pantry: {
+          id: 'pantry',
+          name: 'Pantry',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli direction bare map/i);
+
+    act(() => {
+      useEditorStore.getState().setSelectedRoomIds(['kitchen']);
+    });
+
+    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    await user.type(input, 'east{enter}');
+
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
+    expectGameOutputToContain('east', `You can't go east from Kitchen.`);
+    expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Pantry')).toBe(false);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
   });
 
   it('reports an unknown room for edit when no matching room exists', async () => {
@@ -2299,12 +2468,14 @@ describe('URL routing', () => {
       expect(hallway).toBeDefined();
 
       const left = Math.min(createdRoom!.position.x, hallway!.position.x);
+      const createdRoomDimensions = getRoomNodeDimensions(createdRoom!, 'square-classic');
+      const hallwayDimensions = getRoomNodeDimensions(hallway!, 'square-classic');
       const right = Math.max(
-        createdRoom!.position.x + getRoomNodeWidth(createdRoom!),
-        hallway!.position.x + getRoomNodeWidth(hallway!),
+        createdRoom!.position.x + createdRoomDimensions.width,
+        hallway!.position.x + hallwayDimensions.width,
       );
       const top = Math.min(createdRoom!.position.y, hallway!.position.y);
-      const bottom = Math.max(createdRoom!.position.y + ROOM_HEIGHT, hallway!.position.y + ROOM_HEIGHT);
+      const bottom = Math.max(createdRoom!.position.y + createdRoomDimensions.height, hallway!.position.y + hallwayDimensions.height);
 
       expect(state.mapPanOffset.x).toBeCloseTo(visibleCenterX - (((left + right) / 2) * zoom));
       expect(state.mapPanOffset.y).toBeCloseTo((200 / 2) - (((top + bottom) / 2) * zoom));

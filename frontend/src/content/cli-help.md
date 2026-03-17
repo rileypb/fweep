@@ -5,7 +5,6 @@
 - `create/c <room name>`
 - `delete/d/del <room name>`
 - `edit/e/ed <room name>`
-- `show/s/go to <room name>`
 - `<room name> is dark`
 - `<room name> is lit`
 - `create/c <room name>, which is <adjective>`
@@ -33,6 +32,12 @@
 - `create and connect <room name>, which is <adjective>, <direction> to <room name> [<direction>]`
 - `create/c <room name> <direction> of <room name>`
 - `create/c <room name> above/below <room name>`
+
+## navigation
+
+- `show/s/go to <room name>`
+- `go <direction>`
+- `<direction>`
 
 ## notes
 

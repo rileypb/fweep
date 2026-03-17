@@ -16,6 +16,7 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
+  | { readonly kind: 'navigate'; readonly direction: string }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
   | { readonly kind: 'take-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
@@ -54,6 +55,8 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
+  'go <direction>',
+  '<direction>',
   'create/c <room name>',
   '<direction> of <room name> is unknown',
   'above/below <room name> is unknown',
@@ -810,6 +813,20 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'arrange' };
   }
 
+  if (tokens.length === 1 && isDirectionToken(tokens[0])) {
+    return {
+      kind: 'navigate',
+      direction: normalizeDirection(tokens[0].value),
+    };
+  }
+
+  if (tokens.length === 2 && isTokenValue(tokens[0], 'go') && isDirectionToken(tokens[1])) {
+    return {
+      kind: 'navigate',
+      direction: normalizeDirection(tokens[1].value),
+    };
+  }
+
   const pseudoRoomCommand = parsePseudoRoomCommand(tokens);
   if (pseudoRoomCommand !== null) {
     return pseudoRoomCommand;
@@ -965,6 +982,8 @@ function describeCliCommand(command: CliCommand): string {
         : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
+    case 'navigate':
+      return `move in the selected room's ${command.direction} direction`;
     case 'create':
       return command.adjective === null
         ? `create a room called ${command.roomName}`

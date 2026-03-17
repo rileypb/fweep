@@ -15,7 +15,7 @@ import {
   type CliError,
 } from '../domain/cli-errors';
 import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference } from '../domain/cli-execution';
-import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument } from '../domain/map-types';
+import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument, type Room } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
 import { saveMap } from '../storage/map-store';
 
@@ -67,12 +67,40 @@ function formatCliEcho(input: string): string {
   return `>${input}`;
 }
 
+function getRoomNavigationTarget(doc: MapDocument, room: Room, direction: string): Room | null {
+  const connectionId = room.directions[direction];
+  if (!connectionId) {
+    return null;
+  }
+
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    return null;
+  }
+
+  if (connection.sourceRoomId === room.id) {
+    if (connection.target.kind !== 'room') {
+      return null;
+    }
+
+    return doc.rooms[connection.target.id] ?? null;
+  }
+
+  if (connection.isBidirectional && connection.target.kind === 'room' && connection.target.id === room.id) {
+    return doc.rooms[connection.sourceRoomId] ?? null;
+  }
+
+  return null;
+}
+
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
       return 'Listed available commands.';
     case 'arrange':
       return 'Arranged.';
+    case 'navigate':
+      return 'Shown.';
     case 'create':
       return 'Created.';
     case 'put-items':
@@ -422,6 +450,34 @@ export function useAppCli({
     if (command.kind === 'arrange' && currentDoc !== null) {
       prettifyLayout();
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'navigate' && currentDoc !== null) {
+      if (liveEditorState.selectedRoomIds.length !== 1) {
+        appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to navigate from.']);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const sourceRoom = currentDoc.rooms[liveEditorState.selectedRoomIds[0]];
+      if (!sourceRoom) {
+        appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to navigate from.']);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const targetRoom = getRoomNavigationTarget(currentDoc, sourceRoom, command.direction);
+      if (targetRoom === null) {
+        appendGameOutput([formatCliEcho(trimmedInput), `You can't go ${command.direction} from ${sourceRoom.name}.`]);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      selectRoom(targetRoom.id);
+      setCliPronounRoomReference(targetRoom.id);
+      setRequestedRoomRevealRequest({
+        roomId: targetRoom.id,
+        requestId: issueUiRequestId(),
+      });
+      appendGameOutput([formatCliEcho(trimmedInput), `**${targetRoom.name}**`]);
       return { ok: true, shouldSelectCliInput };
     }
 

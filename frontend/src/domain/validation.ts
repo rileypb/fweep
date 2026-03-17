@@ -251,7 +251,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     return {
       pan: { x: 0, y: 0 },
       zoom: 1,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -264,7 +264,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     return {
       pan: { x: 0, y: 0 },
       zoom: 1,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -279,7 +279,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     ? 1
     : requireFiniteNumber(view.zoom, issues, 'view.zoom', 'map', 'root');
   const visualStyleValue = view.visualStyle === undefined
-    ? 'default'
+    ? 'square-classic'
     : requireString(view.visualStyle, issues, 'view.visualStyle', 'map', 'root');
   const showGrid = view.showGrid === undefined
     ? true
@@ -299,7 +299,7 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
 
   const visualStyle = visualStyleValue !== null && MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])
     ? visualStyleValue as typeof MAP_VISUAL_STYLES[number]
-    : 'default';
+    : 'square-classic';
 
   return {
     pan: {

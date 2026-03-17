@@ -240,7 +240,7 @@ function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
       y: typeof view?.pan?.y === 'number' ? view.pan.y : 0,
     },
     zoom: typeof view?.zoom === 'number' && Number.isFinite(view.zoom) ? view.zoom : 1,
-    visualStyle: view?.visualStyle && MAP_VISUAL_STYLES.includes(view.visualStyle) ? view.visualStyle : 'default',
+    visualStyle: view?.visualStyle && MAP_VISUAL_STYLES.includes(view.visualStyle) ? view.visualStyle : 'square-classic',
     showGrid: typeof view?.showGrid === 'boolean' ? view.showGrid : true,
     snapToGrid: typeof view?.snapToGrid === 'boolean' ? view.snapToGrid : true,
     useBezierConnections: typeof view?.useBezierConnections === 'boolean' ? view.useBezierConnections : false,

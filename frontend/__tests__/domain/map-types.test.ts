@@ -38,7 +38,7 @@ describe('createEmptyMap', () => {
     expect(doc.view).toEqual({
       pan: { x: 0, y: 0 },
       zoom: 1,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -63,6 +63,7 @@ describe('createRoom', () => {
     const room = createRoom('Kitchen');
 
     expect(room.locked).toBe(false);
+    expect(room.shape).toBe('rectangle');
     expect(room.fillColorIndex).toBe(0);
     expect(room.strokeColorIndex).toBe(0);
     expect(room.strokeStyle).toBe('solid');

@@ -212,7 +212,7 @@ export function createEmptyMap(name: string): MapDocument {
     view: {
       pan: { x: 0, y: 0 },
       zoom: 1,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -239,7 +239,7 @@ export function createRoom(name: string): Room {
     directions: {},
     isDark: false,
     locked: false,
-    shape: 'box',
+    shape: 'rectangle',
     fillColorIndex: DEFAULT_ROOM_FILL_COLOR_INDEX,
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,

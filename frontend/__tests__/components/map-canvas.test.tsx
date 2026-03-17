@@ -1829,7 +1829,8 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
 
-    it('opens the room editor for a new room without creating it immediately', () => {
+    it('opens the room editor for a new room without creating it immediately', async () => {
+      const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
 
@@ -1842,6 +1843,11 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /room name/i })).toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
+
+      await user.click(screen.getByRole('button', { name: /save room editor/i }));
+
+      const room = Object.values(useEditorStore.getState().doc!.rooms)[0];
+      expect(room.shape).toBe('rectangle');
     });
 
     it('treats a room-placement click as the center of the new room', async () => {

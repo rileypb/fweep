@@ -259,7 +259,7 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.view).toEqual({
       pan: { x: 0, y: 0 },
       zoom: 1,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -297,7 +297,7 @@ describe('parseUntrustedMapDocument', () => {
     expect(parsed.view).toEqual({
       pan: { x: 12, y: -8 },
       zoom: 1.5,
-      visualStyle: 'default',
+      visualStyle: 'square-classic',
       showGrid: false,
       snapToGrid: false,
       useBezierConnections: true,
