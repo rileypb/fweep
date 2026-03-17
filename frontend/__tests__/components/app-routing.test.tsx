@@ -1908,6 +1908,78 @@ describe('URL routing', () => {
     expect(state.doc?.rooms.pantry?.directions.west).toBe(connections[0].id);
   });
 
+  it('updates all connections between two rooms for connection annotation CLI commands and can clear them again', async () => {
+    const sharedDoor = {
+      ...createConnection('bedroom', { kind: 'room', id: 'bathroom' }),
+      id: 'bedroom-to-bathroom',
+      isBidirectional: true as const,
+    };
+    const reverseOneWay = {
+      ...createConnection('bathroom', { kind: 'room', id: 'bedroom' }),
+      id: 'bathroom-to-bedroom',
+      isBidirectional: false as const,
+    };
+    let doc = createEmptyMap('CLI Connection Annotation Map');
+    doc = {
+      ...doc,
+      rooms: {
+        bedroom: {
+          id: 'bedroom',
+          name: 'Bedroom',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: { east: sharedDoor.id, south: reverseOneWay.id },
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        bathroom: {
+          id: 'bathroom',
+          name: 'Bathroom',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: { west: sharedDoor.id },
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+      connections: {
+        [sharedDoor.id]: sharedDoor,
+        [reverseOneWay.id]: reverseOneWay,
+      },
+    };
+    await saveMap(doc);
+
+    navigateTo(`#/map/${doc.metadata.id}`);
+
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText(/cli connection annotation map/i);
+
+    const input = screen.getByRole('textbox', { name: /cli command/i });
+    await user.type(input, 'bedroom to bathroom is a locked door{enter}');
+
+    let state = useEditorStore.getState();
+    expect(state.doc?.connections[sharedDoor.id]?.annotation).toEqual({ kind: 'locked door' });
+    expect(state.doc?.connections[reverseOneWay.id]?.annotation).toEqual({ kind: 'locked door' });
+    expectGameOutputToContain('bedroom to bathroom is a locked door', 'Marked.');
+
+    await user.clear(input);
+    await user.type(input, 'bedroom to bathroom is clear{enter}');
+
+    state = useEditorStore.getState();
+    expect(state.doc?.connections[sharedDoor.id]?.annotation).toBeNull();
+    expect(state.doc?.connections[reverseOneWay.id]?.annotation).toBeNull();
+    expectGameOutputToContain('bedroom to bathroom is clear', 'Cleared.');
+  });
+
   it('reports an unknown room for connect when a named room does not exist', async () => {
     let doc = createEmptyMap('CLI Connect Error Map');
     doc = {

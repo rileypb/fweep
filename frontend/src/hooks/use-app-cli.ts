@@ -97,6 +97,21 @@ function getRoomNavigationTarget(doc: MapDocument, room: Room, direction: string
   return null;
 }
 
+function getConnectionIdsBetweenRooms(doc: MapDocument, sourceRoomId: string, targetRoomId: string): string[] {
+  return Object.values(doc.connections)
+    .filter((connection) => {
+      if (connection.target.kind !== 'room') {
+        return false;
+      }
+
+      return (
+        (connection.sourceRoomId === sourceRoomId && connection.target.id === targetRoomId)
+        || (connection.sourceRoomId === targetRoomId && connection.target.id === sourceRoomId)
+      );
+    })
+    .map((connection) => connection.id);
+}
+
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
@@ -134,6 +149,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Shown.';
     case 'set-room-adjective':
       return `Marked as ${command.adjective.text}.`;
+    case 'set-connection-annotation':
+      return command.annotation === null ? 'Cleared.' : 'Marked.';
     case 'connect':
       return 'Connected.';
     case 'create-and-connect':
@@ -217,6 +234,7 @@ export function useAppCli({
   const removeItemsFromRoom = useEditorStore((s) => s.removeItemsFromRoom);
   const removeRoom = useEditorStore((s) => s.removeRoom);
   const setRoomDark = useEditorStore((s) => s.setRoomDark);
+  const setConnectionAnnotations = useEditorStore((s) => s.setConnectionAnnotations);
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const storeDoc = useEditorStore((s) => s.doc);
   const undo = useEditorStore((s) => s.undo);
@@ -399,7 +417,7 @@ export function useAppCli({
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'put-items' | 'take-items' | 'take-all-items',
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'set-connection-annotation' | 'put-items' | 'take-items' | 'take-all-items',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -652,6 +670,43 @@ export function useAppCli({
       }
       applyCliRoomAdjective(roomMatch.room.id, command.adjective);
       setCliPronounRoomReference(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'set-connection-annotation' && currentDoc !== null) {
+      const sourceRoomMatch = resolveRoomByCliReference(currentDoc, command.sourceRoom.text, command.sourceRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'set-connection-annotation', command.sourceRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (sourceRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, targetRoomMatch, 'set-connection-annotation', command.targetRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (targetRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const connectionIds = getConnectionIdsBetweenRooms(currentDoc, sourceRoomMatch.room.id, targetRoomMatch.room.id);
+      if (connectionIds.length === 0) {
+        appendGameOutput([
+          formatCliEcho(trimmedInput),
+          `There are no connections between ${sourceRoomMatch.room.name} and ${targetRoomMatch.room.name}.`,
+        ]);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      setConnectionAnnotations(
+        connectionIds,
+        command.annotation === null ? null : { kind: command.annotation },
+      );
+      if (!isCliPronounReference(command.targetRoom.text)) {
+        setCliPronounRoomReference(sourceRoomMatch.room.id);
+      }
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }

@@ -12,6 +12,7 @@ export type CliErrorCommandKind =
   | 'connect'
   | 'create-and-connect'
   | 'set-room-adjective'
+  | 'set-connection-annotation'
   | 'put-items'
   | 'take-items'
   | 'take-all-items'

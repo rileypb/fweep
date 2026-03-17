@@ -31,6 +31,12 @@ export type CliCommand =
   | { readonly kind: 'edit'; readonly room: CliRoomReference }
   | { readonly kind: 'show'; readonly room: CliRoomReference }
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
+  | {
+    readonly kind: 'set-connection-annotation';
+    readonly sourceRoom: CliRoomReference;
+    readonly targetRoom: CliRoomReference;
+    readonly annotation: 'door' | 'locked door' | null;
+  }
   | { readonly kind: 'notate'; readonly room: CliRoomReference; readonly noteText: string }
   | {
     readonly kind: 'connect';
@@ -73,6 +79,9 @@ export const CLI_COMMAND_FORMS = [
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'show/s/go to <room name>',
+  '<room name> to <room name> is [a] door',
+  '<room name> to <room name> is [a] locked door',
+  '<room name> to <room name> is clear',
   '<room name> is dark',
   '<room name> is lit',
   'create/c <room name>, which is <adjective>',
@@ -777,6 +786,64 @@ function parseCreateCommand(tokens: readonly Token[]): Extract<CliCommand, { kin
   };
 }
 
+function parseConnectionAnnotationCommand(
+  tokens: readonly Token[],
+): Extract<CliCommand, { kind: 'set-connection-annotation' }> | null {
+  const isIndex = tokens.findIndex((token, index) => index > 1 && isTokenValue(token, 'is'));
+  if (isIndex === -1) {
+    return null;
+  }
+
+  const toIndex = tokens.findIndex((token, index) => index > 0 && index < isIndex && isTokenValue(token, 'to'));
+  if (toIndex === -1) {
+    return null;
+  }
+
+  const sourceRoom = readRoomName(tokens, 0, (token) => token === tokens[toIndex]);
+  if (sourceRoom === null || sourceRoom.nextIndex !== toIndex) {
+    return null;
+  }
+
+  const targetRoom = readRoomName(tokens, toIndex + 1, (token) => token === tokens[isIndex]);
+  if (targetRoom === null || targetRoom.nextIndex !== isIndex) {
+    return null;
+  }
+
+  const tailTokens = tokens.slice(isIndex + 1).map((token) => token.value.toLowerCase());
+  if (tailTokens.length === 1 && tailTokens[0] === 'clear') {
+    return {
+      kind: 'set-connection-annotation',
+      sourceRoom: sourceRoom.reference,
+      targetRoom: targetRoom.reference,
+      annotation: null,
+    };
+  }
+
+  if ((tailTokens.length === 1 && tailTokens[0] === 'door') || (tailTokens.length === 2 && tailTokens[0] === 'a' && tailTokens[1] === 'door')) {
+    return {
+      kind: 'set-connection-annotation',
+      sourceRoom: sourceRoom.reference,
+      targetRoom: targetRoom.reference,
+      annotation: 'door',
+    };
+  }
+
+  if (
+    (tailTokens.length === 1 && tailTokens[0] === 'locked')
+    || (tailTokens.length === 2 && tailTokens[0] === 'locked' && tailTokens[1] === 'door')
+    || (tailTokens.length === 3 && tailTokens[0] === 'a' && tailTokens[1] === 'locked' && tailTokens[2] === 'door')
+  ) {
+    return {
+      kind: 'set-connection-annotation',
+      sourceRoom: sourceRoom.reference,
+      targetRoom: targetRoom.reference,
+      annotation: 'locked door',
+    };
+  }
+
+  return null;
+}
+
 export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
@@ -932,6 +999,11 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
+  const connectionAnnotationCommand = parseConnectionAnnotationCommand(tokens);
+  if (connectionAnnotationCommand !== null) {
+    return connectionAnnotationCommand;
+  }
+
   const lightingRoom = readRoomName(tokens, 0, (token) => isTokenValue(token, 'is'));
   if (
     lightingRoom !== null
@@ -1013,6 +1085,14 @@ function describeCliCommand(command: CliCommand): string {
       return `scroll the map to ${command.room.text}`;
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
+    case 'set-connection-annotation':
+      if (command.annotation === 'door') {
+        return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;
+      }
+      if (command.annotation === 'locked door') {
+        return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as locked doors`;
+      }
+      return `clear all connection annotations between ${command.sourceRoom.text} and ${command.targetRoom.text}`;
     case 'notate':
       return `create a sticky note on ${command.room.text} saying ${command.noteText}`;
     case 'undo':

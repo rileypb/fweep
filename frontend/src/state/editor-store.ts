@@ -461,6 +461,9 @@ export interface EditorState {
   /** Update an existing connection's annotation. */
   setConnectionAnnotation: (connectionId: string, annotation: ConnectionAnnotation | null) => void;
 
+  /** Update several existing connections' annotations in one history step. */
+  setConnectionAnnotations: (connectionIds: readonly string[], annotation: ConnectionAnnotation | null) => void;
+
   /** Update an existing connection's endpoint labels. */
   setConnectionLabels: (
     connectionId: string,
@@ -1605,6 +1608,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw new Error('Cannot set connection annotation: no document is loaded.');
     }
     const updatedDoc = domainSetConnectionAnnotation(doc, connectionId, annotation);
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setConnectionAnnotations: (connectionIds, annotation) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot set connection annotations: no document is loaded.');
+    }
+
+    let updatedDoc = doc;
+    for (const connectionId of connectionIds) {
+      updatedDoc = domainSetConnectionAnnotation(updatedDoc, connectionId, annotation);
+    }
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
