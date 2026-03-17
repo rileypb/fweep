@@ -15,6 +15,7 @@ const SPRING_STRENGTH = 0.14;
 const ANCHOR_STRENGTH = 0.035;
 const REPULSION_STRENGTH = 18_000;
 const MAX_STEP = 18;
+const MAX_STABILIZATION_PASSES = 6;
 
 interface Vector {
   x: number;
@@ -31,6 +32,11 @@ interface PrettifiedLayoutPositions {
   readonly roomPositions: Readonly<Record<string, Position>>;
   readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
   readonly stickyNotePositions: Readonly<Record<string, Position>>;
+}
+
+interface PrettifiedRoomLayout {
+  readonly roomPositions: Readonly<Record<string, Position>>;
+  readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
 }
 
 const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
@@ -163,6 +169,61 @@ function positionsEqual(
   }
 
   return true;
+}
+
+function getPositionsSignature(positions: Readonly<Record<string, Position>>): string {
+  return Object.entries(positions)
+    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
+    .map(([roomId, position]) => `${roomId}:${position.x},${position.y}`)
+    .join('|');
+}
+
+function getLayoutSignature(layout: PrettifiedRoomLayout): string {
+  return `${getPositionsSignature(layout.roomPositions)}::${getPositionsSignature(layout.pseudoRoomPositions)}`;
+}
+
+function getLayoutMovementScore(
+  layout: PrettifiedRoomLayout,
+  currentRoomPositions: Readonly<Record<string, Position>>,
+  currentPseudoRoomPositions: Readonly<Record<string, Position>>,
+): number {
+  const roomScore = Object.entries(layout.roomPositions).reduce((total, [roomId, position]) => {
+    const currentPosition = currentRoomPositions[roomId];
+    if (!currentPosition) {
+      return total;
+    }
+
+    return total + ((position.x - currentPosition.x) ** 2) + ((position.y - currentPosition.y) ** 2);
+  }, 0);
+  const pseudoRoomScore = Object.entries(layout.pseudoRoomPositions).reduce((total, [pseudoRoomId, position]) => {
+    const currentPosition = currentPseudoRoomPositions[pseudoRoomId];
+    if (!currentPosition) {
+      return total;
+    }
+
+    return total + ((position.x - currentPosition.x) ** 2) + ((position.y - currentPosition.y) ** 2);
+  }, 0);
+
+  return roomScore + pseudoRoomScore;
+}
+
+export function pickMostStablePrettifiedLayout(
+  candidates: readonly PrettifiedRoomLayout[],
+  currentRoomPositions: Readonly<Record<string, Position>>,
+  currentPseudoRoomPositions: Readonly<Record<string, Position>>,
+): PrettifiedRoomLayout {
+  if (candidates.length === 0) {
+    return {
+      roomPositions: currentRoomPositions,
+      pseudoRoomPositions: currentPseudoRoomPositions,
+    };
+  }
+
+  return candidates.reduce((bestLayout, candidateLayout) => {
+    const bestScore = getLayoutMovementScore(bestLayout, currentRoomPositions, currentPseudoRoomPositions);
+    const candidateScore = getLayoutMovementScore(candidateLayout, currentRoomPositions, currentPseudoRoomPositions);
+    return candidateScore < bestScore ? candidateLayout : bestLayout;
+  });
 }
 
 function withRoomPositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
@@ -961,35 +1022,39 @@ function computePrettifiedRoomPositionsSinglePass(
 function computeStablePrettifiedPositions(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string>,
-): { readonly roomPositions: Readonly<Record<string, Position>>; readonly pseudoRoomPositions: Readonly<Record<string, Position>> } {
+): PrettifiedRoomLayout {
   const currentRoomPositions = Object.fromEntries(
     Object.entries(doc.rooms).map(([roomId, room]) => [roomId, room.position]),
   ) as Record<string, Position>;
   const currentPseudoRoomPositions = Object.fromEntries(
     Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [pseudoRoomId, pseudoRoom.position]),
   ) as Record<string, Position>;
-  const firstPass = computePrettifiedRoomPositionsSinglePass(doc, extraLockedRoomIds);
-  const secondPassDoc = withPseudoRoomPositions(withRoomPositions(doc, firstPass.roomPositions), firstPass.pseudoRoomPositions);
-  const secondPass = computePrettifiedRoomPositionsSinglePass(secondPassDoc, extraLockedRoomIds);
+  const seenLayouts = new Map<string, number>();
+  const candidateLayouts: PrettifiedRoomLayout[] = [];
+  let workingDoc = doc;
 
-  if (
-    positionsEqual(firstPass.roomPositions, secondPass.roomPositions)
-    && positionsEqual(firstPass.pseudoRoomPositions, secondPass.pseudoRoomPositions)
-  ) {
-    return firstPass;
+  for (let iteration = 0; iteration < MAX_STABILIZATION_PASSES; iteration += 1) {
+    const nextLayout = computePrettifiedRoomPositionsSinglePass(workingDoc, extraLockedRoomIds);
+    const nextSignature = getLayoutSignature(nextLayout);
+
+    const seenIndex = seenLayouts.get(nextSignature);
+    if (seenIndex !== undefined) {
+      return pickMostStablePrettifiedLayout(
+        candidateLayouts.slice(seenIndex),
+        currentRoomPositions,
+        currentPseudoRoomPositions,
+      );
+    }
+
+    seenLayouts.set(nextSignature, candidateLayouts.length);
+    candidateLayouts.push(nextLayout);
+    workingDoc = withPseudoRoomPositions(withRoomPositions(workingDoc, nextLayout.roomPositions), nextLayout.pseudoRoomPositions);
   }
 
-  if (
-    positionsEqual(secondPass.roomPositions, currentRoomPositions)
-    && positionsEqual(secondPass.pseudoRoomPositions, currentPseudoRoomPositions)
-  ) {
-    return {
-      roomPositions: currentRoomPositions,
-      pseudoRoomPositions: currentPseudoRoomPositions,
-    };
-  }
-
-  return firstPass;
+  return candidateLayouts[0] ?? {
+    roomPositions: currentRoomPositions,
+    pseudoRoomPositions: currentPseudoRoomPositions,
+  };
 }
 
 export function computePrettifiedRoomPositions(

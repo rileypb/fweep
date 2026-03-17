@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
@@ -14,6 +14,29 @@ describe('MapCanvas export flow', () => {
   beforeEach(() => {
     resetStore();
     useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+  });
+
+  it('downloads the current map as JSON from the header button', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), id: 'room-1', position: { x: 40, y: 60 } };
+    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+
+    const createObjectURL = jest.fn<(blob: Blob) => string>().mockReturnValue('blob:map-json');
+    const revokeObjectURL = jest.fn<(url: string) => void>();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, writable: true, value: revokeObjectURL });
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    render(<MapCanvas mapName="Test" />);
+
+    await user.click(screen.getByRole('button', { name: 'Export JSON' }));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const exportedBlob = createObjectURL.mock.calls[0][0];
+    expect(exportedBlob).toBeInstanceOf(Blob);
+    expect(exportedBlob.type).toBe('application/json');
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:map-json');
   });
 
   it('opens the export dialog from the header button', async () => {

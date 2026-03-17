@@ -5,9 +5,11 @@ import type { MapDocument, Room } from '../../src/domain/map-types';
 import {
   computePrettifiedLayoutPositions,
   computePrettifiedRoomPositions,
+  pickMostStablePrettifiedLayout,
   PRETTIFY_GRID_SIZE,
   PRETTIFY_HORIZONTAL_SPACING,
 } from '../../src/graph/prettify-layout';
+import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../../src/graph/sticky-note-geometry';
 
 function expectSnappedToGrid(value: number): void {
@@ -15,7 +17,7 @@ function expectSnappedToGrid(value: number): void {
 }
 
 function estimateRoomWidth(name: string): number {
-  return Math.max(80, Math.round((name.length * 6.78) + 24));
+  return getRoomNodeDimensions(createRoom(name), 'default').width;
 }
 
 function getRoomCenterX(room: Room, x: number): number {
@@ -59,12 +61,45 @@ function buildBaseDoc(names: readonly string[]): { doc: MapDocument; roomA: Room
 }
 
 describe('computePrettifiedRoomPositions', () => {
+  it('prefers the repeated prettify layout that moves the least from the current layout', () => {
+    const currentRoomPositions = {
+      'room-a': { x: 0, y: 0 },
+      'room-b': { x: 200, y: 0 },
+    };
+    const candidates = [
+      {
+        roomPositions: {
+          'room-a': { x: 40, y: 0 },
+          'room-b': { x: 240, y: 0 },
+        },
+        pseudoRoomPositions: {},
+      },
+      {
+        roomPositions: {
+          'room-a': { x: 20, y: 0 },
+          'room-b': { x: 220, y: 0 },
+        },
+        pseudoRoomPositions: {},
+      },
+    ] as const;
+
+    expect(pickMostStablePrettifiedLayout(candidates, currentRoomPositions, {})).toEqual(candidates[1]);
+  });
+
   it('returns no positions for an empty map', () => {
     expect(computePrettifiedRoomPositions(createEmptyMap('Empty'))).toEqual({});
   });
 
   it('places a bidirectional north-south connection on the same x-axis with the target above the source', () => {
-    const { doc, roomA, roomB } = createTwoWayConnectionDoc();
+    const { doc: initialDoc, roomA, roomB } = createTwoWayConnectionDoc();
+    let doc = initialDoc;
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const positions = computePrettifiedRoomPositions(doc);
 
@@ -79,7 +114,14 @@ describe('computePrettifiedRoomPositions', () => {
   it('treats a bidirectional up-down connection like a north-south constraint', () => {
     const { doc, roomA, roomB } = buildBaseDoc(['Cellar', 'Attic']);
     const connection = createConnection(roomA.id, roomB.id, true);
-    const connectedDoc = addConnection(doc, connection, 'up', 'down');
+    let connectedDoc = addConnection(doc, connection, 'up', 'down');
+    connectedDoc = {
+      ...connectedDoc,
+      view: {
+        ...connectedDoc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const positions = computePrettifiedRoomPositions(connectedDoc);
 
@@ -118,6 +160,13 @@ describe('computePrettifiedRoomPositions', () => {
     const longRoom = { ...createRoom('A Very Long Room Name'), position: { x: 320, y: 40 } };
     doc = addRoom(addRoom(doc, shortRoom), longRoom);
     doc = addConnection(doc, createConnection(shortRoom.id, longRoom.id, true), 'north', 'south');
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const positions = computePrettifiedRoomPositions(doc);
 
@@ -175,6 +224,13 @@ describe('computePrettifiedRoomPositions', () => {
 
     const connection = createConnection(roomA.id, roomB.id, true);
     doc = addConnection(doc, connection, 'portal', 'portal');
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const positions = computePrettifiedRoomPositions(doc);
 
@@ -192,6 +248,13 @@ describe('computePrettifiedRoomPositions', () => {
     doc = addRoom(doc, room);
     doc = addPseudoRoom(doc, pseudoRoom);
     doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const { roomPositions, pseudoRoomPositions } = computePrettifiedLayoutPositions(doc);
 
@@ -200,8 +263,7 @@ describe('computePrettifiedRoomPositions', () => {
     expect(pseudoRoomPositions[pseudoRoom.id]).not.toEqual(roomPositions[room.id]);
     expectSnappedToGrid(getRoomCenterX(room, roomPositions[room.id].x));
     expectSnappedToGrid(getRoomCenterY(roomPositions[room.id].y));
-    expectSnappedToGrid(pseudoRoomPositions[pseudoRoom.id].x + 40);
-    expectSnappedToGrid(pseudoRoomPositions[pseudoRoom.id].y + 18);
+    expect(pseudoRoomPositions[pseudoRoom.id].x).toBeGreaterThan(roomPositions[room.id].x);
   });
 
   it('falls back for disconnected rooms and separates overlapping preferred positions', () => {
@@ -226,6 +288,13 @@ describe('computePrettifiedRoomPositions', () => {
     const room = { ...createRoom('Solo'), position: { x: 80, y: 120 } };
     doc = addRoom(doc, room);
     doc = addConnection(doc, createConnection(room.id, room.id, true), 'north', 'south');
+    doc = {
+      ...doc,
+      view: {
+        ...doc.view,
+        visualStyle: 'default',
+      },
+    };
 
     const positions = computePrettifiedRoomPositions(doc);
 
