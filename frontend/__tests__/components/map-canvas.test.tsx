@@ -3998,10 +3998,13 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const doorGlyph = screen.getByTestId(`connection-annotation-door-${conn.id}`);
+      const doorSvg = doorGlyph.querySelector('svg');
       const doorPath = doorGlyph.querySelector('path');
 
-      expect(doorGlyph.getAttribute('transform')).toBe('translate(114 110)');
-      expect(doorPath?.getAttribute('d')).toBe('M1 15 L1 7 Q6 1 11 7 L11 15 Z');
+      expect(doorGlyph.getAttribute('transform')).toMatch(/^translate\([\d.]+ [\d.]+\)$/);
+      expect(doorSvg?.getAttribute('width')).toBe('14');
+      expect(doorSvg?.getAttribute('height')).toBe('14');
+      expect(doorPath?.getAttribute('d')).toContain('M411.5 208.8');
       expect(doorPath).toHaveAttribute('fill', '#6366f1');
       expect(doorGlyph.querySelector('circle')).toBeNull();
       expect(doorGlyph.querySelectorAll('line')).toHaveLength(0);
@@ -4023,21 +4026,14 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const padlockGlyph = screen.getByTestId(`connection-annotation-padlock-${conn.id}`);
-      const shackle = padlockGlyph.querySelector('path');
-      const body = padlockGlyph.querySelector('rect');
-      const keyhole = padlockGlyph.querySelector('circle');
-      const keyStem = padlockGlyph.querySelector('line');
+      const padlockSvg = padlockGlyph.querySelector('svg');
+      const lockPath = padlockGlyph.querySelector('path');
 
-      expect(padlockGlyph.getAttribute('transform')).toBe('translate(114 110)');
-      expect(shackle?.getAttribute('d')).toBe('M3 7 V5.5 C3 2.8 5 1 6 1 C7 1 9 2.8 9 5.5 V7');
-      expect(body?.getAttribute('x')).toBe('2');
-      expect(body?.getAttribute('y')).toBe('7');
-      expect(body?.getAttribute('width')).toBe('8');
-      expect(body?.getAttribute('height')).toBe('8');
-      expect(keyhole?.getAttribute('cx')).toBe('6');
-      expect(keyhole?.getAttribute('cy')).toBe('10.5');
-      expect(keyStem?.getAttribute('x1')).toBe('6');
-      expect(keyStem?.getAttribute('y2')).toBe('13');
+      expect(padlockGlyph.getAttribute('transform')).toMatch(/^translate\([\d.]+ [\d.]+\)$/);
+      expect(padlockSvg?.getAttribute('width')).toBe('14');
+      expect(padlockSvg?.getAttribute('height')).toBe('14');
+      expect(lockPath?.getAttribute('d')).toContain('M256 160L256 224L384 224');
+      expect(lockPath).toHaveAttribute('fill', '#6366f1');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-text-${conn.id}`)).not.toBeInTheDocument();

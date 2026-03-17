@@ -27,8 +27,11 @@ import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { getRoomForVisualStyle } from '../graph/room-label-geometry';
 import { getRoomStrokeDasharray } from './map-canvas-helpers';
 import { getStickyNoteCenter } from '../graph/sticky-note-geometry';
-import { PADLOCK_HEIGHT, PADLOCK_WIDTH } from '../graph/padlock-geometry';
-import { PadlockGlyph } from './padlock-glyph';
+import {
+  ConnectionAnnotationIcon,
+  CONNECTION_DOOR_ICON_SIZE,
+  CONNECTION_LOCKED_DOOR_ICON_SIZE,
+} from './connection-annotation-icon';
 import type { PanOffset } from './use-map-viewport';
 import {
   getAnnotationGeometryFromRenderGeometry,
@@ -47,8 +50,6 @@ const CONNECTION_ANNOTATION_ARROWHEAD_WIDTH = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
-const CONNECTION_DOOR_WIDTH = 12;
-const CONNECTION_DOOR_HEIGHT = 16;
 const CONNECTION_REROUTE_HANDLE_RADIUS = 8;
 const CONNECTION_REROUTE_HANDLE_INNER_RADIUS = 4;
 function applyDragOffset(
@@ -780,28 +781,20 @@ export function MapCanvasConnections({
           <g
             data-testid={`connection-annotation-door-${conn.id}`}
             className="connection-annotation-door"
-            transform={`translate(${doorCenter.x - (CONNECTION_DOOR_WIDTH / 2)} ${doorCenter.y - (CONNECTION_DOOR_HEIGHT / 2)})`}
+            transform={`translate(${doorCenter.x - (CONNECTION_DOOR_ICON_SIZE / 2)} ${doorCenter.y - (CONNECTION_DOOR_ICON_SIZE / 2)})`}
             pointerEvents="none"
           >
-            <path
-              d={`M1 ${CONNECTION_DOOR_HEIGHT - 1} L1 7 Q${CONNECTION_DOOR_WIDTH / 2} 1 ${CONNECTION_DOOR_WIDTH - 1} 7 L${CONNECTION_DOOR_WIDTH - 1} ${CONNECTION_DOOR_HEIGHT - 1} Z`}
-              fill={connectionStroke}
-              stroke={connectionStroke}
-              strokeWidth="1.5"
-            />
+            <ConnectionAnnotationIcon kind="door" color={connectionStroke} />
           </g>
         )}
         {lockedDoorCenter && (
           <g
             data-testid={`connection-annotation-padlock-${conn.id}`}
             className="connection-annotation-padlock"
-            transform={`translate(${lockedDoorCenter.x - (PADLOCK_WIDTH / 2)} ${lockedDoorCenter.y - (PADLOCK_HEIGHT / 2)})`}
+            transform={`translate(${lockedDoorCenter.x - (CONNECTION_LOCKED_DOOR_ICON_SIZE / 2)} ${lockedDoorCenter.y - (CONNECTION_LOCKED_DOOR_ICON_SIZE / 2)})`}
             pointerEvents="none"
           >
-            <PadlockGlyph
-              bodyColor={connectionStroke}
-              keyholeColor={theme === 'dark' ? '#111827' : '#ffffff'}
-            />
+            <ConnectionAnnotationIcon kind="locked door" color={connectionStroke} />
           </g>
         )}
       </>
