@@ -2267,11 +2267,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const { sourceRoomId, sourceDirection } = connectionDrag;
     const isSelfConnection = sourceRoomId === targetRoomId;
+    const normalizedTargetDirection =
+      targetDirection === undefined ? undefined : normalizeDirection(targetDirection);
+
+    if (isSelfConnection && normalizedTargetDirection === sourceDirection) {
+      set({ connectionDrag: null });
+      return;
+    }
 
     // Resolve target direction: use the explicit handle the user dropped on,
     // fall back to the opposite of the source direction, or undefined for self-connections.
-    const resolvedTargetDir = targetDirection
-      ? normalizeDirection(targetDirection)
+    const resolvedTargetDir = normalizedTargetDirection
+      ? normalizedTargetDirection
       : isSelfConnection
         ? undefined
         : oppositeDirection(sourceDirection);

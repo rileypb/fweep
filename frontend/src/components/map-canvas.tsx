@@ -403,7 +403,7 @@ export function MapCanvas({
         return;
       }
 
-      if (isEditableTarget(event.target)) {
+      if (isEditableTarget(event.target) || isEditableTarget(document.activeElement)) {
         return;
       }
 
@@ -442,20 +442,20 @@ export function MapCanvas({
         return;
       }
 
-      if (drawingInterfaceEnabled && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
+      if (drawingInterfaceEnabled && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'd') {
         event.preventDefault();
         setCanvasInteractionMode(canvasInteractionMode === 'draw' ? 'map' : 'draw');
         return;
       }
 
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
+      if (!event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'n') {
         event.preventDefault();
         setIsRoomPlacementArmed(false);
         setIsNotePlacementArmed(true);
         return;
       }
 
-      if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
+      if (!event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === 'r') {
         event.preventDefault();
         setIsNotePlacementArmed(false);
         setIsRoomPlacementArmed(true);

@@ -1886,6 +1886,29 @@ describe('MapCanvas', () => {
       expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
     });
 
+    it('does not arm room placement when R is pressed while a text input is focused', () => {
+      const doc = createEmptyMap('Test');
+      useEditorStore.getState().loadDocument(doc);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const externalInput = document.createElement('input');
+      document.body.append(externalInput);
+      externalInput.focus();
+
+      try {
+        fireEvent.keyDown(window, { key: 'r' });
+
+        const canvas = screen.getByTestId('map-canvas');
+        fireEvent.click(canvas, { clientX: 100, clientY: 100 });
+
+        expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
+        expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(0);
+      } finally {
+        externalInput.remove();
+      }
+    });
+
     it('cancels room placement when Escape is pressed before the click', () => {
       const doc = createEmptyMap('Test');
       useEditorStore.getState().loadDocument(doc);
@@ -2708,6 +2731,24 @@ describe('MapCanvas', () => {
       expect(connections[0].isBidirectional).toBe(true);
       expect(doc.rooms[kitchenId].directions['north']).toBe(connections[0].id);
       expect(doc.rooms[kitchenId].directions['east']).toBe(connections[0].id);
+    });
+
+    it('cancels silently when releasing on the same handle', () => {
+      setupTwoRooms();
+      render(<MapCanvas mapName="Test" />);
+
+      const roomNodes = screen.getAllByTestId('room-node');
+      const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = within(kitchenNode).getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 200, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 102, clientY: 198 });
+      fireEvent.mouseUp(handle, { clientX: 100, clientY: 200 });
+
+      const doc = useEditorStore.getState().doc!;
+      expect(Object.values(doc.connections)).toHaveLength(0);
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
     });
 
     it('opens a chooser when releasing on empty canvas and can create a room from it', async () => {

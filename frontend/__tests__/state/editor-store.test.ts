@@ -1147,6 +1147,19 @@ describe('useEditorStore', () => {
       expect(doc.rooms[kitchenId].directions['east']).toBe(conn.id);
     });
 
+    it('completeConnectionDrag cancels silently when dropped back on the same handle', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      useEditorStore.getState().completeConnectionDrag(kitchenId, 'north');
+
+      const doc = useEditorStore.getState().doc!;
+      expect(Object.values(doc.connections)).toHaveLength(0);
+      expect(doc.rooms[kitchenId].directions).toEqual({});
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+    });
+
     it('completeConnectionDrag does nothing when no drag is active', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
