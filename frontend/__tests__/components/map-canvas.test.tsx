@@ -10,9 +10,26 @@ import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
 import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../../src/graph/sticky-note-geometry';
+import type { MapDocument } from '../../src/domain/map-types';
+import type { MapCanvasProps } from '../../src/components/map-canvas';
 
 function resetStore(): void {
   useEditorStore.setState(useEditorStore.getInitialState());
+}
+
+function loadDocumentAct(doc: MapDocument): void {
+  act(() => {
+    useEditorStore.getState().loadDocument(doc);
+  });
+}
+
+function renderMapCanvas(props: Partial<MapCanvasProps> = {}): ReturnType<typeof render> {
+  return render(<MapCanvas mapName="Test" {...props} />);
+}
+
+function renderLoadedMap(doc: MapDocument, props: Partial<MapCanvasProps> = {}): ReturnType<typeof render> {
+  loadDocumentAct(doc);
+  return renderMapCanvas(props);
 }
 
 describe('MapCanvas', () => {
@@ -36,9 +53,7 @@ describe('MapCanvas', () => {
 
   it('shows a placeholder minimap when the document has no rooms', () => {
     const doc = createEmptyMap('Test');
-    useEditorStore.getState().loadDocument(doc);
-
-    render(<MapCanvas mapName="Test" />);
+    renderLoadedMap(doc);
 
     expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
     expect(screen.queryByTestId('map-minimap-viewport')).not.toBeInTheDocument();
@@ -47,28 +62,26 @@ describe('MapCanvas', () => {
   it('shows the minimap when the document has rooms', () => {
     const doc = createEmptyMap('Test');
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-    useEditorStore.getState().loadDocument(addRoom(doc, room));
-
-    render(<MapCanvas mapName="Test" />);
+    renderLoadedMap(addRoom(doc, room));
 
     expect(screen.getByTestId('map-minimap')).toBeInTheDocument();
   });
 
   it('shows the background grid by default', () => {
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
     const canvas = screen.getByTestId('map-canvas');
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
   it('keeps drawing controls hidden and defaults to map interaction mode', () => {
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.queryByTestId('map-drawing-toolbar')).not.toBeInTheDocument();
     expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
   });
 
   it('uses the map-mode cursor on empty canvas by default', () => {
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId('map-canvas')).toHaveClass('map-canvas--map-mode');
     expect(screen.getByTestId('map-canvas')).not.toHaveClass('map-canvas--draw-mode');
@@ -78,7 +91,7 @@ describe('MapCanvas', () => {
   it('forces persisted draw mode back to map mode', async () => {
     useEditorStore.getState().setCanvasInteractionMode('draw');
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     await waitFor(() => {
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
@@ -90,12 +103,12 @@ describe('MapCanvas', () => {
   it('keeps room and sticky-note pointer interaction enabled', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
-    useEditorStore.getState().loadDocument({
+    loadDocumentAct({
       ...addRoom(createEmptyMap('Test'), room),
       stickyNotes: { [stickyNote.id]: stickyNote },
     });
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId('room-node')).not.toHaveStyle({ pointerEvents: 'none' });
     expect(screen.getByTestId('sticky-note')).not.toHaveStyle({ pointerEvents: 'none' });
@@ -106,9 +119,9 @@ describe('MapCanvas', () => {
     let doc = addRoom(createEmptyMap('Test'), room);
     doc = addItem(doc, createItem('Lantern', room.id));
     doc = addItem(doc, createItem('Brass Key', room.id));
-    useEditorStore.getState().loadDocument(doc);
+    loadDocumentAct(doc);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByText('Lantern')).toBeInTheDocument();
     expect(screen.getByText('Brass Key')).toBeInTheDocument();
@@ -123,9 +136,9 @@ describe('MapCanvas', () => {
     let doc = addRoom(createEmptyMap('Test'), room);
     doc = addPseudoRoom(doc, pseudoRoom);
     doc = addStickyNote(doc, stickyNote);
-    useEditorStore.getState().loadDocument(doc);
+    loadDocumentAct(doc);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     const content = screen.getByTestId('map-canvas-content');
     const pseudoNode = screen.getByTestId('pseudo-room-node');
@@ -153,9 +166,9 @@ describe('MapCanvas', () => {
       stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
     };
     const connectionId = Object.keys(doc.connections)[0];
-    useEditorStore.getState().loadDocument(doc);
+    loadDocumentAct(doc);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId(`connection-hit-target-${connectionId}`)).not.toHaveStyle({ pointerEvents: 'none' });
     expect(screen.getByTestId(`sticky-note-link-hit-target-${stickyNoteLink.id}`)).not.toHaveStyle({ pointerEvents: 'none' });
@@ -168,9 +181,9 @@ describe('MapCanvas', () => {
     doc = addRoom(doc, roomB);
     doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'east', 'west');
     const connectionId = Object.keys(doc.connections)[0];
-    useEditorStore.getState().loadDocument(doc);
+    loadDocumentAct(doc);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId('connection-svg-overlay')).toHaveStyle({ pointerEvents: 'none' });
     expect(screen.getByTestId('connection-reroute-overlay')).toHaveStyle({ pointerEvents: 'none' });
@@ -178,7 +191,7 @@ describe('MapCanvas', () => {
   });
 
   it('uses the pan-ready cursor when Shift is held in map mode', () => {
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     fireEvent.keyDown(window, { key: 'Shift', shiftKey: true });
 
@@ -191,19 +204,19 @@ describe('MapCanvas', () => {
 
   it('uses the move cursor over sticky notes in map mode', () => {
     const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
-    useEditorStore.getState().loadDocument({
+    loadDocumentAct({
       ...createEmptyMap('Test'),
       stickyNotes: { [stickyNote.id]: stickyNote },
     });
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId('sticky-note')).toHaveStyle({ cursor: 'move' });
   });
 
   it('hides the background drawing layer', () => {
     const doc = createEmptyMap('Test');
-    useEditorStore.getState().loadDocument({
+    loadDocumentAct({
       ...doc,
       background: {
         activeLayerId: 'layer-1',
@@ -221,7 +234,7 @@ describe('MapCanvas', () => {
       },
     });
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.queryByTestId('map-drawing-toolbar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('map-canvas-background')).not.toBeInTheDocument();
@@ -229,7 +242,7 @@ describe('MapCanvas', () => {
 
   it('renders a stored background reference image centered on the map origin', () => {
     const doc = createEmptyMap('Test');
-    useEditorStore.getState().loadDocument({
+    loadDocumentAct({
       ...doc,
       background: {
         ...doc.background,
@@ -246,7 +259,7 @@ describe('MapCanvas', () => {
       },
     });
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     const image = screen.getByTestId('map-canvas-reference-image');
     expect(image).toHaveStyle({
@@ -258,14 +271,14 @@ describe('MapCanvas', () => {
   });
 
   it('hides the background grid when showGrid is false', () => {
-    render(<MapCanvas mapName="Test" showGrid={false} />);
+    renderMapCanvas({ showGrid: false });
     const canvas = screen.getByTestId('map-canvas');
     expect(canvas).not.toHaveClass('map-canvas--grid');
   });
 
   it('updates grid visibility in editor state', () => {
-    useEditorStore.getState().loadDocument(createEmptyMap('Test'));
-    render(<MapCanvas mapName="Test" />);
+    loadDocumentAct(createEmptyMap('Test'));
+    renderMapCanvas();
 
     const canvas = screen.getByTestId('map-canvas');
     expect(canvas).toHaveClass('map-canvas--grid');
@@ -284,8 +297,8 @@ describe('MapCanvas', () => {
   });
 
   it('updates bezier connection mode in editor state', () => {
-    useEditorStore.getState().loadDocument(createEmptyMap('Test'));
-    render(<MapCanvas mapName="Test" />);
+    loadDocumentAct(createEmptyMap('Test'));
+    renderMapCanvas();
 
     expect(useEditorStore.getState().doc?.view.useBezierConnections).toBe(false);
     act(() => {
@@ -302,10 +315,10 @@ describe('MapCanvas', () => {
   it('does not clear the current selection when clicking a bottom-right action button', async () => {
     const user = userEvent.setup();
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
     useEditorStore.getState().selectRoom(room.id);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     await user.click(screen.getByRole('button', { name: 'Export PNG' }));
 
@@ -315,7 +328,7 @@ describe('MapCanvas', () => {
 
   it('opens a requested room editor', async () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
 
     render(
       <MapCanvas
@@ -330,9 +343,9 @@ describe('MapCanvas', () => {
   describe('map panning', () => {
     it('pans the map when shift-dragging empty canvas space', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -350,9 +363,9 @@ describe('MapCanvas', () => {
     it('persists pan offset into the loaded map after panning settles', () => {
       jest.useFakeTimers();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 1 });
@@ -370,9 +383,9 @@ describe('MapCanvas', () => {
     it('creates rooms in map coordinates after panning once the draft is saved', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
 
@@ -393,9 +406,9 @@ describe('MapCanvas', () => {
     it('clicking the minimap recenters the map content', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 300, y: 200 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -432,9 +445,9 @@ describe('MapCanvas', () => {
     it('dragging the minimap viewport pans the map content', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 300, y: 200 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -474,12 +487,12 @@ describe('MapCanvas', () => {
     it('clicking the map background clears the room selection', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       act(() => {
         useEditorStore.getState().selectRoom(room.id);
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.click(canvas, { clientX: 20, clientY: 20, button: 0 });
@@ -496,10 +509,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const connectionId = Object.keys(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(connectionId);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 20, clientY: 20, button: 0 });
 
@@ -508,9 +521,9 @@ describe('MapCanvas', () => {
 
     it('does not pan on left mouse drag over empty canvas', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -525,9 +538,9 @@ describe('MapCanvas', () => {
 
     it('pans the map on trackpad-style wheel gestures over the canvas', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -539,9 +552,9 @@ describe('MapCanvas', () => {
 
     it('ignores meta-wheel gestures on the canvas', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -553,9 +566,9 @@ describe('MapCanvas', () => {
 
   it('zooms the map on ctrl-wheel gestures', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -579,7 +592,7 @@ describe('MapCanvas', () => {
 
   it('restores persisted zoom from the map view', () => {
     const doc = createEmptyMap('Test');
-    useEditorStore.getState().loadDocument({
+    loadDocumentAct({
       ...doc,
       view: {
         ...doc.view,
@@ -587,7 +600,7 @@ describe('MapCanvas', () => {
       },
     });
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     expect(screen.getByTestId('map-canvas-content').style.transform).toBe('translate(0px, 0px) scale(1.5)');
   });
@@ -595,9 +608,9 @@ describe('MapCanvas', () => {
   it('persists zoom changes back to the map view', () => {
     jest.useFakeTimers();
     const doc = createEmptyMap('Test');
-    useEditorStore.getState().loadDocument(doc);
+    loadDocumentAct(doc);
 
-    render(<MapCanvas mapName="Test" />);
+    renderMapCanvas();
 
     const canvas = screen.getByTestId('map-canvas');
     jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -623,9 +636,9 @@ describe('MapCanvas', () => {
 
     it('zooms the map with keyboard shortcuts and resets with 0', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -655,9 +668,9 @@ describe('MapCanvas', () => {
 
     it('does not create a sticky note when shift-dragging to pan', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseDown(canvas, { clientX: 100, clientY: 120, button: 0, shiftKey: true });
@@ -669,9 +682,9 @@ describe('MapCanvas', () => {
 
     it('draws a red selection box while dragging on the background', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseDown(canvas, { clientX: 40, clientY: 50, button: 0 });
@@ -695,9 +708,9 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
       let updated = addRoom(doc, kitchen);
       updated = addRoom(updated, hallway);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
@@ -721,7 +734,7 @@ describe('MapCanvas', () => {
     it('selects sticky notes live as they enter the marquee selection region', () => {
       const nearNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
       const farNote = { ...createStickyNote('Remember cellar'), position: { x: 320, y: 120 } };
-      useEditorStore.getState().loadDocument({
+      loadDocumentAct({
         ...createEmptyMap('Test'),
         stickyNotes: {
           [nearNote.id]: nearNote,
@@ -729,7 +742,7 @@ describe('MapCanvas', () => {
         },
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
 
@@ -750,13 +763,13 @@ describe('MapCanvas', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 280, y: 120 } };
       const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
       const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
-      useEditorStore.getState().loadDocument({
+      loadDocumentAct({
         ...addRoom(createEmptyMap('Test'), room),
         stickyNotes: { [stickyNote.id]: stickyNote },
         stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
 
@@ -777,9 +790,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const connectionId = Object.keys(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseDown(canvas, { clientX: 60, clientY: 100, button: 0 });
@@ -798,9 +811,9 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, kitchen);
       updated = addPseudoRoom(updated, unknown);
       updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'east');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.mouseDown(canvas, { clientX: 20, clientY: 20, button: 0 });
@@ -829,10 +842,10 @@ describe('MapCanvas', () => {
     it('undoes with Ctrl+Z', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       useEditorStore.getState().renameRoom(room.id, 'Pantry');
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -844,11 +857,11 @@ describe('MapCanvas', () => {
     it('redoes with Ctrl+Y', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       useEditorStore.getState().renameRoom(room.id, 'Pantry');
       useEditorStore.getState().undo();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -860,11 +873,11 @@ describe('MapCanvas', () => {
     it('redoes with Shift+Meta+Z', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       useEditorStore.getState().renameRoom(room.id, 'Pantry');
       useEditorStore.getState().undo();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -876,11 +889,11 @@ describe('MapCanvas', () => {
     it('does not trigger undo while editing a room field', async () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       useEditorStore.getState().renameRoom(room.id, 'Pantry');
       const user = userEvent.setup();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByText('Pantry'));
 
@@ -893,10 +906,10 @@ describe('MapCanvas', () => {
     it('undoes a burst of typing in the room name input as one step', async () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       const user = userEvent.setup();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByText('Kitchen'));
 
@@ -912,7 +925,7 @@ describe('MapCanvas', () => {
     });
 
     it('does not toggle drawing mode with the D key', () => {
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(canvas, { key: 'd' });
@@ -920,7 +933,7 @@ describe('MapCanvas', () => {
     });
 
     it('does not toggle drawing mode with D when the canvas is not focused', () => {
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.keyDown(window, { key: 'd' });
       expect(useEditorStore.getState().canvasInteractionMode).toBe('map');
@@ -930,9 +943,9 @@ describe('MapCanvas', () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByText('Kitchen'));
       const nameInput = screen.getByLabelText('Room name');
@@ -944,10 +957,10 @@ describe('MapCanvas', () => {
 
     it('undoes and redoes from window shortcuts when focus is elsewhere', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
       const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 0, y: 0 });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.keyDown(window, { key: 'z', metaKey: true });
       expect(useEditorStore.getState().doc?.rooms[roomId]).toBeUndefined();
@@ -966,9 +979,9 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, kitchen);
       updated = addRoom(updated, hallway);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       return {
         kitchenNode: screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement,
@@ -980,9 +993,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const docWithRoom = addRoom(doc, room);
-      useEditorStore.getState().loadDocument(docWithRoom);
+      loadDocumentAct(docWithRoom);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByText('Kitchen')).toBeInTheDocument();
     });
@@ -991,9 +1004,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const docWithRoom = addRoom(doc, room);
-      useEditorStore.getState().loadDocument(docWithRoom);
+      loadDocumentAct(docWithRoom);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       expect(roomNode).toBeInTheDocument();
@@ -1006,9 +1019,9 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 120, y: 0 } };
       let d = addRoom(doc, kitchen);
       d = addRoom(d, hallway);
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByText('Kitchen')).toBeInTheDocument();
       expect(screen.getByText('Hallway')).toBeInTheDocument();
@@ -1017,9 +1030,9 @@ describe('MapCanvas', () => {
     it('renders a lock glyph to the left of a locked room name', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), locked: true, position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`room-lock-glyph-${room.id}`)).toBeInTheDocument();
     });
@@ -1027,9 +1040,9 @@ describe('MapCanvas', () => {
     it('renders a dark glyph for dark rooms', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), isDark: true, position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`room-dark-glyph-${room.id}`)).toBeInTheDocument();
     });
@@ -1039,18 +1052,18 @@ describe('MapCanvas', () => {
 
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId('room-node').querySelector('text')).toHaveStyle({ fill: '#f3f4f6' });
     });
 
     it('renders no room nodes when document has no rooms', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.queryAllByTestId('room-node')).toHaveLength(0);
     });
@@ -1058,9 +1071,9 @@ describe('MapCanvas', () => {
     it('single-clicking a room does not open a room name textbox', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
@@ -1078,10 +1091,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const connectionId = Object.keys(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(connectionId);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.mouseDown(screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement, {
         clientX: 100,
@@ -1104,9 +1117,9 @@ describe('MapCanvas', () => {
         },
       };
       const room = { ...createRoom('Kitchen'), shape: 'diamond' as const, position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
@@ -1158,10 +1171,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const connectionId = Object.keys(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(connectionId);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       fireEvent.mouseDown(kitchenNode, { clientX: 100, clientY: 140, button: 0, shiftKey: true });
@@ -1221,9 +1234,9 @@ describe('MapCanvas', () => {
 
     it('ignores Delete when nothing is selected', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+      loadDocumentAct(addRoom(createEmptyMap('Test'), room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -1241,9 +1254,9 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, origin);
       updated = addRoom(updated, right);
       updated = addRoom(updated, downRight);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
@@ -1264,9 +1277,9 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, origin);
       updated = addRoom(updated, up);
       updated = addRoom(updated, upLeft);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
@@ -1285,9 +1298,9 @@ describe('MapCanvas', () => {
       const right = { ...createRoom('Right'), position: { x: 500, y: 120 } };
       let updated = addRoom(doc, origin);
       updated = addRoom(updated, right);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -1321,9 +1334,9 @@ describe('MapCanvas', () => {
       const right = { ...createRoom('Right'), position: { x: 500, y: 120 } };
       let updated = addRoom(doc, origin);
       updated = addRoom(updated, right);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -1361,9 +1374,9 @@ describe('MapCanvas', () => {
       const right = { ...createRoom('Right'), position: { x: 220, y: 120 } };
       let updated = addRoom(doc, origin);
       updated = addRoom(updated, right);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const originNode = screen.getByText('Origin').closest('[data-testid="room-node"]') as HTMLElement;
@@ -1379,9 +1392,9 @@ describe('MapCanvas', () => {
     it('opens the room editor for a single selected room when Enter is pressed', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -1426,9 +1439,9 @@ describe('MapCanvas', () => {
 
     it('ignores arrow-key navigation when no room is selected', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+      loadDocumentAct(addRoom(createEmptyMap('Test'), room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -1440,12 +1453,12 @@ describe('MapCanvas', () => {
     it('draws the selected room outline as a bright red rounded rectangle', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
       act(() => {
         useEditorStore.getState().selectRoom(room.id);
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const outline = screen.getByTestId('room-selection-outline');
       expect(outline.tagName.toLowerCase()).toBe('rect');
@@ -1465,8 +1478,8 @@ describe('MapCanvas', () => {
         },
       };
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
-      render(<MapCanvas mapName="Test" />);
+      loadDocumentAct(addRoom(doc, room));
+      renderMapCanvas();
       return screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
     }
 
@@ -1474,9 +1487,9 @@ describe('MapCanvas', () => {
       const user = userEvent.setup();
       const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
       const doc = addRoom(createEmptyMap('Test'), room);
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" visibleMapLeftInset={240} />);
+      renderMapCanvas({ visibleMapLeftInset: 240 });
 
       const canvas = screen.getByTestId('map-canvas');
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
@@ -1731,9 +1744,9 @@ describe('MapCanvas', () => {
   describe('R then click to create room', () => {
     it('opens a new-room draft on background click after pressing R without creating the room yet', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1747,9 +1760,9 @@ describe('MapCanvas', () => {
     it('creates the new room only when the draft is saved', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1768,9 +1781,9 @@ describe('MapCanvas', () => {
     it('does not create the new room when the draft is cancelled', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1787,9 +1800,9 @@ describe('MapCanvas', () => {
 
     it('does not create a room on a background click without pressing R first', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.click(canvas, { clientX: 200, clientY: 300 });
@@ -1801,9 +1814,9 @@ describe('MapCanvas', () => {
     it('snaps the room position to the grid when the new room is saved', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1816,9 +1829,9 @@ describe('MapCanvas', () => {
 
     it('pans to the new room before opening the room editor', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -1851,9 +1864,9 @@ describe('MapCanvas', () => {
     it('opens the room editor for a new room without creating it immediately', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1872,10 +1885,10 @@ describe('MapCanvas', () => {
     it('treats a room-placement click as the center of the new room', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
       useEditorStore.getState().toggleSnapToGrid();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1892,9 +1905,9 @@ describe('MapCanvas', () => {
 
     it('only arms room placement for a single click', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1907,9 +1920,9 @@ describe('MapCanvas', () => {
 
     it('does not arm room placement when R is pressed while a text input is focused', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const externalInput = document.createElement('input');
       document.body.append(externalInput);
@@ -1930,9 +1943,9 @@ describe('MapCanvas', () => {
 
     it('cancels room placement when Escape is pressed before the click', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -1947,9 +1960,9 @@ describe('MapCanvas', () => {
   describe('sticky notes', () => {
     it('creates a sticky note after pressing N and clicking without entering edit mode', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'n' });
@@ -1962,10 +1975,10 @@ describe('MapCanvas', () => {
 
     it('treats a sticky-note placement click as the center of the new note', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
       useEditorStore.getState().toggleSnapToGrid();
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'n' });
@@ -1980,9 +1993,9 @@ describe('MapCanvas', () => {
 
     it('only arms note placement for a single click', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'n' });
@@ -1995,9 +2008,9 @@ describe('MapCanvas', () => {
 
     it('cancels note placement when Escape is pressed before the click', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'n' });
@@ -2010,9 +2023,9 @@ describe('MapCanvas', () => {
     it('opens sticky note editing on double-click', async () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
       fireEvent.keyDown(window, { key: 'n' });
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300 });
       const noteElement = screen.getByTestId('sticky-note');
@@ -2026,9 +2039,9 @@ describe('MapCanvas', () => {
 
     it('shows the room-style selection outline around a selected sticky note', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
       fireEvent.keyDown(window, { key: 'n' });
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 200, clientY: 300 });
 
@@ -2038,9 +2051,9 @@ describe('MapCanvas', () => {
     it('creates a sticky-note link when dragging from a note link handle to a room', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.keyDown(window, { key: 'n' });
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120 });
@@ -2061,9 +2074,9 @@ describe('MapCanvas', () => {
     it('creates a sticky-note link when dragging from a note link handle to a pseudo-room', () => {
       const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
       const doc = addPseudoRoom(createEmptyMap('Test'), pseudoRoom);
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.keyDown(window, { key: 'n' });
       fireEvent.click(screen.getByTestId('map-canvas'), { clientX: 80, clientY: 120 });
@@ -2097,9 +2110,9 @@ describe('MapCanvas', () => {
         ...doc,
         stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
       };
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       act(() => {
         useEditorStore.getState().selectRoom(room.id);
@@ -2115,13 +2128,13 @@ describe('MapCanvas', () => {
       const user = userEvent.setup();
       const doc = createEmptyMap('Test');
       const stickyNote = { ...createStickyNote('Short'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument({
+      loadDocumentAct({
         ...doc,
         stickyNotes: { [stickyNote.id]: stickyNote },
       });
       useEditorStore.getState().selectStickyNote(stickyNote.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId('sticky-note'));
       const noteElement = screen.getByTestId('sticky-note');
@@ -2134,13 +2147,13 @@ describe('MapCanvas', () => {
     it('drags other selected rooms in parallel when dragging a selected sticky note', () => {
       const room = { ...createRoom('Kitchen'), position: { x: 240, y: 120 } };
       const stickyNote = { ...createStickyNote('Check desk'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument({
+      loadDocumentAct({
         ...addRoom(createEmptyMap('Test'), room),
         stickyNotes: { [stickyNote.id]: stickyNote },
       });
       useEditorStore.getState().setSelection([room.id], [stickyNote.id], [], []);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const note = screen.getByTestId('sticky-note');
 
@@ -2163,9 +2176,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 }, ...roomOverride };
       const docWithRoom = addRoom(doc, room);
-      useEditorStore.getState().loadDocument(docWithRoom);
+      loadDocumentAct(docWithRoom);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNode = screen.getByTestId('room-node');
       fireEvent.mouseEnter(roomNode);
@@ -2217,9 +2230,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const docWithRoom = addRoom(doc, room);
-      useEditorStore.getState().loadDocument(docWithRoom);
+      loadDocumentAct(docWithRoom);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.queryAllByTestId(/^direction-handle-/)).toHaveLength(0);
     });
@@ -2237,9 +2250,9 @@ describe('MapCanvas', () => {
       nextDoc = addRoom(nextDoc, attic);
       nextDoc = addConnection(nextDoc, createConnection(westOfHouse.id, northOfHouse.id, true), 'north', 'west');
       nextDoc = addConnection(nextDoc, createConnection(kitchen.id, attic.id, true), 'up', 'down');
-      useEditorStore.getState().loadDocument(nextDoc);
+      loadDocumentAct(nextDoc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]');
       expect(kitchenNode).not.toBeNull();
@@ -2253,9 +2266,9 @@ describe('MapCanvas', () => {
 
     it('opens the room editor for a newly created room', () => {
       const doc = createEmptyMap('Test');
-      useEditorStore.getState().loadDocument(doc);
+      loadDocumentAct(doc);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       fireEvent.keyDown(window, { key: 'r' });
@@ -2273,9 +2286,9 @@ describe('MapCanvas', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x, y } };
       const docWithRoom = addRoom(doc, room);
-      useEditorStore.getState().loadDocument(docWithRoom);
+      loadDocumentAct(docWithRoom);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       return { roomId: room.id, roomNode: screen.getByTestId('room-node') };
     }
@@ -2297,7 +2310,7 @@ describe('MapCanvas', () => {
     it('uses map-space deltas for room drags while zoomed', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument({
+      loadDocumentAct({
         ...addRoom(doc, room),
         view: {
           ...doc.view,
@@ -2305,7 +2318,7 @@ describe('MapCanvas', () => {
         },
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
@@ -2388,11 +2401,11 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, kitchen);
       updated = addRoom(updated, hallway);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
       useEditorStore.getState().addRoomToSelection(hallway.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
 
@@ -2411,11 +2424,11 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, kitchen);
       updated = addRoom(updated, hallway);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
       useEditorStore.getState().addRoomToSelection(hallway.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       const canvas = screen.getByTestId('map-canvas');
@@ -2440,12 +2453,12 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, kitchen);
       updated = addPseudoRoom(updated, pseudoRoom);
       updated = addStickyNote(updated, stickyNote);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
       useEditorStore.getState().addPseudoRoomToSelection(pseudoRoom.id);
       useEditorStore.getState().addStickyNoteToSelection(stickyNote.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       const canvas = screen.getByTestId('map-canvas');
@@ -2474,11 +2487,11 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, kitchen);
       updated = addRoom(updated, hallway);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
       useEditorStore.getState().addRoomToSelection(hallway.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
       const hallwayNode = screen.getByText('Hallway').closest('[data-testid="room-node"]') as HTMLElement;
@@ -2495,9 +2508,9 @@ describe('MapCanvas', () => {
     it('does not move a locked room when dragged', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), locked: true, position: { x: 80, y: 120 } };
-      useEditorStore.getState().loadDocument(addRoom(doc, room));
+      loadDocumentAct(addRoom(doc, room));
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
 
@@ -2515,11 +2528,11 @@ describe('MapCanvas', () => {
       const freeRoom = { ...createRoom('Free'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, lockedRoom);
       updated = addRoom(updated, freeRoom);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(lockedRoom.id);
       useEditorStore.getState().addRoomToSelection(freeRoom.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const freeRoomNode = screen.getByText('Free').closest('[data-testid="room-node"]') as HTMLElement;
       const lockedRoomNode = screen.getByText('Locked').closest('[data-testid="room-node"]') as HTMLElement;
@@ -2541,10 +2554,10 @@ describe('MapCanvas', () => {
       const stickyNote = { ...createStickyNote('todo'), position: { x: 200, y: 120 } };
       let updated = addRoom(doc, room);
       updated = addStickyNote(updated, stickyNote);
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().setSelection([room.id], [stickyNote.id], [], []);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const canvas = screen.getByTestId('map-canvas');
       canvas.focus();
@@ -2568,13 +2581,13 @@ describe('MapCanvas', () => {
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
       let d = addRoom(doc, kitchen);
       d = addRoom(d, hallway);
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
       return { kitchenId: kitchen.id, hallwayId: hallway.id };
     }
 
     it('starts a connection drag on mousedown on a direction handle', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       // Hover over the Kitchen room to show handles
       const roomNodes = screen.getAllByTestId('room-node');
@@ -2591,7 +2604,7 @@ describe('MapCanvas', () => {
 
     it('starts a vertical connection drag on mousedown on the up handle', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2607,7 +2620,7 @@ describe('MapCanvas', () => {
 
     it('shows an SVG preview polyline during connection drag', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2627,7 +2640,7 @@ describe('MapCanvas', () => {
       act(() => {
         useEditorStore.getState().toggleUseBezierConnections();
       });
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2645,7 +2658,7 @@ describe('MapCanvas', () => {
 
     it('completes a connection when releasing on a different room', () => {
       const { kitchenId, hallwayId } = setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       // Start connection drag from Kitchen's north handle
       const roomNodes = screen.getAllByTestId('room-node');
@@ -2678,7 +2691,7 @@ describe('MapCanvas', () => {
 
     it('uses the target handle direction when dropping on a direction handle', () => {
       const { kitchenId, hallwayId } = setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       // Start connection drag from Kitchen's northeast handle
       const roomNodes = screen.getAllByTestId('room-node');
@@ -2706,7 +2719,7 @@ describe('MapCanvas', () => {
 
     it('creates a one-way self-connection when releasing on the same room body', () => {
       const { kitchenId } = setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2729,7 +2742,7 @@ describe('MapCanvas', () => {
 
     it('creates a bidirectional self-connection when releasing on another handle of the same room', () => {
       const { kitchenId } = setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2754,7 +2767,7 @@ describe('MapCanvas', () => {
 
     it('cancels silently when releasing on the same handle', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2772,7 +2785,7 @@ describe('MapCanvas', () => {
 
     it('opens a chooser when releasing on empty canvas and can create a room from it', async () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2803,7 +2816,7 @@ describe('MapCanvas', () => {
 
     it('can create an unknown pseudo-room from the chooser', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2826,7 +2839,7 @@ describe('MapCanvas', () => {
 
     it('can create a death pseudo-room from the chooser', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2849,7 +2862,7 @@ describe('MapCanvas', () => {
 
     it('can create a nowhere pseudo-room from the chooser', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2873,7 +2886,7 @@ describe('MapCanvas', () => {
     it('treats an empty-drop pseudo-room creation point as the center of the pseudo-room', () => {
       setupTwoRooms();
       useEditorStore.getState().toggleSnapToGrid();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2899,7 +2912,7 @@ describe('MapCanvas', () => {
 
     it('does not start a room drag when mousedown is on a direction handle', () => {
       const { kitchenId } = setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2917,7 +2930,7 @@ describe('MapCanvas', () => {
 
     it('hides preview line after completing a connection', () => {
       setupTwoRooms();
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -2945,9 +2958,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, cellar);
       const connection = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, connection, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(connection.id);
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       return { kitchen, hallway, cellar, connection };
     }
@@ -3046,7 +3059,7 @@ describe('MapCanvas', () => {
           [stickyNoteLink.id]: stickyNoteLink,
         },
       };
-      useEditorStore.getState().loadDocument(updatedDoc);
+      loadDocumentAct(updatedDoc);
       act(() => {
         useEditorStore.setState((state) => ({
           ...state,
@@ -3099,10 +3112,10 @@ describe('MapCanvas', () => {
       updated = addPseudoRoom(updated, unknown);
       const connection = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, connection, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(connection.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.mouseDown(screen.getByTestId(`connection-reroute-handle-${connection.id}-end`), { clientX: 260, clientY: 220, button: 0 });
       fireEvent.mouseUp(screen.getByTestId('pseudo-room-node'), { clientX: 280, clientY: 60, button: 0 });
@@ -3121,9 +3134,9 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, kitchen);
       updated = addPseudoRoom(updated, unknown);
       updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
       fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
@@ -3133,7 +3146,7 @@ describe('MapCanvas', () => {
     });
 
     it('does not render a sticky-note link preview when the dragged note is missing', () => {
-      useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+      loadDocumentAct(createEmptyMap('Test'));
       act(() => {
         useEditorStore.setState({
           stickyNoteLinkDrag: {
@@ -3144,7 +3157,7 @@ describe('MapCanvas', () => {
         });
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.queryByTestId('sticky-note-link-preview')).not.toBeInTheDocument();
     });
@@ -3156,9 +3169,9 @@ describe('MapCanvas', () => {
       let updated = addRoom(doc, kitchen);
       updated = addPseudoRoom(updated, unknown);
       updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const pseudoRoomNode = screen.getByTestId('pseudo-room-node');
       fireEvent.mouseDown(pseudoRoomNode, { clientX: 260, clientY: 40, button: 0 });
@@ -3177,9 +3190,9 @@ describe('MapCanvas', () => {
       updated = addPseudoRoom(updated, unknown);
       const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
       updated = addConnection(updated, connection, 'north');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.mouseDown(screen.getByTestId('pseudo-room-node'), { clientX: 260, clientY: 40, button: 0 });
       fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
@@ -3197,9 +3210,9 @@ describe('MapCanvas', () => {
       updated = addPseudoRoom(updated, unknown);
       const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
       updated = addConnection(updated, connection, 'north');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.mouseDown(screen.getByTestId('pseudo-room-node'), { clientX: 260, clientY: 40, button: 0 });
       fireEvent.mouseUp(document, { clientX: 260, clientY: 40, button: 0 });
@@ -3222,9 +3235,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine).toBeInTheDocument();
@@ -3247,9 +3260,9 @@ describe('MapCanvas', () => {
           useBezierConnections: true,
         },
       };
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.tagName.toLowerCase()).toBe('path');
@@ -3264,10 +3277,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const conn = Object.values(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.click(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
@@ -3283,9 +3296,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
@@ -3304,9 +3317,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" visibleMapLeftInset={240} />);
+      renderMapCanvas({ visibleMapLeftInset: 240 });
 
       fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
@@ -3325,9 +3338,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
@@ -3346,9 +3359,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.type(screen.getByLabelText(/connection start label/i), 'archway');
@@ -3367,9 +3380,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.type(screen.getByLabelText(/connection start label/i), 'archway');
@@ -3390,9 +3403,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
@@ -3412,9 +3425,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.click(screen.getByTestId('connection-stroke-color-chip-4'));
@@ -3440,9 +3453,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       await user.click(screen.getByLabelText('door'));
@@ -3470,9 +3483,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       const textInput = screen.getByLabelText(/connection annotation text/i);
@@ -3495,9 +3508,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
@@ -3516,9 +3529,9 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       updated = addConnection(updated, conn, 'east', 'west');
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       await user.dblClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
       const startLabelInput = screen.getByLabelText(/connection start label/i);
@@ -3541,10 +3554,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const conn = Object.values(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectRoom(kitchen.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       fireEvent.click(screen.getByTestId(`connection-hit-target-${conn.id}`), { shiftKey: true });
 
@@ -3560,10 +3573,10 @@ describe('MapCanvas', () => {
       updated = addRoom(updated, hallway);
       updated = addConnection(updated, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
       const conn = Object.values(updated.connections)[0];
-      useEditorStore.getState().loadDocument(updated);
+      loadDocumentAct(updated);
       useEditorStore.getState().selectConnection(conn.id);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const outerLine = screen.getByTestId(`connection-line-${conn.id}`);
       const innerLine = screen.getByTestId(`connection-selection-inner-${conn.id}`);
@@ -3587,7 +3600,7 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
       const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
       jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function mockRect(this: HTMLElement) {
@@ -3622,7 +3635,7 @@ describe('MapCanvas', () => {
         return originalGetBoundingClientRect.call(this);
       });
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('points')).toBe('164,200 164,180 112,56 112,36');
@@ -3642,9 +3655,9 @@ describe('MapCanvas', () => {
       const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
       d = addConnection(d, westNorthConnection, 'north', 'west');
       d = addConnection(d, kitchenAtticConnection, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const visibleSegments = screen.getAllByTestId(/connection-line-segment-.*-/);
       const westNorthSegments = visibleSegments.filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
@@ -3693,9 +3706,9 @@ describe('MapCanvas', () => {
       const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
       d = addConnection(d, westNorthConnection, 'north', 'west');
       d = addConnection(d, kitchenAtticConnection, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const gapSegments = screen.getAllByTestId(/connection-line-segment-.*-/)
         .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
@@ -3716,9 +3729,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('marker-end')).toBeNull();
@@ -3734,9 +3747,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, attic);
       const conn = createConnection(cellar.id, attic.id, true);
       d = addConnection(d, conn, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3759,9 +3772,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, attic);
       const conn = createConnection(cellar.id, attic.id, true);
       d = addConnection(d, conn, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3781,9 +3794,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, shaft);
       const conn = createConnection(ledge.id, shaft.id, false);
       d = addConnection(d, conn, 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3805,9 +3818,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, shaft);
       const conn = createConnection(ledge.id, shaft.id, false);
       d = addConnection(d, conn, 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3827,9 +3840,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, upper);
       const conn = createConnection(lower.id, upper.id, true);
       d = addConnection(d, conn, 'up', 'up');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
       expect(screen.queryByTestId(`connection-annotation-arrow-${conn.id}`)).not.toBeInTheDocument();
@@ -3844,9 +3857,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'in' as const } };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3877,9 +3890,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'out' as const } };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
       const annotationArrow = screen.getByTestId(`connection-annotation-arrow-${conn.id}`);
@@ -3909,9 +3922,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'text', text: 'stairs' } };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
 
@@ -3929,9 +3942,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'text', text: 'gate' } };
       d = addConnection(d, conn, 'west', 'east');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const annotationText = screen.getByTestId(`connection-annotation-text-${conn.id}`);
       const rotation = Number((annotationText.getAttribute('transform') ?? '').match(/^rotate\(([-\d.]+)/)?.[1]);
@@ -3948,9 +3961,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'door' as const } };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const doorGlyph = screen.getByTestId(`connection-annotation-door-${conn.id}`);
       const doorSvg = doorGlyph.querySelector('svg');
@@ -3976,9 +3989,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = { ...createConnection(kitchen.id, hallway.id, true), annotation: { kind: 'locked door' as const } };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const padlockGlyph = screen.getByTestId(`connection-annotation-padlock-${conn.id}`);
       const padlockSvg = padlockGlyph.querySelector('svg');
@@ -4002,9 +4015,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, upper);
       const conn = { ...createConnection(lower.id, upper.id, true), annotation: { kind: 'door' as const } };
       d = addConnection(d, conn, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`connection-annotation-door-${conn.id}`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-annotation-line-${conn.id}`)).toBeInTheDocument();
@@ -4020,9 +4033,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, false);
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('marker-end')).toBeNull();
@@ -4042,9 +4055,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, false);
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('points')).toBe('122,200 122,180 122,42');
@@ -4062,9 +4075,9 @@ describe('MapCanvas', () => {
         endLabel: 'balcony',
       };
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const startLabel = screen.getByTestId(`connection-start-label-${conn.id}`);
       const endLabel = screen.getByTestId(`connection-end-label-${conn.id}`);
@@ -4089,9 +4102,9 @@ describe('MapCanvas', () => {
         endLabel: 'ignored',
       };
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`connection-start-label-${conn.id}`)).toHaveTextContent('stairs');
       expect(screen.queryByTestId(`connection-end-label-${conn.id}`)).not.toBeInTheDocument();
@@ -4103,9 +4116,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, kitchen);
       const conn = createConnection(kitchen.id, kitchen.id, false);
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionPath).toBeInTheDocument();
@@ -4118,9 +4131,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, kitchen);
       const conn = { ...createConnection(kitchen.id, kitchen.id, false), annotation: { kind: 'up' as const } };
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
@@ -4133,9 +4146,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, kitchen);
       const conn = { ...createConnection(kitchen.id, kitchen.id, false), annotation: { kind: 'in' as const } };
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('in');
       expect(screen.queryByTestId(`connection-annotation-line-${conn.id}`)).not.toBeInTheDocument();
@@ -4148,9 +4161,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, kitchen);
       const conn = createConnection(kitchen.id, kitchen.id, true);
       d = addConnection(d, conn, 'north', 'east');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionPath.getAttribute('points')).toBe('122,200 122,180 184,242 164,242');
@@ -4162,9 +4175,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, bedroom);
       const conn = createConnection(bedroom.id, bedroom.id, true);
       d = addConnection(d, conn, 'up', 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       const renderedPoints = (connectionPath.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
@@ -4185,9 +4198,9 @@ describe('MapCanvas', () => {
       let d = addRoom(doc, bedroom);
       const conn = createConnection(bedroom.id, bedroom.id, false);
       d = addConnection(d, conn, 'down');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
       const renderedPoints = (connectionPath.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
@@ -4211,9 +4224,9 @@ describe('MapCanvas', () => {
       d = addRoom(d, hallway);
       const conn = createConnection(kitchen.id, hallway.id, true);
       d = addConnection(d, conn, 'north', 'south');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       const pointsBefore = connectionLine.getAttribute('points');
@@ -4239,9 +4252,9 @@ describe('MapCanvas', () => {
       d = addPseudoRoom(d, unknown);
       const conn = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
       d = addConnection(d, conn, 'north');
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       const pointsBefore = connectionLine.getAttribute('points');
@@ -4271,9 +4284,9 @@ describe('MapCanvas', () => {
           'sticky-note-link-1': createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: unknown.id }),
         },
       };
-      useEditorStore.getState().loadDocument(d);
+      loadDocumentAct(d);
 
-      render(<MapCanvas mapName="Test" />);
+      renderMapCanvas();
 
       const stickyNoteLinkId = Object.values(useEditorStore.getState().doc!.stickyNoteLinks)[0].id;
       const stickyNoteLink = screen.getByTestId(`sticky-note-link-${stickyNoteLinkId}`);
