@@ -177,11 +177,10 @@ function getBuildMetadataValue(key: 'VITE_BUILD_RELEASE' | 'VITE_BUILD_SERIAL'):
     return viteValue.trim();
   }
 
-  if (typeof process !== 'undefined') {
-    const processValue = process.env[key];
-    if (typeof processValue === 'string' && processValue.trim().length > 0) {
-      return processValue.trim();
-    }
+  const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const processValue = processEnv?.[key];
+  if (typeof processValue === 'string' && processValue.trim().length > 0) {
+    return processValue.trim();
   }
 
   return undefined;
