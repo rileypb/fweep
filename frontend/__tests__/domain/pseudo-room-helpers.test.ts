@@ -4,6 +4,7 @@ import {
   getConnectionTargetPosition,
   getConnectionTargetRoom,
   getPseudoRoomGlyph,
+  getPseudoRoomNodeDimensions,
   getPseudoRoomSymbolLayout,
   getPseudoRoomSymbolLayoutForRoom,
   insetPseudoRoomConnectionEndpoint,
@@ -47,6 +48,14 @@ describe('pseudo-room-helpers', () => {
     expect(getPseudoRoomSymbolLayout(pseudoRoom, 'default')).toEqual(
       getPseudoRoomSymbolLayoutForRoom(visualRoom, 'default'),
     );
+    expect(getPseudoRoomSymbolLayout(pseudoRoom, 'default').size).toBe(26);
+  });
+
+  it('scales pseudo-room dimensions down from normal room size', () => {
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 0, y: 0 } };
+
+    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'default')).toEqual({ width: 32, height: 18 });
+    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'square-classic')).toEqual({ width: 42, height: 42 });
   });
 
   it('resolves connection targets and positions for rooms and pseudo-rooms', () => {
@@ -88,7 +97,7 @@ describe('pseudo-room-helpers', () => {
     ]);
     expect(insetPseudoRoomConnectionEndpoint(pseudoConnection, [{ x: 0, y: 0 }, { x: 100, y: 0 }])).toEqual([
       { x: 0, y: 0 },
-      { x: 58, y: 0 },
+      { x: 79, y: 0 },
     ]);
   });
 });

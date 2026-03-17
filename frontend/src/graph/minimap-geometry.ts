@@ -1,5 +1,5 @@
 import type { Connection, MapVisualStyle, PseudoRoom, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
-import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensionsForRoom, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import {
   computeConnectionPath,
   getRoomPerimeterPointToward,
@@ -249,7 +249,9 @@ export function getMinimapConnectionPoints(
   const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, visualStyle);
   const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, visualStyle);
   const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, visualStyle);
-  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, visualStyle);
+  const targetDimensions = connection.target.kind === 'room'
+    ? getRoomNodeDimensions(effectiveTargetRoom, visualStyle)
+    : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, visualStyle);
 
   const points = computeConnectionPath(
     effectiveSourceRoom,
@@ -304,9 +306,16 @@ export function getMinimapStickyNoteLinkPoints(
     return [];
   }
 
+  const roomCenter = stickyNoteLink.target.kind === 'room'
+    ? getRoomCenter(room, visualStyle)
+    : {
+      x: room.position.x + (getPseudoRoomNodeDimensionsForRoom(room, visualStyle).width / 2),
+      y: room.position.y + (getPseudoRoomNodeDimensionsForRoom(room, visualStyle).height / 2),
+    };
+
   return [
     toMinimapPoint(getStickyNoteCenter(stickyNote), transform),
-    toMinimapPoint(getRoomCenter(room, visualStyle), transform),
+    toMinimapPoint(roomCenter, transform),
   ];
 }
 

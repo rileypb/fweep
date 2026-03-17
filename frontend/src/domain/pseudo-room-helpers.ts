@@ -13,7 +13,9 @@ import { PSEUDO_ROOM_SYMBOL_SIZE } from './pseudo-room-symbols';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import type { Point } from '../graph/connection-geometry';
 
-const PSEUDO_ROOM_CONNECTION_INSET = 42;
+export const PSEUDO_ROOM_LINEAR_SCALE = 0.5;
+export const PSEUDO_ROOM_SYMBOL_LINEAR_SCALE = 0.25;
+const PSEUDO_ROOM_CONNECTION_INSET = Math.round(42 * PSEUDO_ROOM_LINEAR_SCALE);
 
 interface PointLike {
   readonly x: number;
@@ -74,11 +76,29 @@ export function getPseudoRoomSymbolLayoutForRoom(
   room: Room,
   visualStyle: MapVisualStyle,
 ): PseudoRoomSymbolLayout {
-  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const dimensions = getPseudoRoomNodeDimensionsForRoom(room, visualStyle);
   return {
     x: dimensions.width / 2,
     y: dimensions.height / 2,
-    size: PSEUDO_ROOM_SYMBOL_SIZE,
+    size: Math.round(PSEUDO_ROOM_SYMBOL_SIZE * PSEUDO_ROOM_SYMBOL_LINEAR_SCALE),
+  };
+}
+
+export function getPseudoRoomNodeDimensions(
+  pseudoRoom: PseudoRoom,
+  visualStyle: MapVisualStyle,
+): { readonly width: number; readonly height: number } {
+  return getPseudoRoomNodeDimensionsForRoom(toPseudoRoomVisualRoom(pseudoRoom), visualStyle);
+}
+
+export function getPseudoRoomNodeDimensionsForRoom(
+  room: Room,
+  visualStyle: MapVisualStyle,
+): { readonly width: number; readonly height: number } {
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  return {
+    width: Math.max(1, Math.round(dimensions.width * PSEUDO_ROOM_LINEAR_SCALE)),
+    height: Math.max(1, Math.round(dimensions.height * PSEUDO_ROOM_LINEAR_SCALE)),
   };
 }
 

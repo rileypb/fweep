@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
-import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
@@ -139,7 +139,7 @@ function getNewRoomTopLeftPosition(position: Position, visualStyle: ReturnType<t
 }
 
 function getNewPseudoRoomTopLeftPosition(position: Position, kind: PseudoRoomKind, visualStyle: ReturnType<typeof useEditorStore.getState>['mapVisualStyle']): Position {
-  const dimensions = getRoomNodeDimensions(toPseudoRoomVisualRoom(createPseudoRoom(kind)), visualStyle);
+  const dimensions = getPseudoRoomNodeDimensions(createPseudoRoom(kind), visualStyle);
   return centerToTopLeft(position, dimensions.width, dimensions.height);
 }
 

@@ -1,4 +1,4 @@
-import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
+import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Item, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
 import {
   CONNECTION_DOOR_ICON_SIZE,
   CONNECTION_LOCKED_DOOR_ICON_SIZE,
@@ -6,6 +6,7 @@ import {
   LOCK_ICON_PATH,
 } from '../components/connection-annotation-icon';
 import {
+  getPseudoRoomNodeDimensionsForRoom,
   getPseudoRoomGlyph,
   getPseudoRoomSymbolLayoutForRoom,
   insetPseudoRoomConnectionEndpoint,
@@ -56,6 +57,7 @@ const DARK_FOREGROUND = '#f3f4f6';
 const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ICON_VIEWBOX_SIZE = 640;
+const ROOM_ITEM_LABEL_RIGHT_INSET = 7;
 
 function drawConnectionAnnotationIcon(
   context: CanvasRenderingContext2D,
@@ -218,6 +220,37 @@ function drawRoomLabel(
   });
 }
 
+function drawRoomItems(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  roomItems: readonly Item[],
+  theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
+): void {
+  if (roomItems.length === 0) {
+    return;
+  }
+
+  const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const visibleItemNames = roomItems.slice(0, 3).map((item) => item.name);
+  const hiddenItemCount = Math.max(0, roomItems.length - visibleItemNames.length);
+  const itemLabelLines = hiddenItemCount > 0
+    ? [...visibleItemNames, `+${hiddenItemCount} more`]
+    : visibleItemNames;
+
+  context.fillStyle = getRoomLabelColor(theme);
+  context.font = '500 11px sans-serif';
+  context.textAlign = 'right';
+  context.textBaseline = 'top';
+  itemLabelLines.forEach((line, index) => {
+    context.fillText(
+      line,
+      room.position.x + (dimensions.width / 2) - ROOM_ITEM_LABEL_RIGHT_INSET,
+      room.position.y + dimensions.height + 14 + (index * 12),
+    );
+  });
+}
+
 function drawPseudoRoomSymbol(
   context: CanvasRenderingContext2D,
   room: Room,
@@ -266,6 +299,32 @@ function drawPseudoRoomSymbol(
   }
 
   context.restore();
+}
+
+function drawPseudoRoomShape(
+  context: CanvasRenderingContext2D,
+  room: Room,
+  theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
+): void {
+  const dimensions = getPseudoRoomNodeDimensionsForRoom(room, visualStyle);
+  const left = room.position.x;
+  const top = room.position.y;
+
+  context.beginPath();
+  if (visualStyle === 'square-classic') {
+    traceRoomShapePath(context, 'rectangle', left, top, dimensions.width, dimensions.height, 0);
+  } else {
+    traceRoomShapePath(context, room.shape, left, top, dimensions.width, dimensions.height, ROOM_CORNER_RADIUS);
+  }
+
+  context.fillStyle = getRoomFillColor(room.fillColorIndex, theme);
+  context.strokeStyle = getRoomStrokeColor(room.strokeColorIndex, theme);
+  context.lineWidth = 2;
+  setDashArray(context, room.strokeStyle);
+  context.fill();
+  context.stroke();
+  context.setLineDash([]);
 }
 
 function drawStickyNote(context: CanvasRenderingContext2D, stickyNote: StickyNote): void {
@@ -325,9 +384,12 @@ function drawStickyNoteLink(
   }
 
   const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+  const roomDimensions = stickyNoteLink.target.kind === 'room'
+    ? getRoomNodeDimensions(room, doc.view.visualStyle)
+    : getPseudoRoomNodeDimensionsForRoom(room, doc.view.visualStyle);
   const roomCenter = {
-    x: room.position.x + (getRoomNodeDimensions(room, doc.view.visualStyle).width / 2),
-    y: room.position.y + (getRoomNodeDimensions(room, doc.view.visualStyle).height / 2),
+    x: room.position.x + (roomDimensions.width / 2),
+    y: room.position.y + (roomDimensions.height / 2),
   };
 
   context.beginPath();
@@ -389,7 +451,9 @@ function drawConnectionLine(
   const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, doc.view.visualStyle);
 
   const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
-  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
+  const targetDimensions = connection.target.kind === 'room'
+    ? getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle)
+    : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, doc.view.visualStyle);
   const points = insetPseudoRoomConnectionEndpoint(
     connection,
     computeConnectionPath(
@@ -851,6 +915,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
     drawRoomShape(context, room, input.theme, input.doc.view.visualStyle);
   });
 
+  renderablePseudoRooms.forEach((pseudoRoom) => {
+    drawPseudoRoomShape(context, pseudoRoom, input.theme, input.doc.view.visualStyle);
+  });
+
   renderedConnectionGeometry.forEach(({ connection, result }) => {
     if (result) {
       const sourceRoom = input.doc.rooms[connection.sourceRoomId];
@@ -865,6 +933,13 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
 
   renderableRooms.forEach((room) => {
     drawRoomLabel(context, room, input.theme, input.doc.view.visualStyle);
+    drawRoomItems(
+      context,
+      room,
+      Object.values(input.doc.items).filter((item) => item.roomId === room.id),
+      input.theme,
+      input.doc.view.visualStyle,
+    );
   });
 
   renderablePseudoRooms.forEach((pseudoRoom) => {

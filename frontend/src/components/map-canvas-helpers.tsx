@@ -24,7 +24,7 @@ import {
   getRoomShapePath,
   getRoomShapePolygonVertices,
 } from '../graph/room-shape-geometry';
-import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensions, getPseudoRoomNodeDimensionsForRoom, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import type { PanOffset } from './use-map-viewport';
 
 const ROOM_VISIBILITY_PADDING = 24;
@@ -120,14 +120,26 @@ export function getPseudoRoomsWithinSelectionBox(
   zoom: number = 1,
   visualStyle: MapVisualStyle = 'default',
 ): string[] {
-  return getRoomsWithinSelectionBox(
-    pseudoRooms.map((pseudoRoom) => toPseudoRoomVisualRoom(pseudoRoom)),
-    panOffset,
-    canvasRect,
-    selectionBox,
-    zoom,
-    visualStyle,
-  );
+  const bounds = getSelectionBounds(selectionBox);
+  const boxRight = bounds.left + bounds.width;
+  const boxBottom = bounds.top + bounds.height;
+
+  return pseudoRooms
+    .filter((pseudoRoom) => {
+      const dimensions = getPseudoRoomNodeDimensions(pseudoRoom, visualStyle);
+      const left = (canvasRect?.left ?? 0) + (pseudoRoom.position.x * zoom) + panOffset.x;
+      const top = (canvasRect?.top ?? 0) + (pseudoRoom.position.y * zoom) + panOffset.y;
+      const roomLeft = left - (canvasRect?.left ?? 0);
+      const roomTop = top - (canvasRect?.top ?? 0);
+      const roomRight = roomLeft + (dimensions.width * zoom);
+      const roomBottom = roomTop + (dimensions.height * zoom);
+
+      return roomLeft <= boxRight
+        && roomRight >= bounds.left
+        && roomTop <= boxBottom
+        && roomBottom >= bounds.top;
+    })
+    .map((pseudoRoom) => pseudoRoom.id);
 }
 
 export function getStickyNotesWithinSelectionBox(
@@ -294,7 +306,9 @@ export function getStickyNoteLinksWithinSelectionBox(
       }
 
       const stickyNoteCenter = getStickyNoteCenter(stickyNote);
-      const roomDimensions = getRoomNodeDimensions(room);
+      const roomDimensions = stickyNoteLink.target.kind === 'room'
+        ? getRoomNodeDimensions(room)
+        : getPseudoRoomNodeDimensionsForRoom(room, 'default');
       const roomCenter = {
         x: room.position.x + (roomDimensions.width / 2),
         y: room.position.y + (roomDimensions.height / 2),

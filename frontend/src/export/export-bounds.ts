@@ -1,5 +1,5 @@
 import type { Connection, MapDocument, Position, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
-import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensionsForRoom, insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import {
   createConnectionRenderGeometry,
   type Point,
@@ -93,6 +93,16 @@ function getRoomBounds(room: Room, doc: MapDocument): ExportRegion {
   };
 }
 
+function getPseudoRoomBounds(room: Room, doc: MapDocument): ExportRegion {
+  const dimensions = getPseudoRoomNodeDimensionsForRoom(room, doc.view.visualStyle);
+  return {
+    left: room.position.x,
+    top: room.position.y,
+    right: room.position.x + dimensions.width,
+    bottom: room.position.y + dimensions.height,
+  };
+}
+
 function getStickyNoteBounds(stickyNote: StickyNote): ExportRegion {
   return {
     left: stickyNote.position.x,
@@ -112,7 +122,9 @@ function getStickyNoteLinkBounds(doc: MapDocument, stickyNoteLink: StickyNoteLin
   }
 
   const stickyNoteCenter = getStickyNoteCenter(stickyNote);
-  const roomDimensions = getRoomNodeDimensions(room, doc.view.visualStyle);
+  const roomDimensions = stickyNoteLink.target.kind === 'room'
+    ? getRoomNodeDimensions(room, doc.view.visualStyle)
+    : getPseudoRoomNodeDimensionsForRoom(room, doc.view.visualStyle);
   const roomCenter = {
     x: room.position.x + (roomDimensions.width / 2),
     y: room.position.y + (roomDimensions.height / 2),
@@ -230,7 +242,9 @@ function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRe
   const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, doc.view.visualStyle);
   const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, doc.view.visualStyle);
   const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, doc.view.visualStyle);
-  const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle);
+  const targetDimensions = connection.target.kind === 'room'
+    ? getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle)
+    : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, doc.view.visualStyle);
   const points = insetPseudoRoomConnectionEndpoint(
     connection,
     computeConnectionPath(
@@ -307,7 +321,7 @@ export function getEntireMapExportBounds(doc: MapDocument, padding: number): Exp
   });
 
   Object.values(doc.pseudoRooms).forEach((pseudoRoom) => {
-    bounds = includeRect(bounds, getRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
+    bounds = includeRect(bounds, getPseudoRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
     hasContent = true;
   });
 
@@ -395,7 +409,7 @@ export function getSelectionExportBounds(
     if (!pseudoRoom) {
       return;
     }
-    bounds = includeRect(bounds, getRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
+    bounds = includeRect(bounds, getPseudoRoomBounds(toPseudoRoomVisualRoom(pseudoRoom), doc));
     hasContent = true;
   });
 

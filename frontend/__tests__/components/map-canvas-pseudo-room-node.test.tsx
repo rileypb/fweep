@@ -27,6 +27,7 @@ describe('MapCanvasPseudoRoomNode', () => {
       />,
     );
 
+    expect(screen.getByTestId('pseudo-room-node').querySelector('.room-node-shape')).not.toBeNull();
     expect(screen.getByTestId('pseudo-room-selection-outline')).toBeInTheDocument();
     expect(document.querySelectorAll('[data-testid="pseudo-room-node"] path')).not.toHaveLength(0);
     expect(screen.getByTestId('pseudo-room-node')).toHaveStyle({ transform: 'translate(40px, 80px)' });

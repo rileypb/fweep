@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { type PseudoRoom } from '../domain/map-types';
 import { type ThemeMode, getRoomLabelColor } from '../domain/room-color-palette';
 import {
+  getPseudoRoomNodeDimensions,
   getPseudoRoomSymbolLayout,
   toPseudoRoomVisualRoom,
 } from '../domain/pseudo-room-helpers';
@@ -10,8 +11,8 @@ import {
   PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE,
   pseudoRoomPathCommandsToSvgPath,
 } from '../domain/pseudo-room-symbols';
-import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { useEditorStore } from '../state/editor-store';
+import { renderRoomShape } from './map-canvas-helpers';
 import type { PanOffset } from './use-map-viewport';
 
 export interface MapCanvasPseudoRoomNodeProps {
@@ -38,7 +39,7 @@ export function MapCanvasPseudoRoomNode({
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
-  const roomDimensions = getRoomNodeDimensions(visualRoom, mapVisualStyle);
+  const roomDimensions = getPseudoRoomNodeDimensions(pseudoRoom, mapVisualStyle);
   const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
   const symbolDefinition = getPseudoRoomSymbolDefinition(pseudoRoom.kind);
   const symbolViewBoxSize = symbolDefinition.viewBoxSize ?? PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE;
@@ -157,6 +158,14 @@ export function MapCanvasPseudoRoomNode({
         onOpenPseudoRoomEditor(pseudoRoom.id);
       }}
     >
+      {renderRoomShape(
+        visualRoom.shape,
+        roomDimensions.width,
+        roomDimensions.height,
+        visualRoom,
+        theme,
+        mapVisualStyle,
+      )}
       {isSelected && (
         <rect
           className="room-selection-outline"

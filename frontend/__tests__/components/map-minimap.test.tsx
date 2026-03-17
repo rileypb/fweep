@@ -93,6 +93,24 @@ describe('MapMinimap', () => {
     expect(document.querySelectorAll('.map-minimap__connection')).toHaveLength(1);
   });
 
+  it('renders pseudo-rooms smaller than normal rooms in square-classic mode', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };
+
+    renderMinimap({
+      rooms: { [kitchen.id]: kitchen },
+      pseudoRooms: { [unknown.id]: unknown },
+      visualStyle: 'square-classic',
+    });
+
+    const roomPath = document.querySelector('.map-minimap__room:not(.map-minimap__pseudo-room) path');
+    const pseudoRoomPath = document.querySelector('.map-minimap__pseudo-room path');
+
+    expect(roomPath?.getAttribute('d')).not.toBeNull();
+    expect(pseudoRoomPath?.getAttribute('d')).not.toBeNull();
+    expect(pseudoRoomPath?.getAttribute('d')).not.toEqual(roomPath?.getAttribute('d'));
+  });
+
   it('renders shapes, connections, and viewport', () => {
     const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };

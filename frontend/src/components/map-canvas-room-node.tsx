@@ -20,6 +20,7 @@ const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 const VERTICAL_HANDLE_RADIUS = 4;
 const ROOM_LABEL_FONT_FAMILY = "'IBM Plex Sans', 'Segoe UI', sans-serif";
+const ROOM_ITEM_LABEL_RIGHT_INSET = HANDLE_RADIUS + 2;
 const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
   '[data-room-id]',
   '[data-sticky-note-id]',
@@ -398,16 +399,16 @@ export function MapCanvasRoomNode({
       {itemLabelLines.length > 0 && (
         <text
           className="room-node-items"
-          x={roomWidth / 2}
+          x={(roomWidth / 2) - ROOM_ITEM_LABEL_RIGHT_INSET}
           y={roomHeight + 14}
           dominantBaseline="hanging"
-          textAnchor="middle"
+          textAnchor="end"
           style={{ fill: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
         >
           {itemLabelLines.map((line, index) => (
             <tspan
               key={`${room.id}-item-${index}`}
-              x={roomWidth / 2}
+              x={(roomWidth / 2) - ROOM_ITEM_LABEL_RIGHT_INSET}
               y={roomHeight + 14 + (index * 12)}
             >
               {line}

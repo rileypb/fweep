@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createItem, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
-import { toPseudoRoomVisualRoom } from '../../src/domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensions } from '../../src/domain/pseudo-room-helpers';
 import { addItem, addPseudoRoom, addRoom, addConnection, addStickyNote } from '../../src/domain/map-operations';
 import { createRoom, createConnection } from '../../src/domain/map-types';
 import { getHandleOffset, ROOM_HEIGHT, ROOM_WIDTH } from '../../src/graph/connection-geometry';
@@ -112,6 +112,8 @@ describe('MapCanvas', () => {
 
     expect(screen.getByText('Lantern')).toBeInTheDocument();
     expect(screen.getByText('Brass Key')).toBeInTheDocument();
+    const itemText = document.querySelector('.room-node-items');
+    expect(itemText).toHaveAttribute('text-anchor', 'end');
   });
 
   it('renders pseudo-rooms beneath sticky notes and rooms', () => {
@@ -2868,7 +2870,10 @@ describe('MapCanvas', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Unknown' }));
 
       const pseudoRoom = Object.values(useEditorStore.getState().doc!.pseudoRooms)[0];
-      const dimensions = getRoomNodeDimensions(toPseudoRoomVisualRoom(createPseudoRoom('unknown')));
+      const dimensions = getPseudoRoomNodeDimensions(
+        createPseudoRoom('unknown'),
+        useEditorStore.getState().mapVisualStyle,
+      );
       expect(pseudoRoom.position).toEqual({
         x: 500 - (dimensions.width / 2),
         y: 500 - (dimensions.height / 2),

@@ -11,7 +11,7 @@ import {
   type StickyNoteLink,
 } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
-import { toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensionsForRoom, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import type { PanOffset } from './use-map-viewport';
 import {
   clampPointToMinimap,
@@ -87,6 +87,22 @@ function getMinimapShapePathForVisualStyle(
 
 function getEffectiveMinimapShape(shape: RoomShape, visualStyle: MapVisualStyle): RoomShape {
   return visualStyle === 'square-classic' ? 'rectangle' : shape;
+}
+
+function getPseudoRoomMinimapRect(
+  room: Room,
+  transform: ReturnType<typeof createMinimapTransform>,
+  visualStyle: MapVisualStyle,
+): { left: number; top: number; width: number; height: number } {
+  const dimensions = getPseudoRoomNodeDimensionsForRoom(room, visualStyle);
+  const topLeft = toMinimapPoint({ x: room.position.x, y: room.position.y }, transform);
+
+  return {
+    left: topLeft.x,
+    top: topLeft.y,
+    width: Math.max(dimensions.width * transform.scale, 4),
+    height: Math.max(dimensions.height * transform.scale, 4),
+  };
 }
 
 export function MapMinimap({
@@ -172,7 +188,13 @@ export function MapMinimap({
           };
         }),
         ...pseudoRoomVisualEntries.map((pseudoRoom) => {
-          const bounds = getRoomBounds(pseudoRoom, visualStyle);
+          const dimensions = getPseudoRoomNodeDimensionsForRoom(pseudoRoom, visualStyle);
+          const bounds = {
+            left: pseudoRoom.position.x,
+            top: pseudoRoom.position.y,
+            width: dimensions.width,
+            height: dimensions.height,
+          };
           return {
             left: bounds.left,
             top: bounds.top,
@@ -393,7 +415,7 @@ export function MapMinimap({
           );
         })}
         {!isPlaceholder && pseudoRoomVisualEntries.map((pseudoRoom) => {
-          const rect = getMinimapRoomRect(pseudoRoom, transform, visualStyle);
+          const rect = getPseudoRoomMinimapRect(pseudoRoom, transform, visualStyle);
 
           return (
             <g

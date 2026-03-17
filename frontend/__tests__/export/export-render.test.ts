@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { addConnection, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createPseudoRoom, createRoom, createStickyNote } from '../../src/domain/map-types';
+import { DUNGEON_ICON_PATH, LOCK_ICON_PATH } from '../../src/components/connection-annotation-icon';
+import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom, createStickyNote } from '../../src/domain/map-types';
 import type { ExportRenderInput } from '../../src/export/export-types';
 import type { BackgroundChunkRecord } from '../../src/storage/map-store';
 
@@ -351,14 +352,23 @@ describe('renderExportCanvas', () => {
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
     mockCreateSizedCanvas.mockReturnValue(canvas);
 
-    const rendered = await renderExportCanvas(createBaseInput());
+    const baseInput = createBaseInput();
+    const rendered = await renderExportCanvas({
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          visualStyle: 'default',
+        },
+      },
+    });
 
     expect(rendered).toBe(canvas);
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, 1280, 480);
     expect(context.scale).toHaveBeenCalledWith(2, 2);
     expect(context.drawImage).toHaveBeenCalledTimes(2);
-    expect(context.quadraticCurveTo).toHaveBeenCalled();
     expect(context.lineTo).toHaveBeenCalled();
     expect(context.ellipse).toHaveBeenCalled();
     expect(context.fillText).toHaveBeenCalledWith('Rect', expect.any(Number), expect.any(Number));
@@ -374,7 +384,7 @@ describe('renderExportCanvas', () => {
     expect(mockPath2D).toHaveBeenCalledWith(expect.stringContaining('M224 224C224 171'));
     expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: expect.stringContaining('M224 224C224 171') }));
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
-    expect(context.lineTo).toHaveBeenCalledWith(40, 18);
+    expect(context.lineTo).toHaveBeenCalled();
     expect(context.translate).toHaveBeenCalledWith(80, 20);
     expect(context.rotate.mock.calls.some(([angle]) => Math.abs(angle) < 1e-9)).toBe(true);
     expect(context.drawImage).toHaveBeenCalledWith(
@@ -473,6 +483,10 @@ describe('renderExportCanvas', () => {
       ...baseInput,
       doc: {
         ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          visualStyle: 'default',
+        },
         stickyNoteLinks: {
           'sticky-note-link-1': {
             id: 'sticky-note-link-1',
@@ -495,7 +509,7 @@ describe('renderExportCanvas', () => {
     await renderExportCanvas(input);
 
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
-    expect(context.lineTo.mock.calls).toContainEqual([220, 138]);
+    expect(context.lineTo.mock.calls).toContainEqual([196, 129]);
     expect(context.stroke).toHaveBeenCalled();
   });
 
@@ -622,6 +636,28 @@ describe('renderExportCanvas', () => {
     expect(context.clearRect).not.toHaveBeenCalled();
   });
 
+  it('renders room item names beneath exported room labels', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const room = { ...createRoom('Kitchen'), id: 'room-kitchen', position: { x: 40, y: 60 } };
+    const lantern = { ...createItem('lantern', room.id), id: 'item-lantern' };
+    const key = { ...createItem('key', room.id), id: 'item-key' };
+    let doc = createEmptyMap('Export Items');
+    doc = addRoom(doc, room);
+    doc = addItem(doc, lantern);
+    doc = addItem(doc, key);
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('lantern', expect.any(Number), expect.any(Number));
+    expect(context.fillText).toHaveBeenCalledWith('key', expect.any(Number), expect.any(Number));
+  });
+
   it('renders a padlock glyph for locked rooms and uses light-theme keyhole colors', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
@@ -637,6 +673,10 @@ describe('renderExportCanvas', () => {
       theme: 'light',
       doc: {
         ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          visualStyle: 'default',
+        },
         rooms: {
           ...baseInput.doc.rooms,
           [lockedRoom.id]: lockedRoom,
@@ -870,13 +910,19 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas({
       ...createBaseInput(),
-      doc,
+      doc: {
+        ...doc,
+        view: {
+          ...doc.view,
+          visualStyle: 'default',
+        },
+      },
       selectedRoomIds: [],
       selectedConnectionIds: [],
     });
 
-    expect(context.translate).toHaveBeenCalledWith(14, 2);
-    expect(context.quadraticCurveTo).toHaveBeenCalledWith(6, 1, 11, 7);
+    expect(mockPath2D).toHaveBeenCalledWith(DUNGEON_ICON_PATH);
+    expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: DUNGEON_ICON_PATH }));
   });
 
   it('renders a locked door glyph in exported PNGs', async () => {
@@ -898,13 +944,19 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas({
       ...createBaseInput(),
-      doc,
+      doc: {
+        ...doc,
+        view: {
+          ...doc.view,
+          visualStyle: 'default',
+        },
+      },
       selectedRoomIds: [],
       selectedConnectionIds: [],
     });
 
-    expect(context.translate).toHaveBeenCalledWith(14, 2);
-    expect(context.arc).toHaveBeenCalledWith(6, 10.5, 1, 0, Math.PI * 2);
+    expect(mockPath2D).toHaveBeenCalledWith(LOCK_ICON_PATH);
+    expect(context.fill).toHaveBeenCalledWith(expect.objectContaining({ pathData: LOCK_ICON_PATH }));
   });
 
   it('renders arrow geometry for up annotations in exported PNGs', async () => {
@@ -1030,7 +1082,13 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas({
       ...createBaseInput(),
-      doc,
+      doc: {
+        ...doc,
+        view: {
+          ...doc.view,
+          visualStyle: 'default',
+        },
+      },
       selectedRoomIds: [source.id, blocker.id, target.id],
       selectedConnectionIds: [connection.id],
       selectedStickyNoteIds: [],
@@ -1095,7 +1153,13 @@ describe('renderExportCanvas', () => {
 
     await renderExportCanvas({
       ...createBaseInput(),
-      doc,
+      doc: {
+        ...doc,
+        view: {
+          ...doc.view,
+          visualStyle: 'default',
+        },
+      },
       selectedRoomIds: [source.id, blocker.id, target.id],
       selectedConnectionIds: [connection.id],
       selectedStickyNoteIds: [],

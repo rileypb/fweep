@@ -7,7 +7,11 @@ import {
   type StickyNote,
   type StickyNoteLink,
 } from '../domain/map-types';
-import { insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import {
+  getPseudoRoomNodeDimensionsForRoom,
+  insetPseudoRoomConnectionEndpoint,
+  toPseudoRoomVisualRoom,
+} from '../domain/pseudo-room-helpers';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import {
   type ConnectionRenderGeometry,
@@ -293,6 +297,12 @@ export function MapCanvasConnections({
     const pseudoRoom = pseudoRooms[connection.target.id];
     return pseudoRoom ? toPseudoRoomVisualRoom(applyPseudoRoomDragOffset(pseudoRoom, selectionDrag)) : null;
   };
+
+  const getTargetDimensions = (connection: Connection, room: Room): { readonly width: number; readonly height: number } => (
+    connection.target.kind === 'room'
+      ? getRoomNodeDimensions(room, visualStyle)
+      : getPseudoRoomNodeDimensionsForRoom(room, visualStyle)
+  );
 
   const beginConnectionEndpointDrag = (
     connectionId: string,
@@ -958,7 +968,7 @@ export function MapCanvasConnections({
           const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
-          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const tgtDimensions = getTargetDimensions(conn, tgt);
           const points = insetPseudoRoomConnectionEndpoint(
             conn,
             computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
@@ -1000,9 +1010,12 @@ export function MapCanvasConnections({
           const stickyNote = getStickyNoteWithDrag(rawStickyNote);
           const room = stickyNoteLink.target.kind === 'room' ? applyDragOffset(rawRoom, selectionDrag) : rawRoom;
           const stickyNoteCenter = getStickyNoteCenter(stickyNote);
+          const roomDimensions = stickyNoteLink.target.kind === 'room'
+            ? getRoomNodeDimensions(room, visualStyle)
+            : getPseudoRoomNodeDimensionsForRoom(room, visualStyle);
           const roomCenter = {
-            x: room.position.x + (getRoomNodeDimensions(room, visualStyle).width / 2),
-            y: room.position.y + (getRoomNodeDimensions(room, visualStyle).height / 2),
+            x: room.position.x + (roomDimensions.width / 2),
+            y: room.position.y + (roomDimensions.height / 2),
           };
           const isSelected = selectedStickyNoteLinkIds.includes(stickyNoteLink.id);
 
@@ -1148,7 +1161,7 @@ export function MapCanvasConnections({
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const effectiveSrc = getRoomForVisualStyle(src, visualStyle);
           const srcDimensions = getRoomNodeDimensions(effectiveSrc, visualStyle);
-          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const tgtDimensions = getTargetDimensions(conn, tgt);
           const points = insetPseudoRoomConnectionEndpoint(
             conn,
             computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions),
@@ -1179,7 +1192,7 @@ export function MapCanvasConnections({
           const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
-          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const tgtDimensions = getTargetDimensions(conn, tgt);
           const points = insetPseudoRoomConnectionEndpoint(
             conn,
             computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
@@ -1203,7 +1216,7 @@ export function MapCanvasConnections({
           const src = getRoomForVisualStyle(applyDragOffset(rawSrc, selectionDrag), visualStyle);
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
-          const tgtDimensions = getRoomNodeDimensions(tgt, visualStyle);
+          const tgtDimensions = getTargetDimensions(connection, tgt);
           const previewPoint = {
             x: connectionEndpointDrag.cursorX,
             y: connectionEndpointDrag.cursorY,
