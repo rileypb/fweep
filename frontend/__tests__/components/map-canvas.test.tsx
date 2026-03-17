@@ -4203,7 +4203,54 @@ describe('MapCanvas', () => {
       render(<MapCanvas mapName="Test" />);
 
       const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
-      expect(connectionPath.getAttribute('points')).toBe('120,200 120,180 180,218 160,218');
+      expect(connectionPath.getAttribute('points')).toBe('122,200 122,180 184,242 164,242');
+    });
+
+    it('renders a visible bidirectional up/down self-connection', () => {
+      const doc = createEmptyMap('Test');
+      const bedroom = { ...createRoom('Bedroom'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, bedroom);
+      const conn = createConnection(bedroom.id, bedroom.id, true);
+      d = addConnection(d, conn, 'up', 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
+      const renderedPoints = (connectionPath.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+
+      expect(renderedPoints).toHaveLength(4);
+      expect(renderedPoints[0][0]).toBeCloseTo(renderedPoints[3][0], 5);
+      expect(renderedPoints[0][1]).toBeCloseTo(renderedPoints[3][1], 5);
+      expect(renderedPoints[1][1]).toBeLessThan(renderedPoints[0][1]);
+      expect(renderedPoints[2][1]).toBeLessThan(renderedPoints[0][1]);
+      expect(renderedPoints[1][1]).toBeCloseTo(renderedPoints[2][1], 5);
+      expect(renderedPoints[1][0]).toBeGreaterThan(renderedPoints[0][0]);
+      expect(renderedPoints[2][0]).toBeLessThan(renderedPoints[0][0]);
+    });
+
+    it('renders a down annotation arrow for a one-way down self-connection', () => {
+      const doc = createEmptyMap('Test');
+      const bedroom = { ...createRoom('Bedroom'), position: { x: 80, y: 200 } };
+      let d = addRoom(doc, bedroom);
+      const conn = createConnection(bedroom.id, bedroom.id, false);
+      d = addConnection(d, conn, 'down');
+      useEditorStore.getState().loadDocument(d);
+
+      render(<MapCanvas mapName="Test" />);
+
+      const connectionPath = screen.getByTestId(`connection-line-${conn.id}`);
+      const renderedPoints = (connectionPath.getAttribute('points') ?? '').split(' ').map((point) => point.split(',').map(Number));
+      const annotationLine = screen.getByTestId(`connection-annotation-line-${conn.id}`);
+      expect(annotationLine).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('down');
+      expect(screen.getByTestId(`connection-annotation-arrow-${conn.id}`)).toBeInTheDocument();
+      expect(renderedPoints).toHaveLength(4);
+      expect(renderedPoints[1][1]).toBeGreaterThan(renderedPoints[0][1]);
+      expect(renderedPoints[2][1]).toBeGreaterThan(renderedPoints[0][1]);
+      expect(renderedPoints[1][1]).toBeCloseTo(renderedPoints[2][1], 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeCloseTo(Number(annotationLine.getAttribute('y2')), 5);
+      expect(Number(annotationLine.getAttribute('y1'))).toBeGreaterThan(renderedPoints[1][1]);
     });
 
     it('updates connection lines in real time during room drag', () => {

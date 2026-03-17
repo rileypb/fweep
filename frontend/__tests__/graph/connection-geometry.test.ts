@@ -376,6 +376,36 @@ describe('computeConnectionPath', () => {
     ]);
   });
 
+  it('renders a visible top loop for a bidirectional up/down self-connection', () => {
+    const connId = 'conn-up-down';
+    const room = roomAt('A', 80, 200, { up: connId, down: connId });
+    const conn = { ...createConnection(room.id, room.id, true), id: connId };
+
+    const points = computeConnectionPath(room, room, conn, 20);
+
+    expect(points[0]).toEqual({ x: 120, y: 218 });
+    expect(points[1].x).toBeCloseTo(173.3333333, 5);
+    expect(points[1].y).toBeCloseTo(194, 5);
+    expect(points[2].x).toBeCloseTo(66.6666667, 5);
+    expect(points[2].y).toBeCloseTo(194, 5);
+    expect(points[3]).toEqual({ x: 120, y: 218 });
+  });
+
+  it('renders an upright triangle for a one-way down self-connection', () => {
+    const connId = 'conn-down-self';
+    const room = roomAt('A', 80, 200, { down: connId });
+    const conn = { ...createConnection(room.id, room.id, false), id: connId };
+
+    const points = computeConnectionPath(room, room, conn, 20);
+
+    expect(points[0]).toEqual({ x: 120, y: 218 });
+    expect(points[1].x).toBeCloseTo(66.6666667, 5);
+    expect(points[1].y).toBeCloseTo(242, 5);
+    expect(points[2].x).toBeCloseTo(173.3333333, 5);
+    expect(points[2].y).toBeCloseTo(242, 5);
+    expect(points[3]).toEqual({ x: 120, y: 218 });
+  });
+
   it('uses measured room widths when aiming at the top-center handle', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('Long Source', 100, 200, { north: connId });

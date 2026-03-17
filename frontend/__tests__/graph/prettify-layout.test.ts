@@ -403,6 +403,67 @@ describe('computePrettifiedRoomPositions', () => {
     }
   });
 
+  it('does not walk when prettified repeatedly for a room with clustered pseudo-room exits', () => {
+    let doc = createEmptyMap('Pseudo Cluster Stable Repeat');
+    const bathroom = { ...createRoom('bathroom'), position: { x: 320, y: 320 } };
+    const death = { ...createPseudoRoom('death'), id: 'pseudo-death', position: { x: 0, y: 0 } };
+    const infinite = { ...createPseudoRoom('infinite'), id: 'pseudo-infinite', position: { x: 0, y: 0 } };
+    const unknown = { ...createPseudoRoom('unknown'), id: 'pseudo-unknown', position: { x: 0, y: 0 } };
+    const nowhere = { ...createPseudoRoom('nowhere'), id: 'pseudo-nowhere', position: { x: 0, y: 0 } };
+    doc = addRoom(doc, bathroom);
+    doc = addPseudoRoom(addPseudoRoom(addPseudoRoom(addPseudoRoom(doc, death), infinite), unknown), nowhere);
+    doc = addConnection(doc, createConnection(bathroom.id, { kind: 'pseudo-room', id: death.id }, false), 'east');
+    doc = addConnection(doc, createConnection(bathroom.id, { kind: 'pseudo-room', id: infinite.id }, false), 'south');
+    doc = addConnection(doc, createConnection(bathroom.id, { kind: 'pseudo-room', id: unknown.id }, false), 'north');
+    doc = addConnection(doc, createConnection(bathroom.id, { kind: 'pseudo-room', id: nowhere.id }, false), 'southeast');
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    let nextDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [bathroom.id]: {
+          ...doc.rooms[bathroom.id],
+          position: firstPass.roomPositions[bathroom.id],
+        },
+      },
+      pseudoRooms: Object.fromEntries(
+        Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [
+          pseudoRoomId,
+          {
+            ...pseudoRoom,
+            position: firstPass.pseudoRoomPositions[pseudoRoomId],
+          },
+        ]),
+      ),
+    };
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPass = computePrettifiedLayoutPositions(nextDoc);
+      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
+      expect(nextPass.pseudoRoomPositions).toEqual(firstPass.pseudoRoomPositions);
+      nextDoc = {
+        ...nextDoc,
+        rooms: {
+          ...nextDoc.rooms,
+          [bathroom.id]: {
+            ...nextDoc.rooms[bathroom.id],
+            position: nextPass.roomPositions[bathroom.id],
+          },
+        },
+        pseudoRooms: Object.fromEntries(
+          Object.entries(nextDoc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [
+            pseudoRoomId,
+            {
+              ...pseudoRoom,
+              position: nextPass.pseudoRoomPositions[pseudoRoomId],
+            },
+          ]),
+        ),
+      };
+    }
+  });
+
   it('moves a linked sticky note near its linked room without overlapping it', () => {
     let doc = createEmptyMap('Linked Note');
     const room = { ...createRoom('Kitchen'), position: { x: 200, y: 200 } };

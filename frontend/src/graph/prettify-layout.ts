@@ -13,7 +13,9 @@ export const PRETTIFY_VERTICAL_SPACING = 160;
 const RELAXATION_ITERATIONS = 80;
 const SPRING_STRENGTH = 0.14;
 const ANCHOR_STRENGTH = 0.035;
+const PSEUDO_ROOM_ANCHOR_STRENGTH = 0.08;
 const REPULSION_STRENGTH = 18_000;
+const PSEUDO_ROOM_REPULSION_MULTIPLIER = 0.2;
 const MAX_STEP = 18;
 const MAX_STABILIZATION_PASSES = 6;
 
@@ -408,6 +410,7 @@ function relaxComponent(
   seedPositions: ReadonlyMap<string, Vector>,
   constraints: readonly DirectionConstraint[],
   lockedRoomIds: ReadonlySet<string>,
+  pseudoRoomIds: ReadonlySet<string>,
 ): Map<string, Vector> {
   const positions = new Map<string, Vector>();
   for (const roomId of roomIds) {
@@ -457,7 +460,10 @@ function relaxComponent(
         const dy = otherPosition.y - position.y;
         const distanceSquared = Math.max((dx * dx) + (dy * dy), 1);
         const distance = Math.sqrt(distanceSquared);
-        const repulsion = REPULSION_STRENGTH / distanceSquared;
+        const repulsionMultiplier = pseudoRoomIds.has(roomId) || pseudoRoomIds.has(otherRoomId)
+          ? PSEUDO_ROOM_REPULSION_MULTIPLIER
+          : 1;
+        const repulsion = (REPULSION_STRENGTH * repulsionMultiplier) / distanceSquared;
         const forceX = (dx / distance) * repulsion;
         const forceY = (dy / distance) * repulsion;
         const roomLocked = lockedRoomIds.has(roomId);
@@ -486,8 +492,9 @@ function relaxComponent(
       const seed = seedPositions.get(roomId)!;
       const position = positions.get(roomId)!;
       const force = forces.get(roomId)!;
-      force.x += (seed.x - position.x) * ANCHOR_STRENGTH;
-      force.y += (seed.y - position.y) * ANCHOR_STRENGTH;
+      const anchorStrength = pseudoRoomIds.has(roomId) ? PSEUDO_ROOM_ANCHOR_STRENGTH : ANCHOR_STRENGTH;
+      force.x += (seed.x - position.x) * anchorStrength;
+      force.y += (seed.y - position.y) * anchorStrength;
 
       position.x += limitStep(force.x);
       position.y += limitStep(force.y);
@@ -937,6 +944,7 @@ function computePrettifiedRoomPositionsSinglePass(
     return { roomPositions: {}, pseudoRoomPositions: {} };
   }
   const lockedRoomIds = new Set(roomIds.filter((roomId) => (doc.rooms[roomId]?.locked ?? false) || extraLockedRoomIds.has(roomId)));
+  const pseudoRoomIds = new Set(Object.keys(doc.pseudoRooms));
   const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
   const constraints = deriveDirectionConstraints(doc);
@@ -964,7 +972,7 @@ function computePrettifiedRoomPositionsSinglePass(
       });
     }
 
-    const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds);
+    const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds, pseudoRoomIds);
     const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
     componentTargetCentroids.set(
       componentRoomIds.join('\0'),

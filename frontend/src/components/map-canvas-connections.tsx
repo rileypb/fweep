@@ -21,6 +21,7 @@ import {
   computePreviewPath,
   createConnectionRenderGeometry,
   findRoomDirectionForConnection,
+  findRoomDirectionsForConnection,
   getRoomCenter,
   getConnectionGeometryLength,
   sampleConnectionGeometryAtFraction,
@@ -204,6 +205,32 @@ function getSelfAnnotationPosition(points: readonly Point[]): Point | null {
   };
 }
 
+function getSelfVerticalAnnotationSegment(points: readonly Point[]): { start: Point; end: Point } | null {
+  const firstPeak = points[1];
+  const secondPeak = points[2];
+  const center = points[0];
+  if (!firstPeak || !secondPeak || !center) {
+    return null;
+  }
+
+  if (Math.abs(firstPeak.y - secondPeak.y) > 1e-9) {
+    return null;
+  }
+
+  const isHorizontalSideAboveCenter = firstPeak.y < center.y;
+  const start = isHorizontalSideAboveCenter
+    ? (firstPeak.x >= secondPeak.x ? firstPeak : secondPeak)
+    : (firstPeak.x <= secondPeak.x ? firstPeak : secondPeak);
+  const end = isHorizontalSideAboveCenter
+    ? (firstPeak.x >= secondPeak.x ? secondPeak : firstPeak)
+    : (firstPeak.x <= secondPeak.x ? secondPeak : firstPeak);
+
+  return {
+    start,
+    end,
+  };
+}
+
 function getSegmentCenter(segment: { start: Point; end: Point }): Point {
   return {
     x: (segment.start.x + segment.end.x) / 2,
@@ -364,9 +391,12 @@ export function MapCanvasConnections({
   ): React.JSX.Element => {
     const isSelected = selectedConnectionIds.includes(conn.id);
     const baseClassName = isSelfConnection ? 'connection-line connection-line--self' : 'connection-line';
-    const sourceDirection = findRoomDirectionForConnection(sourceRoom, conn.id) ?? null;
+    const sourceDirections = findRoomDirectionsForConnection(sourceRoom, conn.id);
+    const sourceDirection = sourceDirections[0] ?? null;
     const targetDirection = conn.isBidirectional
-      ? (findRoomDirectionForConnection(targetRoom, conn.id) ?? null)
+      ? (isSelfConnection
+        ? (sourceDirections[1] ?? null)
+        : (findRoomDirectionForConnection(targetRoom, conn.id) ?? null))
       : null;
     const explicitAnnotationKind = conn.annotation?.kind ?? null;
     const derivedVerticalAnnotationKind = getDerivedVerticalAnnotationKind(conn, sourceDirection, targetDirection);
@@ -391,6 +421,12 @@ export function MapCanvasConnections({
         targetDirection,
       )
       : null;
+    const rendersSelfVerticalDirectionalAnnotation = isSelfConnection
+      && (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down')
+      && (sourceDirection === 'up'
+        || sourceDirection === 'down'
+        || targetDirection === 'up'
+        || targetDirection === 'down');
     const annotationLabel = directionalAnnotationIntent?.label ?? annotationText;
     const rendersDoorAnnotation = explicitAnnotationKind === 'door';
     const rendersLockedDoorAnnotation = explicitAnnotationKind === 'locked door';
@@ -398,7 +434,18 @@ export function MapCanvasConnections({
     const doorSegment = geometry.kind === 'polyline' && rendersDoorAnnotation ? getLongestSegment(points) : null;
     const lockedDoorSegment = geometry.kind === 'polyline' && rendersLockedDoorAnnotation ? getLongestSegment(points) : null;
     let annotationGeometry: ReturnType<typeof getAnnotationGeometryFromSegment> = null;
-    if (directionalAnnotationIntent?.positionSample?.kind === 'segment') {
+    if (rendersSelfVerticalDirectionalAnnotation) {
+      const selfVerticalSegment = getSelfVerticalAnnotationSegment(points);
+      annotationGeometry = selfVerticalSegment
+        ? getAnnotationGeometryFromSegment(
+          selfVerticalSegment,
+          directionalAnnotationKind === 'down',
+          annotationLabel,
+          true,
+          false,
+        )
+        : null;
+    } else if (directionalAnnotationIntent?.positionSample?.kind === 'segment') {
       annotationGeometry = getAnnotationGeometryFromSegment(
         directionalAnnotationIntent.positionSample.segment,
         directionalAnnotationIntent.reverseDirection,
@@ -420,7 +467,9 @@ export function MapCanvasConnections({
       : rendersTextAnnotation
         ? getAnnotationGeometryFromRenderGeometry(geometry, false, annotationLabel, false)
         : null;
-    const selfAnnotationPosition = rendersDirectionalAnnotation && isSelfConnection
+    const selfAnnotationPosition = rendersDirectionalAnnotation
+      && isSelfConnection
+      && !rendersSelfVerticalDirectionalAnnotation
       ? getSelfAnnotationPosition(points)
       : null;
     const doorCenter = geometry.kind === 'polyline'

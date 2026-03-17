@@ -17,6 +17,7 @@ const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/grap
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
 const mockFlattenConnectionGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').flattenConnectionGeometry>();
 const mockFindRoomDirectionForConnection = jest.fn<typeof import('../../src/graph/connection-geometry').findRoomDirectionForConnection>();
+const mockFindRoomDirectionsForConnection = jest.fn<typeof import('../../src/graph/connection-geometry').findRoomDirectionsForConnection>();
 const mockGetConnectionGeometryLength = jest.fn<typeof import('../../src/graph/connection-geometry').getConnectionGeometryLength>();
 const mockSampleConnectionGeometryAtFraction = jest.fn<typeof import('../../src/graph/connection-geometry').sampleConnectionGeometryAtFraction>();
 const mockGetRoomNodeWidth = jest.fn<typeof import('../../src/graph/minimap-geometry').getRoomNodeWidth>();
@@ -53,6 +54,7 @@ await jest.unstable_mockModule('../../src/graph/connection-geometry', async () =
     createConnectionRenderGeometry: mockCreateConnectionRenderGeometry,
     flattenConnectionGeometry: mockFlattenConnectionGeometry,
     findRoomDirectionForConnection: mockFindRoomDirectionForConnection,
+    findRoomDirectionsForConnection: mockFindRoomDirectionsForConnection,
     getConnectionGeometryLength: mockGetConnectionGeometryLength,
     sampleConnectionGeometryAtFraction: mockSampleConnectionGeometryAtFraction,
   };
@@ -315,6 +317,11 @@ describe('renderExportCanvas', () => {
       const match = Object.entries(room.directions).find(([, candidateConnectionId]) => candidateConnectionId === connectionId);
       return match?.[0];
     });
+    mockFindRoomDirectionsForConnection.mockImplementation((room, connectionId) => (
+      Object.entries(room.directions)
+        .filter(([, candidateConnectionId]) => candidateConnectionId === connectionId)
+        .map(([direction]) => direction)
+    ));
     mockListBackgroundChunksInBounds.mockResolvedValue([
       {
         key: 'map-1:layer-1:0:0',
@@ -1007,6 +1014,47 @@ describe('renderExportCanvas', () => {
     expect(context.translate).toHaveBeenCalledWith(20, 30);
     expect(context.rotate.mock.calls.some(([angle]) => Math.abs(angle as number) < 1e-9)).toBe(true);
     expect(context.fillText).toHaveBeenCalledWith('in', 0, 0);
+  });
+
+  it('renders one-way down self-loop annotations below the upright triangle base in exported PNGs', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const room = { ...createRoom('Room'), id: 'room-self', position: { x: 0, y: 0 } };
+    let doc = createEmptyMap('Self Loop');
+    doc = addRoom(doc, room);
+    const selfConnection = {
+      ...createConnection(room.id, room.id, false),
+      id: 'connection-self-down',
+    };
+    doc = addConnection(doc, selfConnection, 'down');
+
+    mockComputeConnectionPath.mockReturnValue([
+      { x: 20, y: 30 },
+      { x: 0, y: 54 },
+      { x: 40, y: 54 },
+      { x: 20, y: 30 },
+    ]);
+    mockCreateConnectionRenderGeometry.mockReturnValue({
+      kind: 'polyline',
+      points: [
+        { x: 20, y: 30 },
+        { x: 0, y: 54 },
+        { x: 40, y: 54 },
+        { x: 20, y: 30 },
+      ],
+    });
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('down', 0, 0);
+    expect(
+      context.translate.mock.calls.some(([x, y]) => x === 20 && typeof y === 'number' && y > 54),
+    ).toBe(true);
   });
 
   it('renders free-text annotations rotated to follow the connection in exported PNGs', async () => {

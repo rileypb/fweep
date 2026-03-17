@@ -439,6 +439,48 @@ function getStubEndpointForRoom(
   };
 }
 
+function pointsAreEqual(a: Point, b: Point): boolean {
+  return Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
+}
+
+const COLLAPSED_SELF_CONNECTION_LOOP_SCALE = 4 / 3;
+
+function computeCollapsedSelfConnectionPath(
+  room: Room,
+  roomDimensions: RoomDimensions,
+  orientation: 'inverted' | 'upright' = 'inverted',
+): Point[] {
+  const center = getRoomCenter(room.position, roomDimensions);
+  const verticalOffset = orientation === 'inverted' ? -roomDimensions.height : roomDimensions.height;
+  const leftPeakOnPerimeter = getRoomPerimeterPointToward(
+    room.position,
+    { x: center.x - roomDimensions.width, y: center.y + verticalOffset },
+    roomDimensions,
+    room.shape,
+  );
+  const rightPeakOnPerimeter = getRoomPerimeterPointToward(
+    room.position,
+    { x: center.x + roomDimensions.width, y: center.y + verticalOffset },
+    roomDimensions,
+    room.shape,
+  );
+  const leftPeak = {
+    x: center.x + ((leftPeakOnPerimeter.x - center.x) * COLLAPSED_SELF_CONNECTION_LOOP_SCALE),
+    y: center.y + ((leftPeakOnPerimeter.y - center.y) * COLLAPSED_SELF_CONNECTION_LOOP_SCALE),
+  };
+  const rightPeak = {
+    x: center.x + ((rightPeakOnPerimeter.x - center.x) * COLLAPSED_SELF_CONNECTION_LOOP_SCALE),
+    y: center.y + ((rightPeakOnPerimeter.y - center.y) * COLLAPSED_SELF_CONNECTION_LOOP_SCALE),
+  };
+
+  return [
+    center,
+    orientation === 'inverted' ? rightPeak : leftPeak,
+    orientation === 'inverted' ? leftPeak : rightPeak,
+    center,
+  ];
+}
+
 /* ---- Public functions ---- */
 
 /**
@@ -551,7 +593,7 @@ export function findRoomDirectionForConnection(room: Room, connectionId: string)
  * Find all distinct directions in a room that reference a given
  * connection ID, preserving insertion order.
  */
-function findRoomDirectionsForConnection(room: Room, connectionId: string): string[] {
+export function findRoomDirectionsForConnection(room: Room, connectionId: string): string[] {
   const directions: string[] = [];
 
   for (const [dir, cid] of Object.entries(room.directions)) {
@@ -619,6 +661,19 @@ export function computeConnectionPath(
     ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions, tgtRoom.shape)
     : undefined;
   const tgtEnd = tgtHandlePosition ?? getRoomCenter(tgtRoom.position, tgtRoomDimensions);
+
+  if (
+    isSelfConnection
+    && pointsAreEqual(srcStart, tgtEnd)
+    && srcHandlePosition === undefined
+    && tgtHandlePosition === undefined
+  ) {
+    if (!conn.isBidirectional && srcDir === 'down' && tgtDir === 'down') {
+      return computeCollapsedSelfConnectionPath(srcRoom, srcRoomDimensions, 'upright');
+    }
+
+    return computeCollapsedSelfConnectionPath(srcRoom, srcRoomDimensions, 'inverted');
+  }
 
   // Build points array
   const points: Point[] = [srcStart];

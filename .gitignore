@@ -136,3 +136,4 @@ dist
 .pnp.*
 frontend/__tests__/.DS_Store
 .DS_Store
+export.json

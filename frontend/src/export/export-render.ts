@@ -25,6 +25,7 @@ import {
   computeGeometryArrowheadPoints,
   createConnectionRenderGeometry,
   findRoomDirectionForConnection,
+  findRoomDirectionsForConnection,
   ROOM_CORNER_RADIUS,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
@@ -58,6 +59,32 @@ const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ICON_VIEWBOX_SIZE = 640;
 const ROOM_ITEM_LABEL_RIGHT_INSET = 7;
+
+function getSelfVerticalAnnotationSegment(points: readonly Point[]): { start: Point; end: Point } | null {
+  const firstPeak = points[1];
+  const secondPeak = points[2];
+  const center = points[0];
+  if (!firstPeak || !secondPeak || !center) {
+    return null;
+  }
+
+  if (Math.abs(firstPeak.y - secondPeak.y) > 1e-9) {
+    return null;
+  }
+
+  const isHorizontalSideAboveCenter = firstPeak.y < center.y;
+  const start = isHorizontalSideAboveCenter
+    ? (firstPeak.x >= secondPeak.x ? firstPeak : secondPeak)
+    : (firstPeak.x <= secondPeak.x ? firstPeak : secondPeak);
+  const end = isHorizontalSideAboveCenter
+    ? (firstPeak.x >= secondPeak.x ? secondPeak : firstPeak)
+    : (firstPeak.x <= secondPeak.x ? secondPeak : firstPeak);
+
+  return {
+    start,
+    end,
+  };
+}
 
 function drawConnectionAnnotationIcon(
   context: CanvasRenderingContext2D,
@@ -559,9 +586,13 @@ function drawConnectionLabels(
     }
   }
 
-  const sourceDirection = findRoomDirectionForConnection(sourceRoom, connection.id) ?? null;
+  const isSelfConnection = connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id;
+  const sourceDirections = findRoomDirectionsForConnection(sourceRoom, connection.id);
+  const sourceDirection = sourceDirections[0] ?? null;
   const targetDirection = connection.isBidirectional
-    ? (findRoomDirectionForConnection(targetRoom, connection.id) ?? null)
+    ? (isSelfConnection
+      ? (sourceDirections[1] ?? null)
+      : (findRoomDirectionForConnection(targetRoom, connection.id) ?? null))
     : null;
   const explicitAnnotationKind = connection.annotation?.kind ?? null;
   const derivedVerticalAnnotationKind = getDerivedVerticalAnnotationKind(connection, sourceDirection, targetDirection);
@@ -622,14 +653,33 @@ function drawConnectionLabels(
   context.textBaseline = 'middle';
 
   if (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down' || directionalAnnotationKind === 'in' || directionalAnnotationKind === 'out') {
-    const directionalAnnotation = getDirectionalAnnotationGeometry(
-      directionalAnnotationKind,
-      annotationLabel,
-      geometry,
-      points,
-      sourceDirection,
-      targetDirection,
-    );
+    const rendersSelfVerticalDirectionalAnnotation = isSelfConnection
+      && (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down')
+      && (sourceDirection === 'up'
+        || sourceDirection === 'down'
+        || targetDirection === 'up'
+        || targetDirection === 'down');
+    const directionalAnnotation = rendersSelfVerticalDirectionalAnnotation
+      ? (() => {
+        const selfVerticalSegment = getSelfVerticalAnnotationSegment(points);
+        return selfVerticalSegment
+          ? getAnnotationGeometryFromSegment(
+            selfVerticalSegment,
+            directionalAnnotationKind === 'down',
+            annotationLabel,
+            true,
+            false,
+          )
+          : null;
+      })()
+      : getDirectionalAnnotationGeometry(
+        directionalAnnotationKind,
+        annotationLabel,
+        geometry,
+        points,
+        sourceDirection,
+        targetDirection,
+      );
     if (!directionalAnnotation) {
       return;
     }
