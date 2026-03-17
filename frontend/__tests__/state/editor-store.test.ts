@@ -3,6 +3,7 @@ import { createEmptyMap, createPseudoRoom, createRoom, createStickyNote, createS
 import type { MapDocument, Position } from '../../src/domain/map-types';
 import { addConnection, addPseudoRoom, addRoom, addStickyNote, addStickyNoteLink } from '../../src/domain/map-operations';
 import { createConnection } from '../../src/domain/map-types';
+import { createDefaultMapView } from '../../src/domain/map-defaults';
 import { useEditorStore } from '../../src/state/editor-store';
 import { getBackgroundChunkKey, loadBackgroundChunk, saveBackgroundChunks } from '../../src/storage/map-store';
 
@@ -68,6 +69,7 @@ describe('useEditorStore', () => {
     });
 
     it('resets persisted view state to defaults', () => {
+      const defaultMapView = createDefaultMapView();
       const doc = {
         ...testDoc,
         view: {
@@ -83,11 +85,11 @@ describe('useEditorStore', () => {
 
       useEditorStore.getState().unloadDocument();
 
-      expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 0, y: 0 });
-      expect(useEditorStore.getState().mapZoom).toBe(1);
-      expect(useEditorStore.getState().showGridEnabled).toBe(true);
-      expect(useEditorStore.getState().snapToGridEnabled).toBe(true);
-      expect(useEditorStore.getState().cliOutputCollapsedEnabled).toBe(false);
+      expect(useEditorStore.getState().mapPanOffset).toEqual(defaultMapView.pan);
+      expect(useEditorStore.getState().mapZoom).toBe(defaultMapView.zoom);
+      expect(useEditorStore.getState().showGridEnabled).toBe(defaultMapView.showGrid);
+      expect(useEditorStore.getState().snapToGridEnabled).toBe(defaultMapView.snapToGrid);
+      expect(useEditorStore.getState().cliOutputCollapsedEnabled).toBe(defaultMapView.cliOutputCollapsed);
     });
   });
 

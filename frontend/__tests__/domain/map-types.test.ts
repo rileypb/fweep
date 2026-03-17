@@ -6,6 +6,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_CLI_OUTPUT_LINES,
 } from '../../src/domain/map-types';
+import { createDefaultMapView, DEFAULT_ROOM_SHAPE } from '../../src/domain/map-defaults';
 
 describe('createEmptyMap', () => {
   it('creates a map with the given name', () => {
@@ -35,15 +36,7 @@ describe('createEmptyMap', () => {
 
   it('initialises with empty rooms, connections, and items', () => {
     const doc = createEmptyMap('Empty');
-    expect(doc.view).toEqual({
-      pan: { x: 0, y: 0 },
-      zoom: 1,
-      visualStyle: 'square-classic',
-      showGrid: true,
-      snapToGrid: true,
-      useBezierConnections: false,
-      cliOutputCollapsed: false,
-    });
+    expect(doc.view).toEqual(createDefaultMapView());
     expect(doc.background).toEqual({
       layers: {},
       activeLayerId: null,
@@ -63,7 +56,7 @@ describe('createRoom', () => {
     const room = createRoom('Kitchen');
 
     expect(room.locked).toBe(false);
-    expect(room.shape).toBe('rectangle');
+    expect(room.shape).toBe(DEFAULT_ROOM_SHAPE);
     expect(room.fillColorIndex).toBe(0);
     expect(room.strokeColorIndex).toBe(0);
     expect(room.strokeStyle).toBe('solid');

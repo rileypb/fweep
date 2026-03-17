@@ -2,6 +2,7 @@ import {
   DEFAULT_ROOM_FILL_COLOR_INDEX,
   DEFAULT_ROOM_STROKE_COLOR_INDEX,
 } from './room-color-palette';
+import { createDefaultMapView, DEFAULT_ROOM_SHAPE } from './map-defaults';
 
 /** Minimal metadata for a persisted map, used by the selection dialog and storage layer. */
 export interface MapMetadata {
@@ -228,15 +229,7 @@ export function createEmptyMap(name: string): MapDocument {
       createdAt: now,
       updatedAt: now,
     },
-    view: {
-      pan: { x: 0, y: 0 },
-      zoom: 1,
-      visualStyle: 'square-classic',
-      showGrid: true,
-      snapToGrid: true,
-      useBezierConnections: false,
-      cliOutputCollapsed: false,
-    },
+    view: createDefaultMapView(),
     background: createEmptyBackground(),
     cliOutputLines: [...DEFAULT_CLI_OUTPUT_LINES],
     rooms: {},
@@ -258,7 +251,7 @@ export function createRoom(name: string): Room {
     directions: {},
     isDark: false,
     locked: false,
-    shape: 'rectangle',
+    shape: DEFAULT_ROOM_SHAPE,
     fillColorIndex: DEFAULT_ROOM_FILL_COLOR_INDEX,
     strokeColorIndex: DEFAULT_ROOM_STROKE_COLOR_INDEX,
     strokeStyle: DEFAULT_ROOM_STROKE_STYLE,

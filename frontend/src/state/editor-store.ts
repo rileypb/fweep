@@ -46,6 +46,7 @@ import {
   setStickyNotePositions as domainSetStickyNotePositions,
 } from '../domain/map-operations';
 import { normalizeDirection, oppositeDirection } from '../domain/directions';
+import { createDefaultMapView } from '../domain/map-defaults';
 import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
 import { getRoomNodeWidth } from '../graph/room-label-geometry';
 import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
@@ -941,6 +942,28 @@ function patchDocumentView(
   };
 }
 
+function getDefaultEditorViewState(): Pick<
+  EditorState,
+  'snapToGridEnabled'
+  | 'showGridEnabled'
+  | 'useBezierConnectionsEnabled'
+  | 'cliOutputCollapsedEnabled'
+  | 'mapPanOffset'
+  | 'mapZoom'
+  | 'mapVisualStyle'
+> {
+  const defaultMapView = createDefaultMapView();
+  return {
+    snapToGridEnabled: defaultMapView.snapToGrid,
+    showGridEnabled: defaultMapView.showGrid,
+    useBezierConnectionsEnabled: defaultMapView.useBezierConnections,
+    cliOutputCollapsedEnabled: defaultMapView.cliOutputCollapsed,
+    mapPanOffset: defaultMapView.pan,
+    mapZoom: defaultMapView.zoom,
+    mapVisualStyle: defaultMapView.visualStyle,
+  };
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   doc: null,
   pastEntries: [],
@@ -953,13 +976,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedStickyNoteIds: [],
   selectedConnectionIds: [],
   selectedStickyNoteLinkIds: [],
-  snapToGridEnabled: true,
-  showGridEnabled: true,
-  useBezierConnectionsEnabled: false,
-  cliOutputCollapsedEnabled: false,
-  mapPanOffset: { x: 0, y: 0 },
-  mapZoom: 1,
-  mapVisualStyle: 'square-classic',
+  ...getDefaultEditorViewState(),
   connectionDrag: null,
   stickyNoteLinkDrag: null,
   connectionEndpointDrag: null,
@@ -1031,13 +1048,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     selectedStickyNoteIds: [],
     selectedConnectionIds: [],
     selectedStickyNoteLinkIds: [],
-    snapToGridEnabled: true,
-    showGridEnabled: true,
-    useBezierConnectionsEnabled: false,
-    cliOutputCollapsedEnabled: false,
-    mapPanOffset: { x: 0, y: 0 },
-    mapZoom: 1,
-    mapVisualStyle: 'square-classic',
+    ...getDefaultEditorViewState(),
     connectionDrag: null,
     stickyNoteLinkDrag: null,
     connectionEndpointDrag: null,
