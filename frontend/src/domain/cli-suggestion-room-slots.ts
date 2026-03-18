@@ -77,6 +77,28 @@ function getConnectedRooms(doc: MapDocument, sourceRoom: Room): readonly Room[] 
     .filter((room): room is Room => room !== null);
 }
 
+function hasCompletedRoomReferenceBeforeFragment(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+): boolean {
+  if (doc === null || fragment.prefix.length === 0) {
+    return false;
+  }
+
+  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
+  const typedRoomText = input.slice(slotStart, fragment.start);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
+  if (normalizedTypedRoomText.length === 0) {
+    return false;
+  }
+
+  return Object.values(doc.rooms).some(
+    (room) => normalizeRoomReferenceText(room.name) === normalizedTypedRoomText,
+  );
+}
+
 export function getRoomReferenceResolution(
   input: string,
   fragment: ActiveFragment,
@@ -146,6 +168,18 @@ export function getRoomReferenceResolutionWithFallback(
   const typedRoomText = input.slice(slotStart, fragment.caret);
   const hasTypedRoomText = normalizeRoomReferenceText(typedRoomText).length > 0;
   const shouldOfferFallback = hasTypedRoomText && fragment.prefix.length === 0;
+
+  if (
+    !shouldOfferFallback
+    && hasCompletedRoomReferenceBeforeFragment(input, fragment, doc, slotStartTokenIndex)
+  ) {
+    return {
+      suggestions: fallbackSuggestions,
+      replaceStart: fragment.start,
+      replaceEnd: fragment.end,
+      prefix: fragment.prefix,
+    };
+  }
 
   if (!shouldOfferFallback) {
     return roomResolution;

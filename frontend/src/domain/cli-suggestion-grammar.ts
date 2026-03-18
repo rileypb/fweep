@@ -59,8 +59,20 @@ const cliSuggestionGrammarStates = [
     keyword('go', 'GO'),
     keyword('show', 'SHOW'),
     keyword('edit', 'EDIT'),
+    keyword('delete', 'DELETE'),
+    keyword('notate', 'NOTATE'),
+    keyword('annotate', 'ANNOTATE'),
     keyword('arrange', 'ARRANGE'),
     keyword('help', 'HELP'),
+    keyword('put', 'PUT'),
+    keyword('take', 'TAKE'),
+    keyword('get', 'GET'),
+    keyword('undo', 'UNDO'),
+    keyword('redo', 'REDO'),
+    keyword('above', 'ABOVE_LEAD'),
+    keyword('below', 'BELOW_LEAD'),
+    phrase('the room', 'THE_ROOM'),
+    phrase('the way', 'THE_WAY'),
     slot('DIRECTION', 'DIRECTION_LEAD'),
     slot('ROOM_REF', 'ROOM_LEAD'),
   ]),
@@ -71,6 +83,12 @@ const cliSuggestionGrammarStates = [
     end(),
   ]),
   state('ARRANGE', [
+    end(),
+  ]),
+  state('UNDO', [
+    end(),
+  ]),
+  state('REDO', [
     end(),
   ]),
   state('GO', [

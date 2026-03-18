@@ -19,6 +19,12 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('connect').states.map((state) => state.stateId)).toContain('CONNECT');
     expect(parseCliSuggestionInput('go').states.map((state) => state.stateId)).toContain('GO');
     expect(parseCliSuggestionInput('help').states.map((state) => state.stateId)).toContain('HELP');
+    expect(parseCliSuggestionInput('delete').states.map((state) => state.stateId)).toContain('DELETE');
+    expect(parseCliSuggestionInput('put').states.map((state) => state.stateId)).toContain('PUT');
+    expect(parseCliSuggestionInput('take').states.map((state) => state.stateId)).toContain('TAKE');
+    expect(parseCliSuggestionInput('get').states.map((state) => state.stateId)).toContain('GET');
+    expect(parseCliSuggestionInput('undo').states.map((state) => state.stateId)).toContain('UNDO');
+    expect(parseCliSuggestionInput('redo').states.map((state) => state.stateId)).toContain('REDO');
   });
 
   it('walks through go command structure', () => {
@@ -60,6 +66,10 @@ describe('cli suggestion parser', () => {
   it('keeps pseudo-room families separate', () => {
     expect(parseCliSuggestionInput('north').states.map((state) => state.stateId)).toContain('DIRECTION_LEAD');
     expect(parseCliSuggestionInput('north of').states.map((state) => state.stateId)).toContain('DIRECTION_OF');
+    expect(parseCliSuggestionInput('above').states.map((state) => state.stateId)).toContain('ABOVE_LEAD');
+    expect(parseCliSuggestionInput('below').states.map((state) => state.stateId)).toContain('BELOW_LEAD');
+    expect(parseCliSuggestionInput('the room').states.map((state) => state.stateId)).toContain('THE_ROOM');
+    expect(parseCliSuggestionInput('the way').states.map((state) => state.stateId)).toContain('THE_WAY');
   });
 
   it('shows where the parser is still permissive about generic slot text', () => {

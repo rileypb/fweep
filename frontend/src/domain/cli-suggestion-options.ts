@@ -1,11 +1,9 @@
 import { CLI_COMMAND_SUGGESTION_SPECS, parseCliCommandDescription } from './cli-command';
 import { STANDARD_DIRECTIONS } from './directions';
 import { getCliHelpTopics } from './cli-help';
+import { getCliSuggestionGrammarState } from './cli-suggestion-grammar';
 import type { CliSuggestion } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
-
-const DEFAULT_COMMAND_IDS = ['create', 'connect', 'show', 'edit', 'arrange', 'help'] as const;
-const DEFAULT_DIRECTIONS = ['north', 'south', 'east', 'west'] as const;
 
 function startsWithNormalized(value: string, prefix: string): boolean {
   return value.toLowerCase().startsWith(prefix.toLowerCase());
@@ -104,12 +102,35 @@ export function createCommandSuggestions(prefix: string): readonly CliSuggestion
 }
 
 export function createDefaultSuggestions(doc: MapDocument | null): readonly CliSuggestion[] {
-  const commandSuggestions = DEFAULT_COMMAND_IDS
-    .map((commandId) => CLI_COMMAND_SUGGESTION_SPECS.find((spec) => spec.id === commandId) ?? null)
-    .filter((spec): spec is NonNullable<typeof spec> => spec !== null)
-    .map((spec) => createCommandSuggestion(spec.id, spec.insertText, spec.descriptionInput));
+  const rootGrammarState = getCliSuggestionGrammarState('ROOT');
+  const seenRootKeywords = new Set<string>();
+  const commandSuggestions = (rootGrammarState?.nextSymbols ?? [])
+    .flatMap((symbol) => {
+      if (symbol.kind !== 'keyword' && symbol.kind !== 'phrase') {
+        return [];
+      }
 
-  const directionSuggestions = DEFAULT_DIRECTIONS.map((direction) => ({
+      const rootKeyword = symbol.text.split(/\s+/)[0] ?? '';
+      if (rootKeyword.length === 0 || seenRootKeywords.has(rootKeyword)) {
+        return [];
+      }
+      seenRootKeywords.add(rootKeyword);
+
+      const matchingSpec = CLI_COMMAND_SUGGESTION_SPECS.find((spec) => spec.insertText === rootKeyword) ?? null;
+      if (matchingSpec !== null) {
+        return [createCommandSuggestion(matchingSpec.id, matchingSpec.insertText, matchingSpec.descriptionInput)];
+      }
+
+      return [{
+        id: `cli-suggestion-command-${rootKeyword.replace(/\s+/g, '-')}`,
+        kind: 'command' as const,
+        label: rootKeyword,
+        insertText: rootKeyword,
+        detail: null,
+      }];
+    });
+
+  const directionSuggestions = STANDARD_DIRECTIONS.map((direction) => ({
     id: `cli-suggestion-direction-${direction}`,
     kind: 'direction' as const,
     label: direction,

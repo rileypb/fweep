@@ -196,7 +196,12 @@ function dedupeCandidates(candidates: readonly ParseCandidate[]): readonly Parse
   const unique: ParseCandidate[] = [];
 
   for (const candidate of candidates) {
-    const key = `${candidate.stateId}::${candidate.consumedSymbols.join('|')}`;
+    const key = [
+      candidate.stateId,
+      candidate.consumedSymbols.join('|'),
+      candidate.pendingSymbol?.text ?? '',
+      candidate.remainingSymbolWords.join('|'),
+    ].join('::');
     if (seen.has(key)) {
       continue;
     }

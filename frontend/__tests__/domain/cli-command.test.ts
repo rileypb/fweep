@@ -59,6 +59,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('Above Kitchen lies death')).toBe(
       'mark the up exit from Kitchen as death',
     );
+    expect(parseCliCommandDescription('the way east of Kitchen lies death')).toBe(
+      'mark the east exit from Kitchen as death',
+    );
   });
 
   it('describes pseudo-room nowhere commands', () => {
@@ -67,6 +70,9 @@ describe('parseCliCommandDescription', () => {
     );
     expect(parseCliCommandDescription('Above Kitchen leads nowhere')).toBe(
       'mark the up exit from Kitchen as leading nowhere',
+    );
+    expect(parseCliCommandDescription('the way east of Kitchen leads nowhere')).toBe(
+      'mark the east exit from Kitchen as leading nowhere',
     );
   });
 
@@ -298,6 +304,22 @@ describe('parseCliCommandDescription', () => {
 });
 
 describe('parseCliCommand', () => {
+  it('parses the-way pseudo-room terminal commands', () => {
+    expect(parseCliCommand('the way east of Kitchen lies death')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'death',
+      sourceRoom: { text: 'Kitchen', exact: false },
+      sourceDirection: 'east',
+    });
+
+    expect(parseCliCommand('the way east of Kitchen leads nowhere')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'nowhere',
+      sourceRoom: { text: 'Kitchen', exact: false },
+      sourceDirection: 'east',
+    });
+  });
+
   it('parses connection annotation commands', () => {
     expect(parseCliCommand('Bedroom to Bathroom is a door')).toEqual({
       kind: 'set-connection-annotation',

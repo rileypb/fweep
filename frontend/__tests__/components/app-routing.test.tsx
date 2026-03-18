@@ -253,6 +253,22 @@ describe('URL routing', () => {
     expect(optionText).toEqual(['<new room name>']);
   });
 
+  it('suggests the as a first-token starter and room/way after the', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI The Starter Suggestions Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 't');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toContain('the');
+
+    await user.type(input, 'he ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['room', 'way']);
+  });
+
   it('shows a new-room placeholder after create and connect plus a space', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Create And Connect Placeholder Map');

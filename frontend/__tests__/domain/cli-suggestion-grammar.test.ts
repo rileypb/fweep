@@ -24,8 +24,20 @@ describe('cli suggestion grammar', () => {
       'go',
       'show',
       'edit',
+      'delete',
+      'notate',
+      'annotate',
       'arrange',
       'help',
+      'put',
+      'take',
+      'get',
+      'undo',
+      'redo',
+      'above',
+      'below',
+      'the room',
+      'the way',
       '<direction>',
       '<room_ref>',
     ]);
@@ -86,6 +98,8 @@ describe('cli suggestion grammar', () => {
 
   it('marks terminal states explicitly', () => {
     expect(describeCliSuggestionGrammarSymbols('ARRANGE')).toEqual(['<end>']);
+    expect(describeCliSuggestionGrammarSymbols('UNDO')).toEqual(['<end>']);
+    expect(describeCliSuggestionGrammarSymbols('REDO')).toEqual(['<end>']);
     expect(describeCliSuggestionGrammarSymbols('ROOM_LIGHTING_DONE')).toEqual(['<end>']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_DONE')).toEqual(['<end>']);
   });

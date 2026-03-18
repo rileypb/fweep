@@ -98,6 +98,7 @@ function getSuggestionsForCommandContext(
     return suggestionResolution([
       ...createCommandSuggestions(prefix),
       ...createDirectionSuggestions(prefix),
+      ...createKeywordSuggestions(prefix, ['the']),
       ...createRoomSuggestions(doc, prefix),
     ]);
   }
@@ -113,6 +114,10 @@ function getSuggestionsForCommandContext(
 
   if (tokens[0] === 'help' || tokens[0] === 'h') {
     return suggestionResolution([]);
+  }
+
+  if (tokens[0] === 'the' && fragment.tokenIndex === 1) {
+    return suggestionResolution(createKeywordSuggestions(prefix, ['room', 'way']));
   }
 
   if (
@@ -454,7 +459,7 @@ function getSuggestionsForCommandContext(
       }
     }
 
-    if (getCanonicalDirectionToken(tokens[2] ?? null) !== null) {
+    if (getCanonicalDirectionToken(tokens[2] ?? null) !== null && !tokens.includes('of')) {
       return suggestionResolution(createKeywordSuggestions(prefix, ['of']));
     }
   }
@@ -501,7 +506,7 @@ function getSuggestionsForCommandContext(
       }
     }
 
-    if (getCanonicalDirectionToken(tokens[2] ?? null) !== null) {
+    if (getCanonicalDirectionToken(tokens[2] ?? null) !== null && !tokens.includes('of')) {
       return suggestionResolution(createKeywordSuggestions(prefix, ['of']));
     }
   }
