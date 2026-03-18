@@ -289,6 +289,22 @@ describe('URL routing', () => {
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
   });
 
+  it('closes suggestions after a completed room-led adjective phrase', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Completed Room Lighting Suggestions Map'), {
+      ...createRoom('Kitchen'),
+      position: { x: 0, y: 0 },
+    });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'Kitchen is lit ');
+
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
   it('inserts is after a completed room-to-room phrase without deleting the target room', async () => {
     const user = userEvent.setup();
     await renderAppWithSavedMap(createEmptyMap('CLI Room To Room Suggestions Map'));

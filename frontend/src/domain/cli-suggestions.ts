@@ -1,118 +1,21 @@
 import { CLI_COMMAND_SUGGESTION_SPECS, parseCliCommandDescription } from './cli-command';
-import { findRoomsByCliName } from './cli-execution';
 import { STANDARD_DIRECTIONS, normalizeDirection } from './directions';
 import { getCliHelpTopics } from './cli-help';
-import type { MapDocument, Room } from './map-types';
+import { getActiveFragment } from './cli-suggestion-fragments';
+import {
+  createRoomSuggestions,
+  getConnectedRoomReferenceResolution,
+  getLeadingRoomReferenceResolution,
+  getRoomReferenceResolution,
+  getRoomReferenceResolutionWithFallback,
+} from './cli-suggestion-room-slots';
+import type { CliSuggestion, CliSuggestionResult, SuggestionResolution, ActiveFragment } from './cli-suggestion-types';
+import type { MapDocument } from './map-types';
 
-export type CliSuggestionKind = 'command' | 'room' | 'direction' | 'help-topic' | 'placeholder';
-
-export interface CliSuggestion {
-  readonly id: string;
-  readonly kind: CliSuggestionKind;
-  readonly label: string;
-  readonly insertText: string;
-  readonly detail: string | null;
-}
-
-export interface CliSuggestionResult {
-  readonly replaceStart: number;
-  readonly replaceEnd: number;
-  readonly prefix: string;
-  readonly suggestions: readonly CliSuggestion[];
-  readonly highlightedIndex: number;
-}
-
-interface Token {
-  readonly value: string;
-  readonly start: number;
-  readonly end: number;
-}
-
-interface ActiveFragment {
-  readonly start: number;
-  readonly end: number;
-  readonly caret: number;
-  readonly prefix: string;
-  readonly tokenIndex: number;
-  readonly precedingTokens: readonly Token[];
-}
-
-interface SuggestionResolution {
-  readonly suggestions: readonly CliSuggestion[];
-  readonly replaceStart?: number;
-  readonly replaceEnd?: number;
-  readonly prefix?: string;
-}
+export type { CliSuggestion, CliSuggestionResult } from './cli-suggestion-types';
 
 const DEFAULT_COMMAND_IDS = ['create', 'connect', 'show', 'edit', 'arrange', 'help'] as const;
 const DEFAULT_DIRECTIONS = ['north', 'south', 'east', 'west'] as const;
-
-function tokenizePlainInput(input: string, offset = 0): readonly Token[] {
-  return Array.from(input.matchAll(/[^\s,"]+/g)).map((match) => {
-    const value = match[0] ?? '';
-    const start = (match.index ?? 0) + offset;
-    return {
-      value,
-      start,
-      end: start + value.length,
-    };
-  });
-}
-
-function isFragmentDelimiter(character: string | undefined): boolean {
-  return character === undefined || /\s|,|"/.test(character);
-}
-
-function getActiveFragment(input: string, caretPosition: number): ActiveFragment | null {
-  const safeCaretPosition = Math.max(0, Math.min(caretPosition, input.length));
-  if (input.trim().length === 0) {
-    return {
-      start: safeCaretPosition,
-      end: safeCaretPosition,
-      caret: safeCaretPosition,
-      prefix: '',
-      tokenIndex: 0,
-      precedingTokens: [],
-    };
-  }
-
-  let start = safeCaretPosition;
-  const hasTrailingDelimiter = safeCaretPosition > 0 && isFragmentDelimiter(input[safeCaretPosition - 1]);
-  if (hasTrailingDelimiter) {
-    const precedingTokens = tokenizePlainInput(input.slice(0, safeCaretPosition));
-    return {
-      start: safeCaretPosition,
-      end: safeCaretPosition,
-      caret: safeCaretPosition,
-      prefix: '',
-      tokenIndex: precedingTokens.length,
-      precedingTokens,
-    };
-  }
-
-  while (start > 0 && !isFragmentDelimiter(input[start - 1])) {
-    start -= 1;
-  }
-
-  const prefix = input.slice(start, safeCaretPosition);
-  if (prefix.trim().length === 0) {
-    return null;
-  }
-
-  let end = safeCaretPosition;
-  while (end < input.length && !isFragmentDelimiter(input[end])) {
-    end += 1;
-  }
-
-  return {
-    start,
-    end,
-    caret: safeCaretPosition,
-    prefix,
-    tokenIndex: tokenizePlainInput(input.slice(0, start)).length,
-    precedingTokens: tokenizePlainInput(input.slice(0, start)),
-  };
-}
 
 function startsWithNormalized(value: string, prefix: string): boolean {
   return value.toLowerCase().startsWith(prefix.toLowerCase());
@@ -129,6 +32,15 @@ function createKeywordSuggestions(prefix: string, values: readonly string[]): re
       insertText: value,
       detail: null,
     }));
+}
+
+function createTerminalKeywordSuggestions(prefix: string, values: readonly string[]): readonly CliSuggestion[] {
+  const normalizedPrefix = prefix.toLowerCase();
+  if (values.some((value) => value.toLowerCase() === normalizedPrefix)) {
+    return [];
+  }
+
+  return createKeywordSuggestions(prefix, values);
 }
 
 function createPlaceholderSuggestion(label: string): readonly CliSuggestion[] {
@@ -216,205 +128,7 @@ function createDirectionSuggestions(prefix: string): readonly CliSuggestion[] {
 }
 
 function createConnectionAnnotationSuggestions(prefix: string): readonly CliSuggestion[] {
-  return createKeywordSuggestions(prefix, ['door', 'locked door', 'clear']);
-}
-
-function createRoomSuggestions(doc: MapDocument | null, prefix: string): readonly CliSuggestion[] {
-  if (!doc) {
-    return [];
-  }
-
-  const normalizedPrefix = prefix.toLowerCase();
-  return Object.values(doc.rooms)
-    .filter((room) => room.name.toLowerCase().split(/\s+/).some((part) => part.startsWith(normalizedPrefix)))
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((room) => ({
-      id: `cli-suggestion-room-${room.id}`,
-      kind: 'room' as const,
-      label: room.name,
-      insertText: room.name,
-      detail: 'Room',
-    }));
-}
-
-function normalizeRoomReferenceText(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function tokenizeRoomReferenceWords(value: string): readonly string[] {
-  return normalizeRoomReferenceText(value)
-    .replace(/[^a-z0-9]+/g, ' ')
-    .split(' ')
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
-}
-
-function roomMatchesReferencePrefix(roomName: string, typedRoomText: string): boolean {
-  const typedWords = tokenizeRoomReferenceWords(typedRoomText);
-  if (typedWords.length === 0) {
-    return false;
-  }
-
-  const roomWords = tokenizeRoomReferenceWords(roomName);
-  return typedWords.every((typedWord) => roomWords.some((roomWord) => roomWord.startsWith(typedWord)));
-}
-
-function getRoomReferenceResolution(
-  input: string,
-  fragment: ActiveFragment,
-  doc: MapDocument | null,
-  slotStartTokenIndex: number,
-): SuggestionResolution {
-  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
-
-  if (normalizedTypedRoomText.length === 0) {
-    return {
-      suggestions: createPlaceholderSuggestion('<room>'),
-      replaceStart: slotStart,
-      replaceEnd: fragment.end,
-      prefix: '',
-    };
-  }
-
-  if (!doc) {
-    return {
-      suggestions: [],
-      replaceStart: slotStart,
-      replaceEnd: fragment.end,
-      prefix: normalizedTypedRoomText,
-    };
-  }
-
-  const matchingRooms = Object.values(doc.rooms)
-    .filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText))
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((room) => ({
-      id: `cli-suggestion-room-${room.id}`,
-      kind: 'room' as const,
-      label: room.name,
-      insertText: room.name,
-      detail: 'Room',
-    }));
-
-  if (fragment.prefix.length === 0) {
-    const hasLongerMatch = matchingRooms.some(
-      (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
-    );
-    if (!hasLongerMatch) {
-      return {
-        suggestions: [],
-        replaceStart: slotStart,
-        replaceEnd: fragment.end,
-        prefix: normalizedTypedRoomText,
-      };
-    }
-  }
-
-  return {
-    suggestions: matchingRooms,
-    replaceStart: slotStart,
-    replaceEnd: fragment.end,
-    prefix: normalizedTypedRoomText,
-  };
-}
-
-function createRoomSuggestionsFromRooms(rooms: readonly Room[]): readonly CliSuggestion[] {
-  return rooms
-    .slice()
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((room) => ({
-      id: `cli-suggestion-room-${room.id}`,
-      kind: 'room' as const,
-      label: room.name,
-      insertText: room.name,
-      detail: 'Room',
-    }));
-}
-
-function getConnectedRooms(doc: MapDocument, sourceRoom: Room): readonly Room[] {
-  const connectedRoomIds = new Set<string>();
-  for (const connection of Object.values(doc.connections)) {
-    if (connection.sourceRoomId === sourceRoom.id && connection.target.kind === 'room') {
-      connectedRoomIds.add(connection.target.id);
-    }
-    if (connection.target.kind === 'room' && connection.target.id === sourceRoom.id) {
-      connectedRoomIds.add(connection.sourceRoomId);
-    }
-  }
-
-  return [...connectedRoomIds]
-    .map((roomId) => doc.rooms[roomId] ?? null)
-    .filter((room): room is Room => room !== null);
-}
-
-function getConnectedRoomReferenceResolution(
-  input: string,
-  fragment: ActiveFragment,
-  doc: MapDocument | null,
-  slotStartTokenIndex: number,
-  sourceRoomText: string,
-  fallbackSuggestions: readonly CliSuggestion[] = [],
-): SuggestionResolution {
-  if (doc === null) {
-    return getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex);
-  }
-
-  const sourceRooms = findRoomsByCliName(doc, sourceRoomText);
-  if (sourceRooms.length !== 1) {
-    return getRoomReferenceResolutionWithFallback(input, fragment, doc, slotStartTokenIndex, fallbackSuggestions);
-  }
-
-  const connectedRooms = getConnectedRooms(doc, sourceRooms[0]);
-  if (connectedRooms.length === 0) {
-    return {
-      suggestions: createPlaceholderSuggestion(`<no rooms connected to ${sourceRooms[0].name}>`),
-      replaceStart: fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start,
-      replaceEnd: fragment.end,
-      prefix: fragment.prefix,
-    };
-  }
-
-  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
-
-  if (normalizedTypedRoomText.length === 0) {
-    return {
-      suggestions: createRoomSuggestionsFromRooms(connectedRooms),
-      replaceStart: slotStart,
-      replaceEnd: fragment.end,
-      prefix: '',
-    };
-  }
-
-  const matchingRooms = createRoomSuggestionsFromRooms(
-    connectedRooms.filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText)),
-  );
-
-  if (fragment.prefix.length === 0) {
-    const hasLongerMatch = matchingRooms.some(
-      (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
-    );
-    if (!hasLongerMatch) {
-      return {
-        suggestions: fallbackSuggestions,
-        replaceStart: fragment.caret,
-        replaceEnd: fragment.caret,
-        prefix: '',
-      };
-    }
-  }
-
-  return {
-    suggestions: fragment.prefix.length === 0 && fallbackSuggestions.length > 0
-      ? mergeSuggestions(matchingRooms, fallbackSuggestions)
-      : matchingRooms,
-    replaceStart: slotStart,
-    replaceEnd: fragment.end,
-    prefix: normalizedTypedRoomText,
-  };
+  return createTerminalKeywordSuggestions(prefix, ['door', 'locked door', 'clear']);
 }
 
 function createHelpTopicSuggestions(prefix: string): readonly CliSuggestion[] {
@@ -470,72 +184,10 @@ function mergeSuggestions(
   ];
 }
 
-function getRoomReferenceResolutionWithFallback(
-  input: string,
-  fragment: ActiveFragment,
-  doc: MapDocument | null,
-  slotStartTokenIndex: number,
-  fallbackSuggestions: readonly CliSuggestion[],
-): SuggestionResolution {
-  const roomResolution = getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex);
-  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const hasTypedRoomText = normalizeRoomReferenceText(typedRoomText).length > 0;
-  const shouldOfferFallback = hasTypedRoomText && fragment.prefix.length === 0;
-
-  if (!shouldOfferFallback) {
-    return roomResolution;
-  }
-
-  if (roomResolution.suggestions.length === 0) {
-    return {
-      suggestions: fallbackSuggestions,
-      replaceStart: fragment.start,
-      replaceEnd: fragment.end,
-      prefix: fragment.prefix,
-    };
-  }
-
-  return {
-    suggestions: mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
-    replaceStart: roomResolution.replaceStart,
-    replaceEnd: roomResolution.replaceEnd,
-    prefix: roomResolution.prefix,
-  };
-}
-
-function getLeadingRoomReferenceResolution(
-  input: string,
-  fragment: ActiveFragment,
-  doc: MapDocument | null,
-  fallbackSuggestions: readonly CliSuggestion[],
-): SuggestionResolution {
-  const syntheticFragment: ActiveFragment = {
-    ...fragment,
-    precedingTokens: [{ value: '', start: 0, end: 0 }],
-  };
-
-  const roomResolution = getRoomReferenceResolution(input, syntheticFragment, doc, 0);
-  if (roomResolution.suggestions.length > 0) {
-    if (fragment.prefix.length === 0) {
-      return {
-        suggestions: mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
-        replaceStart: roomResolution.replaceStart,
-        replaceEnd: roomResolution.replaceEnd,
-        prefix: roomResolution.prefix,
-      };
-    }
-
-    return roomResolution;
-  }
-
-  return {
-    suggestions: fallbackSuggestions,
-    replaceStart: fragment.start,
-    replaceEnd: fragment.end,
-    prefix: fragment.prefix,
-  };
-}
+const roomSlotSuggestionHelpers = {
+  createPlaceholderSuggestion,
+  mergeSuggestions,
+} as const;
 
 function hasCommaAfterLastPrecedingToken(fragment: ActiveFragment, input: string): boolean {
   const lastToken = fragment.precedingTokens.at(-1);
@@ -596,6 +248,7 @@ function getSuggestionsForCommandContext(
       fragment,
       doc,
       createKeywordSuggestions(prefix, ['is', 'to']),
+      roomSlotSuggestionHelpers,
     );
     if (leadingRoomResolution.suggestions.length > 0) {
       return leadingRoomResolution;
@@ -610,15 +263,15 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'go' && tokens[1] === 'to') {
-    return getRoomReferenceResolution(input, fragment, doc, 2);
+    return getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
   }
 
   if (tokens[0] === 'show') {
-    return getRoomReferenceResolution(input, fragment, doc, 1);
+    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 
   if (tokens[0] === 'delete' || tokens[0] === 'd' || tokens[0] === 'del' || tokens[0] === 'edit' || tokens[0] === 'ed') {
-    return getRoomReferenceResolution(input, fragment, doc, 1);
+    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 
   if (tokens[0] === 'notate' || tokens[0] === 'annotate' || tokens[0] === 'ann') {
@@ -627,7 +280,7 @@ function getSuggestionsForCommandContext(
     }
 
     if (fragment.tokenIndex <= 1 || prefix.length > 0) {
-      return getRoomReferenceResolution(input, fragment, doc, 1);
+      return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
     }
 
     return suggestionResolution(createKeywordSuggestions(prefix, ['with']));
@@ -637,7 +290,7 @@ function getSuggestionsForCommandContext(
     if (tokens.includes('in')) {
       const inIndex = tokens.indexOf('in');
       if (fragment.tokenIndex > inIndex) {
-        return getRoomReferenceResolution(input, fragment, doc, inIndex + 1);
+        return getRoomReferenceResolution(input, fragment, doc, inIndex + 1, roomSlotSuggestionHelpers);
       }
       return suggestionResolution([]);
     }
@@ -657,7 +310,7 @@ function getSuggestionsForCommandContext(
     if (tokens.includes('from')) {
       const fromIndex = tokens.indexOf('from');
       if (fragment.tokenIndex > fromIndex) {
-        return getRoomReferenceResolution(input, fragment, doc, fromIndex + 1);
+        return getRoomReferenceResolution(input, fragment, doc, fromIndex + 1, roomSlotSuggestionHelpers);
       }
       return suggestionResolution([]);
     }
@@ -686,7 +339,7 @@ function getSuggestionsForCommandContext(
       }
 
       if (tokens.at(-2) === 'which' && lastToken === 'is') {
-        return suggestionResolution(createKeywordSuggestions(prefix, ['dark', 'lit']));
+        return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
       }
 
       if (lastToken === 'dark' || lastToken === 'lit') {
@@ -698,7 +351,7 @@ function getSuggestionsForCommandContext(
       const createAndConnectToIndex = tokens.indexOf('to');
       if (createAndConnectToIndex !== -1) {
         if (fragment.tokenIndex === createAndConnectToIndex + 1) {
-          return getRoomReferenceResolution(input, fragment, doc, createAndConnectToIndex + 1);
+          return getRoomReferenceResolution(input, fragment, doc, createAndConnectToIndex + 1, roomSlotSuggestionHelpers);
         }
 
         if (fragment.tokenIndex > createAndConnectToIndex + 1) {
@@ -708,6 +361,7 @@ function getSuggestionsForCommandContext(
             doc,
             createAndConnectToIndex + 1,
             createDirectionSuggestions(prefix),
+            roomSlotSuggestionHelpers,
           );
         }
       }
@@ -729,17 +383,17 @@ function getSuggestionsForCommandContext(
     const toIndex = tokens.indexOf('to');
     if (toIndex !== -1) {
       if (fragment.tokenIndex === toIndex + 1 || (lastToken !== null && tokens.indexOf(lastToken) > toIndex && isDirectionLikePrefix(prefix))) {
-        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1);
+        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
       }
 
       if (fragment.tokenIndex > toIndex + 1) {
-        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1);
+        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
       }
-      return getRoomReferenceResolution(input, fragment, doc, toIndex + 1);
+      return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
     }
 
     if (fragment.tokenIndex === 1) {
-      return getRoomReferenceResolution(input, fragment, doc, 1);
+      return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
     }
 
     if (
@@ -757,6 +411,7 @@ function getSuggestionsForCommandContext(
         doc,
         1,
         createDirectionSuggestions(prefix),
+        roomSlotSuggestionHelpers,
       );
       if (sourceRoomResolution.suggestions.length > 0) {
         return sourceRoomResolution;
@@ -808,7 +463,7 @@ function getSuggestionsForCommandContext(
     }
 
     if (tokens.at(-2) === 'which' && lastToken === 'is') {
-      return suggestionResolution(createKeywordSuggestions(prefix, ['dark', 'lit']));
+      return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
     }
 
     if (lastToken === 'dark' || lastToken === 'lit') {
@@ -819,7 +474,7 @@ function getSuggestionsForCommandContext(
 
     const ofIndex = tokens.indexOf('of');
     if (ofIndex !== -1 && fragment.tokenIndex === ofIndex + 1) {
-      return getRoomReferenceResolution(input, fragment, doc, ofIndex + 1);
+      return getRoomReferenceResolution(input, fragment, doc, ofIndex + 1, roomSlotSuggestionHelpers);
     }
     if (ofIndex !== -1 && fragment.tokenIndex > ofIndex + 1) {
       return suggestionResolution([]);
@@ -828,7 +483,7 @@ function getSuggestionsForCommandContext(
     const verticalCreateIndex = tokens.findIndex((token) => token === 'above' || token === 'below');
     if (verticalCreateIndex !== -1) {
       if (fragment.tokenIndex === verticalCreateIndex + 1 || lastToken === 'above' || lastToken === 'below') {
-        return getRoomReferenceResolution(input, fragment, doc, verticalCreateIndex + 1);
+        return getRoomReferenceResolution(input, fragment, doc, verticalCreateIndex + 1, roomSlotSuggestionHelpers);
       }
 
       if (fragment.tokenIndex > verticalCreateIndex + 1) {
@@ -872,6 +527,7 @@ function getSuggestionsForCommandContext(
         doc,
         3,
         createKeywordSuggestions(prefix, ['is unknown']),
+        roomSlotSuggestionHelpers,
       );
     }
 
@@ -888,6 +544,7 @@ function getSuggestionsForCommandContext(
           doc,
           roomOfIndex + 1,
           createKeywordSuggestions(prefix, ['is unknown']),
+          roomSlotSuggestionHelpers,
         );
       }
     }
@@ -913,7 +570,7 @@ function getSuggestionsForCommandContext(
       && !tokens.includes('leads')
       && !tokens.includes('lies')
     ) {
-      return getRoomReferenceResolutionWithFallback(input, fragment, doc, 3, pseudoWaySuggestions);
+      return getRoomReferenceResolutionWithFallback(input, fragment, doc, 3, pseudoWaySuggestions, roomSlotSuggestionHelpers);
     }
 
     const wayOfIndex = tokens.indexOf('of');
@@ -928,7 +585,14 @@ function getSuggestionsForCommandContext(
         && !tokens.includes('leads')
         && !tokens.includes('lies')
       ) {
-        return getRoomReferenceResolutionWithFallback(input, fragment, doc, wayOfIndex + 1, pseudoWaySuggestions);
+        return getRoomReferenceResolutionWithFallback(
+          input,
+          fragment,
+          doc,
+          wayOfIndex + 1,
+          pseudoWaySuggestions,
+          roomSlotSuggestionHelpers,
+        );
       }
     }
 
@@ -942,7 +606,7 @@ function getSuggestionsForCommandContext(
   }
 
   if (fragment.tokenIndex === 1 && (tokens[0] === 'above' || tokens[0] === 'below')) {
-    return getRoomReferenceResolution(input, fragment, doc, 1);
+    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 
   if (
@@ -957,11 +621,25 @@ function getSuggestionsForCommandContext(
     const fallbackSuggestions = createKeywordSuggestions(prefix, ['is unknown', 'goes on forever', 'leads nowhere', 'lies death']);
 
     if (ofIndex !== -1 && fragment.tokenIndex >= ofIndex + 1) {
-      return getRoomReferenceResolutionWithFallback(input, fragment, doc, ofIndex + 1, fallbackSuggestions);
+      return getRoomReferenceResolutionWithFallback(
+        input,
+        fragment,
+        doc,
+        ofIndex + 1,
+        fallbackSuggestions,
+        roomSlotSuggestionHelpers,
+      );
     }
 
     if ((tokens[0] === 'above' || tokens[0] === 'below') && fragment.tokenIndex >= 1) {
-      return getRoomReferenceResolutionWithFallback(input, fragment, doc, 1, fallbackSuggestions);
+      return getRoomReferenceResolutionWithFallback(
+        input,
+        fragment,
+        doc,
+        1,
+        fallbackSuggestions,
+        roomSlotSuggestionHelpers,
+      );
     }
   }
 
@@ -983,12 +661,13 @@ function getSuggestionsForCommandContext(
         roomToIndex + 1,
         sourceRoomText,
         createKeywordSuggestions(prefix, ['is']),
+        roomSlotSuggestionHelpers,
       );
     }
   }
 
   if (lastToken === 'of') {
-    return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex);
+    return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex, roomSlotSuggestionHelpers);
   }
 
   if (lastToken === 'is' && roomToIndex > 0 && !isPseudoRoomLead(tokens)) {
@@ -1010,7 +689,7 @@ function getSuggestionsForCommandContext(
   }
 
   if (lastToken === 'is') {
-    return suggestionResolution(createKeywordSuggestions(prefix, ['dark', 'lit']));
+    return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
   }
 
   if (lastToken === 'goes') {
@@ -1022,6 +701,10 @@ function getSuggestionsForCommandContext(
   }
 
   if (lastToken === 'unknown' || lastToken === 'forever' || lastToken === 'nowhere' || lastToken === 'death') {
+    return suggestionResolution([]);
+  }
+
+  if (lastToken === 'dark' || lastToken === 'lit') {
     return suggestionResolution([]);
   }
 
@@ -1037,7 +720,7 @@ function getSuggestionsForCommandContext(
     if (isPseudoRoomLead(tokens)) {
       return suggestionResolution([]);
     }
-    return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex);
+    return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex, roomSlotSuggestionHelpers);
   }
 
   if (hasMalformedPseudoRoomContinuation(tokens)) {

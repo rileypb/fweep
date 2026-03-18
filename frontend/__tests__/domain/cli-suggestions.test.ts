@@ -81,6 +81,13 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['dark', 'lit']);
   });
 
+  it('closes suggestions after a completed room adjective with a trailing space', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('Kitchen is lit ', 'Kitchen is lit '.length, doc)).toBeNull();
+    expect(getCliSuggestions('Kitchen is dark ', 'Kitchen is dark '.length, doc)).toBeNull();
+  });
+
   it('suggests adjective and relative-create phrases after create plus a room name', () => {
     const result = getCliSuggestions('create Kitchen ', 'create Kitchen '.length, createEmptyMap('Test'));
 
