@@ -133,6 +133,9 @@ describe('cli suggestion parser', () => {
     expect(describeCliSuggestionNextSymbols('north')).toEqual([
       'of <- DIRECTION_LEAD',
     ]);
+    expect(describeCliSuggestionNextSymbols('north o')).toEqual([
+      'of <- DIRECTION_LEAD',
+    ]);
   });
 
   it('shows room-led next symbols for generic slot text', () => {

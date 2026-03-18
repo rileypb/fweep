@@ -46,6 +46,14 @@ function tokenizeSuggestionInput(input: string): readonly CliSuggestionParseToke
 }
 
 function createParseState(candidate: ParseCandidate): CliSuggestionParseState | null {
+  if (candidate.pendingSymbol !== null) {
+    return {
+      stateId: candidate.stateId,
+      consumedSymbols: candidate.consumedSymbols,
+      nextSymbols: [candidate.pendingSymbol],
+    };
+  }
+
   const grammarState = getCliSuggestionGrammarState(candidate.stateId);
   if (grammarState === null) {
     return null;
@@ -154,6 +162,16 @@ function consumeToken(
       const symbolWords = symbol.text.toLowerCase().split(/\s+/);
       const [firstWord, ...remainingWords] = symbolWords;
       if (firstWord === undefined || !isPrefixMatch(token, firstWord)) {
+        continue;
+      }
+
+      if (token.normalizedText !== firstWord) {
+        nextCandidates.push({
+          stateId: candidate.stateId,
+          consumedSymbols: candidate.consumedSymbols,
+          pendingSymbol: symbol,
+          remainingSymbolWords: remainingWords,
+        });
         continue;
       }
 

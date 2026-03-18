@@ -559,11 +559,16 @@ describe('cli suggestions', () => {
   });
 
   it('suggests pseudo-room continuations after directional pseudo-room phrases', () => {
-    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    let doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Library'), position: { x: 1, y: 0 } });
+    const partialOfResult = getCliSuggestions('north o', 'north o'.length, doc);
+    const partialRoomResult = getCliSuggestions('n of l', 'n of l'.length, doc);
     const shorthandResult = getCliSuggestions('west of bedroom ', 'west of bedroom '.length, doc);
     const roomResult = getCliSuggestions('the room north of bedroom ', 'the room north of bedroom '.length, doc);
     const wayResult = getCliSuggestions('the way north of bedroom ', 'the way north of bedroom '.length, doc);
 
+    expect(partialOfResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(partialRoomResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Library']);
     expect(shorthandResult?.suggestions.map((suggestion) => suggestion.label)).toEqual([
       'is unknown',
       'goes on forever',

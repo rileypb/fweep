@@ -2,7 +2,7 @@ import { findRoomsByCliName } from './cli-execution';
 import type { MapDocument, Room } from './map-types';
 import type { ActiveFragment, CliSuggestion, SuggestionResolution } from './cli-suggestion-types';
 
-interface RoomSlotSuggestionHelpers {
+export interface RoomSlotSuggestionHelpers {
   readonly createPlaceholderSuggestion: (label: string) => readonly CliSuggestion[];
   readonly mergeSuggestions: (
     primary: readonly CliSuggestion[],
