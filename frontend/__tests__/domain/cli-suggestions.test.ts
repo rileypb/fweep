@@ -178,6 +178,9 @@ describe('cli suggestions', () => {
     const multiWordResult = getCliSuggestions('create city park ', 'create city park '.length, createEmptyMap('Test'));
     const continuedNameResult = getCliSuggestions('create city ', 'create city '.length, createEmptyMap('Test'));
     const continuedNextWordResult = getCliSuggestions('create city p', 'create city p'.length, createEmptyMap('Test'));
+    const afterCommaResult = getCliSuggestions('create ice cream stand, ', 'create ice cream stand, '.length, createEmptyMap('Test'));
+    const afterCommaPartialResult = getCliSuggestions('create den, w', 'create den, w'.length, createEmptyMap('Test'));
+    const afterCommaWhichResult = getCliSuggestions('create den, which ', 'create den, which '.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
@@ -191,6 +194,12 @@ describe('cli suggestions', () => {
     expect(continuedNextWordResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['<new room name>']),
     );
+    expect(afterCommaResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining([', which is', 'above', 'below', 'north']),
+    );
+    expect(afterCommaResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('<new room name>');
+    expect(afterCommaPartialResult?.suggestions.map((suggestion) => suggestion.label)).toContain(', which is');
+    expect(afterCommaWhichResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is']);
   });
 
   it('suggests only "of" after a create direction and space', () => {

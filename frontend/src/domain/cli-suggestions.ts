@@ -40,6 +40,22 @@ const unknownPseudoRoomSuggestions = ['is unknown'] as const;
 const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'lies death'] as const;
 const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'lies death'] as const;
 
+function createCreateWhichIsSuggestions(prefix: string): readonly CliSuggestion[] {
+  const normalizedPrefix = prefix.toLowerCase();
+  const matchText = 'which is';
+  if (normalizedPrefix.length > 0 && !matchText.startsWith(normalizedPrefix)) {
+    return [];
+  }
+
+  return [{
+    id: 'cli-suggestion-keyword-create-which-is',
+    kind: 'command',
+    label: ', which is',
+    insertText: 'which is',
+    detail: null,
+  }];
+}
+
 function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
   if (tokens[0] === 's') {
     return ['show', ...tokens.slice(1)];
@@ -646,6 +662,7 @@ function getSuggestionsForCommandContext(
       const isStillTypingCreateAndConnectRoomName = tokens.length > 3
         && canonicalLastDirection === null
         && tokens.indexOf('to') === -1
+        && !input.slice(0, fragment.start).trimEnd().endsWith(',')
         && lastToken !== 'which'
         && !(tokens.at(-2) === 'which' && lastToken === 'is')
         && lastToken !== 'dark'
@@ -746,6 +763,15 @@ function getSuggestionsForCommandContext(
       return suggestionResolution(createKeywordSuggestions(prefix, ['is']));
     }
 
+    const trimmedBeforeFragment = input.slice(0, fragment.start).trimEnd().toLowerCase();
+    if (trimmedBeforeFragment.endsWith(',')) {
+      return suggestionResolution([
+        ...createCreateWhichIsSuggestions(prefix),
+        ...createKeywordSuggestions(prefix, ['above', 'below']),
+        ...createDirectionSuggestions(prefix),
+      ]);
+    }
+
     if (tokens.at(-2) === 'which' && lastToken === 'is') {
       return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
     }
@@ -779,6 +805,7 @@ function getSuggestionsForCommandContext(
       && canonicalLastDirection === null
       && verticalCreateIndex === -1
       && ofIndex === -1
+      && !input.slice(0, fragment.start).trimEnd().endsWith(',')
       && lastToken !== 'which'
       && !(tokens.at(-2) === 'which' && lastToken === 'is')
       && lastToken !== 'dark'
