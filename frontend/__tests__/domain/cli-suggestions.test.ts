@@ -251,10 +251,15 @@ describe('cli suggestions', () => {
     const doc = createEmptyMap('Test');
 
     expect(getCliSuggestions('arrange ', 'arrange '.length, doc)).toBeNull();
+    expect(getCliSuggestions('arrange x', 'arrange x'.length, doc)).toBeNull();
     expect(getCliSuggestions('arr ', 'arr '.length, doc)).toBeNull();
+    expect(getCliSuggestions('arr x', 'arr x'.length, doc)).toBeNull();
     expect(getCliSuggestions('prettify ', 'prettify '.length, doc)).toBeNull();
+    expect(getCliSuggestions('prettify x', 'prettify x'.length, doc)).toBeNull();
     expect(getCliSuggestions('undo ', 'undo '.length, doc)).toBeNull();
+    expect(getCliSuggestions('undo x', 'undo x'.length, doc)).toBeNull();
     expect(getCliSuggestions('redo ', 'redo '.length, doc)).toBeNull();
+    expect(getCliSuggestions('redo x', 'redo x'.length, doc)).toBeNull();
   });
 
   it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {

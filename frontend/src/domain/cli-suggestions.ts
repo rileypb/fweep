@@ -180,7 +180,7 @@ function getParserBackedRoomSlotAfterKeywordResolution(
 }
 
 function getParserBackedTerminalCommandResolution(fragment: ActiveFragment): SuggestionResolution | null {
-  if (fragment.tokenIndex === 1 && fragment.prefix.length === 0) {
+  if (fragment.tokenIndex >= 1) {
     return suggestionResolution([]);
   }
 
