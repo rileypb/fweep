@@ -224,6 +224,41 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('scrolls the suggestion popup to keep the highlighted option visible', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Scroll Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+
+    const listbox = screen.getByRole('listbox', { name: /cli suggestions/i });
+    Object.defineProperty(listbox, 'clientHeight', {
+      configurable: true,
+      value: 90,
+    });
+    Object.defineProperty(listbox, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    screen.getAllByRole('option').forEach((option, index) => {
+      Object.defineProperty(option, 'offsetTop', {
+        configurable: true,
+        value: index * 30,
+      });
+      Object.defineProperty(option, 'offsetHeight', {
+        configurable: true,
+        value: 30,
+      });
+    });
+
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+
+    expect(listbox.scrollTop).toBeGreaterThan(0);
+  });
+
   it('keeps arrow keys on suggestions even when command history exists', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Suggestion Navigation With History Map');

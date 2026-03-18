@@ -85,12 +85,40 @@ export function AppCliPanel({
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
+  const suggestionListRef = React.useRef<HTMLDivElement | null>(null);
+  const suggestionOptionRefs = React.useRef<Array<HTMLDivElement | null>>([]);
   const activeSuggestion = isSuggestionMenuOpen
     ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
     : null;
   const placeholderText = hasUsedCliInput
     ? (isCliInputFocused ? 'Type / to open suggestions' : 'Type / to type commands')
     : 'Type help';
+
+  React.useLayoutEffect(() => {
+    if (!isSuggestionMenuOpen) {
+      return;
+    }
+
+    const suggestionList = suggestionListRef.current;
+    const activeOption = suggestionOptionRefs.current[highlightedCliSuggestionIndex];
+    if (suggestionList === null || activeOption === null) {
+      return;
+    }
+
+    const optionTop = activeOption.offsetTop;
+    const optionBottom = optionTop + activeOption.offsetHeight;
+    const visibleTop = suggestionList.scrollTop;
+    const visibleBottom = visibleTop + suggestionList.clientHeight;
+
+    if (optionTop < visibleTop) {
+      suggestionList.scrollTop = optionTop;
+      return;
+    }
+
+    if (optionBottom > visibleBottom) {
+      suggestionList.scrollTop = optionBottom - suggestionList.clientHeight;
+    }
+  }, [highlightedCliSuggestionIndex, isSuggestionMenuOpen, cliSuggestions]);
 
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
@@ -261,6 +289,7 @@ export function AppCliPanel({
               className="app-cli-suggestion-list"
               role="listbox"
               aria-label="CLI suggestions"
+              ref={suggestionListRef}
             >
               {cliSuggestions.map((suggestion, index) => {
                 const isActive = index === highlightedCliSuggestionIndex;
@@ -269,6 +298,9 @@ export function AppCliPanel({
                   <div
                     key={suggestion.id}
                     id={suggestion.id}
+                    ref={(element) => {
+                      suggestionOptionRefs.current[index] = element;
+                    }}
                     className={`app-cli-suggestion-option${isActive ? ' app-cli-suggestion-option--active' : ''}${isPlaceholder ? ' app-cli-suggestion-option--placeholder' : ''}`}
                     role="option"
                     aria-selected={isActive}
