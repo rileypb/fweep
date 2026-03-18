@@ -38,6 +38,18 @@ const roomSlotSuggestionHelpers = {
 } as const;
 
 function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
+  if (tokens[0] === 's') {
+    return ['show', ...tokens.slice(1)];
+  }
+
+  if (tokens[0] === 'e' || tokens[0] === 'ed') {
+    return ['edit', ...tokens.slice(1)];
+  }
+
+  if (tokens[0] === 'd' || tokens[0] === 'del') {
+    return ['delete', ...tokens.slice(1)];
+  }
+
   if (tokens[0] === 'h') {
     return ['help', ...tokens.slice(1)];
   }
@@ -45,9 +57,21 @@ function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
   return tokens;
 }
 
-function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  const parserTokens = normalizeParserTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
+function getParserNextSymbolsForTokens(tokens: readonly string[]): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
+  const parserTokens = normalizeParserTokens(tokens);
   return listCliSuggestionNextSymbols(parserTokens.join(' '));
+}
+
+function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
+  return getParserNextSymbolsForTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
+}
+
+function getParserNextSymbolsBeforeSlot(fragment: ActiveFragment, slotStartTokenIndex: number): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
+  return getParserNextSymbolsForTokens(
+    fragment.precedingTokens
+      .slice(0, slotStartTokenIndex)
+      .map((token) => token.value.toLowerCase()),
+  );
 }
 
 function getParserBackedHelpTopicResolution(fragment: ActiveFragment): SuggestionResolution | null {
@@ -65,7 +89,9 @@ function getParserBackedGoResolution(
   fragment: ActiveFragment,
   doc: MapDocument | null,
 ): SuggestionResolution | null {
-  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const nextSymbols = tokensAtRoomSlot(fragment)
+    ? getParserNextSymbolsBeforeSlot(fragment, 2)
+    : getParserNextSymbolsForFragment(fragment);
   const hasDirectionSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'DIRECTION');
   const hasToKeyword = nextSymbols.some((entry) => entry.symbol.kind === 'keyword' && entry.symbol.text === 'to');
   const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
@@ -82,6 +108,26 @@ function getParserBackedGoResolution(
   }
 
   return null;
+}
+
+function tokensAtRoomSlot(fragment: ActiveFragment): boolean {
+  return fragment.precedingTokens[0]?.value.toLowerCase() === 'go'
+    && fragment.precedingTokens[1]?.value.toLowerCase() === 'to';
+}
+
+function getParserBackedSingleRoomCommandResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+): SuggestionResolution {
+  const nextSymbols = getParserNextSymbolsBeforeSlot(fragment, slotStartTokenIndex);
+  const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
+  if (hasRoomSlot) {
+    return getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex, roomSlotSuggestionHelpers);
+  }
+
+  return suggestionResolution([]);
 }
 
 function getSuggestionsForCommandContext(
@@ -176,12 +222,12 @@ function getSuggestionsForCommandContext(
     return getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
   }
 
-  if (tokens[0] === 'show') {
-    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+  if (tokens[0] === 'show' || tokens[0] === 's') {
+    return getParserBackedSingleRoomCommandResolution(input, fragment, doc, 1);
   }
 
   if (tokens[0] === 'delete' || tokens[0] === 'd' || tokens[0] === 'del' || tokens[0] === 'edit' || tokens[0] === 'ed') {
-    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+    return getParserBackedSingleRoomCommandResolution(input, fragment, doc, 1);
   }
 
   if (tokens[0] === 'notate' || tokens[0] === 'annotate' || tokens[0] === 'ann') {

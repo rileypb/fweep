@@ -67,12 +67,6 @@ export function createCommandSuggestions(prefix: string): readonly CliSuggestion
 
   return CLI_COMMAND_SUGGESTION_SPECS
     .filter((spec) => {
-      if (normalizedPrefix === 'e' && spec.id === 'edit') {
-        return false;
-      }
-      if (normalizedPrefix === 's' && spec.id === 'show') {
-        return false;
-      }
       return spec.matchTerms.some((term) => {
         if (!prefixHasWhitespace && /\s/.test(term)) {
           return false;

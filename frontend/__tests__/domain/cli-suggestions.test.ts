@@ -225,14 +225,14 @@ describe('cli suggestions', () => {
     );
   });
 
-  it('treats e and s as east and south rather than edit and show in the first token', () => {
+  it('allows edit alongside east and show alongside south at the first token', () => {
     const eastResult = getCliSuggestions('e', 1, createEmptyMap('Test'));
     const southResult = getCliSuggestions('s', 1, createEmptyMap('Test'));
 
     expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).toContain('east');
-    expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('edit');
+    expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).toContain('edit');
     expect(southResult?.suggestions.map((suggestion) => suggestion.label)).toContain('south');
-    expect(southResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('show');
+    expect(southResult?.suggestions.map((suggestion) => suggestion.label)).toContain('show');
   });
 
   it('suggests matching help topics after help', () => {
@@ -255,6 +255,22 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('show c', 6, doc);
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar', 'Control Room']);
+  });
+
+  it('supports parser-backed room suggestions for show, edit, and delete aliases', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('s c', 's c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('ed c', 'ed c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('del c', 'del c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+  });
+
+  it('closes suggestions after a completed show, edit, or delete room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('show cellar ', 'show cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('edit cellar ', 'edit cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('delete cellar ', 'delete cellar '.length, doc)).toBeNull();
   });
 
   it('shows a room placeholder at the start of a connect target slot', () => {
