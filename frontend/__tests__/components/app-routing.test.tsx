@@ -224,6 +224,21 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('keeps arrow keys on suggestions even when command history exists', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Navigation With History Map');
+
+    await submitCliCommand('help');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('connect ');
+  });
+
   it('shows legal next-word suggestions immediately after typing a space', async () => {
     const user = userEvent.setup();
     const map = addRoom(createEmptyMap('CLI Next Word Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });

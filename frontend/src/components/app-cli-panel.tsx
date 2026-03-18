@@ -168,8 +168,7 @@ export function AppCliPanel({
                 }
 
                 if ((event.key === 'ArrowUp' || event.key === 'ArrowDown')
-                  && isSuggestionMenuOpen
-                  && (cliCommand.trim().length > 0 || cliHistory.length === 0)) {
+                  && isSuggestionMenuOpen) {
                   event.preventDefault();
                   event.stopPropagation();
                   onCliSuggestionHighlightMove(event.key === 'ArrowUp' ? 'up' : 'down');
