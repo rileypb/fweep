@@ -23,13 +23,15 @@ describe('accessibility smoke tests', () => {
   it('has no obvious violations on the map selection dialog', async () => {
     const { container } = render(<MapSelectionDialog onMapSelected={() => undefined} />);
 
-    await expect(axe(container)).resolves.toHaveNoViolations();
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
   });
 
   it('has no obvious violations on the help dialog', async () => {
     const { container } = render(<HelpDialog isOpen onClose={() => undefined} />);
 
-    await expect(axe(container)).resolves.toHaveNoViolations();
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
   });
 
   it('has no obvious violations on the export dialog', async () => {
@@ -46,7 +48,8 @@ describe('accessibility smoke tests', () => {
       />,
     );
 
-    await expect(axe(container)).resolves.toHaveNoViolations();
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
   });
 
   it('has no obvious violations on the room editor overlay', async () => {
@@ -62,7 +65,8 @@ describe('accessibility smoke tests', () => {
       />,
     );
 
-    await expect(axe(container)).resolves.toHaveNoViolations();
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
   });
 
   it('has no obvious violations on the connection editor overlay', async () => {
@@ -82,6 +86,7 @@ describe('accessibility smoke tests', () => {
       />,
     );
 
-    await expect(axe(container)).resolves.toHaveNoViolations();
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
   });
 });

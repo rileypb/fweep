@@ -54,6 +54,18 @@ function createSuccessfulOpenRequest(db: IDBDatabase): IDBOpenDBRequest {
   return request;
 }
 
+interface FakeTransaction {
+  error: Error | DOMException | null;
+  objectStore: (storeName: string) => {
+    delete?: () => IDBRequest<undefined>;
+    index?: () => {
+      openCursor: () => IDBRequest<IDBCursorWithValue | null>;
+    };
+  };
+  oncomplete: ((event: Event) => void) | null;
+  onerror: ((event: Event) => void) | null;
+}
+
 async function putRawStoredMap(rawValue: unknown): Promise<void> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 2);
@@ -458,7 +470,7 @@ describe('map-store', () => {
       } as unknown as IDBRequest<IDBCursorWithValue | null>;
       const fakeDb = {
         transaction: () => {
-          const transaction = {
+          const transaction: FakeTransaction = {
             error: transactionError,
             objectStore: (storeName: string) => {
               if (storeName === STORE_NAME) {

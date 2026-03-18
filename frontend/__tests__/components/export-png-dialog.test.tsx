@@ -185,7 +185,7 @@ describe('ExportPngDialog', () => {
     expect(screen.getByRole('button', { name: /close export dialog/i })).toHaveFocus();
 
     await user.tab({ shift: true });
-    expect(screen.getByTestId('export-png-dialog')).toContainElement(document.activeElement);
+    expect(screen.getByTestId('export-png-dialog')).toContainElement(document.activeElement as HTMLElement | SVGElement | null);
 
     await user.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
