@@ -14,6 +14,7 @@ import {
   type ThemeMode,
 } from '../domain/room-color-palette';
 import { renderRoomShape } from './map-canvas-helpers';
+import { useModalFocusTrap } from './use-modal-focus-trap';
 
 interface ColorChipGroupProps {
   label: string;
@@ -72,6 +73,7 @@ export function ConnectionEditorOverlay({
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
   const connection = useEditorStore((s) => s.doc?.connections[connectionId] ?? null);
   const applyConnectionEditorDraft = useEditorStore((s) => s.applyConnectionEditorDraft);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const startLabelInputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(() => (
     connection === null
@@ -120,6 +122,12 @@ export function ConnectionEditorOverlay({
     }
   }, []);
 
+  useModalFocusTrap({
+    isActive: connection !== null && draft !== null,
+    containerRef: dialogRef,
+    initialFocusRef: startLabelInputRef,
+  });
+
   if (!connection || !draft) {
     return null;
   }
@@ -140,11 +148,13 @@ export function ConnectionEditorOverlay({
     <div className="connection-editor-overlay" data-testid="connection-editor-overlay">
       <div className="connection-editor-backdrop" aria-hidden="true" onClick={onBackdropClose} />
       <div
+        ref={dialogRef}
         className="connection-editor-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Connection editor"
         data-testid="connection-editor-dialog"
+        tabIndex={-1}
         style={{
           justifySelf: 'start',
           marginLeft: `${desiredPanelLeft}px`,
@@ -320,6 +330,7 @@ export function RoomEditorOverlay({
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
   const convertPseudoRoomToRoom = useEditorStore((s) => s.convertPseudoRoomToRoom);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isNewRoomDraft = roomId === undefined && pseudoRoomId === undefined;
   const [draft, setDraft] = useState(() => (
@@ -393,6 +404,12 @@ export function RoomEditorOverlay({
     }
   }, []);
 
+  useModalFocusTrap({
+    isActive: ((room !== null) || (pseudoRoom !== null) || isNewRoomDraft) && draft !== null,
+    containerRef: dialogRef,
+    initialFocusRef: nameInputRef,
+  });
+
   if ((!room && !pseudoRoom && !isNewRoomDraft) || !draft || (isNewRoomDraft && !initialPosition)) {
     return null;
   }
@@ -427,40 +444,44 @@ export function RoomEditorOverlay({
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
       <div className="room-editor-backdrop" aria-hidden="true" onClick={onBackdropClose} />
-      <form
+      <div
+        ref={dialogRef}
         className="room-editor-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Room editor"
         data-testid="room-editor-dialog"
+        tabIndex={-1}
         style={{
           justifySelf: 'start',
           marginLeft: `${desiredPanelLeft}px`,
         }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (room !== null) {
-            applyRoomEditorDraft(room.id, draft);
-            onClose(room.id);
-            return;
-          }
-
-          if (pseudoRoom !== null) {
-            const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
-            onClose(createdRoomId);
-            return;
-          }
-
-          if (initialPosition) {
-            const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
-            onClose(createdRoomId);
-            return;
-          }
-
-          onClose();
-        }}
       >
-        <div className="room-editor-content">
+        <form
+          className="room-editor-content"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (room !== null) {
+              applyRoomEditorDraft(room.id, draft);
+              onClose(room.id);
+              return;
+            }
+
+            if (pseudoRoom !== null) {
+              const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
+              onClose(createdRoomId);
+              return;
+            }
+
+            if (initialPosition) {
+              const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
+              onClose(createdRoomId);
+              return;
+            }
+
+            onClose();
+          }}
+        >
           <aside className="room-editor-sidebar">
             <div className="room-editor-field">
               <span className="room-editor-label">Fill color</span>
@@ -576,8 +597,8 @@ export function RoomEditorOverlay({
               </button>
             </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

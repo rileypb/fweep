@@ -14,6 +14,7 @@ import {
 import { useEditorStore } from '../state/editor-store';
 import { renderRoomShape } from './map-canvas-helpers';
 import type { PanOffset } from './use-map-viewport';
+import { focusElementWithoutScroll, getMapCanvasPseudoRoomNodeId } from './map-canvas-a11y';
 
 export interface MapCanvasPseudoRoomNodeProps {
   pseudoRoom: PseudoRoom;
@@ -39,6 +40,7 @@ export function MapCanvasPseudoRoomNode({
   const endRoomDrag = useEditorStore((s) => s.endRoomDrag);
   const selectionDrag = useEditorStore((s) => s.selectionDrag);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
+  const interactionsDisabled = useEditorStore((s) => s.canvasInteractionMode === 'draw');
   const roomDimensions = getPseudoRoomNodeDimensions(pseudoRoom, mapVisualStyle);
   const symbolLayout = getPseudoRoomSymbolLayout(pseudoRoom, mapVisualStyle);
   const symbolDefinition = getPseudoRoomSymbolDefinition(pseudoRoom.kind);
@@ -49,12 +51,16 @@ export function MapCanvasPseudoRoomNode({
   const visualY = pseudoRoom.position.y + (isDragging ? selectionDrag.dy : 0);
 
   const handleMouseDown = useCallback((event: React.MouseEvent<SVGSVGElement>) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || interactionsDisabled) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
+    const canvasElement = event.currentTarget.closest('[data-testid="map-canvas"]');
+    if (canvasElement instanceof HTMLDivElement) {
+      focusElementWithoutScroll(canvasElement);
+    }
     const startX = event.clientX;
     const startY = event.clientY;
     const startPoint = toMapPoint(startX, startY);
@@ -135,10 +141,32 @@ export function MapCanvasPseudoRoomNode({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [addPseudoRoomToSelection, endRoomDrag, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, toMapPoint, updateRoomDrag]);
+  }, [addPseudoRoomToSelection, endRoomDrag, interactionsDisabled, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, toMapPoint, updateRoomDrag]);
+
+  const handleKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
+    if (interactionsDisabled) {
+      return;
+    }
+
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        addPseudoRoomToSelection(pseudoRoom.id);
+      } else {
+        selectPseudoRoom(pseudoRoom.id);
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onOpenPseudoRoomEditor(pseudoRoom.id);
+    }
+  };
 
   return (
     <svg
+      id={getMapCanvasPseudoRoomNodeId(pseudoRoom.id)}
       className={`pseudo-room-node${isDragging ? ' pseudo-room-node--dragging' : ''}`}
       data-testid="pseudo-room-node"
       data-pseudo-room-id={pseudoRoom.id}
@@ -147,8 +175,14 @@ export function MapCanvasPseudoRoomNode({
       style={{
         transform: `translate(${visualX}px, ${visualY}px)`,
         cursor: 'move',
+        pointerEvents: interactionsDisabled ? 'none' : undefined,
       }}
+      role="button"
+      aria-label={`${pseudoRoom.kind} pseudo-room${isSelected ? ', selected' : ''}`}
+      aria-haspopup="dialog"
+      tabIndex={-1}
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
       onClick={(event) => {
         event.stopPropagation();
       }}

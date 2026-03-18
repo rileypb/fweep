@@ -78,6 +78,11 @@ import {
   saveBackgroundChunks,
   getBackgroundChunkKey,
 } from '../storage/map-store';
+import {
+  focusElementWithoutScroll,
+  getMapCanvasPseudoRoomNodeId,
+  getMapCanvasRoomNodeId,
+} from './map-canvas-a11y';
 
 interface StrokeChunkState {
   readonly chunkX: number;
@@ -375,17 +380,29 @@ export function MapCanvas({
     setMapZoom,
   });
 
+  const activeDescendantId = selectedRoomIds.length === 1
+    ? getMapCanvasRoomNodeId(selectedRoomIds[0])
+    : selectedPseudoRoomIds.length === 1
+      ? getMapCanvasPseudoRoomNodeId(selectedPseudoRoomIds[0])
+      : undefined;
+
+  const selectedEntityDescription = selectedRoomIds.length === 1 && doc
+    ? `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`
+    : selectedPseudoRoomIds.length === 1 && doc
+      ? `Selected ${doc.pseudoRooms[selectedPseudoRoomIds[0]]?.kind ?? 'pseudo-room'} pseudo-room`
+      : 'No room selected';
+
   const closeRoomEditor = useCallback(() => {
     setRoomEditorState(null);
     requestAnimationFrame(() => {
-      canvasRef.current?.focus();
+      focusElementWithoutScroll(canvasRef.current);
     });
   }, [canvasRef]);
 
   const closeConnectionEditor = useCallback(() => {
     setConnectionEditorId(null);
     requestAnimationFrame(() => {
-      canvasRef.current?.focus();
+      focusElementWithoutScroll(canvasRef.current);
     });
   }, [canvasRef]);
 
@@ -1077,7 +1094,7 @@ export function MapCanvas({
     setIsRoomPlacementArmed(false);
     setIsNotePlacementArmed(false);
     closeStickyNoteEditor();
-    canvasRef.current?.focus();
+    focusElementWithoutScroll(canvasRef.current);
     clearSelection();
   }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, mapVisualStyle, openNewRoomEditor, toMapPoint]);
 
@@ -1208,6 +1225,7 @@ export function MapCanvas({
     e.preventDefault();
     useEditorStore.getState().selectRoom(nearestRoom.id);
     centerRoomOnScreen(nearestRoom);
+    focusElementWithoutScroll(canvasRef.current);
   }, [canvasInteractionMode, canvasRect, canvasRef, centerRoomOnScreen, connectionDrag, connectionEditorId, connectionEndpointDrag, drawingInterfaceEnabled, isRoomEditorOpen, openRoomEditor, redo, removeSelectedEntities, rooms, selectedPseudoRoomIds, selectedRoomIds, selectedStickyNoteIds, setCanvasInteractionMode, toggleSelectedRoomLocks, undo, zoomAtClientPoint, zoomRef]);
 
   const classes = [
@@ -1224,6 +1242,9 @@ export function MapCanvas({
       ref={canvasRef}
       className={classes}
       data-testid="map-canvas"
+      aria-label="Map canvas"
+      aria-activedescendant={activeDescendantId}
+      aria-describedby="map-canvas-selection-status"
       onMouseDown={(e) => {
         handleCanvasSelectionMouseDown(e);
         handleCanvasMouseDown(e);
@@ -1231,8 +1252,16 @@ export function MapCanvas({
       onWheel={handleCanvasWheel}
       onClick={handleCanvasClick}
       onKeyDown={handleCanvasKeyDown}
-      tabIndex={-1}
+      tabIndex={0}
     >
+        <span
+          id="map-canvas-selection-status"
+          className="sr-only"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {selectedEntityDescription}
+        </span>
         {doc?.background.referenceImage && (
           <MapCanvasReferenceImage
             image={doc.background.referenceImage}

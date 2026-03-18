@@ -297,7 +297,9 @@ export function MapSelectionDialog({
           <section className="map-selection-section">
             <h3 className="map-selection-subheading">Create New Map</h3>
             <div className="map-selection-create-row">
+              <label className="sr-only" htmlFor="map-selection-create-name-input">Map name</label>
               <input
+                id="map-selection-create-name-input"
                 className="map-selection-input"
                 type="text"
                 placeholder="Map name"
@@ -320,6 +322,7 @@ export function MapSelectionDialog({
               type="file"
               accept=".json"
               className="map-selection-file-input"
+              aria-label="Import map file"
               onChange={(e) => void handleImport(e)}
             />
             <button

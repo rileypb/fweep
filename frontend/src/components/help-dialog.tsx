@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import helpMarkdown from '../../../help.md?raw';
+import { useModalFocusTrap } from './use-modal-focus-trap';
 
 interface HelpParagraphBlock {
   readonly type: 'paragraph';
@@ -143,6 +145,15 @@ interface HelpDialogProps {
 }
 
 export function HelpDialog({ isOpen, onClose }: HelpDialogProps): React.JSX.Element | null {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useModalFocusTrap({
+    isActive: isOpen,
+    containerRef: dialogRef,
+    initialFocusRef: closeButtonRef,
+  });
+
   if (!isOpen) {
     return null;
   }
@@ -155,13 +166,16 @@ export function HelpDialog({ isOpen, onClose }: HelpDialogProps): React.JSX.Elem
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className="help-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Help"
         data-testid="help-dialog"
+        tabIndex={-1}
       >
         <button
+          ref={closeButtonRef}
           className="help-close"
           type="button"
           aria-label="Close help"

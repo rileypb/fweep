@@ -51,6 +51,35 @@ describe('MapCanvasPseudoRoomNode', () => {
     expect(onOpenPseudoRoomEditor).toHaveBeenCalledWith('pseudo-1');
   });
 
+  it('supports keyboard selection and opening', () => {
+    const pseudoRoom = { ...createPseudoRoom('death'), id: 'pseudo-1', position: { x: 0, y: 0 } };
+    let doc = createEmptyMap('Test');
+    doc = addPseudoRoom(doc, pseudoRoom);
+    useEditorStore.getState().loadDocument(doc);
+    const onOpenPseudoRoomEditor = jest.fn<(pseudoRoomId: string) => void>();
+
+    render(
+      <MapCanvasPseudoRoomNode
+        pseudoRoom={pseudoRoom}
+        theme="light"
+        isSelected={false}
+        onOpenPseudoRoomEditor={onOpenPseudoRoomEditor}
+        toMapPoint={(x, y) => ({ x, y })}
+      />,
+    );
+
+    const node = screen.getByRole('button', { name: /death/i });
+    expect(node).toHaveAttribute('tabindex', '-1');
+    node.focus();
+    expect(node).toHaveFocus();
+
+    fireEvent.keyDown(node, { key: ' ' });
+    expect(useEditorStore.getState().selectedPseudoRoomIds).toEqual(['pseudo-1']);
+
+    fireEvent.keyDown(node, { key: 'Enter' });
+    expect(onOpenPseudoRoomEditor).toHaveBeenCalledWith('pseudo-1');
+  });
+
   it('selects on click release and adds to selection with shift-click', () => {
     const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'pseudo-1', position: { x: 0, y: 0 } };
     let doc = createEmptyMap('Test');

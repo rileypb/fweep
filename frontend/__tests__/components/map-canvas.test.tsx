@@ -2,6 +2,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
+import { getMapCanvasRoomNodeId } from '../../src/components/map-canvas-a11y';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createItem, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../../src/domain/pseudo-room-helpers';
@@ -49,6 +50,12 @@ describe('MapCanvas', () => {
   it('renders a canvas container', () => {
     render(<MapCanvas mapName="Test Map" />);
     expect(screen.getByTestId('map-canvas')).toBeInTheDocument();
+  });
+
+  it('exposes the map canvas as a tabbable named region', () => {
+    render(<MapCanvas mapName="Test Map" />);
+
+    expect(screen.getByLabelText('Map canvas')).toHaveAttribute('tabindex', '0');
   });
 
   it('shows a placeholder minimap when the document has no rooms', () => {
@@ -1269,7 +1276,7 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([right.id]);
     });
 
-    it('moves selection to the nearest room above when ArrowUp is pressed', () => {
+  it('moves selection to the nearest room above when ArrowUp is pressed', () => {
       const doc = createEmptyMap('Test');
       const origin = { ...createRoom('Origin'), position: { x: 200, y: 220 } };
       const up = { ...createRoom('Up'), position: { x: 200, y: 40 } };
@@ -1465,6 +1472,96 @@ describe('MapCanvas', () => {
       expect(outline).toHaveAttribute('rx', '12');
       expect(outline).toHaveClass('room-selection-outline');
     });
+  });
+
+  it('opens the selected room editor when Enter is pressed on the focused canvas', async () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+    useEditorStore.getState().selectRoom(room.id);
+
+    renderMapCanvas();
+
+    const canvas = screen.getByLabelText('Map canvas');
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: 'Enter' });
+
+    expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+  });
+
+  it('keeps room nodes out of tab order while preserving canvas-owned keyboard navigation', async () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    loadDocumentAct(doc);
+    useEditorStore.getState().selectRoom(kitchen.id);
+
+    renderMapCanvas();
+
+    const canvas = screen.getByLabelText('Map canvas');
+    const kitchenNode = screen.getByRole('button', { name: 'Kitchen, selected' });
+
+    expect(kitchenNode).toHaveAttribute('tabindex', '-1');
+
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: 'ArrowRight' });
+
+    expect(canvas).toHaveFocus();
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
+    expect(canvas).toHaveAttribute('aria-activedescendant', getMapCanvasRoomNodeId(hallway.id));
+
+    fireEvent.keyDown(canvas, { key: 'Enter' });
+    expect(await screen.findByLabelText('Room name')).toHaveValue('Hallway');
+  });
+
+  it('keeps keyboard room navigation anchored on the canvas without horizontal document scroll', () => {
+    const origin = { ...createRoom('Origin'), position: { x: 0, y: 0 } };
+    const farRight = { ...createRoom('Far Right'), position: { x: 2400, y: 0 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, origin);
+    doc = addRoom(doc, farRight);
+    loadDocumentAct(doc);
+    useEditorStore.getState().selectRoom(origin.id);
+
+    renderMapCanvas();
+
+    const canvas = screen.getByTestId('map-canvas');
+    const minimap = screen.getByTestId('map-minimap');
+    const content = screen.getByTestId('map-canvas-content');
+    const initialMinimapStyle = minimap.getAttribute('style');
+
+    jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 900,
+      bottom: 600,
+      width: 900,
+      height: 600,
+      toJSON: () => ({}),
+    });
+
+    Object.defineProperty(window, 'scrollX', {
+      configurable: true,
+      value: 0,
+    });
+    Object.defineProperty(document.documentElement, 'scrollLeft', {
+      configurable: true,
+      value: 0,
+      writable: true,
+    });
+
+    canvas.focus();
+    fireEvent.keyDown(canvas, { key: 'ArrowRight' });
+
+    expect(canvas).toHaveFocus();
+    expect(window.scrollX).toBe(0);
+    expect(document.documentElement.scrollLeft).toBe(0);
+    expect(minimap.getAttribute('style')).toBe(initialMinimapStyle);
+    expect(content.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+    expect(screen.getByRole('button', { name: 'Far Right, selected' })).toHaveAttribute('tabindex', '-1');
   });
 
   describe('room editor overlay', () => {

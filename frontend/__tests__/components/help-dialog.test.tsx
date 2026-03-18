@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { HelpDialog } from '../../src/components/help-dialog';
 
 describe('HelpDialog', () => {
@@ -32,5 +33,38 @@ describe('HelpDialog', () => {
     rerender(<HelpDialog isOpen onClose={onClose} />);
     await user.click(document.querySelector('.help-backdrop') as HTMLElement);
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('moves focus into the dialog, traps Tab, and restores focus on close', async () => {
+    const user = userEvent.setup();
+
+    function Harness(): React.JSX.Element {
+      const [isOpen, setIsOpen] = React.useState(false);
+
+      return (
+        <>
+          <button type="button" onClick={() => setIsOpen(true)}>Open help</button>
+          <button type="button">After help</button>
+          <HelpDialog isOpen={isOpen} onClose={() => setIsOpen(false)} />
+        </>
+      );
+    }
+
+    render(<Harness />);
+
+    const openButton = screen.getByRole('button', { name: /open help/i });
+    await user.click(openButton);
+
+    const closeButton = screen.getByRole('button', { name: /close help/i });
+    expect(closeButton).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole('heading', { name: /fweep help/i })).not.toHaveFocus();
+    expect(screen.getByRole('button', { name: /close help/i })).toHaveFocus();
+
+    await user.click(closeButton);
+    await waitFor(() => {
+      expect(openButton).toHaveFocus();
+    });
   });
 });

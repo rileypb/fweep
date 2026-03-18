@@ -24,7 +24,7 @@ function setViewportWidth(width: number) {
 }
 
 function getGameOutputBox(): HTMLElement {
-  return screen.getByRole('textbox', { name: /game output/i });
+  return screen.getByRole('log', { name: /game output log/i });
 }
 
 function renderApp(): ReturnType<typeof render> {

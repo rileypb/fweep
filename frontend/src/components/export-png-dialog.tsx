@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Position } from '../domain/map-types';
 import { useDocumentTheme } from './map-canvas-helpers';
 import { useEditorStore, type ExportRegionDraft } from '../state/editor-store';
@@ -6,6 +6,7 @@ import { getExportBounds, validateExportBounds } from '../export/export-bounds';
 import { exportPngToDownload } from '../export/export-png';
 import { renderExportCanvas } from '../export/export-render';
 import type { ExportRegion, ExportScope, ExportSettings } from '../export/export-types';
+import { useModalFocusTrap } from './use-modal-focus-trap';
 
 export interface ExportPngDialogProps {
   readonly isOpen: boolean;
@@ -93,6 +94,8 @@ export function ExportPngDialog({
   onRequestRegionSelection,
   preferredInitialScope = null,
 }: ExportPngDialogProps): React.JSX.Element | null {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const scopeSelectRef = useRef<HTMLSelectElement>(null);
   const doc = useEditorStore((state) => state.doc);
   const selectedRoomIds = useEditorStore((state) => state.selectedRoomIds);
   const selectedStickyNoteIds = useEditorStore((state) => state.selectedStickyNoteIds);
@@ -110,6 +113,12 @@ export function ExportPngDialog({
   const [settings, setSettings] = useState<ExportSettings>(DEFAULT_SETTINGS_BY_SCOPE['entire-map']);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  useModalFocusTrap({
+    isActive: isOpen,
+    containerRef: dialogRef,
+    initialFocusRef: scopeSelectRef,
+  });
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -250,11 +259,13 @@ export function ExportPngDialog({
     <div className="export-png-overlay" data-testid="export-png-overlay">
       <div className="export-png-backdrop" aria-hidden="true" onClick={closeDialog} />
       <div
+        ref={dialogRef}
         className="export-png-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Export PNG"
         data-testid="export-png-dialog"
+        tabIndex={-1}
       >
         <button className="export-png-close" type="button" aria-label="Close export dialog" onClick={closeDialog}>
           ×
@@ -265,6 +276,7 @@ export function ExportPngDialog({
           <label className="export-png-field">
             <span>Scope</span>
             <select
+              ref={scopeSelectRef}
               aria-label="Scope"
               value={settings.scope}
               onChange={(event) => handleScopeChange(event.target.value as ExportScope)}

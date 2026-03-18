@@ -1,8 +1,11 @@
 import { expect } from '@jest/globals';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import '@testing-library/jest-dom';
+import jestAxe from 'jest-axe';
 
 expect.extend(matchers);
+const { toHaveNoViolations } = jestAxe;
+expect.extend(toHaveNoViolations);
 
 // Polyfill structuredClone for older Node / jsdom environments used by Jest.
 if (typeof globalThis.structuredClone === 'undefined') {

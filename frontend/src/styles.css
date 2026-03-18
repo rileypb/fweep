@@ -1042,6 +1042,11 @@ body {
   background-color: transparent;
 }
 
+.map-canvas:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.65);
+  outline-offset: -2px;
+}
+
 .map-canvas--grid {
   --grid-color: rgba(0, 0, 0, 0.07);
 }
@@ -1813,6 +1818,12 @@ body {
 
 .room-node:hover {
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+}
+
+.room-node:focus-visible,
+.pseudo-room-node:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.72);
+  outline-offset: 2px;
 }
 
 .room-node--dragging,

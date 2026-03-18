@@ -15,6 +15,7 @@ import {
 import type { PanOffset } from './use-map-viewport';
 import { DarkRoomGlyph } from './dark-room-glyph';
 import { PadlockGlyph } from './padlock-glyph';
+import { focusElementWithoutScroll, getMapCanvasRoomNodeId } from './map-canvas-a11y';
 
 const HANDLE_RADIUS = 5;
 const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
@@ -180,6 +181,27 @@ export function MapCanvasRoomNode({
     onOpenRoomEditor(room.id);
   }, [onOpenRoomEditor, room.id]);
 
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<SVGSVGElement>) => {
+    if (interactionsDisabled || isRoomEditorOpen) {
+      return;
+    }
+
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        addRoomToSelection(room.id);
+      } else {
+        selectRoom(room.id);
+      }
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      openRoomEditor();
+    }
+  }, [addRoomToSelection, interactionsDisabled, isRoomEditorOpen, openRoomEditor, room.id, selectRoom]);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       if (e.button !== 0 || isRoomEditorOpen) return;
@@ -188,7 +210,7 @@ export function MapCanvasRoomNode({
       e.stopPropagation();
       const canvasElement = e.currentTarget.closest('[data-testid="map-canvas"]');
       if (canvasElement instanceof HTMLDivElement) {
-        canvasElement.focus();
+        focusElementWithoutScroll(canvasElement);
       }
 
       const startX = e.clientX;
@@ -321,6 +343,7 @@ export function MapCanvasRoomNode({
 
   return (
     <svg
+      id={getMapCanvasRoomNodeId(room.id)}
       className={`room-node${isDragging ? ' room-node--dragging' : ''}`}
       data-testid="room-node"
       data-room-id={room.id}
@@ -332,9 +355,14 @@ export function MapCanvasRoomNode({
         transform: `translate(${visualX}px, ${visualY}px)`,
         pointerEvents: interactionsDisabled ? 'none' : undefined,
       }}
+      role="button"
+      aria-label={`${room.name}${isSelected ? ', selected' : ''}`}
+      aria-haspopup="dialog"
+      tabIndex={-1}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
       onDoubleClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

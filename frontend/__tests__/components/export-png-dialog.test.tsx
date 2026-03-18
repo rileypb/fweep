@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { ExportPngDialog } from '../../src/components/export-png-dialog';
 import { createEmptyMap, createRoom } from '../../src/domain/map-types';
 import { addRoom } from '../../src/domain/map-operations';
@@ -143,5 +144,53 @@ describe('ExportPngDialog', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves focus into the dialog, traps Tab, and restores focus on close', async () => {
+    const user = userEvent.setup();
+    const onClose = jest.fn<() => void>();
+    useEditorStore.getState().loadDocument(createEmptyMap('Test'));
+
+    function Harness(): React.JSX.Element {
+      const [isOpen, setIsOpen] = React.useState(false);
+
+      return (
+        <>
+          <button type="button" onClick={() => setIsOpen(true)}>Open export</button>
+          <button type="button">After export</button>
+          <ExportPngDialog
+            isOpen={isOpen}
+            mapName="Test"
+            onClose={() => {
+              onClose();
+              setIsOpen(false);
+            }}
+            canvasViewportSize={{ width: 800, height: 600 }}
+            panOffset={{ x: 0, y: 0 }}
+            onScopeChange={() => {}}
+            onRequestRegionSelection={() => {}}
+          />
+        </>
+      );
+    }
+
+    render(<Harness />);
+
+    const openButton = screen.getByRole('button', { name: /open export/i });
+    await user.click(openButton);
+
+    expect(screen.getByLabelText('Scope')).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: /close export dialog/i })).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(screen.getByTestId('export-png-dialog')).toContainElement(document.activeElement);
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(openButton).toHaveFocus();
+    });
   });
 });

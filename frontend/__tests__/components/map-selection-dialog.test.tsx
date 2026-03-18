@@ -49,7 +49,7 @@ describe('MapSelectionDialog', () => {
     const user = userEvent.setup();
     render(<MapSelectionDialog onMapSelected={noop} />);
 
-    const input = screen.getByPlaceholderText('Map name');
+    const input = screen.getByLabelText('Map name');
     await user.type(input, 'Zork');
 
     const createBtn = screen.getByRole('button', { name: /create/i });
@@ -61,7 +61,7 @@ describe('MapSelectionDialog', () => {
     const onSelect = jest.fn<(doc: MapDocument) => void>();
     render(<MapSelectionDialog onMapSelected={onSelect} />);
 
-    const input = screen.getByPlaceholderText('Map name');
+    const input = screen.getByLabelText('Map name');
     await user.type(input, 'New Map');
     await user.click(screen.getByRole('button', { name: /create/i }));
 
@@ -77,7 +77,7 @@ describe('MapSelectionDialog', () => {
     const onSelect = jest.fn<(doc: MapDocument) => void>();
     render(<MapSelectionDialog onMapSelected={onSelect} />);
 
-    const input = screen.getByPlaceholderText('Map name');
+    const input = screen.getByLabelText('Map name');
     await user.type(input, 'Enter Map{Enter}');
 
     await waitFor(() => {
@@ -151,6 +151,12 @@ describe('MapSelectionDialog', () => {
   it('has a dialog with the accessible name "Choose a map"', async () => {
     render(<MapSelectionDialog onMapSelected={noop} />);
     expect(screen.getByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+  });
+
+  it('exposes the create-map input by label', () => {
+    render(<MapSelectionDialog onMapSelected={noop} />);
+
+    expect(screen.getByRole('textbox', { name: /map name/i })).toBeInTheDocument();
   });
 
   it('renders the decorative mirrored bat artwork beside the dialog', () => {

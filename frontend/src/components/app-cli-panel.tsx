@@ -64,10 +64,11 @@ export function AppCliPanel({
       <div
         id="app-game-output"
         className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
-        role="textbox"
-        aria-multiline="true"
-        aria-readonly="true"
-        aria-label="Game output"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-atomic="false"
+        aria-label="Game output log"
         ref={gameOutputRef}
         onClick={onGameOutputClick}
       >
