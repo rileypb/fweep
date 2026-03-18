@@ -192,6 +192,74 @@ function getParserBackedTerminalCommandResolution(fragment: ActiveFragment): Sug
   return null;
 }
 
+function getParserBackedRoomLeadResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+): SuggestionResolution | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const keywordEntries = nextSymbols.filter(
+    (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
+  );
+  const hasRoomLeadKeyword = keywordEntries.some(
+    (entry) => (entry.symbol.text === 'is' || entry.symbol.text === 'to') && entry.sourceStateIds.includes('ROOM_LEAD'),
+  );
+  const hasRoomLightingKeyword = keywordEntries.some(
+    (entry) => (entry.symbol.text === 'dark' || entry.symbol.text === 'lit') && entry.sourceStateIds.includes('ROOM_LEAD_IS'),
+  );
+  const hasRoomToRoomIsKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'is' && entry.sourceStateIds.includes('ROOM_TO_ROOM'),
+  );
+  const hasConnectedRoomSlot = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'slot'
+      && entry.symbol.slotType === 'CONNECTED_ROOM_REF'
+      && entry.sourceStateIds.includes('ROOM_LEAD_TO'),
+  );
+  const hasConnectionAnnotationKeyword = keywordEntries.some(
+    (entry) => (entry.symbol.text === 'door' || entry.symbol.text === 'clear') && entry.sourceStateIds.includes('ROOM_TO_ROOM_IS'),
+  )
+    || nextSymbols.some((entry) => entry.symbol.kind === 'phrase' && entry.symbol.text === 'locked door');
+
+  if (hasConnectionAnnotationKeyword) {
+    return suggestionResolution(createConnectionAnnotationSuggestions(fragment.prefix));
+  }
+
+  if (hasRoomToRoomIsKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['is']));
+  }
+
+  if (hasConnectedRoomSlot) {
+    const roomToIndex = fragment.precedingTokens.findIndex((token) => token.value.toLowerCase() === 'to');
+    if (roomToIndex === -1) {
+      return suggestionResolution([]);
+    }
+
+    const sourceRoomText = fragment.precedingTokens
+      .slice(0, roomToIndex)
+      .map((token) => token.value)
+      .join(' ');
+    return getConnectedRoomReferenceResolution(
+      input,
+      fragment,
+      doc,
+      roomToIndex + 1,
+      sourceRoomText,
+      createKeywordSuggestions(fragment.prefix, ['is']),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
+  if (hasRoomLightingKeyword) {
+    return suggestionResolution(createTerminalKeywordSuggestions(fragment.prefix, ['dark', 'lit']));
+  }
+
+  if (hasRoomLeadKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['is', 'to']));
+  }
+
+  return null;
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -273,6 +341,42 @@ function getSuggestionsForCommandContext(
     );
     if (leadingRoomResolution.suggestions.length > 0) {
       return leadingRoomResolution;
+    }
+  }
+
+  if (
+    tokens[0] !== 'the'
+    && !isPseudoRoomLead(tokens)
+    && tokens[0] !== 'go'
+    && tokens[0] !== 'show'
+    && tokens[0] !== 's'
+    && tokens[0] !== 'delete'
+    && tokens[0] !== 'd'
+    && tokens[0] !== 'del'
+    && tokens[0] !== 'edit'
+    && tokens[0] !== 'e'
+    && tokens[0] !== 'ed'
+    && tokens[0] !== 'notate'
+    && tokens[0] !== 'annotate'
+    && tokens[0] !== 'ann'
+    && tokens[0] !== 'put'
+    && tokens[0] !== 'take'
+    && tokens[0] !== 'get'
+    && tokens[0] !== 'connect'
+    && tokens[0] !== 'con'
+    && tokens[0] !== 'create'
+    && tokens[0] !== 'c'
+    && tokens[0] !== 'arrange'
+    && tokens[0] !== 'arr'
+    && tokens[0] !== 'prettify'
+    && tokens[0] !== 'help'
+    && tokens[0] !== 'h'
+    && tokens[0] !== 'undo'
+    && tokens[0] !== 'redo'
+  ) {
+    const parserBackedRoomLeadResolution = getParserBackedRoomLeadResolution(input, fragment, doc);
+    if (parserBackedRoomLeadResolution !== null) {
+      return parserBackedRoomLeadResolution;
     }
   }
 
