@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import { describeCliSuggestionParseStates, parseCliSuggestionInput } from '../../src/domain/cli-suggestion-parser';
+import {
+  describeCliSuggestionNextSymbols,
+  describeCliSuggestionParseStates,
+  listCliSuggestionNextSymbols,
+  parseCliSuggestionInput,
+} from '../../src/domain/cli-suggestion-parser';
 
 describe('cli suggestion parser', () => {
   it('starts from the root grammar state', () => {
@@ -59,5 +64,23 @@ describe('cli suggestion parser', () => {
     expect(describeCliSuggestionParseStates('connect kitchen north')).toEqual([
       'CONNECT_DIRECTION: one-way, to',
     ]);
+  });
+
+  it('lists legal next symbols across viable parse states', () => {
+    expect(listCliSuggestionNextSymbols('connect kitchen north').map((entry) => entry.key)).toEqual([
+      'phrase:one-way',
+      'keyword:to',
+    ]);
+  });
+
+  it('dedupes shared next symbols across ambiguous states', () => {
+    expect(describeCliSuggestionNextSymbols('north')).toEqual([
+      'of <- DIRECTION_LEAD',
+    ]);
+  });
+
+  it('shows room-led next symbols for generic slot text', () => {
+    expect(describeCliSuggestionNextSymbols('kitchen')).toContain('is <- ROOM_LEAD');
+    expect(describeCliSuggestionNextSymbols('kitchen')).toContain('to <- ROOM_LEAD');
   });
 });

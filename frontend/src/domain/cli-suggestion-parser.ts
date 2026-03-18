@@ -22,6 +22,12 @@ export interface CliSuggestionParseResult {
   readonly states: readonly CliSuggestionParseState[];
 }
 
+export interface CliSuggestionNextSymbol {
+  readonly key: string;
+  readonly symbol: CliSuggestionGrammarSymbol;
+  readonly sourceStateIds: readonly string[];
+}
+
 interface ParseCandidate {
   readonly stateId: string;
   readonly consumedSymbols: readonly string[];
@@ -243,5 +249,65 @@ export function describeCliSuggestionParseStates(input: string): readonly string
     });
 
     return `${state.stateId}: ${nextDescriptions.join(', ')}`;
+  });
+}
+
+function getSymbolKey(symbol: CliSuggestionGrammarSymbol): string {
+  switch (symbol.kind) {
+    case 'keyword':
+      return `keyword:${symbol.text}`;
+    case 'phrase':
+      return `phrase:${symbol.text}`;
+    case 'slot':
+      return `slot:${symbol.slotType}`;
+    case 'end':
+      return 'end';
+  }
+}
+
+export function listCliSuggestionNextSymbols(input: string): readonly CliSuggestionNextSymbol[] {
+  const parseResult = parseCliSuggestionInput(input);
+  const nextSymbols = new Map<string, CliSuggestionNextSymbol>();
+
+  for (const parseState of parseResult.states) {
+    for (const symbol of parseState.nextSymbols) {
+      const key = getSymbolKey(symbol);
+      const existing = nextSymbols.get(key);
+      if (existing) {
+        nextSymbols.set(key, {
+          ...existing,
+          sourceStateIds: [...existing.sourceStateIds, parseState.stateId],
+        });
+        continue;
+      }
+
+      nextSymbols.set(key, {
+        key,
+        symbol,
+        sourceStateIds: [parseState.stateId],
+      });
+    }
+  }
+
+  return [...nextSymbols.values()];
+}
+
+export function describeCliSuggestionNextSymbols(input: string): readonly string[] {
+  return listCliSuggestionNextSymbols(input).map(({ symbol, sourceStateIds }) => {
+    let description: string;
+    switch (symbol.kind) {
+      case 'keyword':
+      case 'phrase':
+        description = symbol.text;
+        break;
+      case 'slot':
+        description = `<${symbol.slotType}>`;
+        break;
+      case 'end':
+        description = '<end>';
+        break;
+    }
+
+    return `${description} <- ${sourceStateIds.join(',')}`;
   });
 }
