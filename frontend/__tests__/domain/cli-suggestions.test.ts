@@ -228,6 +228,16 @@ describe('cli suggestions', () => {
   it('requires a comma after create adjective phrases before showing directions', () => {
     const beforeComma = getCliSuggestions('create foobar, which is lit ', 'create foobar, which is lit '.length, createEmptyMap('Test'));
     const afterComma = getCliSuggestions('create foobar, which is lit, ', 'create foobar, which is lit, '.length, createEmptyMap('Test'));
+    const afterDirection = getCliSuggestions(
+      'create monkey, which is dark , west ',
+      'create monkey, which is dark , west '.length,
+      createEmptyMap('Test'),
+    );
+    const afterDirectionComma = getCliSuggestions(
+      'create monkey, which is dark , west, ',
+      'create monkey, which is dark , west, '.length,
+      createEmptyMap('Test'),
+    );
     const afterSpacedComma = getCliSuggestions(
       'create ice cream stand, which is dark , which is ',
       'create ice cream stand, which is dark , which is '.length,
@@ -236,7 +246,16 @@ describe('cli suggestions', () => {
 
     expect(beforeComma?.suggestions.map((suggestion) => suggestion.label)).toEqual([',']);
     expect(afterComma?.suggestions.map((suggestion) => suggestion.label)).toContain('north');
+    expect(afterDirection?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(afterDirectionComma).toBeNull();
     expect(afterSpacedComma).toBeNull();
+    expect(
+      getCliSuggestions(
+        'create monkey, which is dark , north, which is ',
+        'create monkey, which is dark , north, which is '.length,
+        createEmptyMap('Test'),
+      ),
+    ).toBeNull();
   });
 
   it('shows no suggestions after a complete relative create phrase', () => {

@@ -435,6 +435,76 @@ function getParserBackedConnectTailResolution(fragment: ActiveFragment, canonica
   ]);
 }
 
+function getParserBackedCreateContinuationSuggestions(
+  fragment: ActiveFragment,
+  options?: { readonly disallowNewRoomContinuation?: boolean },
+): readonly CliSuggestion[] | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const disallowNewRoomContinuation = options?.disallowNewRoomContinuation ?? false;
+  const keywordEntries = nextSymbols.filter(
+    (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
+  );
+
+  const hasWhichPhrase = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'phrase'
+      && entry.symbol.text === ', which is'
+      && (
+        (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_NEW_ROOM'))
+        || (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_AND_CONNECT_NEW_ROOM'))
+      ),
+  );
+  const hasAboveKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'above'
+      && !disallowNewRoomContinuation
+      && entry.sourceStateIds.includes('CREATE_NEW_ROOM'),
+  );
+  const hasBelowKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'below'
+      && !disallowNewRoomContinuation
+      && entry.sourceStateIds.includes('CREATE_NEW_ROOM'),
+  );
+  const hasDirectionSlot = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'slot'
+      && entry.symbol.slotType === 'DIRECTION'
+      && (
+        (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_NEW_ROOM'))
+        || entry.sourceStateIds.includes('CREATE_AFTER_ADJECTIVE_COMMA')
+        || (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_AND_CONNECT_NEW_ROOM'))
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_AFTER_ADJECTIVE_COMMA')
+      ),
+  );
+  const hasCommaKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === ','
+      && (
+        entry.sourceStateIds.includes('CREATE_ADJECTIVE')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_ADJECTIVE')
+      ),
+  );
+  const hasOfKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'of' && entry.sourceStateIds.includes('CREATE_DIRECTION'),
+  );
+
+  if (!hasWhichPhrase && !hasAboveKeyword && !hasBelowKeyword && !hasDirectionSlot && !hasCommaKeyword && !hasOfKeyword) {
+    return null;
+  }
+
+  return [
+    ...(hasWhichPhrase ? createKeywordSuggestions(fragment.prefix, [', which is']) : []),
+    ...((hasAboveKeyword || hasBelowKeyword)
+      ? createKeywordSuggestions(
+        fragment.prefix,
+        [
+          ...(hasAboveKeyword ? ['above'] : []),
+          ...(hasBelowKeyword ? ['below'] : []),
+        ],
+      )
+      : []),
+    ...(hasDirectionSlot ? createDirectionSuggestions(fragment.prefix) : []),
+    ...(hasCommaKeyword ? createKeywordSuggestions(fragment.prefix, [',']) : []),
+    ...(hasOfKeyword ? createKeywordSuggestions(fragment.prefix, ['of']) : []),
+  ];
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -633,6 +703,9 @@ function getSuggestionsForCommandContext(
       && (tokens[2] === 'connect' || tokens[2] === 'con');
     if (isCreateAndConnectIntro) {
       const hasCompletedCreateAndConnectAdjectivePhrase = hasCompletedCreateAdjectivePhrase(tokens);
+      const parserBackedCreateAndConnectContinuationSuggestions = getParserBackedCreateContinuationSuggestions(fragment, {
+        disallowNewRoomContinuation: hasCompletedCreateAndConnectAdjectivePhrase,
+      });
 
       if (fragment.tokenIndex === 3) {
         return suggestionResolution(createPlaceholderSuggestion('<new room name>'));
@@ -692,9 +765,15 @@ function getSuggestionsForCommandContext(
       if (isStillTypingCreateAndConnectRoomName) {
         return suggestionResolution([
           ...createPlaceholderSuggestion('<new room name>'),
-          ...createKeywordSuggestions(prefix, [', which is']),
-          ...createDirectionSuggestions(prefix),
+          ...(parserBackedCreateAndConnectContinuationSuggestions ?? [
+            ...createKeywordSuggestions(prefix, [', which is']),
+            ...createDirectionSuggestions(prefix),
+          ]),
         ]);
+      }
+
+      if (parserBackedCreateAndConnectContinuationSuggestions !== null) {
+        return suggestionResolution(parserBackedCreateAndConnectContinuationSuggestions);
       }
 
       return suggestionResolution([
@@ -759,6 +838,9 @@ function getSuggestionsForCommandContext(
 
   if (tokens[0] === 'create' || tokens[0] === 'c') {
     const hasCompletedCreatePhrase = hasCompletedCreateAdjectivePhrase(tokens);
+    const parserBackedCreateContinuationSuggestions = getParserBackedCreateContinuationSuggestions(fragment, {
+      disallowNewRoomContinuation: hasCompletedCreatePhrase,
+    });
 
     if (fragment.tokenIndex === 1) {
       return suggestionResolution([
@@ -844,17 +926,21 @@ function getSuggestionsForCommandContext(
     if (isStillTypingCreateRoomName) {
       return suggestionResolution([
         ...createPlaceholderSuggestion('<new room name>'),
-        ...createKeywordSuggestions(prefix, [', which is', 'above', 'below']),
-        ...createDirectionSuggestions(prefix),
+        ...(parserBackedCreateContinuationSuggestions ?? [
+          ...createKeywordSuggestions(prefix, [', which is', 'above', 'below']),
+          ...createDirectionSuggestions(prefix),
+        ]),
       ]);
     }
 
-    if (canonicalLastDirection !== null) {
-      return suggestionResolution(createKeywordSuggestions(prefix, ['of']));
+    if (parserBackedCreateContinuationSuggestions !== null) {
+      return suggestionResolution(parserBackedCreateContinuationSuggestions);
     }
 
-    if (tokens.length > 1 && (prefix.length === 0 || isDirectionLikePrefix(prefix))) {
-      return suggestionResolution(createDirectionSuggestions(prefix));
+    if (hasCompletedCreatePhrase && canonicalLastDirection !== null) {
+      return trimmedBeforeFragment.endsWith(',')
+        ? suggestionResolution([])
+        : suggestionResolution(createKeywordSuggestions(prefix, ['of']));
     }
 
     return suggestionResolution([
