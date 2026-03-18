@@ -265,6 +265,14 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('north');
   });
 
+  it('does not suggest to before a direction has been chosen in connect commands', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Ice Cream Stand'), position: { x: 0, y: 0 } });
+
+    const result = getCliSuggestions('connect ice cream stand t', 'connect ice cream stand t'.length, doc);
+
+    expect(result).toBeNull();
+  });
+
   it('suggests connection annotations after a room-to-room is phrase', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
 

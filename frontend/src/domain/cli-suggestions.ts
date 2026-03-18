@@ -677,6 +677,10 @@ function getSuggestionsForCommandContext(
       return suggestionResolution(createDirectionSuggestions(prefix));
     }
 
+    if (tokens.length > 1 && prefix.length > 0) {
+      return suggestionResolution([]);
+    }
+
     return suggestionResolution(createKeywordSuggestions(prefix, ['one-way', 'to']));
   }
 
