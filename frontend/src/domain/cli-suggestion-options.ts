@@ -21,6 +21,16 @@ function createCommandSuggestion(commandId: string, insertText: string, descript
   };
 }
 
+function getSuggestedCommandInsertText(spec: typeof CLI_COMMAND_SUGGESTION_SPECS[number], normalizedPrefix: string): string {
+  const canonicalInsertText = spec.insertText;
+  if (canonicalInsertText.startsWith(normalizedPrefix)) {
+    return canonicalInsertText;
+  }
+
+  const matchingAlias = spec.matchTerms.find((term) => term.startsWith(normalizedPrefix));
+  return matchingAlias ?? canonicalInsertText;
+}
+
 export function createKeywordSuggestions(prefix: string, values: readonly string[]): readonly CliSuggestion[] {
   const normalizedPrefix = prefix.toLowerCase();
   return values
@@ -55,6 +65,7 @@ export function createPlaceholderSuggestion(label: string): readonly CliSuggesti
 
 export function createCommandSuggestions(prefix: string): readonly CliSuggestion[] {
   const normalizedPrefix = prefix.toLowerCase();
+  const prefixHasWhitespace = /\s/.test(normalizedPrefix);
 
   return CLI_COMMAND_SUGGESTION_SPECS
     .filter((spec) => {
@@ -64,22 +75,32 @@ export function createCommandSuggestions(prefix: string): readonly CliSuggestion
       if (normalizedPrefix === 's' && spec.id === 'show') {
         return false;
       }
-      return spec.matchTerms.some((term) => term.startsWith(normalizedPrefix));
+      return spec.matchTerms.some((term) => {
+        if (!prefixHasWhitespace && /\s/.test(term)) {
+          return false;
+        }
+
+        return term.startsWith(normalizedPrefix);
+      });
     })
+    .map((spec) => ({
+      spec,
+      suggestedInsertText: getSuggestedCommandInsertText(spec, normalizedPrefix),
+    }))
     .sort((left, right) => {
-      const leftExact = left.insertText.startsWith(normalizedPrefix) ? 0 : 1;
-      const rightExact = right.insertText.startsWith(normalizedPrefix) ? 0 : 1;
+      const leftExact = left.suggestedInsertText.startsWith(normalizedPrefix) ? 0 : 1;
+      const rightExact = right.suggestedInsertText.startsWith(normalizedPrefix) ? 0 : 1;
       if (leftExact !== rightExact) {
         return leftExact - rightExact;
       }
 
-      if (left.insertText.length !== right.insertText.length) {
-        return left.insertText.length - right.insertText.length;
+      if (left.suggestedInsertText.length !== right.suggestedInsertText.length) {
+        return left.suggestedInsertText.length - right.suggestedInsertText.length;
       }
 
-      return left.insertText.localeCompare(right.insertText);
+      return left.suggestedInsertText.localeCompare(right.suggestedInsertText);
     })
-    .map((spec) => createCommandSuggestion(spec.id, spec.insertText, spec.descriptionInput));
+    .map(({ spec, suggestedInsertText }) => createCommandSuggestion(spec.id, suggestedInsertText, spec.descriptionInput));
 }
 
 export function createDefaultSuggestions(doc: MapDocument | null): readonly CliSuggestion[] {

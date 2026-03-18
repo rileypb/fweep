@@ -60,6 +60,30 @@ function getParserBackedHelpTopicResolution(fragment: ActiveFragment): Suggestio
   return suggestionResolution(createHelpTopicSuggestions(fragment.prefix));
 }
 
+function getParserBackedGoResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+): SuggestionResolution | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const hasDirectionSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'DIRECTION');
+  const hasToKeyword = nextSymbols.some((entry) => entry.symbol.kind === 'keyword' && entry.symbol.text === 'to');
+  const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
+
+  if (hasRoomSlot) {
+    return getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
+  }
+
+  if (hasDirectionSlot || hasToKeyword) {
+    return suggestionResolution([
+      ...(hasDirectionSlot ? createDirectionSuggestions(fragment.prefix) : []),
+      ...(hasToKeyword ? createKeywordSuggestions(fragment.prefix, ['to']) : []),
+    ]);
+  }
+
+  return null;
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -127,6 +151,11 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'go' && fragment.tokenIndex === 1) {
+    const parserBackedGoResolution = getParserBackedGoResolution(input, fragment, doc);
+    if (parserBackedGoResolution !== null) {
+      return parserBackedGoResolution;
+    }
+
     return suggestionResolution([
       ...createDirectionSuggestions(prefix),
       ...createKeywordSuggestions(prefix, ['to']),
@@ -134,6 +163,11 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'go' && tokens[1] === 'to') {
+    const parserBackedGoResolution = getParserBackedGoResolution(input, fragment, doc);
+    if (parserBackedGoResolution !== null) {
+      return parserBackedGoResolution;
+    }
+
     return getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
   }
 

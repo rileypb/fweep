@@ -17,7 +17,14 @@ describe('cli suggestion parser', () => {
   it('parses basic command prefixes into grammar states', () => {
     expect(parseCliSuggestionInput('create').states.map((state) => state.stateId)).toContain('CREATE');
     expect(parseCliSuggestionInput('connect').states.map((state) => state.stateId)).toContain('CONNECT');
+    expect(parseCliSuggestionInput('go').states.map((state) => state.stateId)).toContain('GO');
     expect(parseCliSuggestionInput('help').states.map((state) => state.stateId)).toContain('HELP');
+  });
+
+  it('walks through go command structure', () => {
+    expect(parseCliSuggestionInput('go').states.map((state) => state.stateId)).toContain('GO');
+    expect(parseCliSuggestionInput('go to').states.map((state) => state.stateId)).toContain('GO_TO');
+    expect(parseCliSuggestionInput('go north').states.map((state) => state.stateId)).toContain('GO_DIRECTION_DONE');
   });
 
   it('walks through connect command structure', () => {

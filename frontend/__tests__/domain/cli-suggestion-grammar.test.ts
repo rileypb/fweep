@@ -21,6 +21,7 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('ROOT')).toEqual([
       'create',
       'connect',
+      'go',
       'show',
       'edit',
       'arrange',

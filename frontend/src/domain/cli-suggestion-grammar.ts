@@ -56,6 +56,7 @@ const cliSuggestionGrammarStates = [
   state('ROOT', [
     keyword('create', 'CREATE'),
     keyword('connect', 'CONNECT'),
+    keyword('go', 'GO'),
     keyword('show', 'SHOW'),
     keyword('edit', 'EDIT'),
     keyword('arrange', 'ARRANGE'),

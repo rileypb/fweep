@@ -39,6 +39,20 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('does not suggest show when typing go as the first token', () => {
+    const result = getCliSuggestions('go', 2, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('go');
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).not.toContain('show');
+  });
+
+  it('shows get instead of take when matching the get synonym at the first token', () => {
+    const result = getCliSuggestions('g', 1, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('get');
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).not.toContain('take');
+  });
+
   it('shows a room placeholder at the start of a room-reference slot', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
