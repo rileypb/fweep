@@ -64,7 +64,15 @@ describe('cli suggestions', () => {
 
     const result = getCliSuggestions('create ', 'create '.length, doc);
 
-    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>']);
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>', 'and']);
+  });
+
+  it('suggests create and connect from the first token prefix', () => {
+    const result = getCliSuggestions('create', 'create'.length, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['create', 'create and connect']),
+    );
   });
 
   it('suggests directions and "to" immediately after go plus a space', () => {
@@ -228,6 +236,23 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('create and connect ', 'create and connect '.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>']);
+  });
+
+  it('keeps the new-room placeholder visible while typing a create-and-connect room name', () => {
+    expect(
+      getCliSuggestions('create and connect city ', 'create and connect city '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
+
+    expect(
+      getCliSuggestions('create and connect city p', 'create and connect city p'.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>']));
+
+    expect(
+      getCliSuggestions('create and connect city park ', 'create and connect city park '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
   });
 
   it('suggests only "to" after one-way in create-and-connect commands', () => {

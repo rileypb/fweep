@@ -69,7 +69,7 @@ export function createCommandSuggestions(prefix: string): readonly CliSuggestion
     .filter((spec) => {
       return spec.matchTerms.some((term) => {
         if (!prefixHasWhitespace && /\s/.test(term)) {
-          return false;
+          return spec.insertText.startsWith(normalizedPrefix);
         }
 
         return term.startsWith(normalizedPrefix);

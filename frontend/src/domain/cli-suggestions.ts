@@ -643,6 +643,21 @@ function getSuggestionsForCommandContext(
         return parserBackedConnectTailResolution;
       }
 
+      const isStillTypingCreateAndConnectRoomName = tokens.length > 3
+        && canonicalLastDirection === null
+        && tokens.indexOf('to') === -1
+        && lastToken !== 'which'
+        && !(tokens.at(-2) === 'which' && lastToken === 'is')
+        && lastToken !== 'dark'
+        && lastToken !== 'lit';
+      if (isStillTypingCreateAndConnectRoomName) {
+        return suggestionResolution([
+          ...createPlaceholderSuggestion('<new room name>'),
+          ...createKeywordSuggestions(prefix, [', which is']),
+          ...createDirectionSuggestions(prefix),
+        ]);
+      }
+
       return suggestionResolution([
         ...createDirectionSuggestions(prefix),
         ...createKeywordSuggestions(prefix, [', which is']),
@@ -705,7 +720,10 @@ function getSuggestionsForCommandContext(
 
   if (tokens[0] === 'create' || tokens[0] === 'c') {
     if (fragment.tokenIndex === 1) {
-      return suggestionResolution(createPlaceholderSuggestion('<new room name>'));
+      return suggestionResolution([
+        ...createPlaceholderSuggestion('<new room name>'),
+        ...createKeywordSuggestions(prefix, ['and']),
+      ]);
     }
 
     if (tokens[1] === 'and' && fragment.tokenIndex === 2) {
