@@ -360,6 +360,51 @@ function getParserBackedPseudoRoomResolution(
   return null;
 }
 
+function getParserBackedConnectTailResolution(fragment: ActiveFragment, canonicalLastDirection: string | null): SuggestionResolution | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const hasOneWayPhrase = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'phrase'
+      && entry.symbol.text === 'one-way'
+      && (
+        entry.sourceStateIds.includes('CONNECT_DIRECTION')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_DIRECTION')
+      ),
+  );
+  const hasToKeyword = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'keyword'
+      && entry.symbol.text === 'to'
+      && (
+        entry.sourceStateIds.includes('CONNECT_DIRECTION')
+        || entry.sourceStateIds.includes('CONNECT_ONE_WAY')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_DIRECTION')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_ONE_WAY')
+      ),
+  );
+
+  if (!hasOneWayPhrase && !hasToKeyword && canonicalLastDirection !== null) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['one-way', 'to']));
+  }
+
+  if (
+    !hasOneWayPhrase
+    && !hasToKeyword
+    && (fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'one-way'
+      || fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'oneway'
+      || fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'way')
+  ) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['to']));
+  }
+
+  if (!hasOneWayPhrase && !hasToKeyword) {
+    return null;
+  }
+
+  return suggestionResolution([
+    ...(hasOneWayPhrase ? createKeywordSuggestions(fragment.prefix, ['one-way']) : []),
+    ...(hasToKeyword ? createKeywordSuggestions(fragment.prefix, ['to']) : []),
+  ]);
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -593,12 +638,9 @@ function getSuggestionsForCommandContext(
         }
       }
 
-      if (lastToken === 'one-way' || lastToken === 'oneway' || lastToken === 'way') {
-        return suggestionResolution(createKeywordSuggestions(prefix, ['to']));
-      }
-
-      if (canonicalLastDirection !== null) {
-        return suggestionResolution(createKeywordSuggestions(prefix, ['one-way', 'to']));
+      const parserBackedConnectTailResolution = getParserBackedConnectTailResolution(fragment, canonicalLastDirection);
+      if (parserBackedConnectTailResolution !== null) {
+        return parserBackedConnectTailResolution;
       }
 
       return suggestionResolution([
@@ -645,12 +687,9 @@ function getSuggestionsForCommandContext(
       }
     }
 
-    if (lastToken === 'one-way' || lastToken === 'oneway' || lastToken === 'way') {
-      return suggestionResolution(createKeywordSuggestions(prefix, ['to']));
-    }
-
-    if (canonicalLastDirection !== null) {
-      return suggestionResolution(createKeywordSuggestions(prefix, ['one-way', 'to']));
+    const parserBackedConnectTailResolution = getParserBackedConnectTailResolution(fragment, canonicalLastDirection);
+    if (parserBackedConnectTailResolution !== null) {
+      return parserBackedConnectTailResolution;
     }
 
     if (tokens.length > 1 && (prefix.length === 0 || isDirectionLikePrefix(prefix))) {

@@ -113,6 +113,33 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['to']);
   });
 
+  it('keeps parser-backed connect tail suggestions on direction and one-way states', () => {
+    expect(
+      getCliSuggestions('connect Kitchen north ', 'connect Kitchen north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('connect store room west ', 'connect store room west '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('connect store room west one-way ', 'connect store room west one-way '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['to']);
+
+    expect(
+      getCliSuggestions('create and connect Pantry north ', 'create and connect Pantry north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('create and connect Pantry north one-way ', 'create and connect Pantry north one-way '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['to']);
+  });
+
   it('suggests room-led grammar words after a room name and space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 
