@@ -240,6 +240,24 @@ function normalizeRoomReferenceText(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function tokenizeRoomReferenceWords(value: string): readonly string[] {
+  return normalizeRoomReferenceText(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function roomMatchesReferencePrefix(roomName: string, typedRoomText: string): boolean {
+  const typedWords = tokenizeRoomReferenceWords(typedRoomText);
+  if (typedWords.length === 0) {
+    return false;
+  }
+
+  const roomWords = tokenizeRoomReferenceWords(roomName);
+  return typedWords.every((typedWord) => roomWords.some((roomWord) => roomWord.startsWith(typedWord)));
+}
+
 function getRoomReferenceResolution(
   input: string,
   fragment: ActiveFragment,
@@ -269,7 +287,7 @@ function getRoomReferenceResolution(
   }
 
   const matchingRooms = Object.values(doc.rooms)
-    .filter((room) => normalizeRoomReferenceText(room.name).startsWith(normalizedTypedRoomText))
+    .filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText))
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((room) => ({
       id: `cli-suggestion-room-${room.id}`,
@@ -281,7 +299,7 @@ function getRoomReferenceResolution(
 
   if (fragment.prefix.length === 0) {
     const hasLongerMatch = matchingRooms.some(
-      (suggestion) => normalizeRoomReferenceText(suggestion.label).length > normalizedTypedRoomText.length,
+      (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
     );
     if (!hasLongerMatch) {
       return {
@@ -328,6 +346,17 @@ function getCanonicalDirectionToken(value: string | null): string | null {
   return STANDARD_DIRECTIONS.includes(normalizedValue) ? normalizedValue : null;
 }
 
+function isPseudoRoomLead(tokens: readonly string[]): boolean {
+  return (tokens[0] === 'the' && (tokens[1] === 'room' || tokens[1] === 'way'))
+    || getCanonicalDirectionToken(tokens[0] ?? null) !== null
+    || tokens[0] === 'above'
+    || tokens[0] === 'below';
+}
+
+function hasMalformedPseudoRoomContinuation(tokens: readonly string[]): boolean {
+  return isPseudoRoomLead(tokens) && tokens.includes('to');
+}
+
 function suggestionResolution(suggestions: readonly CliSuggestion[]): SuggestionResolution {
   return { suggestions };
 }
@@ -360,13 +389,53 @@ function getRoomReferenceResolutionWithFallback(
     return roomResolution;
   }
 
+  if (roomResolution.suggestions.length === 0) {
+    return {
+      suggestions: fallbackSuggestions,
+      replaceStart: fragment.start,
+      replaceEnd: fragment.end,
+      prefix: fragment.prefix,
+    };
+  }
+
   return {
-    suggestions: roomResolution.suggestions.length === 0
-      ? fallbackSuggestions
-      : mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
+    suggestions: mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
     replaceStart: roomResolution.replaceStart,
     replaceEnd: roomResolution.replaceEnd,
     prefix: roomResolution.prefix,
+  };
+}
+
+function getLeadingRoomReferenceResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  fallbackSuggestions: readonly CliSuggestion[],
+): SuggestionResolution {
+  const syntheticFragment: ActiveFragment = {
+    ...fragment,
+    precedingTokens: [{ value: '', start: 0, end: 0 }],
+  };
+
+  const roomResolution = getRoomReferenceResolution(input, syntheticFragment, doc, 0);
+  if (roomResolution.suggestions.length > 0) {
+    if (fragment.prefix.length === 0) {
+      return {
+        suggestions: mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
+        replaceStart: roomResolution.replaceStart,
+        replaceEnd: roomResolution.replaceEnd,
+        prefix: roomResolution.prefix,
+      };
+    }
+
+    return roomResolution;
+  }
+
+  return {
+    suggestions: fallbackSuggestions,
+    replaceStart: fragment.start,
+    replaceEnd: fragment.end,
+    prefix: fragment.prefix,
   };
 }
 
@@ -399,6 +468,40 @@ function getSuggestionsForCommandContext(
 
   if ((tokens[0] === 'help' || tokens[0] === 'h') && fragment.tokenIndex === 1) {
     return suggestionResolution(createHelpTopicSuggestions(prefix));
+  }
+
+  if (
+    fragment.tokenIndex === 1
+    && !isPseudoRoomLead(tokens)
+    && tokens[0] !== 'go'
+    && tokens[0] !== 'show'
+    && tokens[0] !== 'delete'
+    && tokens[0] !== 'd'
+    && tokens[0] !== 'del'
+    && tokens[0] !== 'edit'
+    && tokens[0] !== 'ed'
+    && tokens[0] !== 'notate'
+    && tokens[0] !== 'annotate'
+    && tokens[0] !== 'ann'
+    && tokens[0] !== 'put'
+    && tokens[0] !== 'take'
+    && tokens[0] !== 'get'
+    && tokens[0] !== 'connect'
+    && tokens[0] !== 'con'
+    && tokens[0] !== 'create'
+    && tokens[0] !== 'arrange'
+    && tokens[0] !== 'help'
+    && tokens[0] !== 'h'
+  ) {
+    const leadingRoomResolution = getLeadingRoomReferenceResolution(
+      input,
+      fragment,
+      doc,
+      createKeywordSuggestions(prefix, ['is', 'to']),
+    );
+    if (leadingRoomResolution.suggestions.length > 0) {
+      return leadingRoomResolution;
+    }
   }
 
   if (tokens[0] === 'go' && fragment.tokenIndex === 1) {
@@ -620,8 +723,15 @@ function getSuggestionsForCommandContext(
       return suggestionResolution([]);
     }
 
-    if (lastToken === 'above' || lastToken === 'below') {
-      return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex - 1);
+    const verticalCreateIndex = tokens.findIndex((token) => token === 'above' || token === 'below');
+    if (verticalCreateIndex !== -1) {
+      if (fragment.tokenIndex === verticalCreateIndex + 1 || lastToken === 'above' || lastToken === 'below') {
+        return getRoomReferenceResolution(input, fragment, doc, verticalCreateIndex + 1);
+      }
+
+      if (fragment.tokenIndex > verticalCreateIndex + 1) {
+        return suggestionResolution([]);
+      }
     }
 
     if (fragment.tokenIndex === 2 && prefix.length === 0) {
@@ -733,6 +843,26 @@ function getSuggestionsForCommandContext(
     return getRoomReferenceResolution(input, fragment, doc, 1);
   }
 
+  if (
+    (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
+    && !tokens.includes('to')
+    && !tokens.includes('is')
+    && !tokens.includes('goes')
+    && !tokens.includes('leads')
+    && !tokens.includes('lies')
+  ) {
+    const ofIndex = tokens.indexOf('of');
+    const fallbackSuggestions = createKeywordSuggestions(prefix, ['is unknown', 'goes on forever', 'leads nowhere', 'lies death']);
+
+    if (ofIndex !== -1 && fragment.tokenIndex >= ofIndex + 1) {
+      return getRoomReferenceResolutionWithFallback(input, fragment, doc, ofIndex + 1, fallbackSuggestions);
+    }
+
+    if ((tokens[0] === 'above' || tokens[0] === 'below') && fragment.tokenIndex >= 1) {
+      return getRoomReferenceResolutionWithFallback(input, fragment, doc, 1, fallbackSuggestions);
+    }
+  }
+
   const roomToIndex = tokens.indexOf('to');
   if (
     roomToIndex > 0
@@ -740,6 +870,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'connect'
     && tokens[0] !== 'con'
     && tokens[0] !== 'create'
+    && !isPseudoRoomLead(tokens)
   ) {
     if (fragment.tokenIndex >= roomToIndex + 1 && !tokens.includes('is')) {
       return getRoomReferenceResolutionWithFallback(
@@ -756,20 +887,22 @@ function getSuggestionsForCommandContext(
     return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex);
   }
 
-  if (lastToken === 'is' && roomToIndex > 0) {
+  if (lastToken === 'is' && roomToIndex > 0 && !isPseudoRoomLead(tokens)) {
     return suggestionResolution(createConnectionAnnotationSuggestions(prefix));
   }
 
   if (
     lastToken === 'is'
+    && !tokens.includes('to')
     && (
-      (tokens[0] === 'the' && tokens[1] === 'room')
-      || getCanonicalDirectionToken(tokens[0] ?? null) !== null
-      || tokens[0] === 'above'
-      || tokens[0] === 'below'
+      isPseudoRoomLead(tokens)
     )
   ) {
     return suggestionResolution(createKeywordSuggestions(prefix, ['unknown']));
+  }
+
+  if (lastToken === 'is' && hasMalformedPseudoRoomContinuation(tokens)) {
+    return suggestionResolution([]);
   }
 
   if (lastToken === 'is') {
@@ -784,6 +917,10 @@ function getSuggestionsForCommandContext(
     return suggestionResolution(createKeywordSuggestions(prefix, ['forever']));
   }
 
+  if (lastToken === 'unknown' || lastToken === 'forever' || lastToken === 'nowhere' || lastToken === 'death') {
+    return suggestionResolution([]);
+  }
+
   if (lastToken === 'lies') {
     return suggestionResolution(createKeywordSuggestions(prefix, ['death']));
   }
@@ -793,7 +930,14 @@ function getSuggestionsForCommandContext(
   }
 
   if (lastToken === 'to') {
+    if (isPseudoRoomLead(tokens)) {
+      return suggestionResolution([]);
+    }
     return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex);
+  }
+
+  if (hasMalformedPseudoRoomContinuation(tokens)) {
+    return suggestionResolution([]);
   }
 
   if (fragment.tokenIndex >= 1) {

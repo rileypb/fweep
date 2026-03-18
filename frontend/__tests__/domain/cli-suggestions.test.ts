@@ -95,6 +95,23 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
   });
 
+  it('shows a room placeholder after create above/below plus a space', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Hallway'), position: { x: 0, y: 0 } });
+
+    const aboveResult = getCliSuggestions('create foobar above ', 'create foobar above '.length, doc);
+    const belowResult = getCliSuggestions('create foobar below ', 'create foobar below '.length, doc);
+
+    expect(aboveResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+    expect(belowResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+  });
+
+  it('shows no suggestions after a complete create above/below room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Hallway'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('create foobar above hallway ', 'create foobar above hallway '.length, doc)).toBeNull();
+    expect(getCliSuggestions('create foobar below hallway ', 'create foobar below hallway '.length, doc)).toBeNull();
+  });
+
   it('requires a comma after create adjective phrases before showing directions', () => {
     const beforeComma = getCliSuggestions('create foobar, which is lit ', 'create foobar, which is lit '.length, createEmptyMap('Test'));
     const afterComma = getCliSuggestions('create foobar, which is lit, ', 'create foobar, which is lit, '.length, createEmptyMap('Test'));
@@ -193,6 +210,16 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('shows both longer room continuations and room-led grammar in the first room-led slot after a space', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Store Room'), position: { x: 0, y: 0 } });
+
+    const result = getCliSuggestions('store ', 'store '.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['Store Room', 'is', 'to']),
+    );
+  });
+
   it('suggests matching target rooms in connect commands', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
@@ -202,6 +229,16 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('connect kitchen n to h', 'connect kitchen n to h'.length, doc);
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Hall of Mirrors', 'Hallway']);
+  });
+
+  it('matches room-reference suggestions by word prefix inside grammar slots', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Store Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Ice Cream Stand'), position: { x: 40, y: 0 } });
+
+    const result = getCliSuggestions('connect store room down to c', 'connect store room down to c'.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Ice Cream Stand']);
   });
 
   it('replaces only the active token range for multi-word room completions', () => {
@@ -236,11 +273,31 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['door', 'locked door', 'clear']);
   });
 
+  it('inserts room-to-room fallback keywords at the caret instead of replacing the target room', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+
+    const result = getCliSuggestions('bedroom to bathroom ', 'bedroom to bathroom '.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is']);
+    expect(result).toMatchObject({
+      replaceStart: 'bedroom to bathroom '.length,
+      replaceEnd: 'bedroom to bathroom '.length,
+      prefix: '',
+    });
+  });
+
   it('suggests pseudo-room continuations after directional pseudo-room phrases', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    const shorthandResult = getCliSuggestions('west of bedroom ', 'west of bedroom '.length, doc);
     const roomResult = getCliSuggestions('the room north of bedroom ', 'the room north of bedroom '.length, doc);
     const wayResult = getCliSuggestions('the way north of bedroom ', 'the way north of bedroom '.length, doc);
 
+    expect(shorthandResult?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'is unknown',
+      'goes on forever',
+      'leads nowhere',
+      'lies death',
+    ]);
     expect(roomResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is unknown']);
     expect(wayResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['goes on forever', 'leads nowhere', 'lies death']);
   });
@@ -251,5 +308,22 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('north of bedroom is ', 'north of bedroom is '.length, doc);
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['unknown']);
+  });
+
+  it('closes suggestions after a completed pseudo-room terminal phrase', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('north of bedroom is unknown ', 'north of bedroom is unknown '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom goes on forever ', 'west of bedroom goes on forever '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom leads nowhere ', 'west of bedroom leads nowhere '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom lies death ', 'west of bedroom lies death '.length, doc)).toBeNull();
+  });
+
+  it('does not allow room-to-room connection annotation grammar inside pseudo-room phrases', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('west of bedroom to ', 'west of bedroom to '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom to bathroom ', 'west of bedroom to bathroom '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom to bathroom is ', 'west of bedroom to bathroom is '.length, doc)).toBeNull();
   });
 });

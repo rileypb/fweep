@@ -255,6 +255,21 @@ describe('URL routing', () => {
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
   });
 
+  it('inserts is after a completed room-to-room phrase without deleting the target room', async () => {
+    const user = userEvent.setup();
+    await renderAppWithSavedMap(createEmptyMap('CLI Room To Room Suggestions Map'));
+
+    const input = getCliInput();
+
+    await user.type(input, 'bedroom to bathroom ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['is']);
+
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('bedroom to bathroom is ');
+  });
+
   it('switches from the room placeholder to real matching rooms once typing begins', async () => {
     const user = userEvent.setup();
     let map = createEmptyMap('CLI Room Match Suggestions Map');
