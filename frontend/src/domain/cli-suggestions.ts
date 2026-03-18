@@ -58,6 +58,10 @@ function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
     return ['annotate', ...tokens.slice(1)];
   }
 
+  if (tokens[0] === 'arr' || tokens[0] === 'prettify') {
+    return ['arrange', ...tokens.slice(1)];
+  }
+
   return tokens;
 }
 
@@ -160,6 +164,34 @@ function getParserBackedNotateResolution(
   return suggestionResolution([]);
 }
 
+function getParserBackedRoomSlotAfterKeywordResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+): SuggestionResolution {
+  const nextSymbols = getParserNextSymbolsBeforeSlot(fragment, slotStartTokenIndex);
+  const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
+  if (!hasRoomSlot) {
+    return suggestionResolution([]);
+  }
+
+  return getParserBackedSingleRoomCommandResolution(input, fragment, doc, slotStartTokenIndex);
+}
+
+function getParserBackedTerminalCommandResolution(fragment: ActiveFragment): SuggestionResolution | null {
+  if (fragment.tokenIndex === 1 && fragment.prefix.length === 0) {
+    return suggestionResolution([]);
+  }
+
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  if (nextSymbols.length === 0) {
+    return suggestionResolution([]);
+  }
+
+  return null;
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -190,6 +222,19 @@ function getSuggestionsForCommandContext(
 
   if (tokens[0] === 'help' || tokens[0] === 'h') {
     return suggestionResolution([]);
+  }
+
+  if (
+    tokens[0] === 'arrange'
+    || tokens[0] === 'arr'
+    || tokens[0] === 'prettify'
+    || tokens[0] === 'undo'
+    || tokens[0] === 'redo'
+  ) {
+    const parserBackedTerminalResolution = getParserBackedTerminalCommandResolution(fragment);
+    if (parserBackedTerminalResolution !== null) {
+      return parserBackedTerminalResolution;
+    }
   }
 
   if (tokens[0] === 'the' && fragment.tokenIndex === 1) {
@@ -268,7 +313,7 @@ function getSuggestionsForCommandContext(
     if (tokens.includes('in')) {
       const inIndex = tokens.indexOf('in');
       if (fragment.tokenIndex > inIndex) {
-        return getRoomReferenceResolution(input, fragment, doc, inIndex + 1, roomSlotSuggestionHelpers);
+        return getParserBackedRoomSlotAfterKeywordResolution(input, fragment, doc, inIndex + 1);
       }
       return suggestionResolution([]);
     }
@@ -288,7 +333,7 @@ function getSuggestionsForCommandContext(
     if (tokens.includes('from')) {
       const fromIndex = tokens.indexOf('from');
       if (fragment.tokenIndex > fromIndex) {
-        return getRoomReferenceResolution(input, fragment, doc, fromIndex + 1, roomSlotSuggestionHelpers);
+        return getParserBackedRoomSlotAfterKeywordResolution(input, fragment, doc, fromIndex + 1);
       }
       return suggestionResolution([]);
     }

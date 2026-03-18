@@ -247,6 +247,16 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('h rooms ', 'h rooms '.length, createEmptyMap('Test'))).toBeNull();
   });
 
+  it('closes suggestions after completed terminal commands', () => {
+    const doc = createEmptyMap('Test');
+
+    expect(getCliSuggestions('arrange ', 'arrange '.length, doc)).toBeNull();
+    expect(getCliSuggestions('arr ', 'arr '.length, doc)).toBeNull();
+    expect(getCliSuggestions('prettify ', 'prettify '.length, doc)).toBeNull();
+    expect(getCliSuggestions('undo ', 'undo '.length, doc)).toBeNull();
+    expect(getCliSuggestions('redo ', 'redo '.length, doc)).toBeNull();
+  });
+
   it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
@@ -267,6 +277,26 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('notate cellar with ', 'notate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('annotate cellar with ', 'annotate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('ann cellar with ', 'ann cellar with '.length, doc)).toBeNull();
+  });
+
+  it('uses parser-backed room suggestions after put in and take/get from', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+
+    expect(getCliSuggestions('put lantern in c', 'put lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('take lantern from c', 'take lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('get lantern from c', 'get lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('take all from l', 'take all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+    expect(getCliSuggestions('get all from l', 'get all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+  });
+
+  it('closes suggestions after a completed put/take/get room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('put lantern in cellar ', 'put lantern in cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('take lantern from cellar ', 'take lantern from cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('get all from cellar ', 'get all from cellar '.length, doc)).toBeNull();
   });
 
   it('suggests matching rooms for show commands', () => {

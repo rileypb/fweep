@@ -40,6 +40,19 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('annotate kitchen with').states.map((state) => state.stateId)).toContain('ANNOTATE_WITH');
   });
 
+  it('walks through put, take, and get command structure', () => {
+    expect(parseCliSuggestionInput('put lantern').states.map((state) => state.stateId)).toContain('PUT_ITEMS');
+    expect(parseCliSuggestionInput('put lantern in').states.map((state) => state.stateId)).toContain('PUT_IN');
+    expect(parseCliSuggestionInput('take lantern').states.map((state) => state.stateId)).toContain('TAKE_ITEM');
+    expect(parseCliSuggestionInput('take lantern from').states.map((state) => state.stateId)).toContain('TAKE_FROM');
+    expect(parseCliSuggestionInput('take all').states.map((state) => state.stateId)).toContain('TAKE_ALL');
+    expect(parseCliSuggestionInput('take all from').states.map((state) => state.stateId)).toContain('TAKE_ALL_FROM');
+    expect(parseCliSuggestionInput('get lantern').states.map((state) => state.stateId)).toContain('GET_ITEM');
+    expect(parseCliSuggestionInput('get lantern from').states.map((state) => state.stateId)).toContain('GET_FROM');
+    expect(parseCliSuggestionInput('get all').states.map((state) => state.stateId)).toContain('GET_ALL');
+    expect(parseCliSuggestionInput('get all from').states.map((state) => state.stateId)).toContain('GET_ALL_FROM');
+  });
+
   it('walks through connect command structure', () => {
     expect(parseCliSuggestionInput('connect kitchen').states.map((state) => state.stateId)).toEqual(['CONNECT_SOURCE']);
     expect(parseCliSuggestionInput('connect kitchen north').states.map((state) => state.stateId)).toEqual(['CONNECT_DIRECTION']);
