@@ -140,9 +140,21 @@ describe('cli suggestions', () => {
 
   it('suggests adjective and relative-create phrases after create plus a room name', () => {
     const result = getCliSuggestions('create Kitchen ', 'create Kitchen '.length, createEmptyMap('Test'));
+    const multiWordResult = getCliSuggestions('create city park ', 'create city park '.length, createEmptyMap('Test'));
+    const continuedNameResult = getCliSuggestions('create city ', 'create city '.length, createEmptyMap('Test'));
+    const continuedNextWordResult = getCliSuggestions('create city p', 'create city p'.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
-      expect.arrayContaining([', which is', 'above', 'below', 'north']),
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(multiWordResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(continuedNameResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(continuedNextWordResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>']),
     );
   });
 

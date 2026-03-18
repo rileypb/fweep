@@ -618,8 +618,18 @@ function getSuggestionsForCommandContext(
       }
     }
 
-    if (fragment.tokenIndex === 2 && prefix.length === 0) {
+    const isStillTypingCreateRoomName = tokens.length > 1
+      && canonicalLastDirection === null
+      && verticalCreateIndex === -1
+      && ofIndex === -1
+      && lastToken !== 'which'
+      && !(tokens.at(-2) === 'which' && lastToken === 'is')
+      && lastToken !== 'dark'
+      && lastToken !== 'lit';
+
+    if (isStillTypingCreateRoomName) {
       return suggestionResolution([
+        ...createPlaceholderSuggestion('<new room name>'),
         ...createKeywordSuggestions(prefix, [', which is', 'above', 'below']),
         ...createDirectionSuggestions(prefix),
       ]);
