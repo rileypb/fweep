@@ -3,7 +3,7 @@ import {
   isPseudoRoomLead,
   suggestionResolution,
 } from './cli-suggestion-grammar-helpers';
-import { listCliSuggestionNextSymbols } from './cli-suggestion-parser';
+import { getParserNextSymbolsForFragment } from './cli-suggestion-parser-helpers';
 import {
   createConnectionAnnotationSuggestions,
   createKeywordSuggestions,
@@ -16,10 +16,6 @@ import {
 } from './cli-suggestion-room-slots';
 import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
-
-function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return listCliSuggestionNextSymbols(fragment.precedingTokens.map((token) => token.value.toLowerCase()).join(' '));
-}
 
 function getParserBackedRoomLeadResolution(
   input: string,

@@ -2,7 +2,10 @@ import {
   getCanonicalDirectionToken,
   suggestionResolution,
 } from './cli-suggestion-grammar-helpers';
-import { listCliSuggestionNextSymbols } from './cli-suggestion-parser';
+import {
+  getParserNextSymbolsForFragment,
+  getParserNextSymbolsForRawFragmentInput,
+} from './cli-suggestion-parser-helpers';
 import {
   createDirectionSuggestions,
   createKeywordSuggestions,
@@ -18,17 +21,6 @@ import type { MapDocument } from './map-types';
 const unknownPseudoRoomSuggestions = ['is unknown'] as const;
 const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'lies death'] as const;
 const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'lies death'] as const;
-
-function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return listCliSuggestionNextSymbols(fragment.precedingTokens.map((token) => token.value.toLowerCase()).join(' '));
-}
-
-function getParserNextSymbolsForRawFragmentInput(
-  input: string,
-  fragment: ActiveFragment,
-): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return listCliSuggestionNextSymbols(input.slice(0, fragment.caret).trimEnd().toLowerCase());
-}
 
 function getParserBackedPseudoRoomResolution(
   input: string,

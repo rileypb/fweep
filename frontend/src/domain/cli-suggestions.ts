@@ -16,8 +16,12 @@ import {
   hasCompletedCreateAdjectivePhrase,
 } from './cli-suggestion-create-helpers';
 import { getPseudoRoomResolution } from './cli-suggestion-pseudo-room-helpers';
+import {
+  getParserNextSymbolsBeforeSlot,
+  getParserNextSymbolsForFragment,
+  getParserNextSymbolsForRawFragmentInput,
+} from './cli-suggestion-parser-helpers';
 import { getRoomLeadResolution } from './cli-suggestion-room-lead-helpers';
-import { listCliSuggestionNextSymbols } from './cli-suggestion-parser';
 import {
   createCommandSuggestions,
   createConnectionAnnotationSuggestions,
@@ -45,58 +49,6 @@ const roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers = {
   createPlaceholderSuggestion,
   mergeSuggestions,
 } as const;
-
-function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
-  if (tokens[0] === 's') {
-    return ['show', ...tokens.slice(1)];
-  }
-
-  if (tokens[0] === 'e' || tokens[0] === 'ed') {
-    return ['edit', ...tokens.slice(1)];
-  }
-
-  if (tokens[0] === 'd' || tokens[0] === 'del') {
-    return ['delete', ...tokens.slice(1)];
-  }
-
-  if (tokens[0] === 'h') {
-    return ['help', ...tokens.slice(1)];
-  }
-
-  if (tokens[0] === 'ann') {
-    return ['annotate', ...tokens.slice(1)];
-  }
-
-  if (tokens[0] === 'arr' || tokens[0] === 'prettify') {
-    return ['arrange', ...tokens.slice(1)];
-  }
-
-  return tokens;
-}
-
-function getParserNextSymbolsForTokens(tokens: readonly string[]): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  const parserTokens = normalizeParserTokens(tokens);
-  return listCliSuggestionNextSymbols(parserTokens.join(' '));
-}
-
-function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return getParserNextSymbolsForTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
-}
-
-function getParserNextSymbolsForRawFragmentInput(
-  input: string,
-  fragment: ActiveFragment,
-): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return listCliSuggestionNextSymbols(input.slice(0, fragment.caret).trimEnd().toLowerCase());
-}
-
-function getParserNextSymbolsBeforeSlot(fragment: ActiveFragment, slotStartTokenIndex: number): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
-  return getParserNextSymbolsForTokens(
-    fragment.precedingTokens
-      .slice(0, slotStartTokenIndex)
-      .map((token) => token.value.toLowerCase()),
-  );
-}
 
 function getParserBackedHelpTopicResolution(fragment: ActiveFragment): SuggestionResolution | null {
   const nextSymbols = getParserNextSymbolsForFragment(fragment);
