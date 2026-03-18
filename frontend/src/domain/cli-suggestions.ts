@@ -56,6 +56,20 @@ function createCreateWhichIsSuggestions(prefix: string): readonly CliSuggestion[
   }];
 }
 
+function hasCompletedCreateAdjectivePhrase(tokens: readonly string[]): boolean {
+  for (let index = 0; index < tokens.length - 2; index += 1) {
+    if (
+      tokens[index] === 'which'
+      && tokens[index + 1] === 'is'
+      && (tokens[index + 2] === 'dark' || tokens[index + 2] === 'lit')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
   if (tokens[0] === 's') {
     return ['show', ...tokens.slice(1)];
@@ -618,15 +632,23 @@ function getSuggestionsForCommandContext(
       && tokens[1] === 'and'
       && (tokens[2] === 'connect' || tokens[2] === 'con');
     if (isCreateAndConnectIntro) {
+      const hasCompletedCreateAndConnectAdjectivePhrase = hasCompletedCreateAdjectivePhrase(tokens);
+
       if (fragment.tokenIndex === 3) {
         return suggestionResolution(createPlaceholderSuggestion('<new room name>'));
       }
 
       if (lastToken === 'which') {
+        if (hasCompletedCreateAndConnectAdjectivePhrase) {
+          return suggestionResolution([]);
+        }
         return suggestionResolution(createKeywordSuggestions(prefix, ['is']));
       }
 
       if (tokens.at(-2) === 'which' && lastToken === 'is') {
+        if (hasCompletedCreateAndConnectAdjectivePhrase) {
+          return suggestionResolution([]);
+        }
         return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
       }
 
@@ -736,6 +758,8 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'create' || tokens[0] === 'c') {
+    const hasCompletedCreatePhrase = hasCompletedCreateAdjectivePhrase(tokens);
+
     if (fragment.tokenIndex === 1) {
       return suggestionResolution([
         ...createPlaceholderSuggestion('<new room name>'),
@@ -760,11 +784,14 @@ function getSuggestionsForCommandContext(
     }
 
     if (lastToken === 'which') {
+      if (hasCompletedCreatePhrase) {
+        return suggestionResolution([]);
+      }
       return suggestionResolution(createKeywordSuggestions(prefix, ['is']));
     }
 
     const trimmedBeforeFragment = input.slice(0, fragment.start).trimEnd().toLowerCase();
-    if (trimmedBeforeFragment.endsWith(',')) {
+    if (trimmedBeforeFragment.endsWith(',') && !hasCompletedCreatePhrase) {
       return suggestionResolution([
         ...createCreateWhichIsSuggestions(prefix),
         ...createKeywordSuggestions(prefix, ['above', 'below']),
@@ -773,6 +800,9 @@ function getSuggestionsForCommandContext(
     }
 
     if (tokens.at(-2) === 'which' && lastToken === 'is') {
+      if (hasCompletedCreatePhrase) {
+        return suggestionResolution([]);
+      }
       return suggestionResolution(createTerminalKeywordSuggestions(prefix, ['dark', 'lit']));
     }
 

@@ -228,9 +228,15 @@ describe('cli suggestions', () => {
   it('requires a comma after create adjective phrases before showing directions', () => {
     const beforeComma = getCliSuggestions('create foobar, which is lit ', 'create foobar, which is lit '.length, createEmptyMap('Test'));
     const afterComma = getCliSuggestions('create foobar, which is lit, ', 'create foobar, which is lit, '.length, createEmptyMap('Test'));
+    const afterSpacedComma = getCliSuggestions(
+      'create ice cream stand, which is dark , which is ',
+      'create ice cream stand, which is dark , which is '.length,
+      createEmptyMap('Test'),
+    );
 
     expect(beforeComma?.suggestions.map((suggestion) => suggestion.label)).toEqual([',']);
     expect(afterComma?.suggestions.map((suggestion) => suggestion.label)).toContain('north');
+    expect(afterSpacedComma).toBeNull();
   });
 
   it('shows no suggestions after a complete relative create phrase', () => {

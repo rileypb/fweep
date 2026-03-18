@@ -255,15 +255,6 @@ export function AppCliPanel({
                 onCliCaretChange(event.currentTarget.selectionStart);
               }}
             />
-            <button
-              className="app-cli-collapse-button"
-              type="button"
-              aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-              title={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-              onClick={onToggleOutputCollapsed}
-            >
-              {isOutputCollapsed ? 'More' : 'Less'}
-            </button>
             <input
               ref={cliImportInputRef}
               className="app-cli-import-input"
@@ -272,16 +263,6 @@ export function AppCliPanel({
               tabIndex={-1}
               onChange={onImportScriptChange}
             />
-            <button
-              className="app-cli-import-button"
-              type="button"
-              aria-label="Import map script"
-              title="Import map script"
-              disabled={isImportingScript}
-              onClick={() => cliImportInputRef.current?.click()}
-            >
-              {isImportingScript ? 'Importing…' : 'Import'}
-            </button>
           </div>
           {isSuggestionMenuOpen && (
             <div
