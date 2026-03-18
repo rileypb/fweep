@@ -191,6 +191,12 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['rooms']);
   });
 
+  it('closes suggestions after a completed help topic', () => {
+    expect(getCliSuggestions('help rooms ', 'help rooms '.length, createEmptyMap('Test'))).toBeNull();
+    expect(getCliSuggestions('help rooms i', 'help rooms i'.length, createEmptyMap('Test'))).toBeNull();
+    expect(getCliSuggestions('h rooms ', 'h rooms '.length, createEmptyMap('Test'))).toBeNull();
+  });
+
   it('suggests matching rooms for show commands', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });

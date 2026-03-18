@@ -9,6 +9,7 @@ import {
   mergeSuggestions,
   suggestionResolution,
 } from './cli-suggestion-grammar-helpers';
+import { listCliSuggestionNextSymbols } from './cli-suggestion-parser';
 import {
   createCommandSuggestions,
   createConnectionAnnotationSuggestions,
@@ -36,6 +37,29 @@ const roomSlotSuggestionHelpers = {
   mergeSuggestions,
 } as const;
 
+function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
+  if (tokens[0] === 'h') {
+    return ['help', ...tokens.slice(1)];
+  }
+
+  return tokens;
+}
+
+function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
+  const parserTokens = normalizeParserTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
+  return listCliSuggestionNextSymbols(parserTokens.join(' '));
+}
+
+function getParserBackedHelpTopicResolution(fragment: ActiveFragment): SuggestionResolution | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const hasHelpTopicSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'HELP_TOPIC');
+  if (!hasHelpTopicSlot) {
+    return null;
+  }
+
+  return suggestionResolution(createHelpTopicSuggestions(fragment.prefix));
+}
+
 function getSuggestionsForCommandContext(
   input: string,
   fragment: ActiveFragment,
@@ -55,7 +79,16 @@ function getSuggestionsForCommandContext(
   }
 
   if ((tokens[0] === 'help' || tokens[0] === 'h') && fragment.tokenIndex === 1) {
+    const parserBackedHelpResolution = getParserBackedHelpTopicResolution(fragment);
+    if (parserBackedHelpResolution !== null) {
+      return parserBackedHelpResolution;
+    }
+
     return suggestionResolution(createHelpTopicSuggestions(prefix));
+  }
+
+  if (tokens[0] === 'help' || tokens[0] === 'h') {
+    return suggestionResolution([]);
   }
 
   if (

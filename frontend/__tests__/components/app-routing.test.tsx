@@ -968,6 +968,18 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
+  it('does not leak room-led suggestions after a completed help topic', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Suggestion Isolation Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'help rooms ');
+
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
   it('rearranges the map for the arrange CLI command', async () => {
     const roomA = { ...createRoom('A'), position: { x: 320, y: 320 } };
     const roomB = { ...createRoom('B'), position: { x: 40, y: 40 } };
