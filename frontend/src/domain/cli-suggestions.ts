@@ -441,7 +441,7 @@ function getCanonicalDirectionToken(value: string | null): string | null {
   }
 
   const normalizedValue = normalizeDirection(value);
-  return STANDARD_DIRECTIONS.includes(normalizedValue) ? normalizedValue : null;
+  return STANDARD_DIRECTIONS.find((direction) => direction === normalizedValue) ?? null;
 }
 
 function isPseudoRoomLead(tokens: readonly string[]): boolean {
