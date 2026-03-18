@@ -3,8 +3,6 @@ import {
   getCanonicalDirectionToken,
   hasCommaAfterLastPrecedingToken,
   hasMalformedPseudoRoomContinuation,
-  isExactDirectionToken,
-  isDirectionLikePrefix,
   isPseudoRoomLead,
   mergeSuggestions,
   suggestionResolution,
@@ -13,7 +11,6 @@ import {
   createCreateWhichIsSuggestions,
   getCreateAndConnectIntroResolution,
   getCreateCommandResolution,
-  hasCompletedCreateAdjectivePhrase,
 } from './cli-suggestion-create-helpers';
 import {
   getConnectCommandResolution,
@@ -35,7 +32,6 @@ import {
 import { getRoomLeadResolution } from './cli-suggestion-room-lead-helpers';
 import {
   createCommandSuggestions,
-  createConnectionAnnotationSuggestions,
   createDefaultSuggestions,
   createDirectionSuggestions,
   createHelpTopicSuggestions,
@@ -45,10 +41,8 @@ import {
 } from './cli-suggestion-options';
 import {
   createRoomSuggestions,
-  getConnectedRoomReferenceResolution,
   getLeadingRoomReferenceResolution,
   getRoomReferenceResolution,
-  getRoomReferenceResolutionWithFallback,
   type RoomSlotSuggestionHelpers,
 } from './cli-suggestion-room-slots';
 import type { CliSuggestion, CliSuggestionResult, SuggestionResolution, ActiveFragment } from './cli-suggestion-types';
@@ -396,10 +390,6 @@ function getSuggestionsForCommandContext(
 
   if (lastToken === 'of') {
     return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex, roomSlotSuggestionHelpers);
-  }
-
-  if (lastToken === 'is' && hasMalformedPseudoRoomContinuation(tokens)) {
-    return suggestionResolution([]);
   }
 
   if (lastToken === 'goes') {
