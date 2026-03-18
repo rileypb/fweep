@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { addRoom } from '../../src/domain/map-operations';
-import { createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { addConnection, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
 import { getCliSuggestions } from '../../src/domain/cli-suggestions';
 
 describe('cli suggestions', () => {
@@ -282,7 +282,12 @@ describe('cli suggestions', () => {
   });
 
   it('inserts room-to-room fallback keywords at the caret instead of replacing the target room', () => {
-    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    const bedroom = { ...createRoom('Bedroom'), id: 'bedroom', position: { x: 0, y: 0 } };
+    const bathroom = { ...createRoom('Bathroom'), id: 'bathroom', position: { x: 40, y: 0 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, bedroom);
+    doc = addRoom(doc, bathroom);
+    doc = addConnection(doc, createConnection(bedroom.id, bathroom.id, true), 'east', 'west');
 
     const result = getCliSuggestions('bedroom to bathroom ', 'bedroom to bathroom '.length, doc);
 
@@ -292,6 +297,31 @@ describe('cli suggestions', () => {
       replaceEnd: 'bedroom to bathroom '.length,
       prefix: '',
     });
+  });
+
+  it('limits room-to-room second-room suggestions to rooms connected to the first room', () => {
+    const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 0, y: 0 } };
+    const hallway = { ...createRoom('Hallway'), id: 'hallway', position: { x: 40, y: 0 } };
+    const cellar = { ...createRoom('Cellar'), id: 'cellar', position: { x: 80, y: 0 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addRoom(doc, cellar);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+
+    const result = getCliSuggestions('kitchen to ', 'kitchen to '.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Hallway']);
+  });
+
+  it('shows a no-connected-rooms placeholder when a room-to-room source has no connected rooms', () => {
+    const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 0, y: 0 } };
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, kitchen);
+
+    const result = getCliSuggestions('kitchen to ', 'kitchen to '.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<no rooms connected to Kitchen>']);
   });
 
   it('suggests pseudo-room continuations after directional pseudo-room phrases', () => {

@@ -1,7 +1,8 @@
 import { CLI_COMMAND_SUGGESTION_SPECS, parseCliCommandDescription } from './cli-command';
+import { findRoomsByCliName } from './cli-execution';
 import { STANDARD_DIRECTIONS, normalizeDirection } from './directions';
 import { getCliHelpTopics } from './cli-help';
-import type { MapDocument } from './map-types';
+import type { MapDocument, Room } from './map-types';
 
 export type CliSuggestionKind = 'command' | 'room' | 'direction' | 'help-topic' | 'placeholder';
 
@@ -313,6 +314,103 @@ function getRoomReferenceResolution(
 
   return {
     suggestions: matchingRooms,
+    replaceStart: slotStart,
+    replaceEnd: fragment.end,
+    prefix: normalizedTypedRoomText,
+  };
+}
+
+function createRoomSuggestionsFromRooms(rooms: readonly Room[]): readonly CliSuggestion[] {
+  return rooms
+    .slice()
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((room) => ({
+      id: `cli-suggestion-room-${room.id}`,
+      kind: 'room' as const,
+      label: room.name,
+      insertText: room.name,
+      detail: 'Room',
+    }));
+}
+
+function getConnectedRooms(doc: MapDocument, sourceRoom: Room): readonly Room[] {
+  const connectedRoomIds = new Set<string>();
+  for (const connection of Object.values(doc.connections)) {
+    if (connection.sourceRoomId === sourceRoom.id && connection.target.kind === 'room') {
+      connectedRoomIds.add(connection.target.id);
+    }
+    if (connection.target.kind === 'room' && connection.target.id === sourceRoom.id) {
+      connectedRoomIds.add(connection.sourceRoomId);
+    }
+  }
+
+  return [...connectedRoomIds]
+    .map((roomId) => doc.rooms[roomId] ?? null)
+    .filter((room): room is Room => room !== null);
+}
+
+function getConnectedRoomReferenceResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+  sourceRoomText: string,
+  fallbackSuggestions: readonly CliSuggestion[] = [],
+): SuggestionResolution {
+  if (doc === null) {
+    return getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex);
+  }
+
+  const sourceRooms = findRoomsByCliName(doc, sourceRoomText);
+  if (sourceRooms.length !== 1) {
+    return getRoomReferenceResolutionWithFallback(input, fragment, doc, slotStartTokenIndex, fallbackSuggestions);
+  }
+
+  const connectedRooms = getConnectedRooms(doc, sourceRooms[0]);
+  if (connectedRooms.length === 0) {
+    return {
+      suggestions: createPlaceholderSuggestion(`<no rooms connected to ${sourceRooms[0].name}>`),
+      replaceStart: fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start,
+      replaceEnd: fragment.end,
+      prefix: fragment.prefix,
+    };
+  }
+
+  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
+  const typedRoomText = input.slice(slotStart, fragment.caret);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
+
+  if (normalizedTypedRoomText.length === 0) {
+    return {
+      suggestions: createRoomSuggestionsFromRooms(connectedRooms),
+      replaceStart: slotStart,
+      replaceEnd: fragment.end,
+      prefix: '',
+    };
+  }
+
+  const matchingRooms = createRoomSuggestionsFromRooms(
+    connectedRooms.filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText)),
+  );
+
+  if (fragment.prefix.length === 0) {
+    const hasLongerMatch = matchingRooms.some(
+      (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
+    );
+    if (!hasLongerMatch) {
+      return {
+        suggestions: fallbackSuggestions,
+        replaceStart: fragment.caret,
+        replaceEnd: fragment.caret,
+        prefix: '',
+      };
+    }
+  }
+
+  return {
+    suggestions: fragment.prefix.length === 0 && fallbackSuggestions.length > 0
+      ? mergeSuggestions(matchingRooms, fallbackSuggestions)
+      : matchingRooms,
     replaceStart: slotStart,
     replaceEnd: fragment.end,
     prefix: normalizedTypedRoomText,
@@ -876,12 +974,14 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'create'
     && !isPseudoRoomLead(tokens)
   ) {
+    const sourceRoomText = tokens.slice(0, roomToIndex).join(' ');
     if (fragment.tokenIndex >= roomToIndex + 1 && !tokens.includes('is')) {
-      return getRoomReferenceResolutionWithFallback(
+      return getConnectedRoomReferenceResolution(
         input,
         fragment,
         doc,
         roomToIndex + 1,
+        sourceRoomText,
         createKeywordSuggestions(prefix, ['is']),
       );
     }
