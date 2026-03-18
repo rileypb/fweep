@@ -1,5 +1,14 @@
-import { STANDARD_DIRECTIONS, normalizeDirection } from './directions';
 import { getActiveFragment } from './cli-suggestion-fragments';
+import {
+  getCanonicalDirectionToken,
+  hasCommaAfterLastPrecedingToken,
+  hasMalformedPseudoRoomContinuation,
+  isExactDirectionToken,
+  isDirectionLikePrefix,
+  isPseudoRoomLead,
+  mergeSuggestions,
+  suggestionResolution,
+} from './cli-suggestion-grammar-helpers';
 import {
   createCommandSuggestions,
   createConnectionAnnotationSuggestions,
@@ -22,59 +31,10 @@ import type { MapDocument } from './map-types';
 
 export type { CliSuggestion, CliSuggestionResult } from './cli-suggestion-types';
 
-function isDirectionLikePrefix(prefix: string): boolean {
-  const normalizedPrefix = normalizeDirection(prefix);
-  return STANDARD_DIRECTIONS.some((direction) => direction.startsWith(normalizedPrefix));
-}
-
-function getCanonicalDirectionToken(value: string | null): string | null {
-  if (value === null) {
-    return null;
-  }
-
-  const normalizedValue = normalizeDirection(value);
-  return STANDARD_DIRECTIONS.find((direction) => direction === normalizedValue) ?? null;
-}
-
-function isPseudoRoomLead(tokens: readonly string[]): boolean {
-  return (tokens[0] === 'the' && (tokens[1] === 'room' || tokens[1] === 'way'))
-    || getCanonicalDirectionToken(tokens[0] ?? null) !== null
-    || tokens[0] === 'above'
-    || tokens[0] === 'below';
-}
-
-function hasMalformedPseudoRoomContinuation(tokens: readonly string[]): boolean {
-  return isPseudoRoomLead(tokens) && tokens.includes('to');
-}
-
-function suggestionResolution(suggestions: readonly CliSuggestion[]): SuggestionResolution {
-  return { suggestions };
-}
-
-function mergeSuggestions(
-  primary: readonly CliSuggestion[],
-  secondary: readonly CliSuggestion[],
-): readonly CliSuggestion[] {
-  const seenIds = new Set(primary.map((suggestion) => suggestion.id));
-  return [
-    ...primary,
-    ...secondary.filter((suggestion) => !seenIds.has(suggestion.id)),
-  ];
-}
-
 const roomSlotSuggestionHelpers = {
   createPlaceholderSuggestion,
   mergeSuggestions,
 } as const;
-
-function hasCommaAfterLastPrecedingToken(fragment: ActiveFragment, input: string): boolean {
-  const lastToken = fragment.precedingTokens.at(-1);
-  if (!lastToken) {
-    return false;
-  }
-
-  return input.slice(lastToken.end, fragment.caret).includes(',');
-}
 
 function getSuggestionsForCommandContext(
   input: string,
@@ -276,7 +236,7 @@ function getSuggestionsForCommandContext(
 
     if (
       lastToken !== null
-      && !(STANDARD_DIRECTIONS as readonly string[]).includes(lastToken)
+      && !isExactDirectionToken(lastToken)
       && lastToken !== 'one-way'
       && lastToken !== 'oneway'
       && lastToken !== 'way'
