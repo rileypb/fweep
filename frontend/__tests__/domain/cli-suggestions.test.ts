@@ -148,6 +148,40 @@ describe('cli suggestions', () => {
     ).toEqual(['to']);
   });
 
+  it('suggests a trailing target direction only for two-way connect commands', () => {
+    const doc = addRoom(addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } }), {
+      ...createRoom('Bedroom'),
+      position: { x: 1, y: 0 },
+    });
+
+    expect(
+      getCliSuggestions('connect Kitchen north to Bedroom ', 'connect Kitchen north to Bedroom '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain('south');
+
+    expect(getCliSuggestions('connect Kitchen north one-way to Bedroom ', 'connect Kitchen north one-way to Bedroom '.length, doc)).toBeNull();
+  });
+
+  it('suggests a trailing target direction only for two-way create-and-connect commands', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 1, y: 0 } });
+
+    expect(
+      getCliSuggestions(
+        'create and connect Kitchen north to Bedroom ',
+        'create and connect Kitchen north to Bedroom '.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain('south');
+
+    expect(
+      getCliSuggestions(
+        'create and connect Kitchen north one-way to Bedroom ',
+        'create and connect Kitchen north one-way to Bedroom '.length,
+        doc,
+      ),
+    ).toBeNull();
+  });
+
   it('suggests room-led grammar words after a room name and space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 

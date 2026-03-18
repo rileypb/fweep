@@ -16,6 +16,10 @@ import {
   hasCompletedCreateAdjectivePhrase,
 } from './cli-suggestion-create-helpers';
 import {
+  getConnectCommandResolution,
+  getParserBackedConnectTailResolution,
+} from './cli-suggestion-connect-helpers';
+import {
   getParserBackedGoResolution,
   getParserBackedHelpTopicResolution,
   getParserBackedNotateResolution,
@@ -68,51 +72,6 @@ function getParserBackedTerminalCommandResolution(fragment: ActiveFragment): Sug
   }
 
   return null;
-}
-
-function getParserBackedConnectTailResolution(fragment: ActiveFragment, canonicalLastDirection: string | null): SuggestionResolution | null {
-  const nextSymbols = getParserNextSymbolsForFragment(fragment);
-  const hasOneWayPhrase = nextSymbols.some(
-    (entry) => entry.symbol.kind === 'phrase'
-      && entry.symbol.text === 'one-way'
-      && (
-        entry.sourceStateIds.includes('CONNECT_DIRECTION')
-        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_DIRECTION')
-      ),
-  );
-  const hasToKeyword = nextSymbols.some(
-    (entry) => entry.symbol.kind === 'keyword'
-      && entry.symbol.text === 'to'
-      && (
-        entry.sourceStateIds.includes('CONNECT_DIRECTION')
-        || entry.sourceStateIds.includes('CONNECT_ONE_WAY')
-        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_DIRECTION')
-        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_ONE_WAY')
-      ),
-  );
-
-  if (!hasOneWayPhrase && !hasToKeyword && canonicalLastDirection !== null) {
-    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['one-way', 'to']));
-  }
-
-  if (
-    !hasOneWayPhrase
-    && !hasToKeyword
-    && (fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'one-way'
-      || fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'oneway'
-      || fragment.precedingTokens.at(-1)?.value.toLowerCase() === 'way')
-  ) {
-    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['to']));
-  }
-
-  if (!hasOneWayPhrase && !hasToKeyword) {
-    return null;
-  }
-
-  return suggestionResolution([
-    ...(hasOneWayPhrase ? createKeywordSuggestions(fragment.prefix, ['one-way']) : []),
-    ...(hasToKeyword ? createKeywordSuggestions(fragment.prefix, ['to']) : []),
-  ]);
 }
 
 function getParserBackedCreateContinuationSuggestions(
@@ -403,70 +362,22 @@ function getSuggestionsForCommandContext(
     || tokens[0] === 'con'
     || (tokens[0] === 'create' && tokens[1] === 'and' && (tokens[2] === 'connect' || tokens[2] === 'con'));
   if (isConnectCommand) {
-    const isCreateAndConnectIntro = tokens[0] === 'create'
-      && tokens[1] === 'and'
-      && (tokens[2] === 'connect' || tokens[2] === 'con');
-    if (isCreateAndConnectIntro) {
-      return getCreateAndConnectIntroResolution(input, fragment, doc, tokens, lastToken, canonicalLastDirection, {
+    return getConnectCommandResolution(input, fragment, doc, tokens, lastToken, canonicalLastDirection, {
+      roomSlotSuggestionHelpers,
+      getCreateAndConnectIntroResolution: (
+        nextInput,
+        nextFragment,
+        nextDoc,
+        nextTokens,
+        nextLastToken,
+        nextCanonicalLastDirection,
+      ) => getCreateAndConnectIntroResolution(nextInput, nextFragment, nextDoc, nextTokens, nextLastToken, nextCanonicalLastDirection, {
         roomSlotSuggestionHelpers,
         getParserBackedCreateContinuationSuggestions,
         getParserBackedConnectTailResolution,
         getSuggestionsForCommandContext,
-      });
-    }
-
-    const toIndex = tokens.indexOf('to');
-    if (toIndex !== -1) {
-      if (fragment.tokenIndex === toIndex + 1 || (lastToken !== null && tokens.indexOf(lastToken) > toIndex && isDirectionLikePrefix(prefix))) {
-        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
-      }
-
-      if (fragment.tokenIndex > toIndex + 1) {
-        return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
-      }
-      return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, roomSlotSuggestionHelpers);
-    }
-
-    if (fragment.tokenIndex === 1) {
-      return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
-    }
-
-    if (
-      lastToken !== null
-      && !isExactDirectionToken(lastToken)
-      && lastToken !== 'one-way'
-      && lastToken !== 'oneway'
-      && lastToken !== 'way'
-      && lastToken !== 'to'
-      && (prefix.length === 0 || !isDirectionLikePrefix(prefix))
-    ) {
-      const sourceRoomResolution = getRoomReferenceResolutionWithFallback(
-        input,
-        fragment,
-        doc,
-        1,
-        createDirectionSuggestions(prefix),
-        roomSlotSuggestionHelpers,
-      );
-      if (sourceRoomResolution.suggestions.length > 0) {
-        return sourceRoomResolution;
-      }
-    }
-
-    const parserBackedConnectTailResolution = getParserBackedConnectTailResolution(fragment, canonicalLastDirection);
-    if (parserBackedConnectTailResolution !== null) {
-      return parserBackedConnectTailResolution;
-    }
-
-    if (tokens.length > 1 && (prefix.length === 0 || isDirectionLikePrefix(prefix))) {
-      return suggestionResolution(createDirectionSuggestions(prefix));
-    }
-
-    if (tokens.length > 1 && prefix.length > 0) {
-      return suggestionResolution([]);
-    }
-
-    return suggestionResolution(createKeywordSuggestions(prefix, ['one-way', 'to']));
+      }),
+    });
   }
 
   if (tokens[0] === 'create' || tokens[0] === 'c') {

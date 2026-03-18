@@ -225,6 +225,10 @@ export function getCreateAndConnectIntroResolution(
     }
 
     if (fragment.tokenIndex > createAndConnectToIndex + 1) {
+      if (tokens.includes('one-way') || tokens.includes('oneway')) {
+        return suggestionResolution([]);
+      }
+
       return getRoomReferenceResolutionWithFallback(
         input,
         fragment,

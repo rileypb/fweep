@@ -55,7 +55,9 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('CONNECT_DIRECTION')).toEqual(['one-way', 'to']);
     expect(describeCliSuggestionGrammarSymbols('CONNECT_ONE_WAY')).toEqual(['to']);
     expect(describeCliSuggestionGrammarSymbols('CONNECT_TO')).toEqual(['<room_ref>']);
-    expect(describeCliSuggestionGrammarSymbols('CONNECT_TARGET_DONE')).toEqual(['<end>']);
+    expect(describeCliSuggestionGrammarSymbols('CONNECT_ONE_WAY_TO')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('CONNECT_TARGET_DONE')).toEqual(['<direction>', '<end>']);
+    expect(describeCliSuggestionGrammarSymbols('CONNECT_ONE_WAY_TARGET_DONE')).toEqual(['<end>']);
   });
 
   it('captures create command transitions', () => {
@@ -84,6 +86,10 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_WHICH')).toEqual(['is']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_DIRECTION')).toEqual(['one-way', 'to']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_ONE_WAY')).toEqual(['to']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_TO')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_ONE_WAY_TO')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_TARGET_DONE')).toEqual(['<direction>', '<end>']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_ONE_WAY_TARGET_DONE')).toEqual(['<end>']);
   });
 
   it('captures pseudo-room families separately', () => {

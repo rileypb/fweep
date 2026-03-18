@@ -226,12 +226,22 @@ const cliSuggestionGrammarStates = [
     keyword('to', 'CONNECT_TO'),
   ]),
   state('CONNECT_ONE_WAY', [
-    keyword('to', 'CONNECT_TO'),
+    keyword('to', 'CONNECT_ONE_WAY_TO'),
   ]),
   state('CONNECT_TO', [
     slot('ROOM_REF', 'CONNECT_TARGET_DONE'),
   ]),
+  state('CONNECT_ONE_WAY_TO', [
+    slot('ROOM_REF', 'CONNECT_ONE_WAY_TARGET_DONE'),
+  ]),
   state('CONNECT_TARGET_DONE', [
+    slot('DIRECTION', 'CONNECT_TWO_WAY_DONE'),
+    end(),
+  ]),
+  state('CONNECT_ONE_WAY_TARGET_DONE', [
+    end(),
+  ]),
+  state('CONNECT_TWO_WAY_DONE', [
     end(),
   ]),
   state('CREATE', [
@@ -303,12 +313,22 @@ const cliSuggestionGrammarStates = [
     keyword('to', 'CREATE_AND_CONNECT_TO'),
   ]),
   state('CREATE_AND_CONNECT_ONE_WAY', [
-    keyword('to', 'CREATE_AND_CONNECT_TO'),
+    keyword('to', 'CREATE_AND_CONNECT_ONE_WAY_TO'),
   ]),
   state('CREATE_AND_CONNECT_TO', [
     slot('ROOM_REF', 'CREATE_AND_CONNECT_TARGET_DONE'),
   ]),
+  state('CREATE_AND_CONNECT_ONE_WAY_TO', [
+    slot('ROOM_REF', 'CREATE_AND_CONNECT_ONE_WAY_TARGET_DONE'),
+  ]),
   state('CREATE_AND_CONNECT_TARGET_DONE', [
+    slot('DIRECTION', 'CREATE_AND_CONNECT_TWO_WAY_DONE'),
+    end(),
+  ]),
+  state('CREATE_AND_CONNECT_ONE_WAY_TARGET_DONE', [
+    end(),
+  ]),
+  state('CREATE_AND_CONNECT_TWO_WAY_DONE', [
     end(),
   ]),
   state('DIRECTION_LEAD', [
