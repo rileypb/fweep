@@ -36,6 +36,9 @@ const roomSlotSuggestionHelpers = {
   createPlaceholderSuggestion,
   mergeSuggestions,
 } as const;
+const unknownPseudoRoomSuggestions = ['is unknown'] as const;
+const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'lies death'] as const;
+const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'lies death'] as const;
 
 function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
   if (tokens[0] === 's') {
@@ -255,6 +258,103 @@ function getParserBackedRoomLeadResolution(
 
   if (hasRoomLeadKeyword) {
     return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['is', 'to']));
+  }
+
+  return null;
+}
+
+function getParserBackedPseudoRoomResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+): SuggestionResolution | null {
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const keywordEntries = nextSymbols.filter(
+    (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
+  );
+  const roomSlotEntries = nextSymbols.filter(
+    (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'slot' }> } =>
+      entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF',
+  );
+
+  const hasTheRoomLeadState = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'DIRECTION' && entry.sourceStateIds.includes('THE_ROOM'),
+  );
+  const hasTheWayLeadState = nextSymbols.some(
+    (entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'DIRECTION' && entry.sourceStateIds.includes('THE_WAY'),
+  );
+  const hasOfKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'of'
+      && (
+        entry.sourceStateIds.includes('DIRECTION_LEAD')
+        || entry.sourceStateIds.includes('THE_ROOM_DIRECTION')
+        || entry.sourceStateIds.includes('THE_WAY_DIRECTION')
+      ),
+  );
+  const hasTheRoomRoomSlot = roomSlotEntries.some(
+    (entry) => entry.sourceStateIds.includes('THE_ROOM_OF') || entry.sourceStateIds.includes('THE_ROOM_VERTICAL'),
+  );
+  const hasTheWayRoomSlot = roomSlotEntries.some(
+    (entry) => entry.sourceStateIds.includes('THE_WAY_OF') || entry.sourceStateIds.includes('THE_WAY_VERTICAL'),
+  );
+  const hasGenericPseudoRoomSlot = roomSlotEntries.some(
+    (entry) => entry.sourceStateIds.includes('DIRECTION_OF')
+      || entry.sourceStateIds.includes('ABOVE_LEAD')
+      || entry.sourceStateIds.includes('BELOW_LEAD'),
+  );
+
+  if (hasTheRoomLeadState) {
+    return suggestionResolution([
+      ...createDirectionSuggestions(fragment.prefix),
+      ...createKeywordSuggestions(fragment.prefix, ['above', 'below']),
+    ]);
+  }
+
+  if (hasTheWayLeadState) {
+    return suggestionResolution([
+      ...createDirectionSuggestions(fragment.prefix),
+      ...createKeywordSuggestions(fragment.prefix, ['above', 'below']),
+    ]);
+  }
+
+  if (hasOfKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['of']));
+  }
+
+  if (hasTheRoomRoomSlot) {
+    const roomSlotStartTokenIndex = fragment.precedingTokens.findIndex((token) => token.value.toLowerCase() === 'of') + 1 || 3;
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      roomSlotStartTokenIndex,
+      createKeywordSuggestions(fragment.prefix, unknownPseudoRoomSuggestions),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
+  if (hasTheWayRoomSlot) {
+    const roomSlotStartTokenIndex = fragment.precedingTokens.findIndex((token) => token.value.toLowerCase() === 'of') + 1 || 3;
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      roomSlotStartTokenIndex,
+      createKeywordSuggestions(fragment.prefix, pseudoWaySuggestionTexts),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
+  if (hasGenericPseudoRoomSlot) {
+    const roomSlotStartTokenIndex = fragment.precedingTokens.findIndex((token) => token.value.toLowerCase() === 'of') + 1 || 1;
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      roomSlotStartTokenIndex,
+      createKeywordSuggestions(fragment.prefix, pseudoRoomSuggestionTexts),
+      roomSlotSuggestionHelpers,
+    );
   }
 
   return null;
@@ -650,6 +750,11 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'the' && tokens[1] === 'room') {
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+
     if (fragment.tokenIndex === 2) {
       return suggestionResolution([
         ...createDirectionSuggestions(prefix),
@@ -692,7 +797,12 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'the' && tokens[1] === 'way') {
-    const pseudoWaySuggestions = createKeywordSuggestions(prefix, ['goes on forever', 'leads nowhere', 'lies death']);
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+
+    const pseudoWaySuggestions = createKeywordSuggestions(prefix, pseudoWaySuggestionTexts);
 
     if (fragment.tokenIndex === 2) {
       return suggestionResolution([
@@ -739,10 +849,20 @@ function getSuggestionsForCommandContext(
   }
 
   if (fragment.tokenIndex === 1 && getCanonicalDirectionToken(tokens[0] ?? null) !== null) {
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+
     return suggestionResolution(createKeywordSuggestions(prefix, ['of']));
   }
 
   if (fragment.tokenIndex === 1 && (tokens[0] === 'above' || tokens[0] === 'below')) {
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+
     return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 
@@ -754,8 +874,13 @@ function getSuggestionsForCommandContext(
     && !tokens.includes('leads')
     && !tokens.includes('lies')
   ) {
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+
     const ofIndex = tokens.indexOf('of');
-    const fallbackSuggestions = createKeywordSuggestions(prefix, ['is unknown', 'goes on forever', 'leads nowhere', 'lies death']);
+    const fallbackSuggestions = createKeywordSuggestions(prefix, pseudoRoomSuggestionTexts);
 
     if (ofIndex !== -1 && fragment.tokenIndex >= ofIndex + 1) {
       return getRoomReferenceResolutionWithFallback(
