@@ -66,6 +66,11 @@ function getRenderedCliLine(line: string): string {
   return line.replace(/\*\*(.+?)\*\*/g, '$1');
 }
 
+async function openCliSuggestions(user: ReturnType<typeof userEvent.setup>, input = getCliInput()): Promise<void> {
+  await user.click(input);
+  await user.keyboard('/');
+}
+
 async function submitCliCommand(command: string): Promise<HTMLInputElement> {
   const input = getCliInput();
   await act(async () => {
@@ -132,10 +137,14 @@ describe('URL routing', () => {
     await user.type(input, 'help');
     await user.clear(input);
 
-    expect(input).toHaveAttribute('placeholder', '');
+    expect(input).toHaveAttribute('placeholder', 'Type / to open suggestions');
+
+    fireEvent.blur(input);
+
+    expect(input).toHaveAttribute('placeholder', 'Type / to type commands');
   });
 
-  it('shows curated default suggestions as soon as the CLI input is focused', async () => {
+  it('keeps suggestions closed on focus and opens them with /', async () => {
     const user = userEvent.setup();
     const map = addRoom(createEmptyMap('CLI Suggestions Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
     await renderAppWithSavedMap(map);
@@ -144,7 +153,9 @@ describe('URL routing', () => {
     expect(input).toHaveAttribute('role', 'combobox');
 
     await user.click(input);
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
 
+    await user.keyboard('/');
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
     const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
     expect(optionText.some((text) => text.includes('create'))).toBe(true);
@@ -154,12 +165,29 @@ describe('URL routing', () => {
     expect(optionText).toContain('<room>');
   });
 
+  it('toggles suggestions with / without inserting a slash into the CLI input', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Slash Toggle Map');
+
+    const input = getCliInput();
+
+    await user.click(input);
+    await user.keyboard('/');
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+
+    await user.keyboard('/');
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
   it('accepts the highlighted suggestion with Tab and immediately suggests the next legal words', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Accept Suggestion Map');
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'c');
     await user.keyboard('{Tab}');
 
@@ -175,6 +203,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'c');
     await user.keyboard('{ArrowDown}');
     await user.keyboard('{Tab}');
@@ -188,7 +217,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
-    await user.click(input);
+    await openCliSuggestions(user, input);
     await user.keyboard('{ArrowDown}');
     await user.keyboard('{Tab}');
 
@@ -202,6 +231,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create ');
 
     const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
@@ -214,6 +244,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create and connect ');
 
     const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
@@ -226,6 +257,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'connect Kitchen north one-way ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['to']);
@@ -238,6 +270,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'show ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<room>']);
@@ -250,6 +283,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'Kitchen is ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
@@ -261,6 +295,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'bedroom to bathroom ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['is']);
@@ -279,6 +314,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'show p');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['Pool', 'Pool House']);
@@ -291,6 +327,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'connect living ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(
@@ -304,6 +341,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create ');
     await user.keyboard('{Tab}');
 
@@ -318,6 +356,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create Kitchen ');
 
     const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
@@ -332,6 +371,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create foobar,');
     await user.keyboard('{Tab}');
 
@@ -344,6 +384,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create foobar north ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['of']);
@@ -355,6 +396,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create foobar, which is lit ');
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual([',']);
 
@@ -370,6 +412,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'create foobar north of pool ');
 
     expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
@@ -381,6 +424,7 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'c');
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
 
@@ -398,12 +442,26 @@ describe('URL routing', () => {
 
     const input = getCliInput();
 
+    await openCliSuggestions(user, input);
     await user.type(input, 'show c');
     await user.keyboard('{Tab}');
     await user.keyboard('{Enter}');
 
     expectGameOutputToContain('show Cellar', 'Cellar');
     expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Cellar')).toBe(true);
+  });
+
+  it('keeps suggestions enabled after submitting a command when slash-mode was open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Persistence Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'help{enter}');
+
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
   it('navigates CLI command history with the up and down arrows', async () => {
@@ -482,7 +540,7 @@ describe('URL routing', () => {
     expect(input).toHaveValue('sho');
   });
 
-  it('focuses the CLI input when / is pressed outside a text editor', async () => {
+  it('focuses the CLI input without opening suggestions when / is pressed outside a text editor', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Focus Map');
 
@@ -495,8 +553,27 @@ describe('URL routing', () => {
     await user.keyboard('/');
 
     expect(document.activeElement).toBe(input);
+    expect(input).toHaveValue('');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps suggestions closed when refocusing the CLI via / after they were previously open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Refocus Slash Map');
+
+    const input = getCliInput();
+    await user.click(input);
+    await user.keyboard('/');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+
+    fireEvent.blur(input);
+
+    await user.keyboard('/');
+
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('focuses the CLI input when the output log is clicked', async () => {
@@ -510,6 +587,24 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('keeps suggestions closed when the output log refocuses the CLI after they were previously open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Output Refocus Map');
+
+    const input = getCliInput();
+
+    await user.click(input);
+    await user.keyboard('/');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+
+    fireEvent.blur(input);
+
+    await user.click(getGameOutputBox());
+
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('collapses the output log to widen the minimap viewport approximation and persists that state', async () => {
@@ -556,7 +651,7 @@ describe('URL routing', () => {
     });
   });
 
-  it('does not steal / from an already focused text input', async () => {
+  it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Slash Map');
 
@@ -566,7 +661,8 @@ describe('URL routing', () => {
     await user.keyboard('/');
 
     expect(document.activeElement).toBe(input);
-    expect(input).toHaveValue('/');
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
   it('does not steal / from a focused textarea, select, or contenteditable element', async () => {

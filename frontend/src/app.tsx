@@ -77,6 +77,8 @@ export function App(): React.JSX.Element {
     handleCliInputFocus,
     handleCliInputBlur,
     handleCliCaretChange,
+    toggleCliSuggestions,
+    consumeCliSlashFocusSuppression,
     handleCliHistoryNavigate,
     moveCliSuggestionHighlight,
     setCliSuggestionHighlight,
@@ -193,6 +195,8 @@ export function App(): React.JSX.Element {
             onCliInputFocus={handleCliInputFocus}
             onCliInputBlur={handleCliInputBlur}
             onCliCaretChange={handleCliCaretChange}
+            onToggleSuggestions={toggleCliSuggestions}
+            consumeCliSlashFocusSuppression={consumeCliSlashFocusSuppression}
             onCliHistoryNavigate={handleCliHistoryNavigate}
             onCliSuggestionHighlightMove={moveCliSuggestionHighlight}
             onCliSuggestionHighlightSet={setCliSuggestionHighlight}

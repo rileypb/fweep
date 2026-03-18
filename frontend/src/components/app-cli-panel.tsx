@@ -42,6 +42,8 @@ interface AppCliPanelProps {
   readonly onCliInputFocus: () => void;
   readonly onCliInputBlur: () => void;
   readonly onCliCaretChange: (caretIndex: number | null) => void;
+  readonly onToggleSuggestions: () => void;
+  readonly consumeCliSlashFocusSuppression: () => boolean;
   readonly onCliHistoryNavigate: (direction: 'up' | 'down') => void;
   readonly onCliSuggestionHighlightMove: (direction: 'up' | 'down') => void;
   readonly onCliSuggestionHighlightSet: (index: number) => void;
@@ -72,6 +74,8 @@ export function AppCliPanel({
   onCliInputFocus,
   onCliInputBlur,
   onCliCaretChange,
+  onToggleSuggestions,
+  consumeCliSlashFocusSuppression,
   onCliHistoryNavigate,
   onCliSuggestionHighlightMove,
   onCliSuggestionHighlightSet,
@@ -80,9 +84,13 @@ export function AppCliPanel({
   onToggleOutputCollapsed,
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
+  const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
   const activeSuggestion = isSuggestionMenuOpen
     ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
     : null;
+  const placeholderText = hasUsedCliInput
+    ? (isCliInputFocused ? 'Type / to open suggestions' : 'Type / to type commands')
+    : 'Type help';
 
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
@@ -122,7 +130,7 @@ export function AppCliPanel({
               className="app-cli-input"
               type="text"
               name="cli-command"
-              placeholder={hasUsedCliInput ? '' : 'Type help'}
+              placeholder={placeholderText}
               autoComplete="off"
               spellCheck={false}
               ref={cliInputRef}
@@ -133,6 +141,16 @@ export function AppCliPanel({
               aria-controls="app-cli-suggestion-list"
               aria-activedescendant={activeSuggestion?.id}
               onKeyDown={(event) => {
+                if (event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (consumeCliSlashFocusSuppression()) {
+                    return;
+                  }
+                  onToggleSuggestions();
+                  return;
+                }
+
                 if (event.key === 'Escape' && isSuggestionMenuOpen) {
                   event.preventDefault();
                   event.stopPropagation();
@@ -192,8 +210,14 @@ export function AppCliPanel({
                 onCliCommandChange(event.target.value);
                 onCliCaretChange(event.target.selectionStart);
               }}
-              onFocus={onCliInputFocus}
-              onBlur={onCliInputBlur}
+              onFocus={() => {
+                setIsCliInputFocused(true);
+                onCliInputFocus();
+              }}
+              onBlur={() => {
+                setIsCliInputFocused(false);
+                onCliInputBlur();
+              }}
               onClick={(event) => {
                 onCliCaretChange(event.currentTarget.selectionStart);
               }}

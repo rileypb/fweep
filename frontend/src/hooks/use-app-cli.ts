@@ -61,6 +61,8 @@ interface UseAppCliResult {
   readonly handleCliInputFocus: () => void;
   readonly handleCliInputBlur: () => void;
   readonly handleCliCaretChange: (caretIndex: number | null) => void;
+  readonly toggleCliSuggestions: () => void;
+  readonly consumeCliSlashFocusSuppression: () => boolean;
   readonly handleCliHistoryNavigate: (direction: 'up' | 'down') => void;
   readonly moveCliSuggestionHighlight: (direction: 'up' | 'down') => void;
   readonly setCliSuggestionHighlight: (index: number) => void;
@@ -264,10 +266,11 @@ export function useAppCli({
   const [_cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
   const [isImportingScript, setIsImportingScript] = useState(false);
   const [isCliInputFocused, setIsCliInputFocused] = useState(false);
-  const [isCliSuggestionDismissed, setIsCliSuggestionDismissed] = useState(false);
+  const [areCliSuggestionsEnabled, setAreCliSuggestionsEnabled] = useState(false);
   const [highlightedCliSuggestionIndex, setHighlightedCliSuggestionIndex] = useState(0);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
+  const suppressNextCliSlashToggleRef = useRef(false);
   const latestGameOutputLinesRef = useRef<readonly string[]>([]);
   const latestStoreDocRef = useRef<MapDocument | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -275,12 +278,13 @@ export function useAppCli({
   const hasOpenMap = activeMap !== null;
   const cliSuggestionResult = getCliSuggestions(cliCommand, cliCaretIndex, storeDoc);
   const cliSuggestions = cliSuggestionResult?.suggestions ?? [];
-  const isCliSuggestionMenuOpen = isCliInputFocused && cliHistoryIndex === null && !isCliSuggestionDismissed && cliSuggestions.length > 0;
+  const isCliSuggestionMenuOpen = isCliInputFocused && cliHistoryIndex === null && areCliSuggestionsEnabled && cliSuggestions.length > 0;
   const highlightedCliSuggestion = isCliSuggestionMenuOpen
     ? cliSuggestions[Math.min(highlightedCliSuggestionIndex, cliSuggestions.length - 1)] ?? null
     : null;
 
-  const focusCliInput = () => {
+  const focusCliInput = (openSuggestions = false) => {
+    setAreCliSuggestionsEnabled(openSuggestions);
     cliInputRef.current?.focus();
     cliInputRef.current?.select();
   };
@@ -314,7 +318,6 @@ export function useAppCli({
 
   useEffect(() => {
     setHighlightedCliSuggestionIndex(0);
-    setIsCliSuggestionDismissed(false);
   }, [cliCommand, storeDoc, cliCaretIndex]);
 
   const queueSave = (doc: MapDocument) => {
@@ -405,7 +408,11 @@ export function useAppCli({
       }
 
       event.preventDefault();
-      focusCliInput();
+      suppressNextCliSlashToggleRef.current = true;
+      queueMicrotask(() => {
+        suppressNextCliSlashToggleRef.current = false;
+      });
+      focusCliInput(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -867,6 +874,7 @@ export function useAppCli({
   };
 
   const handleCliSubmit = () => {
+    const shouldKeepSuggestionsEnabled = areCliSuggestionsEnabled;
     setHasUsedCliInput(true);
     const submittedInput = cliCommand;
     if (submittedInput.trim().length > 0) {
@@ -877,7 +885,7 @@ export function useAppCli({
     setCliCommand('');
     setCliCaretIndex(0);
     setHighlightedCliSuggestionIndex(0);
-    setIsCliSuggestionDismissed(false);
+    setAreCliSuggestionsEnabled(shouldKeepSuggestionsEnabled);
 
     const { shouldSelectCliInput } = runCliCommand(submittedInput);
     if (shouldSelectCliInput) {
@@ -898,14 +906,27 @@ export function useAppCli({
 
   const handleCliInputFocus = () => {
     setIsCliInputFocused(true);
-    setIsCliSuggestionDismissed(false);
     setCliCaretIndex(cliInputRef.current?.selectionStart ?? cliCommand.length);
   };
 
   const handleCliInputBlur = () => {
     setIsCliInputFocused(false);
-    setIsCliSuggestionDismissed(false);
+    setAreCliSuggestionsEnabled(false);
     setHighlightedCliSuggestionIndex(0);
+  };
+
+  const toggleCliSuggestions = () => {
+    setAreCliSuggestionsEnabled((current) => !current);
+    setHighlightedCliSuggestionIndex(0);
+  };
+
+  const consumeCliSlashFocusSuppression = () => {
+    if (!suppressNextCliSlashToggleRef.current) {
+      return false;
+    }
+
+    suppressNextCliSlashToggleRef.current = false;
+    return true;
   };
 
   const handleCliCaretChange = (caretIndex: number | null) => {
@@ -952,7 +973,7 @@ export function useAppCli({
   };
 
   const closeCliSuggestions = () => {
-    setIsCliSuggestionDismissed(true);
+    setAreCliSuggestionsEnabled(false);
     setHighlightedCliSuggestionIndex(0);
   };
 
@@ -1010,7 +1031,7 @@ export function useAppCli({
     setCliCommand(nextValue);
     setCliCaretIndex(nextCaretIndex);
     setHighlightedCliSuggestionIndex(0);
-    setIsCliSuggestionDismissed(false);
+    setAreCliSuggestionsEnabled(true);
     return true;
   };
 
@@ -1093,12 +1114,14 @@ export function useAppCli({
     handleCliInputFocus,
     handleCliInputBlur,
     handleCliCaretChange,
+    toggleCliSuggestions,
+    consumeCliSlashFocusSuppression,
     handleCliHistoryNavigate,
     moveCliSuggestionHighlight,
     setCliSuggestionHighlight,
     applyHighlightedCliSuggestion,
     closeCliSuggestions,
     handleImportScriptChange,
-    handleGameOutputClick: focusCliInput,
+    handleGameOutputClick: () => focusCliInput(false),
   };
 }
