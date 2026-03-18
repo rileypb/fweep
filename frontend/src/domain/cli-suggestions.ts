@@ -54,6 +54,10 @@ function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
     return ['help', ...tokens.slice(1)];
   }
 
+  if (tokens[0] === 'ann') {
+    return ['annotate', ...tokens.slice(1)];
+  }
+
   return tokens;
 }
 
@@ -125,6 +129,32 @@ function getParserBackedSingleRoomCommandResolution(
   const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
   if (hasRoomSlot) {
     return getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex, roomSlotSuggestionHelpers);
+  }
+
+  return suggestionResolution([]);
+}
+
+function getParserBackedNotateResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+): SuggestionResolution {
+  if (fragment.precedingTokens.some((token) => token.value.toLowerCase() === 'with')) {
+    return suggestionResolution([]);
+  }
+
+  const nextSymbols = getParserNextSymbolsBeforeSlot(fragment, 1);
+  const hasRoomSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'ROOM_REF');
+
+  if (hasRoomSlot) {
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      1,
+      createKeywordSuggestions(fragment.prefix, ['with']),
+      roomSlotSuggestionHelpers,
+    );
   }
 
   return suggestionResolution([]);
@@ -231,15 +261,7 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'notate' || tokens[0] === 'annotate' || tokens[0] === 'ann') {
-    if (tokens.includes('with')) {
-      return suggestionResolution([]);
-    }
-
-    if (fragment.tokenIndex <= 1 || prefix.length > 0) {
-      return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
-    }
-
-    return suggestionResolution(createKeywordSuggestions(prefix, ['with']));
+    return getParserBackedNotateResolution(input, fragment, doc);
   }
 
   if (tokens[0] === 'put') {

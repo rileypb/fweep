@@ -33,6 +33,13 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('go north').states.map((state) => state.stateId)).toContain('GO_DIRECTION_DONE');
   });
 
+  it('walks through notate and annotate command structure', () => {
+    expect(parseCliSuggestionInput('notate kitchen').states.map((state) => state.stateId)).toContain('NOTATE_ROOM');
+    expect(parseCliSuggestionInput('notate kitchen with').states.map((state) => state.stateId)).toContain('NOTATE_WITH');
+    expect(parseCliSuggestionInput('annotate kitchen').states.map((state) => state.stateId)).toContain('ANNOTATE_ROOM');
+    expect(parseCliSuggestionInput('annotate kitchen with').states.map((state) => state.stateId)).toContain('ANNOTATE_WITH');
+  });
+
   it('walks through connect command structure', () => {
     expect(parseCliSuggestionInput('connect kitchen').states.map((state) => state.stateId)).toEqual(['CONNECT_SOURCE']);
     expect(parseCliSuggestionInput('connect kitchen north').states.map((state) => state.stateId)).toEqual(['CONNECT_DIRECTION']);

@@ -247,6 +247,28 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('h rooms ', 'h rooms '.length, createEmptyMap('Test'))).toBeNull();
   });
 
+  it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+
+    expect(getCliSuggestions('notate c', 'notate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('annotate c', 'annotate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('ann c', 'ann c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('notate cellar ', 'notate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+  });
+
+  it('closes suggestions after notate and annotate enter free-text note mode', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('notate cellar with ', 'notate cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('annotate cellar with ', 'annotate cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('ann cellar with ', 'ann cellar with '.length, doc)).toBeNull();
+  });
+
   it('suggests matching rooms for show commands', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
