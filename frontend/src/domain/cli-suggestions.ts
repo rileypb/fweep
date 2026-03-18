@@ -83,6 +83,13 @@ function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly Ret
   return getParserNextSymbolsForTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
 }
 
+function getParserNextSymbolsForRawFragmentInput(
+  input: string,
+  fragment: ActiveFragment,
+): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
+  return listCliSuggestionNextSymbols(input.slice(0, fragment.caret).trimEnd().toLowerCase());
+}
+
 function getParserNextSymbolsBeforeSlot(fragment: ActiveFragment, slotStartTokenIndex: number): readonly ReturnType<typeof listCliSuggestionNextSymbols>[number][] {
   return getParserNextSymbolsForTokens(
     fragment.precedingTokens
@@ -274,7 +281,7 @@ function getParserBackedPseudoRoomResolution(
   fragment: ActiveFragment,
   doc: MapDocument | null,
 ): SuggestionResolution | null {
-  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const nextSymbols = getParserNextSymbolsForRawFragmentInput(input, fragment);
   const keywordEntries = nextSymbols.filter(
     (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
   );
@@ -307,6 +314,32 @@ function getParserBackedPseudoRoomResolution(
     (entry) => entry.sourceStateIds.includes('DIRECTION_OF')
       || entry.sourceStateIds.includes('ABOVE_LEAD')
       || entry.sourceStateIds.includes('BELOW_LEAD'),
+  );
+  const hasTheRoomTerminalKeyword = keywordEntries.some(
+    (entry) => entry.sourceStateIds.includes('THE_ROOM_OF_ROOM') || entry.sourceStateIds.includes('THE_ROOM_VERTICAL_ROOM'),
+  );
+  const hasTheWayTerminalKeyword = keywordEntries.some(
+    (entry) => entry.sourceStateIds.includes('THE_WAY_OF_ROOM') || entry.sourceStateIds.includes('THE_WAY_VERTICAL_ROOM'),
+  );
+  const hasGenericPseudoTerminalKeyword = keywordEntries.some(
+    (entry) => entry.sourceStateIds.includes('DIRECTION_OF_ROOM')
+      || entry.sourceStateIds.includes('ABOVE_ROOM')
+      || entry.sourceStateIds.includes('BELOW_ROOM'),
+  );
+  const hasUnknownKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'unknown' && entry.sourceStateIds.includes('PSEUDO_IS'),
+  );
+  const hasOnKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'on' && entry.sourceStateIds.includes('PSEUDO_GOES'),
+  );
+  const hasForeverKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'forever' && entry.sourceStateIds.includes('PSEUDO_GOES_ON'),
+  );
+  const hasNowhereKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'nowhere' && entry.sourceStateIds.includes('PSEUDO_LEADS'),
+  );
+  const hasDeathKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'death' && entry.sourceStateIds.includes('PSEUDO_LIES'),
   );
 
   if (hasTheRoomLeadState) {
@@ -363,6 +396,38 @@ function getParserBackedPseudoRoomResolution(
     );
   }
 
+  if (hasTheRoomTerminalKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, unknownPseudoRoomSuggestions));
+  }
+
+  if (hasTheWayTerminalKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, pseudoWaySuggestionTexts));
+  }
+
+  if (hasGenericPseudoTerminalKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, pseudoRoomSuggestionTexts));
+  }
+
+  if (hasUnknownKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['unknown']));
+  }
+
+  if (hasOnKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['on']));
+  }
+
+  if (hasForeverKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['forever']));
+  }
+
+  if (hasNowhereKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['nowhere']));
+  }
+
+  if (hasDeathKeyword) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['death']));
+  }
+
   return null;
 }
 
@@ -412,21 +477,43 @@ function getParserBackedConnectTailResolution(fragment: ActiveFragment, canonica
 }
 
 function getParserBackedCreateContinuationSuggestions(
+  input: string,
   fragment: ActiveFragment,
   options?: { readonly disallowNewRoomContinuation?: boolean },
 ): readonly CliSuggestion[] | null {
-  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const nextSymbols = getParserNextSymbolsForRawFragmentInput(input, fragment);
   const disallowNewRoomContinuation = options?.disallowNewRoomContinuation ?? false;
   const keywordEntries = nextSymbols.filter(
     (entry): entry is typeof nextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
   );
 
-  const hasWhichPhrase = nextSymbols.some(
-    (entry) => entry.symbol.kind === 'phrase'
-      && entry.symbol.text === ', which is'
+  const hasWhichPhrase = keywordEntries.some(
+    (entry) => (
+      entry.symbol.text === ','
       && (
         (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_NEW_ROOM'))
         || (!disallowNewRoomContinuation && entry.sourceStateIds.includes('CREATE_AND_CONNECT_NEW_ROOM'))
+      )
+    ) || (
+      entry.symbol.text === 'which'
+      && (
+        entry.sourceStateIds.includes('CREATE_NEW_ROOM_COMMA')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_COMMA')
+      )
+    ),
+  );
+  const hasCommaKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === ','
+      && (
+        entry.sourceStateIds.includes('CREATE_ADJECTIVE')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_ADJECTIVE')
+      ),
+  );
+  const hasIsKeyword = keywordEntries.some(
+    (entry) => entry.symbol.text === 'is'
+      && (
+        entry.sourceStateIds.includes('CREATE_NEW_ROOM_WHICH')
+        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_WHICH')
       ),
   );
   const hasAboveKeyword = keywordEntries.some(
@@ -449,23 +536,26 @@ function getParserBackedCreateContinuationSuggestions(
         || entry.sourceStateIds.includes('CREATE_AND_CONNECT_AFTER_ADJECTIVE_COMMA')
       ),
   );
-  const hasCommaKeyword = keywordEntries.some(
-    (entry) => entry.symbol.text === ','
-      && (
-        entry.sourceStateIds.includes('CREATE_ADJECTIVE')
-        || entry.sourceStateIds.includes('CREATE_AND_CONNECT_ADJECTIVE')
-      ),
-  );
   const hasOfKeyword = keywordEntries.some(
     (entry) => entry.symbol.text === 'of' && entry.sourceStateIds.includes('CREATE_DIRECTION'),
   );
 
-  if (!hasWhichPhrase && !hasAboveKeyword && !hasBelowKeyword && !hasDirectionSlot && !hasCommaKeyword && !hasOfKeyword) {
+  if (
+    !hasWhichPhrase
+    && !hasCommaKeyword
+    && !hasIsKeyword
+    && !hasAboveKeyword
+    && !hasBelowKeyword
+    && !hasDirectionSlot
+    && !hasOfKeyword
+  ) {
     return null;
   }
 
   return [
-    ...(hasWhichPhrase ? createKeywordSuggestions(fragment.prefix, [', which is']) : []),
+    ...(hasWhichPhrase ? createCreateWhichIsSuggestions(fragment.prefix) : []),
+    ...(hasCommaKeyword ? createKeywordSuggestions(fragment.prefix, [',']) : []),
+    ...(hasIsKeyword ? createKeywordSuggestions(fragment.prefix, ['is']) : []),
     ...((hasAboveKeyword || hasBelowKeyword)
       ? createKeywordSuggestions(
         fragment.prefix,
@@ -476,7 +566,6 @@ function getParserBackedCreateContinuationSuggestions(
       )
       : []),
     ...(hasDirectionSlot ? createDirectionSuggestions(fragment.prefix) : []),
-    ...(hasCommaKeyword ? createKeywordSuggestions(fragment.prefix, [',']) : []),
     ...(hasOfKeyword ? createKeywordSuggestions(fragment.prefix, ['of']) : []),
   ];
 }
@@ -870,6 +959,16 @@ function getSuggestionsForCommandContext(
   if (
     (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
     && !tokens.includes('to')
+  ) {
+    const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc);
+    if (parserBackedPseudoRoomResolution !== null) {
+      return parserBackedPseudoRoomResolution;
+    }
+  }
+
+  if (
+    (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
+    && !tokens.includes('to')
     && !tokens.includes('is')
     && !tokens.includes('goes')
     && !tokens.includes('leads')
@@ -935,16 +1034,6 @@ function getSuggestionsForCommandContext(
 
   if (lastToken === 'is' && roomToIndex > 0 && !isPseudoRoomLead(tokens)) {
     return suggestionResolution(createConnectionAnnotationSuggestions(prefix));
-  }
-
-  if (
-    lastToken === 'is'
-    && !tokens.includes('to')
-    && (
-      isPseudoRoomLead(tokens)
-    )
-  ) {
-    return suggestionResolution(createKeywordSuggestions(prefix, ['unknown']));
   }
 
   if (lastToken === 'is' && hasMalformedPseudoRoomContinuation(tokens)) {

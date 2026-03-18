@@ -12,6 +12,7 @@ interface RoomSlotSuggestionHelpers {
 interface CreateResolutionDependencies {
   readonly roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers;
   readonly getParserBackedCreateContinuationSuggestions: (
+    input: string,
     fragment: ActiveFragment,
     options?: { readonly disallowNewRoomContinuation?: boolean },
   ) => readonly CliSuggestion[] | null;
@@ -67,7 +68,7 @@ export function getCreateCommandResolution(
 ): SuggestionResolution {
   const prefix = fragment.prefix;
   const hasCompletedCreatePhrase = hasCompletedCreateAdjectivePhrase(tokens);
-  const parserBackedCreateContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(fragment, {
+  const parserBackedCreateContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(input, fragment, {
     disallowNewRoomContinuation: hasCompletedCreatePhrase,
   });
 
@@ -189,7 +190,7 @@ export function getCreateAndConnectIntroResolution(
 ): SuggestionResolution {
   const prefix = fragment.prefix;
   const hasCompletedCreateAndConnectAdjectivePhrase = hasCompletedCreateAdjectivePhrase(tokens);
-  const parserBackedCreateAndConnectContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(fragment, {
+  const parserBackedCreateAndConnectContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(input, fragment, {
     disallowNewRoomContinuation: hasCompletedCreateAndConnectAdjectivePhrase,
   });
 

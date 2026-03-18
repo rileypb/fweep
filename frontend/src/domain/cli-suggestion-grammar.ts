@@ -236,13 +236,22 @@ const cliSuggestionGrammarStates = [
   ]),
   state('CREATE', [
     slot('NEW_ROOM_NAME', 'CREATE_NEW_ROOM'),
-    phrase('and connect', 'CREATE_AND_CONNECT'),
+    keyword('and', 'CREATE_AND'),
+  ]),
+  state('CREATE_AND', [
+    keyword('connect', 'CREATE_AND_CONNECT'),
   ]),
   state('CREATE_NEW_ROOM', [
-    phrase(', which is', 'CREATE_NEW_ROOM_WHICH_IS'),
+    keyword(',', 'CREATE_NEW_ROOM_COMMA'),
     keyword('above', 'CREATE_VERTICAL'),
     keyword('below', 'CREATE_VERTICAL'),
     slot('DIRECTION', 'CREATE_DIRECTION'),
+  ]),
+  state('CREATE_NEW_ROOM_COMMA', [
+    keyword('which', 'CREATE_NEW_ROOM_WHICH'),
+  ]),
+  state('CREATE_NEW_ROOM_WHICH', [
+    keyword('is', 'CREATE_NEW_ROOM_WHICH_IS'),
   ]),
   state('CREATE_NEW_ROOM_WHICH_IS', [
     keyword('dark', 'CREATE_ADJECTIVE'),
@@ -270,8 +279,14 @@ const cliSuggestionGrammarStates = [
     slot('NEW_ROOM_NAME', 'CREATE_AND_CONNECT_NEW_ROOM'),
   ]),
   state('CREATE_AND_CONNECT_NEW_ROOM', [
-    phrase(', which is', 'CREATE_AND_CONNECT_WHICH_IS'),
+    keyword(',', 'CREATE_AND_CONNECT_COMMA'),
     slot('DIRECTION', 'CREATE_AND_CONNECT_DIRECTION'),
+  ]),
+  state('CREATE_AND_CONNECT_COMMA', [
+    keyword('which', 'CREATE_AND_CONNECT_WHICH'),
+  ]),
+  state('CREATE_AND_CONNECT_WHICH', [
+    keyword('is', 'CREATE_AND_CONNECT_WHICH_IS'),
   ]),
   state('CREATE_AND_CONNECT_WHICH_IS', [
     keyword('dark', 'CREATE_AND_CONNECT_ADJECTIVE'),
@@ -303,28 +318,28 @@ const cliSuggestionGrammarStates = [
     slot('ROOM_REF', 'DIRECTION_OF_ROOM'),
   ]),
   state('DIRECTION_OF_ROOM', [
-    phrase('is unknown', 'PSEUDO_DONE'),
-    phrase('goes on forever', 'PSEUDO_DONE'),
-    phrase('leads nowhere', 'PSEUDO_DONE'),
-    phrase('lies death', 'PSEUDO_DONE'),
+    keyword('is', 'PSEUDO_IS'),
+    keyword('goes', 'PSEUDO_GOES'),
+    keyword('leads', 'PSEUDO_LEADS'),
+    keyword('lies', 'PSEUDO_LIES'),
   ]),
   state('ABOVE_LEAD', [
     slot('ROOM_REF', 'ABOVE_ROOM'),
   ]),
   state('ABOVE_ROOM', [
-    phrase('is unknown', 'PSEUDO_DONE'),
-    phrase('goes on forever', 'PSEUDO_DONE'),
-    phrase('leads nowhere', 'PSEUDO_DONE'),
-    phrase('lies death', 'PSEUDO_DONE'),
+    keyword('is', 'PSEUDO_IS'),
+    keyword('goes', 'PSEUDO_GOES'),
+    keyword('leads', 'PSEUDO_LEADS'),
+    keyword('lies', 'PSEUDO_LIES'),
   ]),
   state('BELOW_LEAD', [
     slot('ROOM_REF', 'BELOW_ROOM'),
   ]),
   state('BELOW_ROOM', [
-    phrase('is unknown', 'PSEUDO_DONE'),
-    phrase('goes on forever', 'PSEUDO_DONE'),
-    phrase('leads nowhere', 'PSEUDO_DONE'),
-    phrase('lies death', 'PSEUDO_DONE'),
+    keyword('is', 'PSEUDO_IS'),
+    keyword('goes', 'PSEUDO_GOES'),
+    keyword('leads', 'PSEUDO_LEADS'),
+    keyword('lies', 'PSEUDO_LIES'),
   ]),
   state('THE_ROOM', [
     slot('DIRECTION', 'THE_ROOM_DIRECTION'),
@@ -338,13 +353,13 @@ const cliSuggestionGrammarStates = [
     slot('ROOM_REF', 'THE_ROOM_OF_ROOM'),
   ]),
   state('THE_ROOM_OF_ROOM', [
-    phrase('is unknown', 'PSEUDO_DONE'),
+    keyword('is', 'PSEUDO_IS'),
   ]),
   state('THE_ROOM_VERTICAL', [
     slot('ROOM_REF', 'THE_ROOM_VERTICAL_ROOM'),
   ]),
   state('THE_ROOM_VERTICAL_ROOM', [
-    phrase('is unknown', 'PSEUDO_DONE'),
+    keyword('is', 'PSEUDO_IS'),
   ]),
   state('THE_WAY', [
     slot('DIRECTION', 'THE_WAY_DIRECTION'),
@@ -358,17 +373,32 @@ const cliSuggestionGrammarStates = [
     slot('ROOM_REF', 'THE_WAY_OF_ROOM'),
   ]),
   state('THE_WAY_OF_ROOM', [
-    phrase('goes on forever', 'PSEUDO_DONE'),
-    phrase('leads nowhere', 'PSEUDO_DONE'),
-    phrase('lies death', 'PSEUDO_DONE'),
+    keyword('goes', 'PSEUDO_GOES'),
+    keyword('leads', 'PSEUDO_LEADS'),
+    keyword('lies', 'PSEUDO_LIES'),
   ]),
   state('THE_WAY_VERTICAL', [
     slot('ROOM_REF', 'THE_WAY_VERTICAL_ROOM'),
   ]),
   state('THE_WAY_VERTICAL_ROOM', [
-    phrase('goes on forever', 'PSEUDO_DONE'),
-    phrase('leads nowhere', 'PSEUDO_DONE'),
-    phrase('lies death', 'PSEUDO_DONE'),
+    keyword('goes', 'PSEUDO_GOES'),
+    keyword('leads', 'PSEUDO_LEADS'),
+    keyword('lies', 'PSEUDO_LIES'),
+  ]),
+  state('PSEUDO_IS', [
+    keyword('unknown', 'PSEUDO_DONE'),
+  ]),
+  state('PSEUDO_GOES', [
+    keyword('on', 'PSEUDO_GOES_ON'),
+  ]),
+  state('PSEUDO_GOES_ON', [
+    keyword('forever', 'PSEUDO_DONE'),
+  ]),
+  state('PSEUDO_LEADS', [
+    keyword('nowhere', 'PSEUDO_DONE'),
+  ]),
+  state('PSEUDO_LIES', [
+    keyword('death', 'PSEUDO_DONE'),
   ]),
   state('PSEUDO_DONE', [
     end(),

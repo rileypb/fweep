@@ -36,10 +36,8 @@ interface ParseCandidate {
 }
 
 function tokenizeSuggestionInput(input: string): readonly CliSuggestionParseToken[] {
-  return input
-    .trim()
-    .split(/\s+/)
-    .map((text) => text.trim())
+  return Array.from(input.matchAll(/,|[^\s,"]+/g))
+    .map((match) => match[0] ?? '')
     .filter((text) => text.length > 0)
     .map((text) => ({
       text,

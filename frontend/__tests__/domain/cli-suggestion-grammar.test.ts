@@ -59,13 +59,16 @@ describe('cli suggestion grammar', () => {
   });
 
   it('captures create command transitions', () => {
-    expect(describeCliSuggestionGrammarSymbols('CREATE')).toEqual(['<new_room_name>', 'and connect']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE')).toEqual(['<new_room_name>', 'and']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND')).toEqual(['connect']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_NEW_ROOM')).toEqual([
-      ', which is',
+      ',',
       'above',
       'below',
       '<direction>',
     ]);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_NEW_ROOM_COMMA')).toEqual(['which']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_NEW_ROOM_WHICH')).toEqual(['is']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_NEW_ROOM_WHICH_IS')).toEqual(['dark', 'lit']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_ADJECTIVE')).toEqual([',']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_DIRECTION')).toEqual(['of']);
@@ -74,26 +77,33 @@ describe('cli suggestion grammar', () => {
   it('captures create-and-connect transitions', () => {
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT')).toEqual(['<new_room_name>']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_NEW_ROOM')).toEqual([
-      ', which is',
+      ',',
       '<direction>',
     ]);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_COMMA')).toEqual(['which']);
+    expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_WHICH')).toEqual(['is']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_DIRECTION')).toEqual(['one-way', 'to']);
     expect(describeCliSuggestionGrammarSymbols('CREATE_AND_CONNECT_ONE_WAY')).toEqual(['to']);
   });
 
   it('captures pseudo-room families separately', () => {
     expect(describeCliSuggestionGrammarSymbols('DIRECTION_OF_ROOM')).toEqual([
-      'is unknown',
-      'goes on forever',
-      'leads nowhere',
-      'lies death',
+      'is',
+      'goes',
+      'leads',
+      'lies',
     ]);
-    expect(describeCliSuggestionGrammarSymbols('THE_ROOM_OF_ROOM')).toEqual(['is unknown']);
+    expect(describeCliSuggestionGrammarSymbols('THE_ROOM_OF_ROOM')).toEqual(['is']);
     expect(describeCliSuggestionGrammarSymbols('THE_WAY_OF_ROOM')).toEqual([
-      'goes on forever',
-      'leads nowhere',
-      'lies death',
+      'goes',
+      'leads',
+      'lies',
     ]);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_IS')).toEqual(['unknown']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES')).toEqual(['on']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES_ON')).toEqual(['forever']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_LEADS')).toEqual(['nowhere']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_LIES')).toEqual(['death']);
   });
 
   it('marks terminal states explicitly', () => {

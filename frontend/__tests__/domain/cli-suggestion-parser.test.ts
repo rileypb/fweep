@@ -69,14 +69,24 @@ describe('cli suggestion parser', () => {
 
   it('walks through create command structure', () => {
     expect(parseCliSuggestionInput('create pantry').states.map((state) => state.stateId)).toContain('CREATE_NEW_ROOM');
+    expect(parseCliSuggestionInput('create pantry,').states.map((state) => state.stateId)).toContain('CREATE_NEW_ROOM_COMMA');
+    expect(parseCliSuggestionInput('create pantry, which').states.map((state) => state.stateId)).toContain('CREATE_NEW_ROOM_WHICH');
+    expect(parseCliSuggestionInput('create pantry, which is').states.map((state) => state.stateId)).toContain('CREATE_NEW_ROOM_WHICH_IS');
     expect(parseCliSuggestionInput('create pantry above').states.map((state) => state.stateId)).toContain('CREATE_VERTICAL');
     expect(parseCliSuggestionInput('create pantry north').states.map((state) => state.stateId)).toContain('CREATE_DIRECTION');
   });
 
   it('walks through create-and-connect structure', () => {
+    expect(parseCliSuggestionInput('create and').states.map((state) => state.stateId)).toContain('CREATE_AND');
     expect(parseCliSuggestionInput('create and connect').states.map((state) => state.stateId)).toContain('CREATE_AND_CONNECT');
     expect(parseCliSuggestionInput('create and connect pantry').states.map((state) => state.stateId)).toContain(
       'CREATE_AND_CONNECT_NEW_ROOM',
+    );
+    expect(parseCliSuggestionInput('create and connect pantry,').states.map((state) => state.stateId)).toContain(
+      'CREATE_AND_CONNECT_COMMA',
+    );
+    expect(parseCliSuggestionInput('create and connect pantry, which').states.map((state) => state.stateId)).toContain(
+      'CREATE_AND_CONNECT_WHICH',
     );
     expect(parseCliSuggestionInput('create and connect pantry east').states.map((state) => state.stateId)).toContain(
       'CREATE_AND_CONNECT_DIRECTION',
@@ -86,6 +96,11 @@ describe('cli suggestion parser', () => {
   it('keeps pseudo-room families separate', () => {
     expect(parseCliSuggestionInput('north').states.map((state) => state.stateId)).toContain('DIRECTION_LEAD');
     expect(parseCliSuggestionInput('north of').states.map((state) => state.stateId)).toContain('DIRECTION_OF');
+    expect(parseCliSuggestionInput('north of cellar is').states.map((state) => state.stateId)).toContain('PSEUDO_IS');
+    expect(parseCliSuggestionInput('north of cellar goes').states.map((state) => state.stateId)).toContain('PSEUDO_GOES');
+    expect(parseCliSuggestionInput('north of cellar goes on').states.map((state) => state.stateId)).toContain('PSEUDO_GOES_ON');
+    expect(parseCliSuggestionInput('north of cellar leads').states.map((state) => state.stateId)).toContain('PSEUDO_LEADS');
+    expect(parseCliSuggestionInput('north of cellar lies').states.map((state) => state.stateId)).toContain('PSEUDO_LIES');
     expect(parseCliSuggestionInput('above').states.map((state) => state.stateId)).toContain('ABOVE_LEAD');
     expect(parseCliSuggestionInput('below').states.map((state) => state.stateId)).toContain('BELOW_LEAD');
     expect(parseCliSuggestionInput('the room').states.map((state) => state.stateId)).toContain('THE_ROOM');
@@ -108,6 +123,10 @@ describe('cli suggestion parser', () => {
       'phrase:one-way',
       'keyword:to',
     ]);
+    expect(listCliSuggestionNextSymbols('create pantry,').map((entry) => entry.key)).toEqual(['keyword:which']);
+    expect(listCliSuggestionNextSymbols('create pantry, which').map((entry) => entry.key)).toEqual(['keyword:is']);
+    expect(listCliSuggestionNextSymbols('north of cellar goes').map((entry) => entry.key)).toEqual(['keyword:on']);
+    expect(listCliSuggestionNextSymbols('north of cellar goes on').map((entry) => entry.key)).toEqual(['keyword:forever']);
   });
 
   it('dedupes shared next symbols across ambiguous states', () => {
