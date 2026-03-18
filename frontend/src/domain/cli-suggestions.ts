@@ -1,7 +1,15 @@
-import { CLI_COMMAND_SUGGESTION_SPECS, parseCliCommandDescription } from './cli-command';
 import { STANDARD_DIRECTIONS, normalizeDirection } from './directions';
-import { getCliHelpTopics } from './cli-help';
 import { getActiveFragment } from './cli-suggestion-fragments';
+import {
+  createCommandSuggestions,
+  createConnectionAnnotationSuggestions,
+  createDefaultSuggestions,
+  createDirectionSuggestions,
+  createHelpTopicSuggestions,
+  createKeywordSuggestions,
+  createPlaceholderSuggestion,
+  createTerminalKeywordSuggestions,
+} from './cli-suggestion-options';
 import {
   createRoomSuggestions,
   getConnectedRoomReferenceResolution,
@@ -13,136 +21,6 @@ import type { CliSuggestion, CliSuggestionResult, SuggestionResolution, ActiveFr
 import type { MapDocument } from './map-types';
 
 export type { CliSuggestion, CliSuggestionResult } from './cli-suggestion-types';
-
-const DEFAULT_COMMAND_IDS = ['create', 'connect', 'show', 'edit', 'arrange', 'help'] as const;
-const DEFAULT_DIRECTIONS = ['north', 'south', 'east', 'west'] as const;
-
-function startsWithNormalized(value: string, prefix: string): boolean {
-  return value.toLowerCase().startsWith(prefix.toLowerCase());
-}
-
-function createKeywordSuggestions(prefix: string, values: readonly string[]): readonly CliSuggestion[] {
-  const normalizedPrefix = prefix.toLowerCase();
-  return values
-    .filter((value) => normalizedPrefix.length === 0 || value.toLowerCase().startsWith(normalizedPrefix))
-    .map((value) => ({
-      id: `cli-suggestion-keyword-${value.replace(/\s+/g, '-')}`,
-      kind: 'command' as const,
-      label: value,
-      insertText: value,
-      detail: null,
-    }));
-}
-
-function createTerminalKeywordSuggestions(prefix: string, values: readonly string[]): readonly CliSuggestion[] {
-  const normalizedPrefix = prefix.toLowerCase();
-  if (values.some((value) => value.toLowerCase() === normalizedPrefix)) {
-    return [];
-  }
-
-  return createKeywordSuggestions(prefix, values);
-}
-
-function createPlaceholderSuggestion(label: string): readonly CliSuggestion[] {
-  return [{
-    id: `cli-suggestion-placeholder-${label.replace(/[^\w]+/g, '-').toLowerCase()}`,
-    kind: 'placeholder' as const,
-    label,
-    insertText: '',
-    detail: null,
-  }];
-}
-
-function createCommandSuggestions(prefix: string): readonly CliSuggestion[] {
-  const normalizedPrefix = prefix.toLowerCase();
-
-  return CLI_COMMAND_SUGGESTION_SPECS
-    .filter((spec) => {
-      if (normalizedPrefix === 'e' && spec.id === 'edit') {
-        return false;
-      }
-      if (normalizedPrefix === 's' && spec.id === 'show') {
-        return false;
-      }
-      return spec.matchTerms.some((term) => term.startsWith(normalizedPrefix));
-    })
-    .sort((left, right) => {
-      const leftExact = left.insertText.startsWith(normalizedPrefix) ? 0 : 1;
-      const rightExact = right.insertText.startsWith(normalizedPrefix) ? 0 : 1;
-      if (leftExact !== rightExact) {
-        return leftExact - rightExact;
-      }
-
-      if (left.insertText.length !== right.insertText.length) {
-        return left.insertText.length - right.insertText.length;
-      }
-
-      return left.insertText.localeCompare(right.insertText);
-    })
-    .map((spec) => ({
-      id: `cli-suggestion-command-${spec.id}`,
-      kind: 'command' as const,
-      label: spec.insertText,
-      insertText: spec.insertText,
-      detail: parseCliCommandDescription(spec.descriptionInput),
-    }));
-}
-
-function createDefaultSuggestions(doc: MapDocument | null): readonly CliSuggestion[] {
-  const commandSuggestions = DEFAULT_COMMAND_IDS
-    .map((commandId) => CLI_COMMAND_SUGGESTION_SPECS.find((spec) => spec.id === commandId) ?? null)
-    .filter((spec): spec is NonNullable<typeof spec> => spec !== null)
-    .map((spec) => ({
-      id: `cli-suggestion-command-${spec.id}`,
-      kind: 'command' as const,
-      label: spec.insertText,
-      insertText: spec.insertText,
-      detail: parseCliCommandDescription(spec.descriptionInput),
-    }));
-
-  const directionSuggestions = DEFAULT_DIRECTIONS.map((direction) => ({
-    id: `cli-suggestion-direction-${direction}`,
-    kind: 'direction' as const,
-    label: direction,
-    insertText: direction,
-    detail: 'Direction',
-  }));
-
-  const roomSuggestions = doc === null ? [] : createPlaceholderSuggestion('<room>');
-
-  return [...commandSuggestions, ...directionSuggestions, ...roomSuggestions];
-}
-
-function createDirectionSuggestions(prefix: string): readonly CliSuggestion[] {
-  const normalizedPrefix = prefix.toLowerCase();
-  return STANDARD_DIRECTIONS
-    .filter((direction) => startsWithNormalized(direction, normalizedPrefix) || startsWithNormalized(direction[0] ?? '', normalizedPrefix))
-    .sort((left, right) => left.localeCompare(right))
-    .map((direction) => ({
-      id: `cli-suggestion-direction-${direction}`,
-      kind: 'direction' as const,
-      label: direction,
-      insertText: direction,
-      detail: 'Direction',
-    }));
-}
-
-function createConnectionAnnotationSuggestions(prefix: string): readonly CliSuggestion[] {
-  return createTerminalKeywordSuggestions(prefix, ['door', 'locked door', 'clear']);
-}
-
-function createHelpTopicSuggestions(prefix: string): readonly CliSuggestion[] {
-  const normalizedPrefix = prefix.toLowerCase();
-  return getCliHelpTopics()
-    .filter((topic) => topic.startsWith(normalizedPrefix))
-    .map((topic) => ({
-      id: `cli-suggestion-help-${topic}`,
-      kind: 'help-topic' as const,
-      label: topic,
-      insertText: topic,
-      detail: 'Help topic',
-    }));
-}
 
 function isDirectionLikePrefix(prefix: string): boolean {
   const normalizedPrefix = normalizeDirection(prefix);
