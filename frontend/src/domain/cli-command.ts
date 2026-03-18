@@ -100,6 +100,30 @@ export const CLI_COMMAND_FORMS = [
   'undo/redo',
 ] as const;
 
+export interface CliCommandSuggestionSpec {
+  readonly id: string;
+  readonly insertText: string;
+  readonly matchTerms: readonly string[];
+  readonly descriptionInput: string;
+}
+
+export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] = [
+  { id: 'help', insertText: 'help', matchTerms: ['help', 'h'], descriptionInput: 'help' },
+  { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
+  { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
+  { id: 'show', insertText: 'show', matchTerms: ['show', 's', 'go to'], descriptionInput: 'show Kitchen' },
+  { id: 'create', insertText: 'create', matchTerms: ['create', 'c'], descriptionInput: 'create Kitchen' },
+  { id: 'create-and-connect', insertText: 'create and connect', matchTerms: ['create and connect'], descriptionInput: 'create and connect Kitchen north to Hallway' },
+  { id: 'connect', insertText: 'connect', matchTerms: ['connect', 'con'], descriptionInput: 'connect Kitchen north to Hallway' },
+  { id: 'delete', insertText: 'delete', matchTerms: ['delete', 'd', 'del'], descriptionInput: 'delete Kitchen' },
+  { id: 'edit', insertText: 'edit', matchTerms: ['edit', 'e', 'ed'], descriptionInput: 'edit Kitchen' },
+  { id: 'notate', insertText: 'notate', matchTerms: ['notate', 'annotate', 'ann'], descriptionInput: 'notate Kitchen with Treasure here' },
+  { id: 'put', insertText: 'put', matchTerms: ['put'], descriptionInput: 'put lantern in Kitchen' },
+  { id: 'take', insertText: 'take', matchTerms: ['take', 'get'], descriptionInput: 'take lantern from Kitchen' },
+  { id: 'undo', insertText: 'undo', matchTerms: ['undo'], descriptionInput: 'undo' },
+  { id: 'redo', insertText: 'redo', matchTerms: ['redo'], descriptionInput: 'redo' },
+] as const;
+
 interface Token {
   readonly value: string;
   readonly quoted: boolean;

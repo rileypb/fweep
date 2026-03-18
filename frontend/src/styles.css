@@ -108,7 +108,7 @@ body {
   color: var(--room-label-color);
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 1rem;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .app-cli-stack--collapsed {
@@ -189,6 +189,7 @@ body {
   pointer-events: auto;
   display: flex;
   align-items: center;
+  position: relative;
   width: 100%;
 }
 
@@ -282,6 +283,50 @@ body {
 
 .app-cli-input-shell:focus-within {
   box-shadow: none;
+}
+
+.app-cli-suggestion-list {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  z-index: 12;
+}
+
+:root[data-theme='dark'] .app-cli-suggestion-list {
+  background: rgba(17, 24, 39, 0.98);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.app-cli-suggestion-option {
+  display: block;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  cursor: pointer;
+}
+
+.app-cli-suggestion-option--active {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.app-cli-suggestion-option--placeholder {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.app-cli-suggestion-option--placeholder .app-cli-suggestion-label {
+  font-style: italic;
+  font-weight: 600;
+}
+
+.app-cli-suggestion-label {
+  font: 700 0.9rem/1.15 inherit;
 }
 
 /* ---- App controls ---- */

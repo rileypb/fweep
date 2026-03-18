@@ -67,11 +67,21 @@ export function App(): React.JSX.Element {
     cliHistory,
     cliHistoryIndex,
     cliHistoryDraft,
+    cliSuggestions,
+    highlightedCliSuggestionIndex,
+    isCliSuggestionMenuOpen,
     gameOutputLines,
     isImportingScript,
     handleCliSubmit,
     handleCliCommandChange,
+    handleCliInputFocus,
+    handleCliInputBlur,
+    handleCliCaretChange,
     handleCliHistoryNavigate,
+    moveCliSuggestionHighlight,
+    setCliSuggestionHighlight,
+    applyHighlightedCliSuggestion,
+    closeCliSuggestions,
     handleImportScriptChange,
     handleGameOutputClick,
   } = useAppCli({
@@ -173,11 +183,21 @@ export function App(): React.JSX.Element {
             cliHistory={cliHistory}
             cliHistoryIndex={cliHistoryIndex}
             cliHistoryDraft={cliHistoryDraft}
+            cliSuggestions={cliSuggestions}
+            highlightedCliSuggestionIndex={highlightedCliSuggestionIndex}
+            isSuggestionMenuOpen={isCliSuggestionMenuOpen}
             isOutputCollapsed={cliOutputCollapsedEnabled}
             isImportingScript={isImportingScript}
             onSubmit={handleCliSubmit}
             onCliCommandChange={handleCliCommandChange}
+            onCliInputFocus={handleCliInputFocus}
+            onCliInputBlur={handleCliInputBlur}
+            onCliCaretChange={handleCliCaretChange}
             onCliHistoryNavigate={handleCliHistoryNavigate}
+            onCliSuggestionHighlightMove={moveCliSuggestionHighlight}
+            onCliSuggestionHighlightSet={setCliSuggestionHighlight}
+            onAcceptHighlightedSuggestion={applyHighlightedCliSuggestion}
+            onCloseSuggestions={closeCliSuggestions}
             onToggleOutputCollapsed={toggleCliOutputCollapsed}
             onImportScriptChange={handleImportScriptChange}
           />

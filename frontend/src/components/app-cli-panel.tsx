@@ -1,4 +1,5 @@
 import React from 'react';
+import type { CliSuggestion } from '../domain/cli-suggestions';
 
 function renderCliOutputLine(line: string): React.ReactNode {
   const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
@@ -31,11 +32,21 @@ interface AppCliPanelProps {
   readonly cliHistory: readonly string[];
   readonly cliHistoryIndex: number | null;
   readonly cliHistoryDraft: string;
+  readonly cliSuggestions: readonly CliSuggestion[];
+  readonly highlightedCliSuggestionIndex: number;
+  readonly isSuggestionMenuOpen: boolean;
   readonly isOutputCollapsed: boolean;
   readonly isImportingScript: boolean;
   readonly onSubmit: () => void;
   readonly onCliCommandChange: (value: string) => void;
+  readonly onCliInputFocus: () => void;
+  readonly onCliInputBlur: () => void;
+  readonly onCliCaretChange: (caretIndex: number | null) => void;
   readonly onCliHistoryNavigate: (direction: 'up' | 'down') => void;
+  readonly onCliSuggestionHighlightMove: (direction: 'up' | 'down') => void;
+  readonly onCliSuggestionHighlightSet: (index: number) => void;
+  readonly onAcceptHighlightedSuggestion: () => boolean;
+  readonly onCloseSuggestions: () => void;
   readonly onToggleOutputCollapsed: () => void;
   readonly onImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -51,14 +62,28 @@ export function AppCliPanel({
   cliHistory,
   cliHistoryIndex,
   cliHistoryDraft,
+  cliSuggestions,
+  highlightedCliSuggestionIndex,
+  isSuggestionMenuOpen,
   isOutputCollapsed,
   isImportingScript,
   onSubmit,
   onCliCommandChange,
+  onCliInputFocus,
+  onCliInputBlur,
+  onCliCaretChange,
   onCliHistoryNavigate,
+  onCliSuggestionHighlightMove,
+  onCliSuggestionHighlightSet,
+  onAcceptHighlightedSuggestion,
+  onCloseSuggestions,
   onToggleOutputCollapsed,
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
+  const activeSuggestion = isSuggestionMenuOpen
+    ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
+    : null;
+
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
       <div
@@ -102,7 +127,37 @@ export function AppCliPanel({
               spellCheck={false}
               ref={cliInputRef}
               value={cliCommand}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isSuggestionMenuOpen}
+              aria-controls="app-cli-suggestion-list"
+              aria-activedescendant={activeSuggestion?.id}
               onKeyDown={(event) => {
+                if (event.key === 'Escape' && isSuggestionMenuOpen) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onCloseSuggestions();
+                  return;
+                }
+
+                if (event.key === 'Tab' && isSuggestionMenuOpen) {
+                  const accepted = onAcceptHighlightedSuggestion();
+                  if (accepted) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }
+                  return;
+                }
+
+                if ((event.key === 'ArrowUp' || event.key === 'ArrowDown')
+                  && isSuggestionMenuOpen
+                  && (cliCommand.trim().length > 0 || cliHistory.length === 0)) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onCliSuggestionHighlightMove(event.key === 'ArrowUp' ? 'up' : 'down');
+                  return;
+                }
+
                 if (event.key === 'Enter' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
                   event.preventDefault();
                   event.stopPropagation();
@@ -135,6 +190,18 @@ export function AppCliPanel({
               }}
               onChange={(event) => {
                 onCliCommandChange(event.target.value);
+                onCliCaretChange(event.target.selectionStart);
+              }}
+              onFocus={onCliInputFocus}
+              onBlur={onCliInputBlur}
+              onClick={(event) => {
+                onCliCaretChange(event.currentTarget.selectionStart);
+              }}
+              onSelect={(event) => {
+                onCliCaretChange(event.currentTarget.selectionStart);
+              }}
+              onKeyUp={(event) => {
+                onCliCaretChange(event.currentTarget.selectionStart);
               }}
             />
             <button
@@ -165,6 +232,41 @@ export function AppCliPanel({
               {isImportingScript ? 'Importing…' : 'Import'}
             </button>
           </div>
+          {isSuggestionMenuOpen && (
+            <div
+              id="app-cli-suggestion-list"
+              className="app-cli-suggestion-list"
+              role="listbox"
+              aria-label="CLI suggestions"
+            >
+              {cliSuggestions.map((suggestion, index) => {
+                const isActive = index === highlightedCliSuggestionIndex;
+                const isPlaceholder = suggestion.kind === 'placeholder';
+                return (
+                  <div
+                    key={suggestion.id}
+                    id={suggestion.id}
+                    className={`app-cli-suggestion-option${isActive ? ' app-cli-suggestion-option--active' : ''}${isPlaceholder ? ' app-cli-suggestion-option--placeholder' : ''}`}
+                    role="option"
+                    aria-selected={isActive}
+                    aria-disabled={isPlaceholder || undefined}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      onCliSuggestionHighlightSet(index);
+                    }}
+                    onMouseEnter={() => {
+                      onCliSuggestionHighlightSet(index);
+                    }}
+                    onClick={() => {
+                      onAcceptHighlightedSuggestion();
+                    }}
+                  >
+                    <span className="app-cli-suggestion-label">{suggestion.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </form>
       </div>
     </div>

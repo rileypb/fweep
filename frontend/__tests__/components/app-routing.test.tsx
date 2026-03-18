@@ -27,6 +27,10 @@ function getGameOutputBox(): HTMLElement {
   return screen.getByRole('log', { name: /game output log/i });
 }
 
+function getCliInput(): HTMLInputElement {
+  return screen.getByRole('combobox', { name: /cli command/i }) as HTMLInputElement;
+}
+
 function renderApp(): ReturnType<typeof render> {
   return render(<App />);
 }
@@ -63,7 +67,7 @@ function getRenderedCliLine(line: string): string {
 }
 
 async function submitCliCommand(command: string): Promise<HTMLInputElement> {
-  const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+  const input = getCliInput();
   await act(async () => {
     fireEvent.change(input, { target: { value: command } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
@@ -86,7 +90,7 @@ describe('URL routing', () => {
     expect(screen.queryByRole('button', { name: /disable grid snapping/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /switch to .+ mode/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^help$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: /cli command/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/cli command/i)).not.toBeInTheDocument();
     expect(screen.queryByText('fweep!')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /prettify layout/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
@@ -122,7 +126,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Placeholder Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     expect(input).toHaveAttribute('placeholder', 'Type help');
 
     await user.type(input, 'help');
@@ -131,11 +135,267 @@ describe('URL routing', () => {
     expect(input).toHaveAttribute('placeholder', '');
   });
 
+  it('shows curated default suggestions as soon as the CLI input is focused', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Suggestions Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+    expect(input).toHaveAttribute('role', 'combobox');
+
+    await user.click(input);
+
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+    const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+    expect(optionText.some((text) => text.includes('create'))).toBe(true);
+    expect(optionText.some((text) => text.includes('connect'))).toBe(true);
+    expect(optionText.some((text) => text.includes('arrange'))).toBe(true);
+    expect(optionText.some((text) => text.includes('north'))).toBe(true);
+    expect(optionText).toContain('<room>');
+  });
+
+  it('accepts the highlighted suggestion with Tab and immediately suggests the next legal words', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Accept Suggestion Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'c');
+    await user.keyboard('{Tab}');
+
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveValue('create ');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<new room name>']);
+  });
+
+  it('uses arrow keys to navigate suggestions while the suggestion menu is open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Navigation Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'c');
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('connect ');
+  });
+
+  it('uses arrow keys to navigate default suggestions before any typing', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Default Suggestion Navigation Map');
+
+    const input = getCliInput();
+
+    await user.click(input);
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('connect ');
+  });
+
+  it('shows legal next-word suggestions immediately after typing a space', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Next Word Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'create ');
+
+    const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+    expect(optionText).toEqual(['<new room name>']);
+  });
+
+  it('shows a new-room placeholder after create and connect plus a space', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Create And Connect Placeholder Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create and connect ');
+
+    const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+    expect(optionText).toEqual(['<new room name>']);
+  });
+
+  it('shows only "to" after one-way in connect command suggestions', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI One Way Suggestions Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'connect Kitchen north one-way ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['to']);
+  });
+
+  it('shows a room placeholder at the start of a show room slot', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Room Placeholder Map'), { ...createRoom('Pool'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'show ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<room>']);
+  });
+
+  it('shows only dark and lit after a room-led is phrase', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Room Lighting Suggestions Map'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'Kitchen is ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
+  });
+
+  it('switches from the room placeholder to real matching rooms once typing begins', async () => {
+    const user = userEvent.setup();
+    let map = createEmptyMap('CLI Room Match Suggestions Map');
+    map = addRoom(map, { ...createRoom('Pool'), position: { x: 0, y: 0 } });
+    map = addRoom(map, { ...createRoom('Pool House'), position: { x: 40, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'show p');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['Pool', 'Pool House']);
+  });
+
+  it('keeps suggesting a longer multi-word room after a space inside the room reference', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Multi Word Room Suggestions Map'), { ...createRoom('Living Room'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'connect living ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(
+      expect.arrayContaining(['Living Room', 'north']),
+    );
+  });
+
+  it('leaves the input unchanged when the new-room placeholder is accepted', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Placeholder Accept Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create ');
+    await user.keyboard('{Tab}');
+
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveValue('create ');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+  });
+
+  it('shows adjective and relative-create suggestions after create plus a room name and space', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Create Modifier Suggestions Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create Kitchen ');
+
+    const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+    expect(optionText.some((text) => text.includes(', which is'))).toBe(true);
+    expect(optionText.some((text) => text.includes('above'))).toBe(true);
+    expect(optionText.some((text) => text.includes('north'))).toBe(true);
+  });
+
+  it('reuses an existing comma when accepting the adjective phrase suggestion', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Existing Comma Suggestion Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create foobar,');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('create foobar, which is ');
+  });
+
+  it('shows only "of" after a create direction and space', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Create Direction Suggestions Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create foobar north ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['of']);
+  });
+
+  it('requires a comma after create adjective phrases before showing directions', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Create Adjective Comma Suggestions Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'create foobar, which is lit ');
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual([',']);
+
+    await user.type(input, ', ');
+    const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
+    expect(optionText).toContain('north');
+  });
+
+  it('closes suggestions after a complete relative create phrase', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Complete Relative Create Map'), { ...createRoom('Pool'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'create foobar north of pool ');
+
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('closes the suggestion menu on Escape without clearing the current draft', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Escape Map');
+
+    const input = getCliInput();
+
+    await user.type(input, 'c');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(input).toHaveValue('c');
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('accepts a room suggestion and executes the resulting command', async () => {
+    const user = userEvent.setup();
+    const cellar = { ...createRoom('Cellar'), position: { x: 120, y: 160 } };
+    const map = addRoom(createEmptyMap('CLI Room Suggestion Map'), cellar);
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await user.type(input, 'show c');
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Enter}');
+
+    expectGameOutputToContain('show Cellar', 'Cellar');
+    expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Cellar')).toBe(true);
+  });
+
   it('navigates CLI command history with the up and down arrows', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI History Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.type(input, 'help{enter}');
     await user.type(input, 'arrange{enter}');
@@ -159,7 +419,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI History Ceiling Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.type(input, 'help{enter}');
     await user.type(input, 'arrange{enter}');
@@ -175,11 +435,12 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Draft Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.type(input, 'help{enter}');
     await user.type(input, 'arrange{enter}');
     await user.type(input, 'sho');
+    await user.keyboard('{Escape}');
 
     await user.keyboard('{ArrowUp}');
     expect(input).toHaveValue('arrange');
@@ -192,11 +453,12 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Draft Restore Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.type(input, 'help{enter}');
     await user.type(input, 'arrange{enter}');
     await user.type(input, 'sho');
+    await user.keyboard('{Escape}');
 
     await user.keyboard('{ArrowUp}');
     expect(input).toHaveValue('arrange');
@@ -209,7 +471,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Focus Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     const helpButton = screen.getByRole('button', { name: /help/i });
 
     helpButton.focus();
@@ -226,7 +488,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Output Focus Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.click(getGameOutputBox());
 
@@ -283,7 +545,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Slash Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
 
     await user.click(input);
     await user.keyboard('/');
@@ -521,7 +783,7 @@ describe('URL routing', () => {
     doc = addRoom(addRoom(doc, kitchen), hallway);
     await renderAppWithSavedMap(doc);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'connect Kitchen east to Hallway{enter}');
 
     expectGameOutputToContain(
@@ -540,7 +802,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli command list map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'help{enter}');
 
     expectGameOutputToContain(...getCliHelpOverviewLines());
@@ -556,7 +818,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli room help map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'help rooms{enter}');
 
     expectGameOutputToContain(...getCliHelpTopicLines('rooms'));
@@ -576,7 +838,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli arrange map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'arrange{enter}');
 
     const updatedDoc = useEditorStore.getState().doc!;
@@ -599,7 +861,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli prettify map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'prettify{enter}');
 
     const updatedDoc = useEditorStore.getState().doc!;
@@ -649,7 +911,7 @@ describe('URL routing', () => {
         toJSON: () => ({}),
       });
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       await act(async () => {
         fireEvent.change(input, { target: { value: 'create Kitchen' } });
         fireEvent.submit(input.closest('form') as HTMLFormElement);
@@ -717,7 +979,7 @@ describe('URL routing', () => {
         jest.advanceTimersByTime(200);
       });
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       await act(async () => {
         fireEvent.change(input, { target: { value: 'create Kitchen' } });
         fireEvent.submit(input.closest('form') as HTMLFormElement);
@@ -899,7 +1161,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli pronoun error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'edit it{enter}');
 
     expectGameOutputToContain('edit it', 'Nothing is currently bound to "it".');
@@ -935,7 +1197,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli delete map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'delete kitchen{enter}');
 
     const state = useEditorStore.getState();
@@ -954,7 +1216,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli delete error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'delete kitchen{enter}');
 
     expectGameOutputToContain(
@@ -1005,7 +1267,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli duplicate delete map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'delete kitchen{enter}');
 
     expectGameOutputToContain(
@@ -1044,7 +1306,7 @@ describe('URL routing', () => {
       renderApp();
       await screen.findByText(/cli edit map/i);
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       await act(async () => {
         fireEvent.change(input, { target: { value: 'edit kitchen' } });
         fireEvent.submit(input.closest('form') as HTMLFormElement);
@@ -1095,7 +1357,7 @@ describe('URL routing', () => {
       renderApp();
       await screen.findByText(/cli show map/i);
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       const canvas = screen.getByTestId('map-canvas');
       jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
         x: 0,
@@ -1207,7 +1469,7 @@ describe('URL routing', () => {
         useEditorStore.getState().setSelectedRoomIds(['kitchen']);
       });
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       const canvas = screen.getByTestId('map-canvas');
       jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
         x: 0,
@@ -1296,7 +1558,7 @@ describe('URL routing', () => {
       useEditorStore.getState().setSelectedRoomIds(['kitchen']);
     });
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'east{enter}');
 
     expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
@@ -1314,7 +1576,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli edit error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'edit kitchen{enter}');
 
     expectGameOutputToContain('edit kitchen', 'Unknown room "kitchen".');
@@ -1331,7 +1593,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli show error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'show kitchen{enter}');
 
     expectGameOutputToContain('show kitchen', 'Unknown room "kitchen".');
@@ -1365,7 +1627,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli notate map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'notate kitchen with this room has nice wallpaper{enter}');
 
     const state = useEditorStore.getState();
@@ -1398,7 +1660,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli lighting map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'Kitchen is dark{enter}');
     expect(useEditorStore.getState().doc?.rooms.kitchen?.isDark).toBe(true);
     expectGameOutputToContain('Kitchen is dark', 'marked as dark');
@@ -1412,7 +1674,7 @@ describe('URL routing', () => {
     await renderAppWithOpenMap('CLI Adjective Create Map');
 
     const user = userEvent.setup();
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen, which is dark{enter}');
 
     const createdRoom = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
@@ -1433,7 +1695,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli adjective connection map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen, which is dark, east of Hallway{enter}');
 
     const stateAfterRelativeCreate = useEditorStore.getState();
@@ -1477,7 +1739,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli annotate map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'annotate kitchen with remember the wallpaper{enter}');
 
     const stickyNotes = Object.values(useEditorStore.getState().doc?.stickyNotes ?? {});
@@ -1525,7 +1787,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli notate prettify map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'notate kitchen with this room has nice wallpaper{enter}');
 
     const state = useEditorStore.getState();
@@ -1572,7 +1834,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli duplicate edit map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'edit kitchen{enter}');
 
     expectGameOutputToContain(
@@ -1624,7 +1886,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli duplicate show map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'show kitchen{enter}');
 
     expectGameOutputToContain(
@@ -1644,7 +1906,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli notate error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'notate kitchen with hello{enter}');
 
     expectGameOutputToContain('notate kitchen with hello', 'Unknown room "kitchen".');
@@ -1690,7 +1952,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli duplicate notate map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'notate kitchen with hello{enter}');
 
     expectGameOutputToContain(
@@ -1739,7 +2001,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east one-way to hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -1795,7 +2057,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect two way map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -1858,7 +2120,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect replace map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to hallway{enter}');
     await user.clear(input);
     await user.type(input, 'connect kitchen east to pantry{enter}');
@@ -1928,7 +2190,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connection annotation map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'bedroom to bathroom is a locked door{enter}');
 
     let state = useEditorStore.getState();
@@ -1971,7 +2233,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     expectGameOutputToContain('connect kitchen east to hallway', 'Unknown room "hallway".');
@@ -2029,7 +2291,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect ambiguous map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     expectGameOutputToContain(
@@ -2064,7 +2326,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli self connect map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to kitchen west{enter}');
 
     const state = useEditorStore.getState();
@@ -2132,7 +2394,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli connect prettify map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'connect kitchen east to hallway{enter}');
 
     expect(useEditorStore.getState().doc?.rooms.pantry?.position).toEqual({ x: 480, y: 320 });
@@ -2164,7 +2426,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli unknown exit map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'west of bedroom is unknown{enter}');
 
     const state = useEditorStore.getState();
@@ -2210,7 +2472,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli vertical unknown exit map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'Above Bedroom is unknown{enter}');
 
     const state = useEditorStore.getState();
@@ -2249,7 +2511,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli replace pseudo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'west of bedroom goes on forever{enter}');
 
     const state = useEditorStore.getState();
@@ -2289,7 +2551,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli replace vertical pseudo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'Below Bedroom goes on forever{enter}');
 
     const state = useEditorStore.getState();
@@ -2325,7 +2587,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli death exit map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'west of castle lies death{enter}');
 
     const state = useEditorStore.getState();
@@ -2361,7 +2623,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli nowhere exit map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'west of castle leads nowhere{enter}');
 
     const state = useEditorStore.getState();
@@ -2401,7 +2663,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli create connect map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -2474,7 +2736,7 @@ describe('URL routing', () => {
         jest.advanceTimersByTime(200);
       });
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       await act(async () => {
         fireEvent.change(input, { target: { value: 'create and connect Kitchen east to Hallway' } });
         fireEvent.submit(input.closest('form') as HTMLFormElement);
@@ -2545,7 +2807,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli relative create connect map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen east of Hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -2586,7 +2848,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli convert placeholder map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Pantry west of Bedroom{enter}');
 
     const state = useEditorStore.getState();
@@ -2629,7 +2891,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli relative above below map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen above Hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -2689,7 +2951,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli create connect prettify map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
 
     const state = useEditorStore.getState();
@@ -2705,7 +2967,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli create connect error map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'create and connect Kitchen east to Hallway{enter}');
 
     expectGameOutputToContain(
@@ -2724,7 +2986,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli undo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen{enter}');
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
 
@@ -2742,7 +3004,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli redo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create Kitchen{enter}');
     await user.clear(input);
     await user.type(input, 'undo{enter}');
@@ -2763,7 +3025,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli empty undo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'undo{enter}');
 
     expectGameOutputToContain('undo', 'Nothing to undo.');
@@ -2779,7 +3041,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/cli empty redo map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'redo{enter}');
 
     expectGameOutputToContain('redo', 'Nothing to redo.');
@@ -2791,7 +3053,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Syntax Error Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     await user.type(input, 'create{enter}');
 
     expectGameOutputToContain(
@@ -2809,7 +3071,7 @@ describe('URL routing', () => {
   it('retains the full game output history', async () => {
     await renderAppWithOpenMap('CLI Output History Map');
 
-    const input = screen.getByRole('textbox', { name: /cli command/i });
+    const input = getCliInput();
     const form = input.closest('form') as HTMLFormElement;
 
     for (let index = 1; index <= 7; index += 1) {
@@ -2884,7 +3146,7 @@ describe('URL routing', () => {
     const firstRender = renderApp();
     await screen.findByText(/persisted output map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'help{enter}');
 
     await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
@@ -2928,7 +3190,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByText(/stale edit request map/i);
 
-    const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+    const input = getCliInput();
     await user.type(input, 'create room{enter}');
     await user.type(input, 'edit room{enter}');
 
@@ -2963,7 +3225,7 @@ describe('URL routing', () => {
         toJSON: () => ({}),
       });
 
-      const input = screen.getByRole('textbox', { name: /cli command/i }) as HTMLInputElement;
+      const input = getCliInput();
       await act(async () => {
         fireEvent.change(input, { target: { value: 'create room' } });
         fireEvent.submit(input.closest('form') as HTMLFormElement);

@@ -53,6 +53,10 @@ export function getCliHelpOverviewLines(): readonly string[] {
   return CLI_HELP.topicOrder.map((topic) => `help ${topic}`);
 }
 
+export function getCliHelpTopics(): readonly CliHelpTopic[] {
+  return CLI_HELP.topicOrder;
+}
+
 export function getCliHelpTopicLines(topic: CliHelpTopic): readonly string[] {
   return CLI_HELP.topicLines[topic] ?? [];
 }
