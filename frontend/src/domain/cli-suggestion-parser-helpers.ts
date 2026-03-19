@@ -1,7 +1,12 @@
-import { listCliSuggestionNextSymbols, type CliSuggestionNextSymbol } from './cli-suggestion-parser';
-import type { ActiveFragment } from './cli-suggestion-types';
+import {
+  listCliSuggestionNextSymbols,
+  listCliSuggestionNextSymbolsForTokens,
+  type CliSuggestionNextSymbol,
+  type CliSuggestionParseToken,
+} from './cli-suggestion-parser';
+import type { ActiveFragment, Token } from './cli-suggestion-types';
 
-function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
+function normalizeParserTokenValues(tokens: readonly string[]): readonly string[] {
   if (tokens[0] === 's') {
     return ['show', ...tokens.slice(1)];
   }
@@ -29,19 +34,40 @@ function normalizeParserTokens(tokens: readonly string[]): readonly string[] {
   return tokens;
 }
 
+function normalizeParserTokens(tokens: readonly Token[]): readonly CliSuggestionParseToken[] {
+  const normalizedValues = normalizeParserTokenValues(tokens.map((token) => token.value.toLowerCase()));
+
+  return tokens.map((token, index) => ({
+    text: normalizedValues[index] ?? token.value,
+    normalizedText: (normalizedValues[index] ?? token.value).toLowerCase(),
+    quoted: token.quoted ?? false,
+  }));
+}
+
+function createSyntheticTokens(values: readonly string[]): readonly Token[] {
+  return values.map((value) => ({ value, start: 0, end: value.length, quoted: false }));
+}
+
 export function getParserNextSymbolsForTokens(tokens: readonly string[]): readonly CliSuggestionNextSymbol[] {
-  const parserTokens = normalizeParserTokens(tokens);
-  return listCliSuggestionNextSymbols(parserTokens.join(' '));
+  return listCliSuggestionNextSymbolsForTokens(normalizeParserTokens(createSyntheticTokens(tokens)));
 }
 
 export function getParserNextSymbolsForFragment(fragment: ActiveFragment): readonly CliSuggestionNextSymbol[] {
-  return getParserNextSymbolsForTokens(fragment.precedingTokens.map((token) => token.value.toLowerCase()));
+  if ((fragment.quoted ?? false) && fragment.quoteClosed === false) {
+    return getParserNextSymbolsBeforeSlot(fragment, fragment.tokenIndex);
+  }
+
+  return listCliSuggestionNextSymbolsForTokens(normalizeParserTokens(fragment.precedingTokens));
 }
 
 export function getParserNextSymbolsForRawFragmentInput(
   input: string,
   fragment: ActiveFragment,
 ): readonly CliSuggestionNextSymbol[] {
+  if ((fragment.quoted ?? false) && fragment.quoteClosed === false) {
+    return getParserNextSymbolsBeforeSlot(fragment, fragment.tokenIndex);
+  }
+
   return listCliSuggestionNextSymbols(input.slice(0, fragment.caret).trimEnd().toLowerCase());
 }
 
@@ -49,9 +75,7 @@ export function getParserNextSymbolsBeforeSlot(
   fragment: ActiveFragment,
   slotStartTokenIndex: number,
 ): readonly CliSuggestionNextSymbol[] {
-  return getParserNextSymbolsForTokens(
-    fragment.precedingTokens
-      .slice(0, slotStartTokenIndex)
-      .map((token) => token.value.toLowerCase()),
+  return listCliSuggestionNextSymbolsForTokens(
+    normalizeParserTokens(fragment.precedingTokens.slice(0, slotStartTokenIndex)),
   );
 }

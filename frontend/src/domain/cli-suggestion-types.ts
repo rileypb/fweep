@@ -20,6 +20,7 @@ export interface Token {
   readonly value: string;
   readonly start: number;
   readonly end: number;
+  readonly quoted?: boolean;
 }
 
 export interface ActiveFragment {
@@ -27,8 +28,11 @@ export interface ActiveFragment {
   readonly end: number;
   readonly caret: number;
   readonly prefix: string;
+  readonly normalizedPrefix?: string;
   readonly tokenIndex: number;
   readonly precedingTokens: readonly Token[];
+  readonly quoted?: boolean;
+  readonly quoteClosed?: boolean;
 }
 
 export interface SuggestionResolution {

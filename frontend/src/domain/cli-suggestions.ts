@@ -170,8 +170,9 @@ function getSuggestionsForCommandContext(
 ): SuggestionResolution {
   const tokens = fragment.precedingTokens.map((token) => token.value.toLowerCase());
   const prefix = fragment.prefix;
-  const lastToken = tokens.at(-1) ?? null;
-  const canonicalLastDirection = getCanonicalDirectionToken(lastToken);
+  const lastPrecedingToken = fragment.precedingTokens.at(-1) ?? null;
+  const lastToken = lastPrecedingToken?.value.toLowerCase() ?? null;
+  const canonicalLastDirection = lastPrecedingToken?.quoted ? null : getCanonicalDirectionToken(lastToken);
 
   if (fragment.tokenIndex === 0) {
     return suggestionResolution([

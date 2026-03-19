@@ -211,6 +211,54 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('keeps quoted room-name suggestions in slot mode until the quote closes', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Suggestions Map');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'connect "Key West ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['Key West']);
+
+    await user.type(input, '" ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(
+      expect.arrayContaining(['north', 'east']),
+    );
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).not.toContain('to');
+  });
+
+  it('accepts a completed quoted room suggestion without duplicating the quotes', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Accept Map');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'show "Key ');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('show "Key West" ');
+  });
+
+  it('preserves quotes when accepting a first-token room suggestion', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Root Suggestion Map');
+    doc = addRoom(doc, { ...createRoom('store room'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, '"st');
+    await user.click(screen.getByRole('option', { name: /store room/i }));
+
+    expect(input).toHaveValue('"store room" ');
+  });
+
   it('uses arrow keys to navigate default suggestions before any typing', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Default Suggestion Navigation Map');

@@ -1020,11 +1020,17 @@ export function useAppCli({
       }
     }
 
+    const replacementText = cliCommand.slice(replaceStart, cliSuggestionResult.replaceEnd);
+    const shouldWrapInsertedTextInQuotes = replacementText.startsWith('"')
+      && !highlightedCliSuggestion.insertText.startsWith('"');
+    const baseInsertedText = shouldWrapInsertedTextInQuotes
+      ? `"${highlightedCliSuggestion.insertText.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+      : highlightedCliSuggestion.insertText;
     const suffixNeedsSpace = cliSuggestionResult.replaceEnd >= cliCommand.length
       || /\s|,/.test(cliCommand[cliSuggestionResult.replaceEnd] ?? '');
     const insertedText = suffixNeedsSpace
-      ? `${highlightedCliSuggestion.insertText} `
-      : highlightedCliSuggestion.insertText;
+      ? `${baseInsertedText} `
+      : baseInsertedText;
     const nextValue = `${cliCommand.slice(0, replaceStart)}${insertedText}${cliCommand.slice(cliSuggestionResult.replaceEnd)}`;
     const nextCaretIndex = replaceStart + insertedText.length;
     pendingSelectionRangeRef.current = { start: nextCaretIndex, end: nextCaretIndex };

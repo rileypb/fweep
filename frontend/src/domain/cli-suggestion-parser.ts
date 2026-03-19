@@ -3,11 +3,13 @@ import {
   type CliSuggestionGrammarState,
   type CliSuggestionGrammarSymbol,
 } from './cli-suggestion-grammar';
+import { tokenizeSuggestionInputWithCommas } from './cli-suggestion-fragments';
 import { isDirectionLikePrefix } from './cli-suggestion-grammar-helpers';
 
 export interface CliSuggestionParseToken {
   readonly text: string;
   readonly normalizedText: string;
+  readonly quoted: boolean;
 }
 
 export interface CliSuggestionParseState {
@@ -36,13 +38,60 @@ interface ParseCandidate {
 }
 
 function tokenizeSuggestionInput(input: string): readonly CliSuggestionParseToken[] {
-  return Array.from(input.matchAll(/,|[^\s,"]+/g))
-    .map((match) => match[0] ?? '')
-    .filter((text) => text.length > 0)
-    .map((text) => ({
-      text,
-      normalizedText: text.toLowerCase(),
-    }));
+  return tokenizeSuggestionInputWithCommas(input).map((token) => ({
+    text: token.value,
+    normalizedText: token.value.toLowerCase(),
+    quoted: token.quoted ?? false,
+  }));
+}
+
+export function listCliSuggestionNextSymbolsForTokens(
+  tokens: readonly CliSuggestionParseToken[],
+): readonly CliSuggestionNextSymbol[] {
+  const states = parseStatesForTokens(tokens);
+  const nextSymbols = new Map<string, CliSuggestionNextSymbol>();
+
+  for (const parseState of states) {
+    for (const symbol of parseState.nextSymbols) {
+      const key = getSymbolKey(symbol);
+      const existing = nextSymbols.get(key);
+      if (existing) {
+        nextSymbols.set(key, {
+          ...existing,
+          sourceStateIds: [...existing.sourceStateIds, parseState.stateId],
+        });
+        continue;
+      }
+
+      nextSymbols.set(key, {
+        key,
+        symbol,
+        sourceStateIds: [parseState.stateId],
+      });
+    }
+  }
+
+  return [...nextSymbols.values()];
+}
+
+function parseStatesForTokens(tokens: readonly CliSuggestionParseToken[]): readonly CliSuggestionParseState[] {
+  let candidates: readonly ParseCandidate[] = [{
+    stateId: 'ROOT',
+    consumedSymbols: [],
+    pendingSymbol: null,
+    remainingSymbolWords: [],
+  }];
+  for (const token of tokens) {
+    candidates = dedupeCandidates(candidates.flatMap((candidate) => consumeToken(candidate, token)));
+    if (candidates.length === 0) {
+      break;
+    }
+  }
+
+  const states = candidates
+    .map(createParseState)
+    .filter((state): state is CliSuggestionParseState => state !== null);
+  return states;
 }
 
 function createParseState(candidate: ParseCandidate): CliSuggestionParseState | null {
@@ -74,6 +123,10 @@ function matchKeywordLikeSymbol(
   token: CliSuggestionParseToken,
   symbol: Extract<CliSuggestionGrammarSymbol, { kind: 'keyword' | 'phrase' }>,
 ): boolean {
+  if (token.quoted) {
+    return false;
+  }
+
   return isPrefixMatch(token, symbol.text);
 }
 
@@ -88,10 +141,16 @@ function matchSlotSymbol(
 
   if (grammarState.id === 'ROOT') {
     if (symbol.slotType === 'DIRECTION') {
+      if (token.quoted) {
+        return false;
+      }
       return isDirectionLikePrefix(token.normalizedText);
     }
 
     if (symbol.slotType === 'ROOM_REF') {
+      if (token.quoted) {
+        return true;
+      }
       const rootState = getCliSuggestionGrammarState('ROOT');
       const rootKeywords = new Set(
         (rootState?.nextSymbols ?? [])
@@ -105,6 +164,9 @@ function matchSlotSymbol(
   }
 
   if (symbol.slotType === 'DIRECTION') {
+    if (token.quoted) {
+      return false;
+    }
     return isDirectionLikePrefix(token.normalizedText);
   }
 
@@ -231,27 +293,10 @@ function dedupeCandidates(candidates: readonly ParseCandidate[]): readonly Parse
 export function parseCliSuggestionInput(input: string): CliSuggestionParseResult {
   const tokens = tokenizeSuggestionInput(input);
 
-  let candidates: readonly ParseCandidate[] = [{
-    stateId: 'ROOT',
-    consumedSymbols: [],
-    pendingSymbol: null,
-    remainingSymbolWords: [],
-  }];
-  for (const token of tokens) {
-    candidates = dedupeCandidates(candidates.flatMap((candidate) => consumeToken(candidate, token)));
-    if (candidates.length === 0) {
-      break;
-    }
-  }
-
-  const states = candidates
-    .map(createParseState)
-    .filter((state): state is CliSuggestionParseState => state !== null);
-
   return {
     input,
     tokens,
-    states,
+    states: parseStatesForTokens(tokens),
   };
 }
 
@@ -287,30 +332,7 @@ function getSymbolKey(symbol: CliSuggestionGrammarSymbol): string {
 }
 
 export function listCliSuggestionNextSymbols(input: string): readonly CliSuggestionNextSymbol[] {
-  const parseResult = parseCliSuggestionInput(input);
-  const nextSymbols = new Map<string, CliSuggestionNextSymbol>();
-
-  for (const parseState of parseResult.states) {
-    for (const symbol of parseState.nextSymbols) {
-      const key = getSymbolKey(symbol);
-      const existing = nextSymbols.get(key);
-      if (existing) {
-        nextSymbols.set(key, {
-          ...existing,
-          sourceStateIds: [...existing.sourceStateIds, parseState.stateId],
-        });
-        continue;
-      }
-
-      nextSymbols.set(key, {
-        key,
-        symbol,
-        sourceStateIds: [parseState.stateId],
-      });
-    }
-  }
-
-  return [...nextSymbols.values()];
+  return listCliSuggestionNextSymbolsForTokens(tokenizeSuggestionInput(input));
 }
 
 export function describeCliSuggestionNextSymbols(input: string): readonly string[] {

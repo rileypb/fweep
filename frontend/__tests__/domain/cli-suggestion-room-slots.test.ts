@@ -43,16 +43,22 @@ describe('cli suggestion room slots', () => {
       end: 5,
       caret: 5,
       prefix: '',
+      normalizedPrefix: '',
       tokenIndex: 1,
-      precedingTokens: [{ value: 'show', start: 0, end: 4 }],
+      precedingTokens: [{ value: 'show', start: 0, end: 4, quoted: false }],
+      quoted: false,
+      quoteClosed: true,
     };
     const typingFragment = {
       start: 5,
       end: 7,
       caret: 7,
       prefix: 'li',
+      normalizedPrefix: 'li',
       tokenIndex: 1,
-      precedingTokens: [{ value: 'show', start: 0, end: 4 }],
+      precedingTokens: [{ value: 'show', start: 0, end: 4, quoted: false }],
+      quoted: false,
+      quoteClosed: true,
     };
 
     expect(getRoomReferenceResolution('show ', emptyFragment, doc, 1, helpers).suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
@@ -66,11 +72,14 @@ describe('cli suggestion room slots', () => {
       end: 13,
       caret: 13,
       prefix: '',
+      normalizedPrefix: '',
       tokenIndex: 2,
       precedingTokens: [
-        { value: 'show', start: 0, end: 4 },
-        { value: 'Kitchen', start: 5, end: 12 },
+        { value: 'show', start: 0, end: 4, quoted: false },
+        { value: 'Kitchen', start: 5, end: 12, quoted: false },
       ],
+      quoted: false,
+      quoteClosed: true,
     };
     const fallback = [{ id: 'fallback-is', kind: 'command' as const, label: 'is', insertText: 'is', detail: null }];
 
@@ -84,8 +93,11 @@ describe('cli suggestion room slots', () => {
       end: 12,
       caret: 12,
       prefix: '',
+      normalizedPrefix: '',
       tokenIndex: 1,
-      precedingTokens: [{ value: 'show', start: 0, end: 4 }],
+      precedingTokens: [{ value: 'show', start: 0, end: 4, quoted: false }],
+      quoted: false,
+      quoteClosed: true,
     };
     const fallback = [{ id: 'fallback-to', kind: 'command' as const, label: 'to', insertText: 'to', detail: null }];
 
@@ -101,8 +113,11 @@ describe('cli suggestion room slots', () => {
       end: 3,
       caret: 3,
       prefix: 'Kit',
+      normalizedPrefix: 'kit',
       tokenIndex: 0,
       precedingTokens: [],
+      quoted: false,
+      quoteClosed: true,
     };
     const fallback = [{ id: 'fallback-is', kind: 'command' as const, label: 'is', insertText: 'is', detail: null }];
 
@@ -124,16 +139,59 @@ describe('cli suggestion room slots', () => {
       end: 11,
       caret: 11,
       prefix: '',
+      normalizedPrefix: '',
       tokenIndex: 2,
       precedingTokens: [
-        { value: 'Kitchen', start: 0, end: 7 },
-        { value: 'to', start: 8, end: 10 },
+        { value: 'Kitchen', start: 0, end: 7, quoted: false },
+        { value: 'to', start: 8, end: 10, quoted: false },
       ],
+      quoted: false,
+      quoteClosed: true,
     };
     const fallback = [{ id: 'fallback-is', kind: 'command' as const, label: 'is', insertText: 'is', detail: null }];
 
     expect(
       getConnectedRoomReferenceResolution('Kitchen to ', fragment, doc, 2, 'Kitchen', fallback, helpers).suggestions.map((suggestion) => suggestion.label),
     ).toEqual(['Hallway']);
+  });
+
+  it('keeps open quoted room references in slot mode and hands off after the quote closes', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    const openQuotedFragment = {
+      start: 5,
+      end: 15,
+      caret: 15,
+      prefix: '"Key West ',
+      normalizedPrefix: 'key west',
+      tokenIndex: 1,
+      precedingTokens: [{ value: 'show', start: 0, end: 4, quoted: false }],
+      quoted: true,
+      quoteClosed: false,
+    };
+    const closedQuotedFragment = {
+      start: 16,
+      end: 16,
+      caret: 16,
+      prefix: '',
+      normalizedPrefix: '',
+      tokenIndex: 2,
+      precedingTokens: [
+        { value: 'show', start: 0, end: 4, quoted: false },
+        { value: 'Key West', start: 5, end: 15, quoted: true },
+      ],
+      quoted: false,
+      quoteClosed: true,
+    };
+    const fallback = [{ id: 'fallback-is', kind: 'command' as const, label: 'is', insertText: 'is', detail: null }];
+
+    expect(
+      getRoomReferenceResolutionWithFallback('show "Key West ', openQuotedFragment, doc, 1, fallback, helpers)
+        .suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Key West']);
+
+    expect(
+      getRoomReferenceResolutionWithFallback('show "Key West" ', closedQuotedFragment, doc, 1, fallback, helpers)
+        .suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['is']);
   });
 });

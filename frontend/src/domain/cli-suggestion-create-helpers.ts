@@ -67,12 +67,13 @@ export function getCreateCommandResolution(
   dependencies: CreateResolutionDependencies,
 ): SuggestionResolution {
   const prefix = fragment.prefix;
+  const isOpenQuotedSlot = (fragment.quoted ?? false) && fragment.quoteClosed === false;
   const hasCompletedCreatePhrase = hasCompletedCreateAdjectivePhrase(tokens);
   const parserBackedCreateContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(input, fragment, {
     disallowNewRoomContinuation: hasCompletedCreatePhrase,
   });
 
-  if (fragment.tokenIndex === 1) {
+  if (fragment.tokenIndex === 1 && !isOpenQuotedSlot) {
     return suggestionResolution([
       ...createPlaceholderSuggestion('<new room name>'),
       ...createKeywordSuggestions(prefix, ['and']),
@@ -144,22 +145,27 @@ export function getCreateCommandResolution(
   }
 
   const isStillTypingCreateRoomName = tokens.length > 1
-    && canonicalLastDirection === null
-    && verticalCreateIndex === -1
-    && ofIndex === -1
-    && !trimmedBeforeFragment.endsWith(',')
-    && lastToken !== 'which'
-    && !(tokens.at(-2) === 'which' && lastToken === 'is')
+    || isOpenQuotedSlot
+    ? canonicalLastDirection === null
+      && verticalCreateIndex === -1
+      && ofIndex === -1
+      && !trimmedBeforeFragment.endsWith(',')
+      && lastToken !== 'which'
+      && !(tokens.at(-2) === 'which' && lastToken === 'is')
     && lastToken !== 'dark'
-    && lastToken !== 'lit';
+    && lastToken !== 'lit'
+    : false;
+  const createRoomNameContinuationSuggestions = !isOpenQuotedSlot
+    ? (parserBackedCreateContinuationSuggestions ?? [
+      ...createKeywordSuggestions(prefix, [', which is', 'above', 'below']),
+      ...createDirectionSuggestions(prefix),
+    ])
+    : [];
 
   if (isStillTypingCreateRoomName) {
     return suggestionResolution([
       ...createPlaceholderSuggestion('<new room name>'),
-      ...(parserBackedCreateContinuationSuggestions ?? [
-        ...createKeywordSuggestions(prefix, [', which is', 'above', 'below']),
-        ...createDirectionSuggestions(prefix),
-      ]),
+      ...createRoomNameContinuationSuggestions,
     ]);
   }
 
@@ -189,12 +195,13 @@ export function getCreateAndConnectIntroResolution(
   dependencies: CreateResolutionDependencies,
 ): SuggestionResolution {
   const prefix = fragment.prefix;
+  const isOpenQuotedSlot = (fragment.quoted ?? false) && fragment.quoteClosed === false;
   const hasCompletedCreateAndConnectAdjectivePhrase = hasCompletedCreateAdjectivePhrase(tokens);
   const parserBackedCreateAndConnectContinuationSuggestions = dependencies.getParserBackedCreateContinuationSuggestions(input, fragment, {
     disallowNewRoomContinuation: hasCompletedCreateAndConnectAdjectivePhrase,
   });
 
-  if (fragment.tokenIndex === 3) {
+  if (fragment.tokenIndex === 3 && !isOpenQuotedSlot) {
     return suggestionResolution(createPlaceholderSuggestion('<new room name>'));
   }
 
@@ -245,7 +252,9 @@ export function getCreateAndConnectIntroResolution(
     return parserBackedConnectTailResolution;
   }
 
-  const isStillTypingCreateAndConnectRoomName = tokens.length > 3
+  const isStillTypingCreateAndConnectRoomName = (
+    tokens.length > 3 || isOpenQuotedSlot
+  )
     && canonicalLastDirection === null
     && tokens.indexOf('to') === -1
     && !input.slice(0, fragment.start).trimEnd().endsWith(',')
@@ -253,13 +262,16 @@ export function getCreateAndConnectIntroResolution(
     && !(tokens.at(-2) === 'which' && lastToken === 'is')
     && lastToken !== 'dark'
     && lastToken !== 'lit';
+  const createAndConnectRoomNameContinuationSuggestions = !isOpenQuotedSlot
+    ? (parserBackedCreateAndConnectContinuationSuggestions ?? [
+      ...createKeywordSuggestions(prefix, [', which is']),
+      ...createDirectionSuggestions(prefix),
+    ])
+    : [];
   if (isStillTypingCreateAndConnectRoomName) {
     return suggestionResolution([
       ...createPlaceholderSuggestion('<new room name>'),
-      ...(parserBackedCreateAndConnectContinuationSuggestions ?? [
-        ...createKeywordSuggestions(prefix, [', which is']),
-        ...createDirectionSuggestions(prefix),
-      ]),
+      ...createAndConnectRoomNameContinuationSuggestions,
     ]);
   }
 

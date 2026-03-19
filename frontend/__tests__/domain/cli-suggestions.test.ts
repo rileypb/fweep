@@ -121,6 +121,63 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['to']);
   });
 
+  it('stays inside an open quoted slot instead of advancing grammar', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Bedroom'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 2, y: 0 } });
+
+    expect(
+      getCliSuggestions('connect "Key West ', 'connect "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Key West']);
+
+    expect(
+      getCliSuggestions('connect "Key West" ', 'connect "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['north', 'east']));
+    expect(
+      getCliSuggestions('connect "Key West" ', 'connect "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).not.toContain('to');
+
+    expect(
+      getCliSuggestions('connect Kitchen north to "Bed ', 'connect Kitchen north to "Bed '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Bedroom']);
+
+    expect(
+      getCliSuggestions('create "Key West ', 'create "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>']));
+
+    expect(
+      getCliSuggestions('create "Key West ', 'create "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).not.toEqual(expect.arrayContaining([', which is', 'north']));
+
+    expect(
+      getCliSuggestions('create "Key West" ', 'create "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
+
+    expect(
+      getCliSuggestions('the way east of "Living ', 'the way east of "Living '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Living Room']);
+  });
+
+  it('treats quoted syntax words as room names instead of grammar', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('north'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Hallway'), position: { x: 1, y: 0 } });
+
+    expect(
+      getCliSuggestions('connect "north" ', 'connect "north" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['north', 'east']));
+  });
+
   it('keeps parser-backed connect tail suggestions on direction and one-way states', () => {
     expect(
       getCliSuggestions('connect Kitchen north ', 'connect Kitchen north '.length, createEmptyMap('Test'))

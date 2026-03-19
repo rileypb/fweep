@@ -86,6 +86,8 @@ export function getConnectCommandResolution(
   dependencies: ConnectResolutionDependencies,
 ): SuggestionResolution {
   const prefix = fragment.prefix;
+  const lastPrecedingToken = fragment.precedingTokens.at(-1) ?? null;
+  const lastTokenIsQuoted = lastPrecedingToken?.quoted ?? false;
   const isCreateAndConnectIntro = tokens[0] === 'create'
     && tokens[1] === 'and'
     && (tokens[2] === 'connect' || tokens[2] === 'con');
@@ -127,11 +129,16 @@ export function getConnectCommandResolution(
 
   if (
     lastToken !== null
-    && !isExactDirectionToken(lastToken)
-    && lastToken !== 'one-way'
-    && lastToken !== 'oneway'
-    && lastToken !== 'way'
-    && lastToken !== 'to'
+    && (
+      lastTokenIsQuoted
+      || (
+        !isExactDirectionToken(lastToken)
+        && lastToken !== 'one-way'
+        && lastToken !== 'oneway'
+        && lastToken !== 'way'
+        && lastToken !== 'to'
+      )
+    )
     && (prefix.length === 0 || !isDirectionLikePrefix(prefix))
   ) {
     const sourceRoomResolution = getRoomReferenceResolutionWithFallback(

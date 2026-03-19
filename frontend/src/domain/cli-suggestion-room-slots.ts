@@ -22,7 +22,11 @@ function tokenizeRoomReferenceWords(value: string): readonly string[] {
     .filter((token) => token.length > 0);
 }
 
-function roomMatchesReferencePrefix(roomName: string, typedRoomText: string): boolean {
+function roomMatchesReferencePrefix(roomName: string, typedRoomText: string, exact: boolean): boolean {
+  if (exact) {
+    return normalizeRoomReferenceText(roomName).startsWith(normalizeRoomReferenceText(typedRoomText));
+  }
+
   const typedWords = tokenizeRoomReferenceWords(typedRoomText);
   if (typedWords.length === 0) {
     return false;
@@ -32,12 +36,16 @@ function roomMatchesReferencePrefix(roomName: string, typedRoomText: string): bo
   return typedWords.every((typedWord) => roomWords.some((roomWord) => roomWord.startsWith(typedWord)));
 }
 
-function createRoomSuggestion(room: Room): CliSuggestion {
+function quoteCliSuggestionValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function createRoomSuggestion(room: Room, quoted = false): CliSuggestion {
   return {
     id: `cli-suggestion-room-${room.id}`,
     kind: 'room',
     label: room.name,
-    insertText: room.name,
+    insertText: quoted ? quoteCliSuggestionValue(room.name) : room.name,
     detail: 'Room',
   };
 }
@@ -51,14 +59,68 @@ export function createRoomSuggestions(doc: MapDocument | null, prefix: string): 
   return Object.values(doc.rooms)
     .filter((room) => room.name.toLowerCase().split(/\s+/).some((part) => part.startsWith(normalizedPrefix)))
     .sort((left, right) => left.name.localeCompare(right.name))
-    .map(createRoomSuggestion);
+    .map((room) => createRoomSuggestion(room));
 }
 
-function createRoomSuggestionsFromRooms(rooms: readonly Room[]): readonly CliSuggestion[] {
+function createRoomSuggestionsFromRooms(rooms: readonly Room[], quoted = false): readonly CliSuggestion[] {
   return rooms
     .slice()
     .sort((left, right) => left.name.localeCompare(right.name))
-    .map(createRoomSuggestion);
+    .map((room) => createRoomSuggestion(room, quoted));
+}
+
+interface RoomSlotTextInfo {
+  readonly text: string;
+  readonly exact: boolean;
+  readonly quoteClosed: boolean;
+}
+
+function getRoomSlotTextInfo(input: string, fragment: ActiveFragment, slotStart: number): RoomSlotTextInfo {
+  const rawText = input.slice(slotStart, fragment.caret);
+  if (!rawText.startsWith('"')) {
+    return {
+      text: rawText,
+      exact: false,
+      quoteClosed: true,
+    };
+  }
+
+  let text = '';
+  let index = 1;
+  while (index < rawText.length) {
+    const current = rawText[index];
+    if (current === '\\') {
+      const next = rawText[index + 1];
+      if (next === '"' || next === '\\') {
+        text += next;
+        index += 2;
+        continue;
+      }
+
+      return {
+        text,
+        exact: true,
+        quoteClosed: false,
+      };
+    }
+
+    if (current === '"') {
+      return {
+        text,
+        exact: true,
+        quoteClosed: true,
+      };
+    }
+
+    text += current;
+    index += 1;
+  }
+
+  return {
+    text,
+    exact: true,
+    quoteClosed: false,
+  };
 }
 
 function getConnectedRooms(doc: MapDocument, sourceRoom: Room): readonly Room[] {
@@ -83,13 +145,13 @@ function hasCompletedRoomReferenceBeforeFragment(
   doc: MapDocument | null,
   slotStartTokenIndex: number,
 ): boolean {
-  if (doc === null || fragment.prefix.length === 0) {
+  if (doc === null) {
     return false;
   }
 
   const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.start);
-  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
+  const roomSlotText = getRoomSlotTextInfo(input, { ...fragment, caret: fragment.start }, slotStart);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(roomSlotText.text);
   if (normalizedTypedRoomText.length === 0) {
     return false;
   }
@@ -107,8 +169,8 @@ export function getRoomReferenceResolution(
   helpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution {
   const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
+  const roomSlotText = getRoomSlotTextInfo(input, fragment, slotStart);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(roomSlotText.text);
 
   if (normalizedTypedRoomText.length === 0) {
     return {
@@ -129,11 +191,11 @@ export function getRoomReferenceResolution(
   }
 
   const matchingRooms = Object.values(doc.rooms)
-    .filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText))
+    .filter((room) => roomMatchesReferencePrefix(room.name, roomSlotText.text, roomSlotText.exact))
     .sort((left, right) => left.name.localeCompare(right.name))
-    .map(createRoomSuggestion);
+    .map((room) => createRoomSuggestion(room, roomSlotText.exact));
 
-  if (fragment.prefix.length === 0) {
+  if (fragment.prefix.length === 0 && roomSlotText.quoteClosed) {
     const hasLongerMatch = matchingRooms.some(
       (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
     );
@@ -165,12 +227,13 @@ export function getRoomReferenceResolutionWithFallback(
 ): SuggestionResolution {
   const roomResolution = getRoomReferenceResolution(input, fragment, doc, slotStartTokenIndex, helpers);
   const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const hasTypedRoomText = normalizeRoomReferenceText(typedRoomText).length > 0;
-  const shouldOfferFallback = hasTypedRoomText && fragment.prefix.length === 0;
+  const roomSlotText = getRoomSlotTextInfo(input, fragment, slotStart);
+  const hasTypedRoomText = normalizeRoomReferenceText(roomSlotText.text).length > 0;
+  const shouldOfferFallback = hasTypedRoomText && fragment.prefix.length === 0 && roomSlotText.quoteClosed;
 
   if (
     !shouldOfferFallback
+    && roomSlotText.quoteClosed
     && hasCompletedRoomReferenceBeforeFragment(input, fragment, doc, slotStartTokenIndex)
   ) {
     return {
@@ -272,12 +335,12 @@ export function getConnectedRoomReferenceResolution(
   }
 
   const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
-  const typedRoomText = input.slice(slotStart, fragment.caret);
-  const normalizedTypedRoomText = normalizeRoomReferenceText(typedRoomText);
+  const roomSlotText = getRoomSlotTextInfo(input, fragment, slotStart);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(roomSlotText.text);
 
   if (normalizedTypedRoomText.length === 0) {
     return {
-      suggestions: createRoomSuggestionsFromRooms(connectedRooms),
+      suggestions: createRoomSuggestionsFromRooms(connectedRooms, roomSlotText.exact),
       replaceStart: slotStart,
       replaceEnd: fragment.end,
       prefix: '',
@@ -285,10 +348,11 @@ export function getConnectedRoomReferenceResolution(
   }
 
   const matchingRooms = createRoomSuggestionsFromRooms(
-    connectedRooms.filter((room) => roomMatchesReferencePrefix(room.name, typedRoomText)),
+    connectedRooms.filter((room) => roomMatchesReferencePrefix(room.name, roomSlotText.text, roomSlotText.exact)),
+    roomSlotText.exact,
   );
 
-  if (fragment.prefix.length === 0) {
+  if (fragment.prefix.length === 0 && roomSlotText.quoteClosed) {
     const hasLongerMatch = matchingRooms.some(
       (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
     );
