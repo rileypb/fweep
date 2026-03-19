@@ -90,6 +90,7 @@ export function AppCliPanel({
   const suggestionOptionRefs = React.useRef<Array<HTMLDivElement | null>>([]);
   const previousOutputLengthRef = React.useRef<number | null>(null);
   const announcementFrameRef = React.useRef<number | null>(null);
+  const isSuggestionMenuInteractive = isSuggestionMenuOpen && isCliInputFocused;
   const activeSuggestion = isSuggestionMenuOpen
     ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
     : null;
@@ -252,14 +253,14 @@ export function AppCliPanel({
                   return;
                 }
 
-                if (event.key === 'Escape' && isSuggestionMenuOpen) {
+                if (event.key === 'Escape' && isSuggestionMenuInteractive) {
                   event.preventDefault();
                   event.stopPropagation();
                   onCloseSuggestions();
                   return;
                 }
 
-                if (event.key === 'Tab' && isSuggestionMenuOpen) {
+                if (event.key === 'Tab' && isSuggestionMenuInteractive) {
                   const accepted = onAcceptHighlightedSuggestion();
                   if (accepted) {
                     event.preventDefault();
@@ -269,7 +270,7 @@ export function AppCliPanel({
                 }
 
                 if ((event.key === 'ArrowUp' || event.key === 'ArrowDown')
-                  && isSuggestionMenuOpen) {
+                  && isSuggestionMenuInteractive) {
                   event.preventDefault();
                   event.stopPropagation();
                   onCliSuggestionHighlightMove(event.key === 'ArrowUp' ? 'up' : 'down');

@@ -385,15 +385,17 @@ export function useAppCli({
   const latestGameOutputLinesRef = useRef<readonly string[]>([]);
   const latestStoreDocRef = useRef<MapDocument | null>(null);
   const latestActiveMapRef = useRef<MapDocument | null>(activeMap);
+  const latestAreCliSuggestionsEnabledRef = useRef(areCliSuggestionsEnabled);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSelectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   latestGameOutputLinesRef.current = gameOutputLines;
   latestStoreDocRef.current = storeDoc;
   latestActiveMapRef.current = activeMap;
+  latestAreCliSuggestionsEnabledRef.current = areCliSuggestionsEnabled;
   const hasOpenMap = activeMap !== null;
   const cliSuggestionResult = getCliSuggestions(cliCommand, cliCaretIndex, storeDoc);
   const cliSuggestions = cliSuggestionResult?.suggestions ?? [];
-  const isCliSuggestionMenuOpen = isCliInputFocused && cliHistoryIndex === null && areCliSuggestionsEnabled && cliSuggestions.length > 0;
+  const isCliSuggestionMenuOpen = cliHistoryIndex === null && areCliSuggestionsEnabled && cliSuggestions.length > 0;
   const highlightedCliSuggestion = isCliSuggestionMenuOpen
     ? cliSuggestions[Math.min(highlightedCliSuggestionIndex, cliSuggestions.length - 1)] ?? null
     : null;
@@ -539,7 +541,7 @@ export function useAppCli({
       queueMicrotask(() => {
         suppressNextCliSlashToggleRef.current = false;
       });
-      focusCliInput(false);
+      focusCliInput(latestAreCliSuggestionsEnabledRef.current);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -1160,8 +1162,6 @@ export function useAppCli({
 
   const handleCliInputBlur = () => {
     setIsCliInputFocused(false);
-    setAreCliSuggestionsEnabled(false);
-    setHighlightedCliSuggestionIndex(0);
   };
 
   const toggleCliSuggestions = () => {
@@ -1389,6 +1389,6 @@ export function useAppCli({
     applyHighlightedCliSuggestion,
     closeCliSuggestions,
     handleImportScriptChange,
-    handleGameOutputClick: () => focusCliInput(false),
+    handleGameOutputClick: () => focusCliInput(areCliSuggestionsEnabled),
   };
 }

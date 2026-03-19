@@ -797,7 +797,9 @@ describe('URL routing', () => {
     const input = getCliInput();
     const helpButton = screen.getByRole('button', { name: /help/i });
 
-    helpButton.focus();
+    act(() => {
+      helpButton.focus();
+    });
     expect(document.activeElement).toBe(helpButton);
 
     await user.keyboard('/');
@@ -809,21 +811,23 @@ describe('URL routing', () => {
     expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
-  it('keeps suggestions closed when refocusing the CLI via / after they were previously open', async () => {
+  it('keeps suggestions visible when refocusing the CLI via / after they were previously open', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Refocus Slash Map');
 
     const input = getCliInput();
+    const helpButton = screen.getByRole('button', { name: /^help$/i });
     await user.click(input);
     await user.keyboard('/');
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
 
-    fireEvent.blur(input);
+    helpButton.focus();
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
 
     await user.keyboard('/');
 
     expect(document.activeElement).toBe(input);
-    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
   it('focuses the CLI input when the output log is clicked', async () => {
@@ -839,7 +843,7 @@ describe('URL routing', () => {
     expect(input.selectionEnd).toBe(input.value.length);
   });
 
-  it('keeps suggestions closed when the output log refocuses the CLI after they were previously open', async () => {
+  it('keeps suggestions visible when the output log refocuses the CLI after they were previously open', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Output Refocus Map');
 
@@ -850,11 +854,12 @@ describe('URL routing', () => {
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
 
     fireEvent.blur(input);
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
 
     await user.click(getGameOutputBox());
 
     expect(document.activeElement).toBe(input);
-    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
   it('shows the output-log collapse button above the log', async () => {
