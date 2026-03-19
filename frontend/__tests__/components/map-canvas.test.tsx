@@ -3856,6 +3856,34 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-hit-target-${westNorthConnection.id}`).tagName.toLowerCase()).toBe('path');
     });
 
+    it('renders a gap when an unrelated connection crosses a pseudo-room', () => {
+      const doc = createEmptyMap('Pseudo Gap');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      const unknown = { ...createPseudoRoom('unknown'), id: 'unknown', position: { x: 100, y: 120 } };
+      let d = addRoom(doc, northOfHouse);
+      d = addRoom(d, westOfHouse);
+      d = addRoom(d, attic);
+      d = addPseudoRoom(d, unknown);
+      const westNorthConnection = createConnection(westOfHouse.id, northOfHouse.id, true);
+      const westUnknownConnection = createConnection(westOfHouse.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      d = addConnection(d, westNorthConnection, 'north', 'west');
+      d = addConnection(d, westUnknownConnection, 'west');
+      loadDocumentAct(d);
+
+      renderMapCanvas();
+
+      const westNorthSegments = screen.getAllByTestId(/connection-line-segment-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+      const gapCrossbars = screen.getAllByTestId(/connection-gap-crossbar-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+
+      expect(westNorthSegments.length).toBeGreaterThanOrEqual(2);
+      expect(gapCrossbars).toHaveLength(2);
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
+    });
+
     it('does not render an arrowhead for a bidirectional connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };

@@ -43,8 +43,10 @@ import {
   getDirectionalAnnotationRenderIntent,
   getDerivedVerticalAnnotationKind,
   getLongestSegment,
+  getRoomPassThroughBounds,
   getVisibleConnectionSegments,
   normalizeReadableTextRotation,
+  type PassThroughObstacle,
 } from '../graph/connection-decoration-geometry';
 
 const CONNECTION_ANNOTATION_OFFSET = 8;
@@ -257,6 +259,30 @@ export function MapCanvasConnections({
       : getPseudoRoomNodeDimensionsForRoom(room, visualStyle)
   );
 
+  const gapObstacles: Readonly<Record<string, PassThroughObstacle>> = Object.fromEntries([
+    ...Object.entries(rooms).map(([roomId, room]) => [
+      roomId,
+      getRoomPassThroughBounds(getRoomForVisualStyle(room, visualStyle), visualStyle),
+    ]),
+    ...Object.entries(pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => {
+      const visualRoom = getRoomForVisualStyle(
+        toPseudoRoomVisualRoom(applyPseudoRoomDragOffset(pseudoRoom, selectionDrag)),
+        visualStyle,
+      );
+      const dimensions = getPseudoRoomNodeDimensionsForRoom(visualRoom, visualStyle);
+      return [
+        pseudoRoomId,
+        {
+          id: pseudoRoomId,
+          left: visualRoom.position.x - 6,
+          right: visualRoom.position.x + dimensions.width + 6,
+          top: visualRoom.position.y - 6,
+          bottom: visualRoom.position.y + dimensions.height + 6,
+        },
+      ];
+    }),
+  ]);
+
   const beginConnectionEndpointDrag = (
     connectionId: string,
     endpoint: 'start' | 'end',
@@ -414,18 +440,12 @@ export function MapCanvasConnections({
       ? getVisibleConnectionSegments(
         conn,
         points,
-        Object.fromEntries(
-          Object.entries(rooms).map(([roomId, room]) => [roomId, getRoomForVisualStyle(room, visualStyle)]),
-        ),
-        visualStyle,
+        gapObstacles,
       )
       : getVisibleConnectionSegments(
         conn,
         geometry,
-        Object.fromEntries(
-          Object.entries(rooms).map(([roomId, room]) => [roomId, getRoomForVisualStyle(room, visualStyle)]),
-        ),
-        visualStyle,
+        gapObstacles,
       );
     const usesGapRendering = !(conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)
       && visiblePolylineResult.hasGap;

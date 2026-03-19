@@ -42,8 +42,10 @@ import {
   getDerivedVerticalAnnotationKind,
   getDirectionalAnnotationGeometry,
   getLongestSegment,
+  getRoomPassThroughBounds,
   getVisibleConnectionSegments,
   normalizeReadableTextRotation,
+  type PassThroughObstacle,
 } from '../graph/connection-decoration-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
@@ -503,11 +505,33 @@ function drawConnectionLine(
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
   if (!(connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id)) {
+    const gapObstacles: Readonly<Record<string, PassThroughObstacle>> = Object.fromEntries([
+      ...Object.entries(doc.rooms).map(([roomId, room]) => [
+        roomId,
+        getRoomPassThroughBounds(getRoomForVisualStyle(room, doc.view.visualStyle), doc.view.visualStyle),
+      ]),
+      ...Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => {
+        const visualRoom = getRoomForVisualStyle(
+          toPseudoRoomVisualRoom(pseudoRoom),
+          doc.view.visualStyle,
+        );
+        const dimensions = getPseudoRoomNodeDimensionsForRoom(visualRoom, doc.view.visualStyle);
+        return [
+          pseudoRoomId,
+          {
+            id: pseudoRoomId,
+            left: visualRoom.position.x - 6,
+            right: visualRoom.position.x + dimensions.width + 6,
+            top: visualRoom.position.y - 6,
+            bottom: visualRoom.position.y + dimensions.height + 6,
+          },
+        ];
+      }),
+    ]);
     const visibleGapResult = getVisibleConnectionSegments(
       connection,
       geometry.kind === 'polyline' ? points : geometry,
-      doc.rooms,
-      doc.view.visualStyle,
+      gapObstacles,
     );
     if (visibleGapResult.hasGap) {
       visibleGapResult.segments.forEach((segment) => {

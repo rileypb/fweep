@@ -75,12 +75,21 @@ interface PolylineSegmentInfo {
   readonly endDistance: number;
 }
 
-function getRoomBounds(
+export interface PassThroughObstacle {
+  readonly id: string;
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+export function getRoomPassThroughBounds(
   room: Room,
   visualStyle: MapVisualStyle = 'default',
-): { left: number; right: number; top: number; bottom: number } {
+): PassThroughObstacle {
   const dimensions = getRoomNodeDimensions(room, visualStyle);
   return {
+    id: room.id,
     left: room.position.x - PASS_THROUGH_GAP_PADDING,
     right: room.position.x + dimensions.width + PASS_THROUGH_GAP_PADDING,
     top: room.position.y - PASS_THROUGH_GAP_PADDING,
@@ -91,8 +100,7 @@ function getRoomBounds(
 function getSegmentGapIntervals(
   start: Point,
   end: Point,
-  roomsToSkipAcross: readonly Room[],
-  visualStyle: MapVisualStyle = 'default',
+  obstaclesToSkipAcross: readonly PassThroughObstacle[],
 ): readonly { start: number; end: number }[] {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -100,8 +108,7 @@ function getSegmentGapIntervals(
     return [];
   }
 
-  const intervals = roomsToSkipAcross.flatMap((room) => {
-    const bounds = getRoomBounds(room, visualStyle);
+  const intervals = obstaclesToSkipAcross.flatMap((bounds) => {
     let tMin = 0;
     let tMax = 1;
 
@@ -282,8 +289,7 @@ export function getLongestSegment(points: readonly Point[]): { start: Point; end
 export function getVisibleConnectionSegments(
   connection: Connection,
   pointsOrGeometry: readonly Point[] | ConnectionRenderGeometry,
-  rooms: Readonly<Record<string, Room>>,
-  visualStyle: MapVisualStyle = 'default',
+  obstacles: Readonly<Record<string, PassThroughObstacle>>,
 ): VisibleConnectionSegmentsResult {
   const points = 'kind' in pointsOrGeometry
     ? flattenConnectionGeometry(pointsOrGeometry)
@@ -292,9 +298,9 @@ export function getVisibleConnectionSegments(
     return { segments: [], crossbars: [], hasGap: false };
   }
 
-  const unrelatedRooms = Object.values(rooms).filter((room) => (
-    room.id !== connection.sourceRoomId
-    && !(connection.target.kind === 'room' && room.id === connection.target.id)
+  const unrelatedObstacles = Object.values(obstacles).filter((obstacle) => (
+    obstacle.id !== connection.sourceRoomId
+    && obstacle.id !== connection.target.id
   ));
   const segmentInfos: PolylineSegmentInfo[] = [];
   let totalLength = 0;
@@ -314,7 +320,7 @@ export function getVisibleConnectionSegments(
 
   const mergedGapIntervals = segmentInfos
     .flatMap((segmentInfo) => (
-      getSegmentGapIntervals(segmentInfo.start, segmentInfo.end, unrelatedRooms, visualStyle)
+      getSegmentGapIntervals(segmentInfo.start, segmentInfo.end, unrelatedObstacles)
         .map((interval) => ({
           start: segmentInfo.startDistance + (segmentInfo.length * interval.start),
           end: segmentInfo.startDistance + (segmentInfo.length * interval.end),
