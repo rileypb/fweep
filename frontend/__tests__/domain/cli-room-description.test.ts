@@ -38,7 +38,7 @@ describe('cli room description', () => {
     doc = addConnection(doc, { ...createConnection('living-room', { kind: 'pseudo-room', id: 'unknown-west' }, false), id: 'west-connection' }, 'west');
 
     expect(describeRoomForCli(doc, 'living-room')).toBe(
-      'From living room, one can go north to the dining room or northeast to the kitchen. To the west is a one-way exit that leads to the unknown.',
+      'From living room, one can go north to the dining room or northeast to the kitchen. West leads to the unknown.',
     );
   });
 
@@ -85,7 +85,7 @@ describe('cli room description', () => {
     doc = addConnection(doc, { ...createConnection('crossroads', { kind: 'pseudo-room', id: 'infinite-north' }, false), id: 'north-connection' }, 'north');
 
     expect(describeRoomForCli(doc, 'crossroads')).toBe(
-      'To the north is a one-way exit that goes on forever. To the east is a one-way exit that leads to death. To the west is a one-way exit that leads to nowhere.',
+      'North goes on forever. East lies death. West leads nowhere.',
     );
   });
 

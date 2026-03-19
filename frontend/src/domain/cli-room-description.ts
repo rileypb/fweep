@@ -56,6 +56,10 @@ function formatDirectionLead(direction: string): string {
   return `the ${direction}`;
 }
 
+function formatCapitalizedDirection(direction: string): string {
+  return `${direction[0].toUpperCase()}${direction.slice(1)}`;
+}
+
 function formatPseudoTarget(pseudoKind: PseudoRoomKind): string {
   switch (pseudoKind) {
     case 'unknown':
@@ -86,16 +90,23 @@ function describeBidirectionalRoomExit(direction: string, annotation: Connection
 }
 
 function describeOneWayExit(exit: ExitDescription): string {
+  if (exit.target.kind === 'pseudo-room') {
+    const directionLead = formatCapitalizedDirection(exit.direction);
+    switch (exit.target.pseudoKind) {
+      case 'unknown':
+        return `${directionLead} leads to the unknown.`;
+      case 'death':
+        return `${directionLead} lies death.`;
+      case 'nowhere':
+        return `${directionLead} leads nowhere.`;
+      case 'infinite':
+        return `${directionLead} goes on forever.`;
+    }
+  }
+
   const start = exit.direction === 'up' || exit.direction === 'down' || exit.direction === 'in' || exit.direction === 'out'
     ? `${exit.direction[0].toUpperCase()}${exit.direction.slice(1)} is a one-way exit`
     : `To ${formatDirectionLead(exit.direction)} is a one-way exit`;
-  if (exit.target.kind === 'pseudo-room') {
-    if (exit.target.pseudoKind === 'infinite') {
-      return `${start} that ${formatPseudoTarget(exit.target.pseudoKind)}.`;
-    }
-
-    return `${start} that leads to ${formatPseudoTarget(exit.target.pseudoKind)}.`;
-  }
 
   const targetName = formatTargetRoomName(exit.target.roomName);
   switch (exit.annotation?.kind) {

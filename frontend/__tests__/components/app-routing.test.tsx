@@ -1773,7 +1773,9 @@ describe('URL routing', () => {
     expect(describedOutputLines).toEqual(
       expect.arrayContaining([
         'From kitchen, one can go east to the bedroom, southwest to the living room, or west through a door to the dining room.',
+        '',
         'You see a lamp here.',
+        '',
         'It is dark.',
       ]),
     );
@@ -1826,7 +1828,7 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'describe living room',
-      'From living room, one can go north to the dining room or northeast to the kitchen. To the west is a one-way exit that leads to the unknown.',
+      'From living room, one can go north to the dining room or northeast to the kitchen. West leads to the unknown.',
     );
     expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
   });

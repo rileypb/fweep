@@ -254,6 +254,21 @@ function describeCliOutcome(command: CliCommand): string {
   }
 }
 
+function intersperseBlankOutputLines(lines: readonly string[]): readonly string[] {
+  if (lines.length <= 1) {
+    return lines;
+  }
+
+  const output: string[] = [];
+  for (const [index, line] of lines.entries()) {
+    if (index > 0) {
+      output.push('');
+    }
+    output.push(line);
+  }
+  return output;
+}
+
 function shouldKeepSuggestionsEnabledAfterSubmit(
   wereSuggestionsEnabled: boolean,
   submittedInput: string,
@@ -841,7 +856,10 @@ export function useAppCli({
           return { ok: false, shouldSelectCliInput };
         }
 
-        appendGameOutput([formatCliEcho(trimmedInput), ...describeRoomForCliLines(currentDoc, selectedRoom.id)]);
+        appendGameOutput([
+          formatCliEcho(trimmedInput),
+          ...intersperseBlankOutputLines(describeRoomForCliLines(currentDoc, selectedRoom.id)),
+        ]);
         return { ok: true, shouldSelectCliInput };
       }
 
@@ -853,7 +871,10 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      appendGameOutput([formatCliEcho(trimmedInput), ...describeRoomForCliLines(currentDoc, roomMatch.room.id)]);
+      appendGameOutput([
+        formatCliEcho(trimmedInput),
+        ...intersperseBlankOutputLines(describeRoomForCliLines(currentDoc, roomMatch.room.id)),
+      ]);
       return { ok: true, shouldSelectCliInput };
     }
 
