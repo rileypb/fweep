@@ -83,7 +83,13 @@ describe('cli suggestion room slots', () => {
     };
     const fallback = [{ id: 'fallback-is', kind: 'command' as const, label: 'is', insertText: 'is', detail: null }];
 
-    expect(getRoomReferenceResolutionWithFallback('show Kitchen ', fragment, doc, 1, fallback, helpers).suggestions).toEqual(fallback);
+    expect(getRoomReferenceResolutionWithFallback('show Kitchen ', fragment, doc, 1, fallback, helpers).suggestions).toEqual([
+      {
+        ...fallback[0],
+        replaceStart: 13,
+        replaceEnd: 13,
+      },
+    ]);
   });
 
   it('merges room matches with fallback suggestions while still typing multi-word references', () => {
