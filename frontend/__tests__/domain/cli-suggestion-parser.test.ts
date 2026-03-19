@@ -60,6 +60,13 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('connect kitchen north to').states.map((state) => state.stateId)).toEqual(['CONNECT_TO']);
   });
 
+  it('walks through disconnect command structure', () => {
+    expect(parseCliSuggestionInput('disconnect kitchen').states.map((state) => state.stateId)).toEqual(['DISCONNECT_SOURCE']);
+    expect(parseCliSuggestionInput('disconnect kitchen east').states.map((state) => state.stateId)).toEqual(['DISCONNECT_SOURCE_DIRECTION']);
+    expect(parseCliSuggestionInput('disconnect kitchen from').states.map((state) => state.stateId)).toEqual(['DISCONNECT_FROM']);
+    expect(parseCliSuggestionInput('disconnect kitchen east from').states.map((state) => state.stateId)).toEqual(['DISCONNECT_FROM_AFTER_DIRECTION']);
+  });
+
   it('walks through room-led grammar structure', () => {
     expect(parseCliSuggestionInput('kitchen').states.map((state) => state.stateId)).toContain('ROOM_LEAD');
     expect(parseCliSuggestionInput('kitchen is').states.map((state) => state.stateId)).toContain('ROOM_LEAD_IS');

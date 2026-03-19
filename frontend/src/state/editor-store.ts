@@ -401,6 +401,9 @@ export interface EditorState {
     },
   ) => string;
 
+  /** Delete a single connection. */
+  deleteConnection: (connectionId: string) => void;
+
   /** Create a room and immediately connect it in a single history entry. */
   createRoomAndConnect: (
     name: string,
@@ -1271,6 +1274,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
 
     return connectionResult.connectionId;
+  },
+
+  deleteConnection: (connectionId) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot delete a connection: no document is loaded.');
+    }
+    if (!doc.connections[connectionId]) {
+      throw new Error(`Connection "${connectionId}" not found.`);
+    }
+
+    const nextDoc = domainDeleteConnection(doc, connectionId);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc),
+      selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, state.selectedConnectionIds),
+      selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(nextDoc, state.selectedPseudoRoomIds),
+      selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, state.selectedStickyNoteLinkIds),
+    }));
   },
 
   createRoomAndConnect: (name, position, targetRoomId, options) => {

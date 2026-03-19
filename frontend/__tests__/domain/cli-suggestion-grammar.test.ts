@@ -21,6 +21,7 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('ROOT')).toEqual([
       'create',
       'connect',
+      'disconnect',
       'go',
       'show',
       'edit',
@@ -58,6 +59,15 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('CONNECT_ONE_WAY_TO')).toEqual(['<room_ref>']);
     expect(describeCliSuggestionGrammarSymbols('CONNECT_TARGET_DONE')).toEqual(['<direction>', '<end>']);
     expect(describeCliSuggestionGrammarSymbols('CONNECT_ONE_WAY_TARGET_DONE')).toEqual(['<end>']);
+  });
+
+  it('captures disconnect command transitions', () => {
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT_SOURCE')).toEqual(['<direction>', 'from']);
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT_SOURCE_DIRECTION')).toEqual(['from']);
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT_FROM')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT_FROM_AFTER_DIRECTION')).toEqual(['<room_ref>']);
+    expect(describeCliSuggestionGrammarSymbols('DISCONNECT_TARGET_DONE')).toEqual(['<end>']);
   });
 
   it('captures create command transitions', () => {

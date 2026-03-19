@@ -206,6 +206,15 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('describes disconnect commands', () => {
+    expect(parseCliCommandDescription('disconnect Kitchen from Hallway')).toBe(
+      'delete the connection between Kitchen and Hallway',
+    );
+    expect(parseCliCommandDescription('disconnect Kitchen east from Hallway')).toBe(
+      'delete the connection from Kitchen going east to Hallway',
+    );
+  });
+
   it('describes create-and-connect commands', () => {
     expect(parseCliCommandDescription('create and connect Kitchen east to Hallway')).toBe(
       'create a room called Kitchen and create a two-way connection from Kitchen going east to Hallway going west',
@@ -413,5 +422,21 @@ describe('parseCliCommand', () => {
     expect(parseCliCommand('go out')).toBeNull();
     expect(parseCliCommand('in')).toBeNull();
     expect(parseCliCommand('out')).toBeNull();
+  });
+
+  it('parses disconnect commands', () => {
+    expect(parseCliCommand('disconnect Kitchen from Hallway')).toEqual({
+      kind: 'disconnect',
+      sourceRoom: { text: 'Kitchen', exact: false },
+      sourceDirection: null,
+      targetRoom: { text: 'Hallway', exact: false },
+    });
+
+    expect(parseCliCommand('disconnect Kitchen east from Hallway')).toEqual({
+      kind: 'disconnect',
+      sourceRoom: { text: 'Kitchen', exact: false },
+      sourceDirection: 'east',
+      targetRoom: { text: 'Hallway', exact: false },
+    });
   });
 });

@@ -217,6 +217,20 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('keeps suggesting "from" while typing a disconnect tail after a chosen direction', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Disconnect Suggestion Map');
+    doc = addRoom(doc, { ...createRoom('bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('store room'), position: { x: 1, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'disconnect bedroom south f');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['from']);
+  });
+
   it('keeps quoted room-name suggestions in slot mode until the quote closes', async () => {
     const user = userEvent.setup();
     let doc = createEmptyMap('CLI Quoted Suggestions Map');
@@ -2297,6 +2311,68 @@ describe('URL routing', () => {
     expect(connections[0].isBidirectional).toBe(true);
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.west).toBe(connections[0].id);
+  });
+
+  it('disconnects a single connection through the CLI', async () => {
+    const doc = createEmptyMap('CLI Disconnect Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let savedDoc = addRoom(doc, kitchen);
+    savedDoc = addRoom(savedDoc, hallway);
+    savedDoc = addConnection(
+      savedDoc,
+      createConnection(kitchen.id, { kind: 'room', id: hallway.id }, true),
+      'east',
+      'west',
+    );
+    await renderAppWithSavedMap(savedDoc);
+
+    await submitCliCommand('disconnect Kitchen from Hallway');
+
+    await waitFor(() => {
+      expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(0);
+    });
+    expectGameOutputToContain('disconnect Kitchen from Hallway', 'Disconnected.');
+  });
+
+  it('requires a direction to disconnect when multiple connections exist between two rooms', async () => {
+    const doc = createEmptyMap('CLI Disconnect Ambiguous Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let savedDoc = addRoom(doc, kitchen);
+    savedDoc = addRoom(savedDoc, hallway);
+    savedDoc = addConnection(
+      savedDoc,
+      { ...createConnection(kitchen.id, { kind: 'room', id: hallway.id }, true), id: 'conn-east' },
+      'east',
+      'west',
+    );
+    savedDoc = addConnection(
+      savedDoc,
+      { ...createConnection(kitchen.id, { kind: 'room', id: hallway.id }, true), id: 'conn-north' },
+      'north',
+      'south',
+    );
+    await renderAppWithSavedMap(savedDoc);
+
+    await submitCliCommand('disconnect Kitchen from Hallway');
+
+    await waitFor(() => {
+      expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(2);
+    });
+    expectGameOutputToContain(
+      'disconnect Kitchen from Hallway',
+      'There are multiple connections between Kitchen and Hallway.',
+    );
+
+    await submitCliCommand('disconnect Kitchen east from Hallway');
+
+    await waitFor(() => {
+      expect(Object.values(useEditorStore.getState().doc?.connections ?? {})).toHaveLength(1);
+    });
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.east).toBeUndefined();
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.north).toBe('conn-north');
+    expectGameOutputToContain('disconnect Kitchen east from Hallway', 'Disconnected.');
   });
 
   it('replaces existing directional bindings when connect reuses a direction', async () => {

@@ -163,6 +163,25 @@ function getConnectionIdsBetweenRooms(doc: MapDocument, sourceRoomId: string, ta
     .map((connection) => connection.id);
 }
 
+function getConnectionIdsBetweenRoomsFromSourceDirection(
+  doc: MapDocument,
+  sourceRoomId: string,
+  sourceDirection: string,
+  targetRoomId: string,
+): string[] {
+  const sourceRoom = doc.rooms[sourceRoomId];
+  if (!sourceRoom) {
+    return [];
+  }
+
+  const connectionId = sourceRoom.directions[sourceDirection];
+  if (!connectionId) {
+    return [];
+  }
+
+  return getConnectionIdsBetweenRooms(doc, sourceRoomId, targetRoomId).filter((candidateId) => candidateId === connectionId);
+}
+
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
@@ -204,6 +223,8 @@ function describeCliOutcome(command: CliCommand): string {
       return command.annotation === null ? 'Cleared.' : 'Marked.';
     case 'connect':
       return 'Connected.';
+    case 'disconnect':
+      return 'Disconnected.';
     case 'create-and-connect':
       return 'Created and connected.';
     case 'undo':
@@ -277,6 +298,7 @@ export function useAppCli({
   const addItemsToRoom = useEditorStore((s) => s.addItemsToRoom);
   const addStickyNoteForRoom = useEditorStore((s) => s.addStickyNoteForRoom);
   const connectRooms = useEditorStore((s) => s.connectRooms);
+  const deleteConnection = useEditorStore((s) => s.deleteConnection);
   const createRoomAndConnect = useEditorStore((s) => s.createRoomAndConnect);
   const setPseudoRoomExit = useEditorStore((s) => s.setPseudoRoomExit);
   const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
@@ -528,7 +550,7 @@ export function useAppCli({
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'create-and-connect' | 'set-room-adjective' | 'set-connection-annotation' | 'put-items' | 'take-items' | 'take-all-items',
+    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'disconnect' | 'create-and-connect' | 'set-room-adjective' | 'set-connection-annotation' | 'put-items' | 'take-items' | 'take-all-items',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -866,6 +888,59 @@ export function useAppCli({
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(sourceRoomMatch.room.id);
       }
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'disconnect' && currentDoc !== null) {
+      const sourceRoomMatch = resolveRoomByCliReference(currentDoc, command.sourceRoom.text, command.sourceRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'disconnect', command.sourceRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (sourceRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, targetRoomMatch, 'disconnect', command.targetRoom.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (targetRoomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      const connectionIds = command.sourceDirection === null
+        ? getConnectionIdsBetweenRooms(currentDoc, sourceRoomMatch.room.id, targetRoomMatch.room.id)
+        : getConnectionIdsBetweenRoomsFromSourceDirection(
+          currentDoc,
+          sourceRoomMatch.room.id,
+          command.sourceDirection,
+          targetRoomMatch.room.id,
+        );
+
+      if (connectionIds.length === 0) {
+        appendGameOutput([
+          formatCliEcho(trimmedInput),
+          command.sourceDirection === null
+            ? `There are no connections between ${sourceRoomMatch.room.name} and ${targetRoomMatch.room.name}.`
+            : `There is no connection from ${sourceRoomMatch.room.name} going ${command.sourceDirection} to ${targetRoomMatch.room.name}.`,
+        ]);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      if (connectionIds.length > 1) {
+        appendGameOutput([
+          formatCliEcho(trimmedInput),
+          `There are multiple connections between ${sourceRoomMatch.room.name} and ${targetRoomMatch.room.name}. Use "disconnect ${sourceRoomMatch.room.name} <direction> from ${targetRoomMatch.room.name}".`,
+        ]);
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      deleteConnection(connectionIds[0]);
+      if (!isCliPronounReference(command.targetRoom.text)) {
+        setCliPronounRoomReference(sourceRoomMatch.room.id);
+      }
+      selectRoom(sourceRoomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }

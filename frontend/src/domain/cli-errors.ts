@@ -10,6 +10,7 @@ export type CliErrorCommandKind =
   | 'show'
   | 'notate'
   | 'connect'
+  | 'disconnect'
   | 'create-and-connect'
   | 'set-room-adjective'
   | 'set-connection-annotation'

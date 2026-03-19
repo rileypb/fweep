@@ -14,6 +14,7 @@ describe('cli suggestions', () => {
       expect.arrayContaining([
         'create',
         'connect',
+        'disconnect',
         'go',
         'show',
         'edit',
@@ -67,6 +68,33 @@ describe('cli suggestions', () => {
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['create', 'create and connect']),
+    );
+  });
+
+  it('suggests disconnect commands and followups', () => {
+    let doc = addRoom(createEmptyMap('Test'), { ...createRoom('Hallway'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('store room'), position: { x: 80, y: 0 } });
+
+    expect(getCliSuggestions('dis', 3, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['disconnect']),
+    );
+    expect(getCliSuggestions('disconnect ', 'disconnect '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<room>']),
+    );
+    expect(getCliSuggestions('disconnect hallway ', 'disconnect hallway '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['from', 'north', 'south']),
+    );
+    expect(getCliSuggestions('disconnect store ', 'disconnect store '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['store room', 'from', 'north', 'south']),
+    );
+    expect(getCliSuggestions('disconnect store room ', 'disconnect store room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['from', 'north', 'south']),
+    );
+    expect(getCliSuggestions('disconnect bedroom south f', 'disconnect bedroom south f'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      ['from'],
+    );
+    expect(getCliSuggestions('disconnect store room from ', 'disconnect store room from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<room>']),
     );
   });
 

@@ -56,6 +56,7 @@ const cliSuggestionGrammarStates = [
   state('ROOT', [
     keyword('create', 'CREATE'),
     keyword('connect', 'CONNECT'),
+    keyword('disconnect', 'DISCONNECT'),
     keyword('go', 'GO'),
     keyword('show', 'SHOW'),
     keyword('edit', 'EDIT'),
@@ -242,6 +243,25 @@ const cliSuggestionGrammarStates = [
     end(),
   ]),
   state('CONNECT_TWO_WAY_DONE', [
+    end(),
+  ]),
+  state('DISCONNECT', [
+    slot('ROOM_REF', 'DISCONNECT_SOURCE'),
+  ]),
+  state('DISCONNECT_SOURCE', [
+    slot('DIRECTION', 'DISCONNECT_SOURCE_DIRECTION'),
+    keyword('from', 'DISCONNECT_FROM'),
+  ]),
+  state('DISCONNECT_SOURCE_DIRECTION', [
+    keyword('from', 'DISCONNECT_FROM_AFTER_DIRECTION'),
+  ]),
+  state('DISCONNECT_FROM', [
+    slot('ROOM_REF', 'DISCONNECT_TARGET_DONE'),
+  ]),
+  state('DISCONNECT_FROM_AFTER_DIRECTION', [
+    slot('ROOM_REF', 'DISCONNECT_TARGET_DONE'),
+  ]),
+  state('DISCONNECT_TARGET_DONE', [
     end(),
   ]),
   state('CREATE', [

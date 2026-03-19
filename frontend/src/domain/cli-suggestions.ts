@@ -17,6 +17,7 @@ import {
   getParserBackedConnectTailResolution,
 } from './cli-suggestion-connect-helpers';
 import {
+  getParserBackedDisconnectResolution,
   getParserBackedGoResolution,
   getParserBackedHelpTopicResolution,
   getParserBackedNotateResolution,
@@ -196,6 +197,10 @@ function getSuggestionsForCommandContext(
     return suggestionResolution([]);
   }
 
+  if (tokens[0] === 'disconnect') {
+    return getParserBackedDisconnectResolution(input, fragment, doc, roomSlotSuggestionHelpers);
+  }
+
   if (
     tokens[0] === 'arrange'
     || tokens[0] === 'arr'
@@ -230,6 +235,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'take'
     && tokens[0] !== 'get'
     && tokens[0] !== 'connect'
+    && tokens[0] !== 'disconnect'
     && tokens[0] !== 'con'
     && tokens[0] !== 'create'
     && tokens[0] !== 'arrange'
@@ -267,6 +273,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'take'
     && tokens[0] !== 'get'
     && tokens[0] !== 'connect'
+    && tokens[0] !== 'disconnect'
     && tokens[0] !== 'con'
     && tokens[0] !== 'create'
     && tokens[0] !== 'c'

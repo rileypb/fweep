@@ -1,4 +1,4 @@
-import { suggestionResolution } from './cli-suggestion-grammar-helpers';
+import { getCanonicalDirectionToken, suggestionResolution } from './cli-suggestion-grammar-helpers';
 import {
   getParserNextSymbolsBeforeSlot,
   getParserNextSymbolsForFragment,
@@ -94,6 +94,60 @@ export function getParserBackedNotateResolution(
       doc,
       1,
       createKeywordSuggestions(fragment.prefix, ['with']),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
+  return suggestionResolution([]);
+}
+
+export function getParserBackedDisconnectResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
+): SuggestionResolution {
+  const tokens = fragment.precedingTokens.map((token) => token.value.toLowerCase());
+  const fromIndex = tokens.indexOf('from');
+  const lastPrecedingToken = fragment.precedingTokens.at(-1)?.value.toLowerCase() ?? null;
+  const hasCompletedSourceDirection = lastPrecedingToken !== null && getCanonicalDirectionToken(lastPrecedingToken) !== null;
+
+  if (fromIndex !== -1 && fragment.tokenIndex > fromIndex) {
+    return getRoomReferenceResolution(input, fragment, doc, fromIndex + 1, roomSlotSuggestionHelpers);
+  }
+
+  if (hasCompletedSourceDirection && fragment.prefix.length > 0) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['from']));
+  }
+
+  if (fragment.tokenIndex >= 1) {
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      1,
+      [
+        ...createDirectionSuggestions(fragment.prefix),
+        ...createKeywordSuggestions(fragment.prefix, ['from']),
+      ],
+      roomSlotSuggestionHelpers,
+    );
+  }
+
+  const nextSymbols = getParserNextSymbolsForFragment(fragment);
+  const hasDirectionSlot = nextSymbols.some((entry) => entry.symbol.kind === 'slot' && entry.symbol.slotType === 'DIRECTION');
+  const hasFromKeyword = nextSymbols.some((entry) => entry.symbol.kind === 'keyword' && entry.symbol.text === 'from');
+
+  if (hasDirectionSlot || hasFromKeyword) {
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      1,
+      [
+        ...(hasDirectionSlot ? createDirectionSuggestions(fragment.prefix) : []),
+        ...(hasFromKeyword ? createKeywordSuggestions(fragment.prefix, ['from']) : []),
+      ],
       roomSlotSuggestionHelpers,
     );
   }

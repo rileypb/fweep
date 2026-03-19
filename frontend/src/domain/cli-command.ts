@@ -47,6 +47,12 @@ export type CliCommand =
     readonly oneWay: boolean;
   }
   | {
+    readonly kind: 'disconnect';
+    readonly sourceRoom: CliRoomReference;
+    readonly sourceDirection: string | null;
+    readonly targetRoom: CliRoomReference;
+  }
+  | {
     readonly kind: 'create-and-connect';
     readonly sourceRoomName: string;
     readonly adjective: CliRoomAdjective | null;
@@ -98,6 +104,7 @@ export const CLI_COMMAND_FORMS = [
   'take/get all from <room name>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
+  'disconnect <room name> [<direction>] from <room name>',
   'create and connect <room name> <direction> [one-way] to <room name> [<direction>]',
   'create/c <room name> <direction> of <room name>',
   'create/c <room name> above/below <room name>',
@@ -119,6 +126,7 @@ export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] =
   { id: 'create', insertText: 'create', matchTerms: ['create', 'c'], descriptionInput: 'create Kitchen' },
   { id: 'create-and-connect', insertText: 'create and connect', matchTerms: ['create and connect'], descriptionInput: 'create and connect Kitchen north to Hallway' },
   { id: 'connect', insertText: 'connect', matchTerms: ['connect', 'con'], descriptionInput: 'connect Kitchen north to Hallway' },
+  { id: 'disconnect', insertText: 'disconnect', matchTerms: ['disconnect'], descriptionInput: 'disconnect Kitchen from Hallway' },
   { id: 'delete', insertText: 'delete', matchTerms: ['delete', 'd', 'del'], descriptionInput: 'delete Kitchen' },
   { id: 'edit', insertText: 'edit', matchTerms: ['edit', 'e', 'ed'], descriptionInput: 'edit Kitchen' },
   { id: 'notate', insertText: 'notate', matchTerms: ['notate', 'annotate', 'ann'], descriptionInput: 'notate Kitchen with Treasure here' },
@@ -858,6 +866,52 @@ function parseConnectionAnnotationCommand(
   return null;
 }
 
+function parseDisconnectCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'disconnect' }> | null {
+  if (!isTokenValue(tokens[0], 'disconnect')) {
+    return null;
+  }
+
+  const fromIndex = tokens.findIndex((token, index) => index > 0 && isTokenValue(token, 'from'));
+  if (fromIndex === -1) {
+    return null;
+  }
+
+  let sourceDirection: string | null = null;
+  let sourceRoom: ReturnType<typeof readRoomName> = null;
+  const possibleDirectionToken = tokens[fromIndex - 1];
+  if (fromIndex > 1 && isDirectionToken(possibleDirectionToken)) {
+    sourceRoom = readRoomName(tokens, 1, (token) => token === possibleDirectionToken);
+    if (sourceRoom !== null && sourceRoom.nextIndex === fromIndex - 1) {
+      sourceDirection = normalizeDirection(possibleDirectionToken.value);
+    } else {
+      sourceRoom = null;
+    }
+  }
+
+  if (sourceRoom === null) {
+    sourceRoom = readRoomName(tokens, 1, (token) => token === tokens[fromIndex]);
+    if (sourceRoom !== null && sourceRoom.nextIndex !== fromIndex) {
+      sourceRoom = null;
+    }
+  }
+
+  if (sourceRoom === null) {
+    return null;
+  }
+
+  const targetRoom = readRoomName(tokens, fromIndex + 1, () => false);
+  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind: 'disconnect',
+    sourceRoom: sourceRoom.reference,
+    sourceDirection,
+    targetRoom: targetRoom.reference,
+  };
+}
+
 export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
@@ -939,6 +993,11 @@ export function parseCliCommand(input: string): CliCommand | null {
       kind: 'connect',
       ...tail,
     };
+  }
+
+  const disconnectCommand = parseDisconnectCommand(tokens);
+  if (disconnectCommand !== null) {
+    return disconnectCommand;
   }
 
   if (isFirstWordAlias(tokens[0], 'create', 'c')) {
@@ -1119,6 +1178,10 @@ function describeCliCommand(command: CliCommand): string {
       }
 
       return `create a two-way connection from ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text} going ${command.targetDirection}`;
+    case 'disconnect':
+      return command.sourceDirection === null
+        ? `delete the connection between ${command.sourceRoom.text} and ${command.targetRoom.text}`
+        : `delete the connection from ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}`;
     case 'create-and-connect':
       if (command.oneWay) {
         const prefix = command.adjective === null
