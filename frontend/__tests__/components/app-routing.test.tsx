@@ -870,7 +870,7 @@ describe('URL routing', () => {
       expect(new Set(items.map((item) => item.roomId))).toEqual(new Set([Object.keys(useEditorStore.getState().doc?.rooms ?? {})[0]]));
     });
 
-    expectGameOutputToContain('put lantern, key, and sword in Kitchen', 'Placed.');
+    expectGameOutputToContain('put lantern, key, and sword in Kitchen', 'Dropped.');
   });
 
   it('takes items from a room through the CLI', async () => {

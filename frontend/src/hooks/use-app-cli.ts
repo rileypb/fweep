@@ -174,7 +174,7 @@ function describeCliOutcome(command: CliCommand): string {
     case 'create':
       return 'Created.';
     case 'put-items':
-      return 'Placed.';
+      return 'Dropped.';
     case 'take-items':
       return 'Taken.';
     case 'take-all-items':
