@@ -413,7 +413,7 @@ export interface EditorState {
       sourceDirection: string;
       oneWay: boolean;
       targetDirection: string | null;
-    },
+    } & HistoryOptions,
   ) => { roomId: string; connectionId: string };
 
   /** Rename an existing room. */
@@ -1320,7 +1320,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             : prettifyCliConnectionResult(nextDoc, [room.id]);
 
           set((state) => ({
-            ...commitDocumentChange(state, doc, nextDoc),
+            ...commitDocumentChange(state, doc, nextDoc, options),
             selectedRoomIds: [room.id, targetRoomId],
             selectedPseudoRoomIds: [],
             selectedStickyNoteIds: [],
@@ -1345,7 +1345,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       : prettifyCliConnectionResult(connectionResult.doc, [room.id]);
 
     set((state) => ({
-      ...commitDocumentChange(state, doc, nextDoc),
+      ...commitDocumentChange(state, doc, nextDoc, options),
       selectedRoomIds: [room.id, targetRoomId],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [connectionResult.connectionId],

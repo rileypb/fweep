@@ -946,6 +946,7 @@ export function useAppCli({
     }
 
     if (command.kind === 'create-and-connect' && currentDoc !== null) {
+      const historyMergeKey = `cli-create-and-connect:${trimmedInput}`;
       const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
       if (reportRoomReferenceError(trimmedInput, targetRoomMatch, 'create-and-connect', command.targetRoom.text)) {
         return { ok: false, shouldSelectCliInput };
@@ -968,10 +969,11 @@ export function useAppCli({
           sourceDirection: command.sourceDirection,
           oneWay: command.oneWay,
           targetDirection: command.targetDirection,
+          historyMergeKey,
         },
       );
       if (command.adjective !== null) {
-        applyCliRoomAdjective(result.roomId, command.adjective);
+        applyCliRoomAdjective(result.roomId, command.adjective, historyMergeKey);
       }
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(result.roomId);

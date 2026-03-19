@@ -3326,6 +3326,36 @@ describe('URL routing', () => {
     expect(rooms).toHaveLength(0);
   });
 
+  it('undoes adjective create-and-connect commands in a single step', async () => {
+    let doc = createEmptyMap('CLI Undo Adjective Create And Connect Map');
+    doc = addRoom(doc, {
+      ...createRoom('top of the pops'),
+      id: 'top-of-the-pops',
+      position: { x: 240, y: 160 },
+    });
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli undo adjective create and connect map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'create foobar,which is dark, east of top of the pops{enter}');
+
+    let state = useEditorStore.getState();
+    let rooms = Object.values(state.doc?.rooms ?? {});
+    const createdRoom = rooms.find((room) => room.name === 'foobar');
+    expect(createdRoom?.isDark).toBe(true);
+    expect(createdRoom?.directions.west).toBeDefined();
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+
+    state = useEditorStore.getState();
+    rooms = Object.values(state.doc?.rooms ?? {});
+    expect(rooms.find((room) => room.name === 'foobar')).toBeUndefined();
+  });
+
   it('redoes the previous undone command for the redo CLI command', async () => {
     const doc = createEmptyMap('CLI Redo Map');
     await openSavedMap(doc);
