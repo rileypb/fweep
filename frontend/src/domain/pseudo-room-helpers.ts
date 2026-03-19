@@ -14,6 +14,7 @@ import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import type { Point } from '../graph/connection-geometry';
 
 export const PSEUDO_ROOM_LINEAR_SCALE = 0.5;
+export const DEFAULT_STYLE_PSEUDO_ROOM_LINEAR_SCALE = PSEUDO_ROOM_LINEAR_SCALE * (4 / 3) * 1.2;
 export const PSEUDO_ROOM_SYMBOL_LINEAR_SCALE = 0.25;
 const PSEUDO_ROOM_CONNECTION_INSET = Math.round(42 * PSEUDO_ROOM_LINEAR_SCALE);
 
@@ -96,9 +97,12 @@ export function getPseudoRoomNodeDimensionsForRoom(
   visualStyle: MapVisualStyle,
 ): { readonly width: number; readonly height: number } {
   const dimensions = getRoomNodeDimensions(room, visualStyle);
+  const linearScale = visualStyle === 'default'
+    ? DEFAULT_STYLE_PSEUDO_ROOM_LINEAR_SCALE
+    : PSEUDO_ROOM_LINEAR_SCALE;
   return {
-    width: Math.max(1, Math.round(dimensions.width * PSEUDO_ROOM_LINEAR_SCALE)),
-    height: Math.max(1, Math.round(dimensions.height * PSEUDO_ROOM_LINEAR_SCALE)),
+    width: Math.max(1, Math.round(dimensions.width * linearScale)),
+    height: Math.max(1, Math.round(dimensions.height * linearScale)),
   };
 }
 

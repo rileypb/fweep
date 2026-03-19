@@ -27,6 +27,10 @@ function normalizeParserTokenValues(tokens: readonly string[]): readonly string[
     return ['annotate', ...tokens.slice(1)];
   }
 
+  if (tokens[0] === 'drop') {
+    return ['put', ...tokens.slice(1)];
+  }
+
   if (tokens[0] === 'arr' || tokens[0] === 'prettify') {
     return ['arrange', ...tokens.slice(1)];
   }

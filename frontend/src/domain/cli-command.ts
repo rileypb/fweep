@@ -99,8 +99,8 @@ export const CLI_COMMAND_FORMS = [
   'create/c <room name>, which is <adjective>',
   'create/c <room name>, which is <adjective>, <direction> of <room name>',
   'create and connect <room name>, which is <adjective>, <direction> to <room name> [<direction>]',
-  'put <item> in <room name>',
-  'put <item>, <item>, and <item> in <room name>',
+  'put/drop <item> in <room name>',
+  'put/drop <item>, <item>, and <item> in <room name>',
   'take/get <item> from <room name>',
   'take/get <item>, <item>, and <item> from <room name>',
   'take/get all from <room name>',
@@ -133,7 +133,7 @@ export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] =
   { id: 'edit', insertText: 'edit', matchTerms: ['edit', 'e', 'ed'], descriptionInput: 'edit Kitchen' },
   { id: 'describe', insertText: 'describe', matchTerms: ['describe'], descriptionInput: 'describe Kitchen' },
   { id: 'notate', insertText: 'notate', matchTerms: ['notate', 'annotate', 'ann'], descriptionInput: 'notate Kitchen with Treasure here' },
-  { id: 'put', insertText: 'put', matchTerms: ['put'], descriptionInput: 'put lantern in Kitchen' },
+  { id: 'put', insertText: 'put', matchTerms: ['put', 'drop'], descriptionInput: 'put lantern in Kitchen' },
   { id: 'take', insertText: 'take', matchTerms: ['take', 'get'], descriptionInput: 'take lantern from Kitchen' },
   { id: 'undo', insertText: 'undo', matchTerms: ['undo'], descriptionInput: 'undo' },
   { id: 'redo', insertText: 'redo', matchTerms: ['redo'], descriptionInput: 'redo' },
@@ -1007,7 +1007,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     return parseCreateCommand(tokens);
   }
 
-  if (isTokenValue(tokens[0], 'put')) {
+  if (isFirstWordAlias(tokens[0], 'put', 'drop')) {
     return parseItemTransferCommand(tokens, 'put-items', 'in');
   }
 

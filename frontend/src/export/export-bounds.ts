@@ -1,5 +1,5 @@
 import type { Connection, MapDocument, Position, Room, StickyNote, StickyNoteLink } from '../domain/map-types';
-import { getPseudoRoomNodeDimensionsForRoom, insetPseudoRoomConnectionEndpoint, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { getPseudoRoomNodeDimensionsForRoom, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
 import {
   createConnectionRenderGeometry,
   type Point,
@@ -245,16 +245,13 @@ function getConnectionBounds(doc: MapDocument, connection: Connection): ExportRe
   const targetDimensions = connection.target.kind === 'room'
     ? getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle)
     : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, doc.view.visualStyle);
-  const points = insetPseudoRoomConnectionEndpoint(
+  const points = computeConnectionPath(
+    effectiveSourceRoom,
+    effectiveTargetRoom,
     connection,
-    computeConnectionPath(
-      effectiveSourceRoom,
-      effectiveTargetRoom,
-      connection,
-      undefined,
-      sourceDimensions,
-      targetDimensions,
-    ),
+    undefined,
+    sourceDimensions,
+    targetDimensions,
   );
   let bounds = createEmptyBounds();
 

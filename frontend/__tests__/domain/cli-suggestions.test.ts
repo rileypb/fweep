@@ -44,6 +44,12 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('suggests drop as a put synonym without showing it in empty root suggestions', () => {
+    const result = getCliSuggestions('dr', 2, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('drop');
+  });
+
   it('suggests the as a first-token starter when typing t', () => {
     const result = getCliSuggestions('t', 1, createEmptyMap('Test'));
 
@@ -536,6 +542,7 @@ describe('cli suggestions', () => {
     doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
 
     expect(getCliSuggestions('put lantern in c', 'put lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('drop lantern in c', 'drop lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('take lantern from c', 'take lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('get lantern from c', 'get lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('take all from l', 'take all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
@@ -546,6 +553,7 @@ describe('cli suggestions', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
     expect(getCliSuggestions('put lantern in cellar ', 'put lantern in cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('drop lantern in cellar ', 'drop lantern in cellar '.length, doc)).toBeNull();
     expect(getCliSuggestions('take lantern from cellar ', 'take lantern from cellar '.length, doc)).toBeNull();
     expect(getCliSuggestions('get all from cellar ', 'get all from cellar '.length, doc)).toBeNull();
   });

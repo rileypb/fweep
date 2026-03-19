@@ -232,6 +232,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'annotate'
     && tokens[0] !== 'ann'
     && tokens[0] !== 'put'
+    && tokens[0] !== 'drop'
     && tokens[0] !== 'take'
     && tokens[0] !== 'get'
     && tokens[0] !== 'connect'
@@ -271,6 +272,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'annotate'
     && tokens[0] !== 'ann'
     && tokens[0] !== 'put'
+    && tokens[0] !== 'drop'
     && tokens[0] !== 'take'
     && tokens[0] !== 'get'
     && tokens[0] !== 'connect'
@@ -330,7 +332,7 @@ function getSuggestionsForCommandContext(
     return getParserBackedNotateResolution(input, fragment, doc, roomSlotSuggestionHelpers);
   }
 
-  if (tokens[0] === 'put') {
+  if (tokens[0] === 'put' || tokens[0] === 'drop') {
     if (tokens.includes('in')) {
       const inIndex = tokens.indexOf('in');
       if (fragment.tokenIndex > inIndex) {

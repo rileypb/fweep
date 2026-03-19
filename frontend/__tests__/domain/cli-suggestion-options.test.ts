@@ -30,6 +30,7 @@ describe('cli suggestion options', () => {
   it('prefers canonical or matching alias command insert text appropriately', () => {
     expect(createCommandSuggestions('go').map((suggestion) => suggestion.label)).toContain('go');
     expect(createCommandSuggestions('g').map((suggestion) => suggestion.label)).toContain('get');
+    expect(createCommandSuggestions('dr').map((suggestion) => suggestion.label)).toContain('drop');
     expect(createCommandSuggestions('go').map((suggestion) => suggestion.label)).not.toContain('show');
     expect(createCommandSuggestions('go t').map((suggestion) => suggestion.label)).toContain('go to');
   });
@@ -51,6 +52,7 @@ describe('cli suggestion options', () => {
     expect(labels).toEqual(expect.arrayContaining(['create', 'connect', 'the', 'above', 'below', '<direction>', '<room>']));
     expect(labels).not.toContain('get');
     expect(labels).not.toContain('notate');
+    expect(labels).not.toContain('drop');
     expect(labels).not.toContain('north');
   });
 

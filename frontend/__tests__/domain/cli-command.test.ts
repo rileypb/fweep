@@ -385,6 +385,12 @@ describe('parseCliCommand', () => {
       room: { text: 'Kitchen', exact: false },
     });
 
+    expect(parseCliCommand('drop lantern in Kitchen')).toEqual({
+      kind: 'put-items',
+      itemNames: ['lantern'],
+      room: { text: 'Kitchen', exact: false },
+    });
+
     expect(parseCliCommand('put lantern, key, and sword in Kitchen')).toEqual({
       kind: 'put-items',
       itemNames: ['lantern', 'key', 'sword'],

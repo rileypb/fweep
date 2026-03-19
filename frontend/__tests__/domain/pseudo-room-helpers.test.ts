@@ -54,7 +54,7 @@ describe('pseudo-room-helpers', () => {
   it('scales pseudo-room dimensions down from normal room size', () => {
     const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 0, y: 0 } };
 
-    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'default')).toEqual({ width: 32, height: 18 });
+    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'default')).toEqual({ width: 51, height: 29 });
     expect(getPseudoRoomNodeDimensions(pseudoRoom, 'square-classic')).toEqual({ width: 42, height: 42 });
   });
 

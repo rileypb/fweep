@@ -54,8 +54,12 @@ describe('export-bounds', () => {
     const result = getSelectionExportBounds(doc, [], [], [connection.id], [], 0);
 
     expect(result.validationError).toBeNull();
-    expect(result.bounds).not.toBeNull();
-    expect((result.bounds?.right ?? 0) - (result.bounds?.left ?? 0)).toBeGreaterThan(150);
+    expect(result.bounds).toEqual({
+      left: 84,
+      top: 42,
+      right: 200,
+      bottom: 42,
+    });
   });
 
   it('includes pseudo-rooms in entire-map bounds', () => {

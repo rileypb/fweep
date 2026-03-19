@@ -516,7 +516,7 @@ describe('renderExportCanvas', () => {
     await renderExportCanvas(input);
 
     expect(context.moveTo).toHaveBeenCalledWith(130, 170);
-    expect(context.lineTo.mock.calls).toContainEqual([196, 129]);
+    expect(context.lineTo.mock.calls).toContainEqual([205.5, 134.5]);
     expect(context.stroke).toHaveBeenCalled();
   });
 

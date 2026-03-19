@@ -979,6 +979,22 @@ describe('URL routing', () => {
     expectGameOutputToContain('put lantern, key, and sword in Kitchen', 'Dropped.');
   });
 
+  it('supports drop as a synonym for put through the CLI', async () => {
+    await renderAppWithOpenMap('CLI Drop Items Map');
+
+    await submitCliCommand('create Kitchen');
+    await submitCliCommand('drop lantern in Kitchen');
+
+    await waitFor(() => {
+      const items = Object.values(useEditorStore.getState().doc?.items ?? {});
+      expect(items).toHaveLength(1);
+      expect(items[0]?.name).toBe('lantern');
+      expect(items[0]?.roomId).toBe(Object.keys(useEditorStore.getState().doc?.rooms ?? {})[0]);
+    });
+
+    expectGameOutputToContain('drop lantern in Kitchen', 'Dropped.');
+  });
+
   it('takes items from a room through the CLI', async () => {
     const doc = createEmptyMap('CLI Take Items Map');
     const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
