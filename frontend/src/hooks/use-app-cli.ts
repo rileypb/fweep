@@ -825,7 +825,6 @@ export function useAppCli({
           return { ok: false, shouldSelectCliInput };
         }
 
-        setCliPronounRoomReference(selectedRoom.id);
         appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, selectedRoom.id)]);
         return { ok: true, shouldSelectCliInput };
       }
@@ -838,8 +837,6 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      selectRoom(roomMatch.room.id);
-      setCliPronounRoomReference(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, roomMatch.room.id)]);
       return { ok: true, shouldSelectCliInput };
     }

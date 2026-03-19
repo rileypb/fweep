@@ -1678,33 +1678,46 @@ describe('URL routing', () => {
     }
   });
 
-  it('describes the selected room exits for the object-less describe CLI command', async () => {
-    let doc = createEmptyMap('CLI Describe Map');
+  it('describes the selected room exits with items and darkness for the object-less describe CLI command', async () => {
+    let doc = createEmptyMap('CLI Describe Kitchen Map');
     doc = addRoom(doc, {
-      ...createRoom('parlor'),
-      id: 'parlor',
-      position: { x: 240, y: 160 },
+      ...createRoom('dining room'),
+      id: 'dining-room',
+      position: { x: 80, y: 160 },
     });
     doc = addRoom(doc, {
       ...createRoom('kitchen'),
       id: 'kitchen',
-      position: { x: 400, y: 160 },
+      position: { x: 240, y: 160 },
+      isDark: true,
     });
     doc = addRoom(doc, {
-      ...createRoom('attic'),
-      id: 'attic',
-      position: { x: 240, y: 40 },
+      ...createRoom('bedroom'),
+      id: 'bedroom',
+      position: { x: 400, y: 60 },
     });
-    doc = addConnection(doc, { ...createConnection('parlor', 'kitchen', true), id: 'east-connection' }, 'east', 'west');
-    doc = addConnection(doc, { ...createConnection('parlor', 'attic', false), id: 'up-connection' }, 'up');
+    doc = addRoom(doc, {
+      ...createRoom('living room'),
+      id: 'living-room',
+      position: { x: 80, y: 300 },
+    });
+    doc = addConnection(doc, { ...createConnection('kitchen', 'bedroom', true), id: 'east-connection' }, 'east', 'west');
+    doc = addConnection(doc, { ...createConnection('kitchen', 'living-room', true), id: 'southwest-connection' }, 'southwest', 'northeast');
+    doc = addConnection(
+      doc,
+      { ...createConnection('kitchen', 'dining-room', true), id: 'west-connection', annotation: { kind: 'door' } },
+      'west',
+      'east',
+    );
+    doc = addItem(doc, { ...createItem('lamp', 'kitchen'), id: 'lamp' });
     await openSavedMap(doc);
 
     const user = userEvent.setup();
     renderApp();
-    await screen.findByText(/cli describe map/i);
+    await screen.findByText(/cli describe kitchen map/i);
 
     act(() => {
-      useEditorStore.getState().setSelectedRoomIds(['parlor']);
+      useEditorStore.getState().setSelectedRoomIds(['kitchen']);
     });
 
     const input = getCliInput();
@@ -1712,13 +1725,14 @@ describe('URL routing', () => {
 
     expectGameOutputToContain(
       'describe',
-      'From the parlor, one can go east or up.',
-      'The passage up is one-way, however.',
+      'From kitchen, one can go east to the bedroom, southwest to the living room, or west through a door to the dining room.',
+      'You see a lamp here.',
+      'It is dark.',
     );
   });
 
-  it('describes a named room for the explicit describe CLI command', async () => {
-    let doc = createEmptyMap('CLI Describe Named Room Map');
+  it('describes a named room without changing selection for the explicit describe CLI command', async () => {
+    let doc = createEmptyMap('CLI Describe Living Room Map');
     doc = addRoom(doc, {
       ...createRoom('dining room'),
       id: 'dining-room',
@@ -1727,35 +1741,39 @@ describe('URL routing', () => {
     doc = addRoom(doc, {
       ...createRoom('kitchen'),
       id: 'kitchen',
-      position: { x: 80, y: 160 },
+      position: { x: 400, y: 60 },
     });
     doc = addRoom(doc, {
-      ...createRoom('cellar'),
-      id: 'cellar',
-      position: { x: 240, y: 300 },
+      ...createRoom('living room'),
+      id: 'living-room',
+      position: { x: 80, y: 300 },
     });
-    doc = addRoom(doc, {
-      ...createRoom('attic'),
-      id: 'attic',
-      position: { x: 240, y: 40 },
-    });
-    doc = addConnection(doc, { ...createConnection('dining-room', 'kitchen', false), id: 'west-connection' }, 'west');
-    doc = addConnection(doc, { ...createConnection('dining-room', 'cellar', true), id: 'down-connection' }, 'down', 'up');
-    doc = addConnection(doc, { ...createConnection('dining-room', 'attic', false), id: 'up-connection' }, 'up');
+    doc = addPseudoRoom(doc, { ...createPseudoRoom('unknown'), id: 'unknown-west', position: { x: -80, y: 300 } });
+    doc = addConnection(doc, { ...createConnection('living-room', 'dining-room', true), id: 'north-connection' }, 'north', 'south');
+    doc = addConnection(doc, { ...createConnection('living-room', 'kitchen', true), id: 'northeast-connection' }, 'northeast', 'southwest');
+    doc = addConnection(
+      doc,
+      { ...createConnection('living-room', { kind: 'pseudo-room', id: 'unknown-west' }, false), id: 'west-connection' },
+      'west',
+    );
     await openSavedMap(doc);
 
     const user = userEvent.setup();
     renderApp();
-    await screen.findByText(/cli describe named room map/i);
+    await screen.findByText(/cli describe living room map/i);
+
+    act(() => {
+      useEditorStore.getState().setSelectedRoomIds(['kitchen']);
+    });
 
     const input = getCliInput();
-    await user.type(input, 'describe dining room{enter}');
+    await user.type(input, 'describe living room{enter}');
 
     expectGameOutputToContain(
-      'describe dining room',
-      'From the dining room, one can go west, down, or up.',
-      'The passages west and up are one-way, however.',
+      'describe living room',
+      'From living room, one can go north to the dining room or northeast to the kitchen. To the west is a one-way exit that leads to the unknown.',
     );
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
   });
 
   it('reports selection errors for the object-less describe CLI command', async () => {
