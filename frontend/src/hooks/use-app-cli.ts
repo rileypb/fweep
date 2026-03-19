@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   parseCliCommand,
   parseCliCommandDescription,
@@ -80,6 +80,44 @@ function formatCliEcho(input: string): string {
   return `>${input}`;
 }
 
+function hasPersistedCliUsage(cliOutputLines: readonly string[]): boolean {
+  if (cliOutputLines.length <= DEFAULT_CLI_OUTPUT_LINES.length) {
+    return false;
+  }
+
+  return true;
+}
+
+function getCliOutputStorageKey(mapId: string): string {
+  return `fweep-cli-output:${mapId}`;
+}
+
+function loadCachedCliOutputLines(mapId: string): readonly string[] | null {
+  try {
+    const rawValue = window.localStorage.getItem(getCliOutputStorageKey(mapId));
+    if (rawValue === null) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed) || !parsed.every((line) => typeof line === 'string')) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedCliOutputLines(mapId: string, cliOutputLines: readonly string[]): void {
+  try {
+    window.localStorage.setItem(getCliOutputStorageKey(mapId), JSON.stringify(cliOutputLines));
+  } catch {
+    // Ignore localStorage failures and fall back to IndexedDB persistence.
+  }
+}
+
 const FWEEP_EASTER_EGG_LINES = [
   'With keen disappointment, you note that nothing has changed. Then, you slowly realize that you are black, have two wing-like appendages, and are flying a few feet above the ground. Thanks to your sonar-like bat senses, you can tell that there are surfaces above you, below you, to the south and to the east.',
 ] as const;
@@ -138,9 +176,9 @@ function describeCliOutcome(command: CliCommand): string {
     case 'put-items':
       return 'Placed.';
     case 'take-items':
-      return 'Took.';
+      return 'Taken.';
     case 'take-all-items':
-      return 'Took.';
+      return 'Taken.';
     case 'create-pseudo-room':
       if (command.pseudoKind === 'unknown') {
         return 'Marked exit as unknown.';
@@ -251,7 +289,7 @@ export function useAppCli({
   const selectRoom = useEditorStore((s) => s.selectRoom);
   const storeDoc = useEditorStore((s) => s.doc);
   const undo = useEditorStore((s) => s.undo);
-  const pendingInitialSaveSkipDocRef = useRef<object | null>(null);
+  const shouldSkipNextDocumentSaveRef = useRef(false);
   const pendingInitialGameOutputSkipRef = useRef<readonly string[] | null>(null);
   const cliInputRef = useRef<HTMLInputElement | null>(null);
   const cliImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -273,8 +311,12 @@ export function useAppCli({
   const suppressNextCliSlashToggleRef = useRef(false);
   const latestGameOutputLinesRef = useRef<readonly string[]>([]);
   const latestStoreDocRef = useRef<MapDocument | null>(null);
+  const latestActiveMapRef = useRef<MapDocument | null>(activeMap);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSelectionRangeRef = useRef<{ start: number; end: number } | null>(null);
+  latestGameOutputLinesRef.current = gameOutputLines;
+  latestStoreDocRef.current = storeDoc;
+  latestActiveMapRef.current = activeMap;
   const hasOpenMap = activeMap !== null;
   const cliSuggestionResult = getCliSuggestions(cliCommand, cliCaretIndex, storeDoc);
   const cliSuggestions = cliSuggestionResult?.suggestions ?? [];
@@ -298,14 +340,6 @@ export function useAppCli({
   };
 
   useEffect(() => {
-    latestGameOutputLinesRef.current = gameOutputLines;
-  }, [gameOutputLines]);
-
-  useEffect(() => {
-    latestStoreDocRef.current = storeDoc;
-  }, [storeDoc]);
-
-  useEffect(() => {
     if (pendingSelectionRangeRef.current === null || cliInputRef.current === null) {
       return;
     }
@@ -320,10 +354,11 @@ export function useAppCli({
     setHighlightedCliSuggestionIndex(0);
   }, [cliCommand, storeDoc, cliCaretIndex]);
 
-  const queueSave = (doc: MapDocument) => {
+  const queueSaveSnapshot = (doc: MapDocument, cliOutputLines: readonly string[]) => {
+    saveCachedCliOutputLines(doc.metadata.id, cliOutputLines);
     const snapshot = {
       ...doc,
-      cliOutputLines: [...latestGameOutputLinesRef.current],
+      cliOutputLines: [...cliOutputLines],
     };
 
     saveQueueRef.current = saveQueueRef.current
@@ -333,22 +368,37 @@ export function useAppCli({
       });
   };
 
-  useEffect(() => {
+  const queueSave = (doc: MapDocument) => {
+    queueSaveSnapshot(doc, latestGameOutputLinesRef.current);
+  };
+
+  useLayoutEffect(() => {
     if (activeMap) {
+      const cachedCliOutputLines = loadCachedCliOutputLines(activeMap.metadata.id);
+      const restoredCliOutputLines = cachedCliOutputLines !== null && cachedCliOutputLines.length > activeMap.cliOutputLines.length
+        ? cachedCliOutputLines
+        : activeMap.cliOutputLines;
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
-      pendingInitialSaveSkipDocRef.current = activeMap;
-      pendingInitialGameOutputSkipRef.current = activeMap.cliOutputLines;
+      setHasUsedCliInput(hasPersistedCliUsage(restoredCliOutputLines));
+      shouldSkipNextDocumentSaveRef.current = true;
+      pendingInitialGameOutputSkipRef.current = restoredCliOutputLines;
       setGameOutputLines(
-        activeMap.cliOutputLines.length > 0
-          ? [...activeMap.cliOutputLines]
+        restoredCliOutputLines.length > 0
+          ? [...restoredCliOutputLines]
           : [...DEFAULT_CLI_OUTPUT_LINES],
       );
       loadDocument(activeMap);
+
+      if (restoredCliOutputLines !== activeMap.cliOutputLines) {
+        latestGameOutputLinesRef.current = restoredCliOutputLines;
+        queueSaveSnapshot(activeMap, restoredCliOutputLines);
+      }
     } else {
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
-      pendingInitialSaveSkipDocRef.current = null;
+      setHasUsedCliInput(false);
+      shouldSkipNextDocumentSaveRef.current = false;
       pendingInitialGameOutputSkipRef.current = null;
       setGameOutputLines([]);
       unloadDocument();
@@ -363,12 +413,11 @@ export function useAppCli({
 
       latestStoreDocRef.current = state.doc;
 
-      if (pendingInitialSaveSkipDocRef.current === state.doc) {
-        pendingInitialSaveSkipDocRef.current = null;
+      if (shouldSkipNextDocumentSaveRef.current) {
+        shouldSkipNextDocumentSaveRef.current = false;
         return;
       }
 
-      pendingInitialSaveSkipDocRef.current = null;
       queueSave(state.doc);
     });
 
@@ -376,6 +425,10 @@ export function useAppCli({
   }, []);
 
   useEffect(() => {
+    if (gameOutputLines.length === 0) {
+      return;
+    }
+
     const currentDoc = latestStoreDocRef.current;
     if (!currentDoc) {
       return;
@@ -432,7 +485,16 @@ export function useAppCli({
   }, [gameOutputLines, hasOpenMap]);
 
   const appendGameOutput = (lines: readonly string[]) => {
-    setGameOutputLines((previousLines) => [...previousLines, ...lines, '']);
+    let nextLines: readonly string[] = [];
+    setGameOutputLines((previousLines) => {
+      nextLines = [...previousLines, ...lines, ''];
+      return [...nextLines];
+    });
+    latestGameOutputLinesRef.current = nextLines;
+    const currentDoc = latestStoreDocRef.current ?? latestActiveMapRef.current;
+    if (currentDoc !== null) {
+      queueSaveSnapshot(currentDoc, nextLines);
+    }
   };
 
   const setCliPronounRoomReference = (roomId: string | null) => {
@@ -451,10 +513,14 @@ export function useAppCli({
     return requestId;
   };
 
-  const applyCliRoomAdjective = (roomId: string, adjective: CliRoomAdjective): void => {
+  const applyCliRoomAdjective = (
+    roomId: string,
+    adjective: CliRoomAdjective,
+    historyMergeKey?: string,
+  ): void => {
     switch (adjective.kind) {
       case 'lighting':
-        setRoomDark(roomId, adjective.isDark);
+        setRoomDark(roomId, adjective.isDark, historyMergeKey === undefined ? undefined : { historyMergeKey });
         return;
     }
   };
@@ -554,15 +620,16 @@ export function useAppCli({
     }
 
     if (command.kind === 'create' && currentDoc !== null) {
+      const historyMergeKey = `cli-create:${trimmedInput}`;
       const plan = planCreateRoomFromCli(
         currentDoc,
         command.roomName,
         { width: window.innerWidth, height: window.innerHeight },
         currentMapPanOffset,
       );
-      const roomId = addRoomAtPosition(plan.roomName, plan.position);
+      const roomId = addRoomAtPosition(plan.roomName, plan.position, { historyMergeKey });
       if (command.adjective !== null) {
-        applyCliRoomAdjective(roomId, command.adjective);
+        applyCliRoomAdjective(roomId, command.adjective, historyMergeKey);
       }
       setCliPronounRoomReference(roomId);
       selectRoom(roomId);
@@ -1010,21 +1077,38 @@ export function useAppCli({
     }
 
     let replaceStart = cliSuggestionResult.replaceStart;
-    if (highlightedCliSuggestion.insertText.startsWith(',')) {
+    const shouldReuseExistingComma = (
+      highlightedCliSuggestion.insertText.startsWith(',')
+      || highlightedCliSuggestion.label.trimStart().startsWith(',')
+    );
+    let foundExistingComma = false;
+    if (shouldReuseExistingComma) {
       let scanIndex = replaceStart;
       while (scanIndex > 0 && cliCommand[scanIndex - 1] === ' ') {
         scanIndex -= 1;
       }
       if (scanIndex > 0 && cliCommand[scanIndex - 1] === ',') {
         replaceStart = scanIndex - 1;
+        foundExistingComma = true;
+      } else if (scanIndex !== replaceStart) {
+        replaceStart = scanIndex;
       }
     }
 
+    const replacementText = cliCommand.slice(replaceStart, cliSuggestionResult.replaceEnd);
+    const shouldWrapInsertedTextInQuotes = replacementText.startsWith('"')
+      && !highlightedCliSuggestion.insertText.startsWith('"');
+    const unquotedInsertedText = shouldWrapInsertedTextInQuotes
+      ? `"${highlightedCliSuggestion.insertText.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+      : highlightedCliSuggestion.insertText;
+    const baseInsertedText = shouldReuseExistingComma && !unquotedInsertedText.startsWith(',')
+      ? `${foundExistingComma ? ',' : ', '}${unquotedInsertedText}`
+      : unquotedInsertedText;
     const suffixNeedsSpace = cliSuggestionResult.replaceEnd >= cliCommand.length
       || /\s|,/.test(cliCommand[cliSuggestionResult.replaceEnd] ?? '');
     const insertedText = suffixNeedsSpace
-      ? `${highlightedCliSuggestion.insertText} `
-      : highlightedCliSuggestion.insertText;
+      ? `${baseInsertedText} `
+      : baseInsertedText;
     const nextValue = `${cliCommand.slice(0, replaceStart)}${insertedText}${cliCommand.slice(cliSuggestionResult.replaceEnd)}`;
     const nextCaretIndex = replaceStart + insertedText.length;
     pendingSelectionRangeRef.current = { start: nextCaretIndex, end: nextCaretIndex };

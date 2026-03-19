@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import {
+  CLI_DIRECTIONS,
   normalizeDirection,
   STANDARD_DIRECTIONS,
   isStandardDirection,
@@ -16,6 +17,17 @@ describe('STANDARD_DIRECTIONS', () => {
     for (const dir of expected) {
       expect(STANDARD_DIRECTIONS).toContain(dir);
     }
+  });
+});
+
+describe('CLI_DIRECTIONS', () => {
+  it('includes compass directions and up/down, but not in/out', () => {
+    expect(CLI_DIRECTIONS).toEqual(expect.arrayContaining([
+      'north', 'south', 'east', 'west',
+      'northeast', 'northwest', 'southeast', 'southwest',
+      'up', 'down',
+    ]));
+    expect(CLI_DIRECTIONS).not.toEqual(expect.arrayContaining(['in', 'out']));
   });
 });
 
@@ -72,10 +84,13 @@ describe('oppositeDirection', () => {
     ['southeast', 'northwest'],
     ['up', 'down'],
     ['down', 'up'],
-    ['in', 'out'],
-    ['out', 'in'],
   ])('returns %s → %s', (input, expected) => {
     expect(oppositeDirection(input)).toBe(expected);
+  });
+
+  it('still returns in/out opposites for non-CLI direction semantics', () => {
+    expect(oppositeDirection('in')).toBe('out');
+    expect(oppositeDirection('out')).toBe('in');
   });
 
   it('returns undefined for custom directions', () => {

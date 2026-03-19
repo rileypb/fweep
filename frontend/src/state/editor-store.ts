@@ -326,7 +326,7 @@ export interface EditorState {
   redo: () => void;
 
   /** Create a new room at the given canvas position (snapped to grid). Returns the room ID. */
-  addRoomAtPosition: (name: string, position: Position) => string;
+  addRoomAtPosition: (name: string, position: Position, options?: HistoryOptions) => string;
 
   /** Create a new room from the room editor draft in a single history step. Returns the room ID. */
   createRoomFromEditorDraft: (
@@ -426,7 +426,7 @@ export interface EditorState {
   setRoomShape: (roomId: string, shape: RoomShape) => void;
 
   /** Update an existing room's lighting. */
-  setRoomDark: (roomId: string, isDark: boolean) => void;
+  setRoomDark: (roomId: string, isDark: boolean, options?: HistoryOptions) => void;
 
   /** Update an existing room's visual styling. */
   setRoomStyle: (
@@ -998,7 +998,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
-  addRoomAtPosition: (name, position) => {
+  addRoomAtPosition: (name, position, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot add a room: no document is loaded.');
@@ -1007,7 +1007,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
     return room.id;
   },
 
@@ -1371,13 +1371,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
-  setRoomDark: (roomId, isDark) => {
+  setRoomDark: (roomId, isDark, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot set room lighting: no document is loaded.');
     }
     const updatedDoc = domainSetRoomDark(doc, roomId, isDark);
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
   },
 
   setRoomStyle: (roomId, style) => {

@@ -4,14 +4,38 @@ import { createConnection, createEmptyMap, createRoom } from '../../src/domain/m
 import { getCliSuggestions } from '../../src/domain/cli-suggestions';
 
 describe('cli suggestions', () => {
-  it('shows curated default suggestions for an empty focused input', () => {
+  it('shows all valid first-token starters for an empty focused input', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
     const result = getCliSuggestions('', 0, doc);
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
-      expect.arrayContaining(['create', 'connect', 'arrange', 'north', '<room>']),
+      expect.arrayContaining([
+        'create',
+        'connect',
+        'go',
+        'show',
+        'edit',
+        'delete',
+        'notate',
+        'annotate',
+        'arrange',
+        'help',
+        'put',
+        'take',
+        'get',
+        'undo',
+        'redo',
+        'above',
+        'below',
+        'the',
+        'north',
+        'south',
+        'east',
+        'west',
+        '<room>',
+      ]),
     );
   });
 
@@ -23,12 +47,32 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('suggests the as a first-token starter when typing t', () => {
+    const result = getCliSuggestions('t', 1, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('the');
+  });
+
+  it('suggests room and way after typing the plus a space', () => {
+    const result = getCliSuggestions('the ', 'the '.length, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['room', 'way']);
+  });
+
   it('suggests legal next words immediately after create plus a space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
     const result = getCliSuggestions('create ', 'create '.length, doc);
 
-    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>']);
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>', 'and']);
+  });
+
+  it('suggests create and connect from the first token prefix', () => {
+    const result = getCliSuggestions('create', 'create'.length, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['create', 'create and connect']),
+    );
   });
 
   it('suggests directions and "to" immediately after go plus a space', () => {
@@ -37,6 +81,20 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['north', 'to']),
     );
+  });
+
+  it('does not suggest show when typing go as the first token', () => {
+    const result = getCliSuggestions('go', 2, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('go');
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).not.toContain('show');
+  });
+
+  it('shows get instead of take when matching the get synonym at the first token', () => {
+    const result = getCliSuggestions('g', 1, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toContain('get');
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).not.toContain('take');
   });
 
   it('shows a room placeholder at the start of a room-reference slot', () => {
@@ -63,6 +121,147 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['to']);
   });
 
+  it('stays inside an open quoted slot instead of advancing grammar', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Bedroom'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 2, y: 0 } });
+
+    expect(
+      getCliSuggestions('connect "Key West ', 'connect "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Key West']);
+
+    expect(
+      getCliSuggestions('connect "Key West" ', 'connect "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['north', 'east']));
+    expect(
+      getCliSuggestions('connect "Key West" ', 'connect "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).not.toContain('to');
+
+    expect(
+      getCliSuggestions('connect Kitchen north to "Bed ', 'connect Kitchen north to "Bed '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Bedroom']);
+
+    expect(
+      getCliSuggestions('create "Key West ', 'create "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>']));
+
+    expect(
+      getCliSuggestions('create "Key West ', 'create "Key West '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).not.toEqual(expect.arrayContaining([', which is', 'north']));
+
+    expect(
+      getCliSuggestions('create "Key West" ', 'create "Key West" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
+
+    expect(
+      getCliSuggestions('the way east of "Living ', 'the way east of "Living '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Living Room']);
+  });
+
+  it('treats quoted syntax words as room names instead of grammar', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('north'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Hallway'), position: { x: 1, y: 0 } });
+
+    expect(
+      getCliSuggestions('connect "north" ', 'connect "north" '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['north', 'east']));
+  });
+
+  it('keeps parser-backed connect tail suggestions on direction and one-way states', () => {
+    expect(
+      getCliSuggestions('connect Kitchen north ', 'connect Kitchen north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('connect store room west ', 'connect store room west '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('connect store room west one-way ', 'connect store room west one-way '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['to']);
+
+    expect(
+      getCliSuggestions('create and connect Pantry north ', 'create and connect Pantry north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['one-way', 'to']));
+
+    expect(
+      getCliSuggestions('create and connect Pantry north one-way ', 'create and connect Pantry north one-way '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['to']);
+  });
+
+  it('suggests a trailing target direction only for two-way connect commands', () => {
+    const doc = addRoom(addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } }), {
+      ...createRoom('Bedroom'),
+      position: { x: 1, y: 0 },
+    });
+
+    expect(
+      getCliSuggestions('connect Kitchen north to Bedroom ', 'connect Kitchen north to Bedroom '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain('south');
+
+    expect(getCliSuggestions('connect Kitchen north one-way to Bedroom ', 'connect Kitchen north one-way to Bedroom '.length, doc)).toBeNull();
+  });
+
+  it('suggests a trailing target direction only for two-way create-and-connect commands', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 1, y: 0 } });
+
+    expect(
+      getCliSuggestions(
+        'create and connect Kitchen north to Bedroom ',
+        'create and connect Kitchen north to Bedroom '.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain('south');
+
+    expect(
+      getCliSuggestions(
+        'create and connect Kitchen north one-way to Bedroom ',
+        'create and connect Kitchen north one-way to Bedroom '.length,
+        doc,
+      ),
+    ).toBeNull();
+  });
+
+  it('closes suggestions after a completed trailing target direction in create-and-connect commands', () => {
+    const doc = addRoom(
+      addRoom(createEmptyMap('Test'), { ...createRoom('store room'), position: { x: 0, y: 0 } }),
+      { ...createRoom('Hallway'), position: { x: 1, y: 0 } },
+    );
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to store room west ',
+        'create and connect "blah", which is dark, south to store room west '.length,
+        doc,
+      ),
+    ).toBeNull();
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to store room west e',
+        'create and connect "blah", which is dark, south to store room west e'.length,
+        doc,
+      ),
+    ).toBeNull();
+  });
+
   it('suggests room-led grammar words after a room name and space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 
@@ -81,12 +280,40 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['dark', 'lit']);
   });
 
+  it('closes suggestions after a completed room adjective with a trailing space', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('Kitchen is lit ', 'Kitchen is lit '.length, doc)).toBeNull();
+    expect(getCliSuggestions('Kitchen is dark ', 'Kitchen is dark '.length, doc)).toBeNull();
+  });
+
   it('suggests adjective and relative-create phrases after create plus a room name', () => {
     const result = getCliSuggestions('create Kitchen ', 'create Kitchen '.length, createEmptyMap('Test'));
+    const multiWordResult = getCliSuggestions('create city park ', 'create city park '.length, createEmptyMap('Test'));
+    const continuedNameResult = getCliSuggestions('create city ', 'create city '.length, createEmptyMap('Test'));
+    const continuedNextWordResult = getCliSuggestions('create city p', 'create city p'.length, createEmptyMap('Test'));
+    const afterCommaResult = getCliSuggestions('create ice cream stand, ', 'create ice cream stand, '.length, createEmptyMap('Test'));
+    const afterCommaPartialResult = getCliSuggestions('create den, w', 'create den, w'.length, createEmptyMap('Test'));
+    const afterCommaWhichResult = getCliSuggestions('create den, which ', 'create den, which '.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(multiWordResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(continuedNameResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>', ', which is', 'above', 'below', 'north']),
+    );
+    expect(continuedNextWordResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<new room name>']),
+    );
+    expect(afterCommaResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining([', which is', 'above', 'below', 'north']),
     );
+    expect(afterCommaResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('<new room name>');
+    expect(afterCommaPartialResult?.suggestions.map((suggestion) => suggestion.label)).toContain(', which is');
+    expect(afterCommaWhichResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is']);
   });
 
   it('suggests only "of" after a create direction and space', () => {
@@ -115,9 +342,34 @@ describe('cli suggestions', () => {
   it('requires a comma after create adjective phrases before showing directions', () => {
     const beforeComma = getCliSuggestions('create foobar, which is lit ', 'create foobar, which is lit '.length, createEmptyMap('Test'));
     const afterComma = getCliSuggestions('create foobar, which is lit, ', 'create foobar, which is lit, '.length, createEmptyMap('Test'));
+    const afterDirection = getCliSuggestions(
+      'create monkey, which is dark , west ',
+      'create monkey, which is dark , west '.length,
+      createEmptyMap('Test'),
+    );
+    const afterDirectionComma = getCliSuggestions(
+      'create monkey, which is dark , west, ',
+      'create monkey, which is dark , west, '.length,
+      createEmptyMap('Test'),
+    );
+    const afterSpacedComma = getCliSuggestions(
+      'create ice cream stand, which is dark , which is ',
+      'create ice cream stand, which is dark , which is '.length,
+      createEmptyMap('Test'),
+    );
 
     expect(beforeComma?.suggestions.map((suggestion) => suggestion.label)).toEqual([',']);
     expect(afterComma?.suggestions.map((suggestion) => suggestion.label)).toContain('north');
+    expect(afterDirection?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(afterDirectionComma).toBeNull();
+    expect(afterSpacedComma).toBeNull();
+    expect(
+      getCliSuggestions(
+        'create monkey, which is dark , north, which is ',
+        'create monkey, which is dark , north, which is '.length,
+        createEmptyMap('Test'),
+      ),
+    ).toBeNull();
   });
 
   it('shows no suggestions after a complete relative create phrase', () => {
@@ -132,6 +384,23 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('create and connect ', 'create and connect '.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<new room name>']);
+  });
+
+  it('keeps the new-room placeholder visible while typing a create-and-connect room name', () => {
+    expect(
+      getCliSuggestions('create and connect city ', 'create and connect city '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
+
+    expect(
+      getCliSuggestions('create and connect city p', 'create and connect city p'.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>']));
+
+    expect(
+      getCliSuggestions('create and connect city park ', 'create and connect city park '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<new room name>', ', which is', 'north']));
   });
 
   it('suggests only "to" after one-way in create-and-connect commands', () => {
@@ -168,20 +437,83 @@ describe('cli suggestions', () => {
     );
   });
 
-  it('treats e and s as east and south rather than edit and show in the first token', () => {
+  it('allows edit alongside east and show alongside south at the first token', () => {
     const eastResult = getCliSuggestions('e', 1, createEmptyMap('Test'));
     const southResult = getCliSuggestions('s', 1, createEmptyMap('Test'));
 
     expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).toContain('east');
-    expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('edit');
+    expect(eastResult?.suggestions.map((suggestion) => suggestion.label)).toContain('edit');
     expect(southResult?.suggestions.map((suggestion) => suggestion.label)).toContain('south');
-    expect(southResult?.suggestions.map((suggestion) => suggestion.label)).not.toContain('show');
+    expect(southResult?.suggestions.map((suggestion) => suggestion.label)).toContain('show');
   });
 
   it('suggests matching help topics after help', () => {
     const result = getCliSuggestions('help r', 6, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['rooms']);
+  });
+
+  it('closes suggestions after a completed help topic', () => {
+    expect(getCliSuggestions('help rooms ', 'help rooms '.length, createEmptyMap('Test'))).toBeNull();
+    expect(getCliSuggestions('help rooms i', 'help rooms i'.length, createEmptyMap('Test'))).toBeNull();
+    expect(getCliSuggestions('h rooms ', 'h rooms '.length, createEmptyMap('Test'))).toBeNull();
+  });
+
+  it('closes suggestions after completed terminal commands', () => {
+    const doc = createEmptyMap('Test');
+
+    expect(getCliSuggestions('arrange ', 'arrange '.length, doc)).toBeNull();
+    expect(getCliSuggestions('arrange x', 'arrange x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('arr ', 'arr '.length, doc)).toBeNull();
+    expect(getCliSuggestions('arr x', 'arr x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('prettify ', 'prettify '.length, doc)).toBeNull();
+    expect(getCliSuggestions('prettify x', 'prettify x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('undo ', 'undo '.length, doc)).toBeNull();
+    expect(getCliSuggestions('undo x', 'undo x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('redo ', 'redo '.length, doc)).toBeNull();
+    expect(getCliSuggestions('redo x', 'redo x'.length, doc)).toBeNull();
+  });
+
+  it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+
+    expect(getCliSuggestions('notate c', 'notate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('annotate c', 'annotate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('ann c', 'ann c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('notate cellar ', 'notate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+  });
+
+  it('closes suggestions after notate and annotate enter free-text note mode', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('notate cellar with ', 'notate cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('annotate cellar with ', 'annotate cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('ann cellar with ', 'ann cellar with '.length, doc)).toBeNull();
+  });
+
+  it('uses parser-backed room suggestions after put in and take/get from', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+
+    expect(getCliSuggestions('put lantern in c', 'put lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('take lantern from c', 'take lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('get lantern from c', 'get lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('take all from l', 'take all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+    expect(getCliSuggestions('get all from l', 'get all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+  });
+
+  it('closes suggestions after a completed put/take/get room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('put lantern in cellar ', 'put lantern in cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('take lantern from cellar ', 'take lantern from cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('get all from cellar ', 'get all from cellar '.length, doc)).toBeNull();
   });
 
   it('suggests matching rooms for show commands', () => {
@@ -192,6 +524,22 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('show c', 6, doc);
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar', 'Control Room']);
+  });
+
+  it('supports parser-backed room suggestions for show, edit, and delete aliases', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('s c', 's c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('ed c', 'ed c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('del c', 'del c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+  });
+
+  it('closes suggestions after a completed show, edit, or delete room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+
+    expect(getCliSuggestions('show cellar ', 'show cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('edit cellar ', 'edit cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('delete cellar ', 'delete cellar '.length, doc)).toBeNull();
   });
 
   it('shows a room placeholder at the start of a connect target slot', () => {
@@ -325,11 +673,16 @@ describe('cli suggestions', () => {
   });
 
   it('suggests pseudo-room continuations after directional pseudo-room phrases', () => {
-    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    let doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Library'), position: { x: 1, y: 0 } });
+    const partialOfResult = getCliSuggestions('north o', 'north o'.length, doc);
+    const partialRoomResult = getCliSuggestions('n of l', 'n of l'.length, doc);
     const shorthandResult = getCliSuggestions('west of bedroom ', 'west of bedroom '.length, doc);
     const roomResult = getCliSuggestions('the room north of bedroom ', 'the room north of bedroom '.length, doc);
     const wayResult = getCliSuggestions('the way north of bedroom ', 'the way north of bedroom '.length, doc);
 
+    expect(partialOfResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(partialRoomResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Library']);
     expect(shorthandResult?.suggestions.map((suggestion) => suggestion.label)).toEqual([
       'is unknown',
       'goes on forever',
@@ -355,6 +708,38 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('west of bedroom goes on forever ', 'west of bedroom goes on forever '.length, doc)).toBeNull();
     expect(getCliSuggestions('west of bedroom leads nowhere ', 'west of bedroom leads nowhere '.length, doc)).toBeNull();
     expect(getCliSuggestions('west of bedroom lies death ', 'west of bedroom lies death '.length, doc)).toBeNull();
+  });
+
+  it('does not regress pseudo-room terminal phrase suggestions back to of mid-phrase', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Living Room'), position: { x: 0, y: 0 } });
+
+    expect(
+      getCliSuggestions(
+        'the way east of living room goes on forever',
+        'the way east of living room goes on forever'.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['forever']);
+  });
+
+  it('switches from the room slot to pseudo-room phrase suggestions after a completed room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Living Room'), position: { x: 0, y: 0 } });
+
+    expect(
+      getCliSuggestions(
+        'the way east of living room g',
+        'the way east of living room g'.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['goes on forever']);
+
+    expect(
+      getCliSuggestions(
+        'the way east of living room l',
+        'the way east of living room l'.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['leads nowhere', 'lies death']);
   });
 
   it('does not allow room-to-room connection annotation grammar inside pseudo-room phrases', () => {

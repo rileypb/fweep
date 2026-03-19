@@ -85,6 +85,8 @@ export function AppCliPanel({
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
+  const suggestionListRef = React.useRef<HTMLDivElement | null>(null);
+  const suggestionOptionRefs = React.useRef<Array<HTMLDivElement | null>>([]);
   const activeSuggestion = isSuggestionMenuOpen
     ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
     : null;
@@ -92,26 +94,79 @@ export function AppCliPanel({
     ? (isCliInputFocused ? 'Type / to open suggestions' : 'Type / to type commands')
     : 'Type help';
 
+  React.useLayoutEffect(() => {
+    if (!isSuggestionMenuOpen) {
+      return;
+    }
+
+    const suggestionList = suggestionListRef.current;
+    const activeOption = suggestionOptionRefs.current[highlightedCliSuggestionIndex];
+    if (suggestionList === null || activeOption === null) {
+      return;
+    }
+
+    const optionTop = activeOption.offsetTop;
+    const optionBottom = optionTop + activeOption.offsetHeight;
+    const visibleTop = suggestionList.scrollTop;
+    const visibleBottom = visibleTop + suggestionList.clientHeight;
+
+    if (optionTop < visibleTop) {
+      suggestionList.scrollTop = optionTop;
+      return;
+    }
+
+    if (optionBottom > visibleBottom) {
+      suggestionList.scrollTop = optionBottom - suggestionList.clientHeight;
+    }
+  }, [highlightedCliSuggestionIndex, isSuggestionMenuOpen, cliSuggestions]);
+
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
-      <div
-        id="app-game-output"
-        className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions text"
-        aria-atomic="false"
-        aria-label="Game output log"
-        ref={gameOutputRef}
-        onClick={onGameOutputClick}
-      >
-        <div className="app-game-output-content">
-          {gameOutputLines.map((line, index) => (
-            <React.Fragment key={`game-output-line-${index}`}>
-              {renderCliOutputLine(line)}
-              {index < gameOutputLines.length - 1 ? '\n' : null}
-            </React.Fragment>
-          ))}
+      <div className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}>
+        <div className="app-game-output-toolbar">
+          <button
+            type="button"
+            className="app-cli-collapse-button"
+            aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleOutputCollapsed();
+            }}
+          >
+            {isOutputCollapsed ? 'More' : 'Less'}
+          </button>
+          <button
+            type="button"
+            className="app-cli-import-button"
+            aria-label="Import map script"
+            onClick={(event) => {
+              event.stopPropagation();
+              cliImportInputRef.current?.click();
+            }}
+            disabled={isImportingScript}
+          >
+            {isImportingScript ? 'Importing...' : 'Import'}
+          </button>
+        </div>
+        <div
+          id="app-game-output"
+          className="app-game-output-content"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-atomic="false"
+          aria-label="Game output log"
+          ref={gameOutputRef}
+          onClick={onGameOutputClick}
+        >
+          <div className="app-game-output-lines">
+            {gameOutputLines.map((line, index) => (
+              <React.Fragment key={`game-output-line-${index}`}>
+                {renderCliOutputLine(line)}
+                {index < gameOutputLines.length - 1 ? '\n' : null}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       </div>
       <div className="app-cli-bar">
@@ -168,8 +223,7 @@ export function AppCliPanel({
                 }
 
                 if ((event.key === 'ArrowUp' || event.key === 'ArrowDown')
-                  && isSuggestionMenuOpen
-                  && (cliCommand.trim().length > 0 || cliHistory.length === 0)) {
+                  && isSuggestionMenuOpen) {
                   event.preventDefault();
                   event.stopPropagation();
                   onCliSuggestionHighlightMove(event.key === 'ArrowUp' ? 'up' : 'down');
@@ -228,15 +282,6 @@ export function AppCliPanel({
                 onCliCaretChange(event.currentTarget.selectionStart);
               }}
             />
-            <button
-              className="app-cli-collapse-button"
-              type="button"
-              aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-              title={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-              onClick={onToggleOutputCollapsed}
-            >
-              {isOutputCollapsed ? 'More' : 'Less'}
-            </button>
             <input
               ref={cliImportInputRef}
               className="app-cli-import-input"
@@ -245,16 +290,6 @@ export function AppCliPanel({
               tabIndex={-1}
               onChange={onImportScriptChange}
             />
-            <button
-              className="app-cli-import-button"
-              type="button"
-              aria-label="Import map script"
-              title="Import map script"
-              disabled={isImportingScript}
-              onClick={() => cliImportInputRef.current?.click()}
-            >
-              {isImportingScript ? 'Importing…' : 'Import'}
-            </button>
           </div>
           {isSuggestionMenuOpen && (
             <div
@@ -262,6 +297,7 @@ export function AppCliPanel({
               className="app-cli-suggestion-list"
               role="listbox"
               aria-label="CLI suggestions"
+              ref={suggestionListRef}
             >
               {cliSuggestions.map((suggestion, index) => {
                 const isActive = index === highlightedCliSuggestionIndex;
@@ -270,6 +306,9 @@ export function AppCliPanel({
                   <div
                     key={suggestion.id}
                     id={suggestion.id}
+                    ref={(element) => {
+                      suggestionOptionRefs.current[index] = element;
+                    }}
                     className={`app-cli-suggestion-option${isActive ? ' app-cli-suggestion-option--active' : ''}${isPlaceholder ? ' app-cli-suggestion-option--placeholder' : ''}`}
                     role="option"
                     aria-selected={isActive}

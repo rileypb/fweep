@@ -1,4 +1,4 @@
-import { normalizeDirection, oppositeDirection } from './directions';
+import { CLI_DIRECTIONS, normalizeDirection, oppositeDirection } from './directions';
 import { parseCliHelpTopic, type CliHelpTopic } from './cli-help';
 import type { PseudoRoomKind } from './map-types';
 
@@ -74,8 +74,12 @@ export const CLI_COMMAND_FORMS = [
   'the way above/below <room name> goes on forever',
   '<direction> of <room name> lies death',
   'above/below <room name> lies death',
+  'the way <direction> of <room name> lies death',
+  'the way above/below <room name> lies death',
   '<direction> of <room name> leads nowhere',
   'above/below <room name> leads nowhere',
+  'the way <direction> of <room name> leads nowhere',
+  'the way above/below <room name> leads nowhere',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'show/s/go to <room name>',
@@ -129,21 +133,7 @@ interface Token {
   readonly quoted: boolean;
 }
 
-const DIRECTION_WORDS = new Set([
-  'north',
-  'south',
-  'east',
-  'west',
-  'up',
-  'down',
-  'in',
-  'out',
-  'southwest',
-  'southeast',
-  'northwest',
-  'northeast',
-]);
-
+const DIRECTION_WORDS = new Set<string>(CLI_DIRECTIONS);
 function normalizeCliWhitespace(input: string): string {
   return input.replace(/\t/g, ' ').replace(/ {2,}/g, ' ').trim();
 }
@@ -527,7 +517,7 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
   }
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'way')) {
-    return parseInfinite(2);
+    return parseInfinite(2) ?? parseDeath(2) ?? parseNowhere(2);
   }
 
   return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0);

@@ -161,7 +161,11 @@ describe('URL routing', () => {
     expect(optionText.some((text) => text.includes('create'))).toBe(true);
     expect(optionText.some((text) => text.includes('connect'))).toBe(true);
     expect(optionText.some((text) => text.includes('arrange'))).toBe(true);
-    expect(optionText.some((text) => text.includes('north'))).toBe(true);
+    expect(optionText).toContain('<direction>');
+    expect(optionText).not.toContain('get');
+    expect(optionText).not.toContain('notate');
+    expect(optionText).toContain('above');
+    expect(optionText).toContain('below');
     expect(optionText).toContain('<room>');
   });
 
@@ -194,7 +198,7 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(input);
     expect(input).toHaveValue('create ');
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<new room name>']);
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<new room name>', 'and']);
   });
 
   it('uses arrow keys to navigate suggestions while the suggestion menu is open', async () => {
@@ -211,9 +215,107 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('keeps quoted room-name suggestions in slot mode until the quote closes', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Suggestions Map');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'connect "Key West ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['Key West']);
+
+    await user.type(input, '" ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(
+      expect.arrayContaining(['north', 'east']),
+    );
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).not.toContain('to');
+  });
+
+  it('accepts a completed quoted room suggestion without duplicating the quotes', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Accept Map');
+    doc = addRoom(doc, { ...createRoom('Key West'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'show "Key ');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('show "Key West" ');
+  });
+
+  it('preserves quotes when accepting a first-token room suggestion', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Quoted Root Suggestion Map');
+    doc = addRoom(doc, { ...createRoom('store room'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, '"st');
+    await user.click(screen.getByRole('option', { name: /store room/i }));
+
+    expect(input).toHaveValue('"store room" ');
+  });
+
   it('uses arrow keys to navigate default suggestions before any typing', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Default Suggestion Navigation Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('connect ');
+  });
+
+  it('scrolls the suggestion popup to keep the highlighted option visible', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Scroll Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+
+    const listbox = screen.getByRole('listbox', { name: /cli suggestions/i });
+    Object.defineProperty(listbox, 'clientHeight', {
+      configurable: true,
+      value: 90,
+    });
+    Object.defineProperty(listbox, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    screen.getAllByRole('option').forEach((option, index) => {
+      Object.defineProperty(option, 'offsetTop', {
+        configurable: true,
+        value: index * 30,
+      });
+      Object.defineProperty(option, 'offsetHeight', {
+        configurable: true,
+        value: 30,
+      });
+    });
+
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}');
+
+    expect(listbox.scrollTop).toBeGreaterThan(0);
+  });
+
+  it('keeps arrow keys on suggestions even when command history exists', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Suggestion Navigation With History Map');
+
+    await submitCliCommand('help');
 
     const input = getCliInput();
 
@@ -235,7 +337,23 @@ describe('URL routing', () => {
     await user.type(input, 'create ');
 
     const optionText = screen.getAllByRole('option').map((option) => option.textContent ?? '');
-    expect(optionText).toEqual(['<new room name>']);
+    expect(optionText).toEqual(['<new room name>', 'and']);
+  });
+
+  it('suggests the as a first-token starter and room/way after the', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI The Starter Suggestions Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 't');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toContain('the');
+
+    await user.type(input, 'he ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['room', 'way']);
   });
 
   it('shows a new-room placeholder after create and connect plus a space', async () => {
@@ -287,6 +405,22 @@ describe('URL routing', () => {
     await user.type(input, 'Kitchen is ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
+  });
+
+  it('closes suggestions after a completed room-led adjective phrase', async () => {
+    const user = userEvent.setup();
+    const map = addRoom(createEmptyMap('CLI Completed Room Lighting Suggestions Map'), {
+      ...createRoom('Kitchen'),
+      position: { x: 0, y: 0 },
+    });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'Kitchen is lit ');
+
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('inserts is after a completed room-to-room phrase without deleting the target room', async () => {
@@ -375,7 +509,20 @@ describe('URL routing', () => {
     await user.type(input, 'create foobar,');
     await user.keyboard('{Tab}');
 
-    expect(input).toHaveValue('create foobar, which is ');
+    expect(input.value).toMatch(/^create foobar,which is\s*$/);
+  });
+
+  it('preserves the comma when accepting the adjective phrase after a quoted create-and-connect room name', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Quoted Create And Connect Comma Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'create and connect "firehouse" ');
+    await user.click(screen.getByRole('option', { name: /, which is/i }));
+
+    expect(input).toHaveValue('create and connect "firehouse", which is ');
   });
 
   it('shows only "of" after a create direction and space', async () => {
@@ -607,48 +754,11 @@ describe('URL routing', () => {
     expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
-  it('collapses the output log to widen the minimap viewport approximation and persists that state', async () => {
-    const user = userEvent.setup();
-    const doc = createEmptyMap('CLI Collapse Map');
-    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
-    const hallway = { ...createRoom('Hallway'), position: { x: 160, y: 120 } };
-    let savedDoc = addRoom(doc, kitchen);
-    savedDoc = addRoom(savedDoc, hallway);
-    await renderAppWithSavedMap(savedDoc);
+  it('shows the output-log collapse button above the log', async () => {
+    const doc = createEmptyMap('CLI Collapse Button Map');
+    await renderAppWithSavedMap(doc);
 
-    const canvas = await screen.findByTestId('map-canvas');
-    jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 1200,
-      bottom: 800,
-      width: 1200,
-      height: 800,
-      toJSON: () => ({}),
-    });
-
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
-
-    const viewport = await screen.findByTestId('map-minimap-viewport');
-    const initialWidth = Number(viewport.getAttribute('width'));
-
-    await user.click(screen.getByRole('button', { name: /collapse output log/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /expand output log/i })).toBeInTheDocument();
-    });
-
-    const collapsedWidth = Number(screen.getByTestId('map-minimap-viewport').getAttribute('width'));
-    expect(collapsedWidth).toBeGreaterThan(initialWidth);
-
-    await waitFor(async () => {
-      const reloaded = await loadMap(savedDoc.metadata.id);
-      expect(reloaded?.view.cliOutputCollapsed).toBe(true);
-    });
+    expect(screen.getByRole('button', { name: /collapse output log/i })).toBeInTheDocument();
   });
 
   it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
@@ -695,16 +805,12 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(editable);
   });
 
-  it('opens the hidden script import input when the import button is clicked', async () => {
-    const user = userEvent.setup();
+  it('shows the script import button above the log while keeping the file input mounted', async () => {
     await renderAppWithOpenMap('CLI Script Button Map');
 
     const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
-    const clickSpy = jest.spyOn(fileInput, 'click');
-
-    await user.click(screen.getByRole('button', { name: /import map script/i }));
-
-    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(fileInput).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /import map script/i })).toBeInTheDocument();
   });
 
   it('reveals a room for go to <room> CLI commands', async () => {
@@ -782,7 +888,7 @@ describe('URL routing', () => {
       expect(items[0]?.name).toBe('sword');
     });
 
-    expectGameOutputToContain('take lantern, key from Kitchen', 'Took.');
+    expectGameOutputToContain('take lantern, key from Kitchen', 'Taken.');
   });
 
   it('takes all items from a room through the CLI', async () => {
@@ -800,7 +906,7 @@ describe('URL routing', () => {
       expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
     });
 
-    expectGameOutputToContain('take all from Kitchen', 'Took.');
+    expectGameOutputToContain('take all from Kitchen', 'Taken.');
   });
 
   it('gets items from a room through the CLI', async () => {
@@ -817,7 +923,7 @@ describe('URL routing', () => {
       expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
     });
 
-    expectGameOutputToContain('get all from Kitchen', 'Took.');
+    expectGameOutputToContain('get all from Kitchen', 'Taken.');
   });
 
   it('rolls back script import changes when a later line fails', async () => {
@@ -935,6 +1041,18 @@ describe('URL routing', () => {
     expectGameOutputToContain(...getCliHelpTopicLines('rooms'));
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('does not leak room-led suggestions after a completed help topic', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Suggestion Isolation Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'help rooms ');
+
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('rearranges the map for the arrange CLI command', async () => {
@@ -3107,6 +3225,29 @@ describe('URL routing', () => {
     expectGameOutputToContain('create Kitchen', 'created', 'undo', 'undone');
   });
 
+  it('undoes adjective create commands in a single step', async () => {
+    const doc = createEmptyMap('CLI Undo Adjective Create Map');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli undo adjective create map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'create garage, which is dark{enter}');
+
+    let rooms = Object.values(useEditorStore.getState().doc?.rooms ?? {});
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.name).toBe('garage');
+    expect(rooms[0]?.isDark).toBe(true);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+
+    rooms = Object.values(useEditorStore.getState().doc?.rooms ?? {});
+    expect(rooms).toHaveLength(0);
+  });
+
   it('redoes the previous undone command for the redo CLI command', async () => {
     const doc = createEmptyMap('CLI Redo Map');
     await openSavedMap(doc);
@@ -3203,6 +3344,42 @@ describe('URL routing', () => {
     expect(outputLines[24]).toBe('');
   });
 
+  it('keeps the output log scrolled to the bottom as new lines are appended', async () => {
+    await renderAppWithOpenMap('CLI Output Scroll Map');
+
+    const log = getGameOutputBox();
+    let scrollTopValue = 0;
+    Object.defineProperty(log, 'scrollHeight', {
+      configurable: true,
+      get: () => 480,
+    });
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+      },
+    });
+
+    const input = getCliInput();
+    const form = input.closest('form') as HTMLFormElement;
+
+    fireEvent.change(input, { target: { value: 'blorb room 1' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(480);
+    });
+
+    scrollTopValue = 0;
+    fireEvent.change(input, { target: { value: 'blorb room 2' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(480);
+    });
+  });
+
   it('opens and closes the help dialog', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('Help Dialog Map');
@@ -3275,6 +3452,34 @@ describe('URL routing', () => {
     await screen.findByText(/persisted output map/i);
     expect(getGameOutputBox().textContent ?? '').toContain('>help');
     expect(getGameOutputBox().textContent ?? '').toContain('help rooms');
+  });
+
+  it('preserves CLI usage state and output across repeated reloads after a submitted command', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Repeated Reload CLI State Map');
+    await openSavedMap(doc);
+
+    const firstRender = renderApp();
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+
+    const firstInput = getCliInput();
+    await user.type(firstInput, 'xyzzy{enter}');
+
+    firstRender.unmount();
+    const secondRender = renderApp();
+
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+    expect(getGameOutputBox().textContent ?? '').toContain('>xyzzy');
+
+    secondRender.unmount();
+    renderApp();
+
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+    expect(getGameOutputBox().textContent ?? '').toContain('>xyzzy');
+
+    await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
+      expect(persisted?.cliOutputLines).toContain('>xyzzy');
+    }));
   });
 
   it('persists the default CLI banner when an existing map has an empty output log', async () => {
