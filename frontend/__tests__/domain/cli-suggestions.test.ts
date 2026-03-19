@@ -15,6 +15,7 @@ describe('cli suggestions', () => {
         'create',
         'connect',
         'disconnect',
+        'describe',
         'go',
         'show',
         'edit',
@@ -96,6 +97,16 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('disconnect store room from ', 'disconnect store room from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['<room>']),
     );
+  });
+
+  it('suggests matching rooms for describe commands and closes after a completed room', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Control Room'), position: { x: 40, y: 0 } });
+
+    expect(getCliSuggestions('describe ', 'describe '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+    expect(getCliSuggestions('describe c', 'describe c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar', 'Control Room']);
+    expect(getCliSuggestions('describe cellar ', 'describe cellar '.length, doc)).toBeNull();
   });
 
   it('suggests directions and "to" immediately after go plus a space', () => {

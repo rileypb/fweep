@@ -8,6 +8,7 @@ import {
 import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
 import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../domain/cli-help';
 import { parseCliScript } from '../domain/cli-script';
+import { describeRoomForCli } from '../domain/cli-room-description';
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
@@ -230,6 +231,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Deleted.';
     case 'edit':
       return 'Edited.';
+    case 'describe':
+      return 'Described.';
     case 'notate':
       return 'Notated.';
     case 'show':
@@ -568,7 +571,7 @@ export function useAppCli({
   const reportRoomReferenceError = (
     submittedInput: string,
     roomMatch: ReturnType<typeof resolveRoomByCliReference>,
-    commandKind: 'delete' | 'edit' | 'show' | 'notate' | 'connect' | 'disconnect' | 'create-and-connect' | 'set-room-adjective' | 'set-connection-annotation' | 'put-items' | 'take-items' | 'take-all-items',
+    commandKind: 'delete' | 'edit' | 'describe' | 'show' | 'notate' | 'connect' | 'disconnect' | 'create-and-connect' | 'set-room-adjective' | 'set-connection-annotation' | 'put-items' | 'take-items' | 'take-all-items',
     roomName: string,
   ): boolean => {
     if (roomMatch.kind === 'pronoun-unbound') {
@@ -791,6 +794,53 @@ export function useAppCli({
       });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       shouldSelectCliInput = false;
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'describe' && currentDoc !== null) {
+      if (command.room === null) {
+        if (liveEditorState.selectedRoomIds.length === 0) {
+          appendGameOutput([
+            formatCliEcho(trimmedInput),
+            "You must select a room you want described. Use the 'show' command to select a room.",
+          ]);
+          return { ok: false, shouldSelectCliInput };
+        }
+
+        if (liveEditorState.selectedRoomIds.length > 1) {
+          appendGameOutput([
+            formatCliEcho(trimmedInput),
+            "You must select only one room at a time. Use the 'show' command to select a room.",
+          ]);
+          return { ok: false, shouldSelectCliInput };
+        }
+
+        const selectedRoomId = liveEditorState.selectedRoomIds[0];
+        const selectedRoom = currentDoc.rooms[selectedRoomId];
+        if (!selectedRoom) {
+          appendGameOutput([
+            formatCliEcho(trimmedInput),
+            "You must select a room you want described. Use the 'show' command to select a room.",
+          ]);
+          return { ok: false, shouldSelectCliInput };
+        }
+
+        setCliPronounRoomReference(selectedRoom.id);
+        appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, selectedRoom.id)]);
+        return { ok: true, shouldSelectCliInput };
+      }
+
+      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+      if (reportRoomReferenceError(trimmedInput, roomMatch, 'describe', command.room.text)) {
+        return { ok: false, shouldSelectCliInput };
+      }
+      if (roomMatch.kind !== 'one') {
+        return { ok: false, shouldSelectCliInput };
+      }
+
+      selectRoom(roomMatch.room.id);
+      setCliPronounRoomReference(roomMatch.room.id);
+      appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, roomMatch.room.id)]);
       return { ok: true, shouldSelectCliInput };
     }
 

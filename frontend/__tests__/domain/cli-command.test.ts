@@ -94,6 +94,11 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('go to Kitchen')).toBe('scroll the map to Kitchen');
   });
 
+  it('describes describe commands', () => {
+    expect(parseCliCommandDescription('describe')).toBe('describe the exits from the selected room');
+    expect(parseCliCommandDescription('describe Kitchen')).toBe('describe the exits from Kitchen');
+  });
+
   it('describes room lighting commands', () => {
     expect(parseCliCommandDescription('Kitchen is dark')).toBe('mark Kitchen as dark');
     expect(parseCliCommandDescription('Kitchen is lit')).toBe('mark Kitchen as lit');
@@ -437,6 +442,18 @@ describe('parseCliCommand', () => {
       sourceRoom: { text: 'Kitchen', exact: false },
       sourceDirection: 'east',
       targetRoom: { text: 'Hallway', exact: false },
+    });
+  });
+
+  it('parses describe commands', () => {
+    expect(parseCliCommand('describe')).toEqual({
+      kind: 'describe',
+      room: null,
+    });
+
+    expect(parseCliCommand('describe Kitchen')).toEqual({
+      kind: 'describe',
+      room: { text: 'Kitchen', exact: false },
     });
   });
 });

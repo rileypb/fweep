@@ -57,6 +57,7 @@ const cliSuggestionGrammarStates = [
     keyword('create', 'CREATE'),
     keyword('connect', 'CONNECT'),
     keyword('disconnect', 'DISCONNECT'),
+    keyword('describe', 'DESCRIBE'),
     keyword('go', 'GO'),
     keyword('show', 'SHOW'),
     keyword('edit', 'EDIT'),
@@ -103,6 +104,13 @@ const cliSuggestionGrammarStates = [
     slot('ROOM_REF', 'GO_TO_ROOM_DONE'),
   ]),
   state('GO_TO_ROOM_DONE', [
+    end(),
+  ]),
+  state('DESCRIBE', [
+    slot('ROOM_REF', 'DESCRIBE_ROOM_DONE'),
+    end(),
+  ]),
+  state('DESCRIBE_ROOM_DONE', [
     end(),
   ]),
   state('SHOW', [

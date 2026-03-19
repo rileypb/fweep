@@ -238,6 +238,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'disconnect'
     && tokens[0] !== 'con'
     && tokens[0] !== 'create'
+    && tokens[0] !== 'describe'
     && tokens[0] !== 'arrange'
     && tokens[0] !== 'help'
     && tokens[0] !== 'h'
@@ -280,6 +281,7 @@ function getSuggestionsForCommandContext(
     && tokens[0] !== 'arrange'
     && tokens[0] !== 'arr'
     && tokens[0] !== 'prettify'
+    && tokens[0] !== 'describe'
     && tokens[0] !== 'help'
     && tokens[0] !== 'h'
     && tokens[0] !== 'undo'
@@ -313,6 +315,10 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'show' || tokens[0] === 's') {
+    return getParserBackedSingleRoomCommandResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+  }
+
+  if (tokens[0] === 'describe') {
     return getParserBackedSingleRoomCommandResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 

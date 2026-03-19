@@ -1678,6 +1678,122 @@ describe('URL routing', () => {
     }
   });
 
+  it('describes the selected room exits for the object-less describe CLI command', async () => {
+    let doc = createEmptyMap('CLI Describe Map');
+    doc = addRoom(doc, {
+      ...createRoom('parlor'),
+      id: 'parlor',
+      position: { x: 240, y: 160 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('kitchen'),
+      id: 'kitchen',
+      position: { x: 400, y: 160 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('attic'),
+      id: 'attic',
+      position: { x: 240, y: 40 },
+    });
+    doc = addConnection(doc, { ...createConnection('parlor', 'kitchen', true), id: 'east-connection' }, 'east', 'west');
+    doc = addConnection(doc, { ...createConnection('parlor', 'attic', false), id: 'up-connection' }, 'up');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli describe map/i);
+
+    act(() => {
+      useEditorStore.getState().setSelectedRoomIds(['parlor']);
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'describe{enter}');
+
+    expectGameOutputToContain(
+      'describe',
+      'From the parlor, one can go east or up.',
+      'The passage up is one-way, however.',
+    );
+  });
+
+  it('describes a named room for the explicit describe CLI command', async () => {
+    let doc = createEmptyMap('CLI Describe Named Room Map');
+    doc = addRoom(doc, {
+      ...createRoom('dining room'),
+      id: 'dining-room',
+      position: { x: 240, y: 160 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('kitchen'),
+      id: 'kitchen',
+      position: { x: 80, y: 160 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('cellar'),
+      id: 'cellar',
+      position: { x: 240, y: 300 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('attic'),
+      id: 'attic',
+      position: { x: 240, y: 40 },
+    });
+    doc = addConnection(doc, { ...createConnection('dining-room', 'kitchen', false), id: 'west-connection' }, 'west');
+    doc = addConnection(doc, { ...createConnection('dining-room', 'cellar', true), id: 'down-connection' }, 'down', 'up');
+    doc = addConnection(doc, { ...createConnection('dining-room', 'attic', false), id: 'up-connection' }, 'up');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli describe named room map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'describe dining room{enter}');
+
+    expectGameOutputToContain(
+      'describe dining room',
+      'From the dining room, one can go west, down, or up.',
+      'The passages west and up are one-way, however.',
+    );
+  });
+
+  it('reports selection errors for the object-less describe CLI command', async () => {
+    let doc = createEmptyMap('CLI Describe Selection Error Map');
+    doc = addRoom(doc, {
+      ...createRoom('Kitchen'),
+      id: 'kitchen',
+      position: { x: 240, y: 160 },
+    });
+    doc = addRoom(doc, {
+      ...createRoom('Hallway'),
+      id: 'hallway',
+      position: { x: 400, y: 160 },
+    });
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli describe selection error map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'describe{enter}');
+    expectGameOutputToContain(
+      'describe',
+      "You must select a room you want described. Use the 'show' command to select a room.",
+    );
+
+    await user.clear(input);
+    act(() => {
+      useEditorStore.getState().setSelectedRoomIds(['kitchen', 'hallway']);
+    });
+    await user.type(input, 'describe{enter}');
+    expectGameOutputToContain(
+      'describe',
+      "You must select only one room at a time. Use the 'show' command to select a room.",
+    );
+  });
+
   it('navigates with go <direction> using the selected room connection in that exact direction', async () => {
     jest.useFakeTimers();
     const kitchenEastConnection = {

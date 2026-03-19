@@ -7,6 +7,7 @@ export type CliErrorCode =
 export type CliErrorCommandKind =
   | 'delete'
   | 'edit'
+  | 'describe'
   | 'show'
   | 'notate'
   | 'connect'

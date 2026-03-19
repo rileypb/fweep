@@ -17,6 +17,7 @@ describe('cli suggestion parser', () => {
   it('parses basic command prefixes into grammar states', () => {
     expect(parseCliSuggestionInput('create').states.map((state) => state.stateId)).toContain('CREATE');
     expect(parseCliSuggestionInput('connect').states.map((state) => state.stateId)).toContain('CONNECT');
+    expect(parseCliSuggestionInput('describe').states.map((state) => state.stateId)).toContain('DESCRIBE');
     expect(parseCliSuggestionInput('go').states.map((state) => state.stateId)).toContain('GO');
     expect(parseCliSuggestionInput('help').states.map((state) => state.stateId)).toContain('HELP');
     expect(parseCliSuggestionInput('delete').states.map((state) => state.stateId)).toContain('DELETE');
@@ -65,6 +66,11 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('disconnect kitchen east').states.map((state) => state.stateId)).toEqual(['DISCONNECT_SOURCE_DIRECTION']);
     expect(parseCliSuggestionInput('disconnect kitchen from').states.map((state) => state.stateId)).toEqual(['DISCONNECT_FROM']);
     expect(parseCliSuggestionInput('disconnect kitchen east from').states.map((state) => state.stateId)).toEqual(['DISCONNECT_FROM_AFTER_DIRECTION']);
+  });
+
+  it('walks through describe command structure', () => {
+    expect(parseCliSuggestionInput('describe').states.map((state) => state.stateId)).toEqual(['DESCRIBE']);
+    expect(parseCliSuggestionInput('describe kitchen').states.map((state) => state.stateId)).toEqual(['DESCRIBE_ROOM_DONE']);
   });
 
   it('walks through room-led grammar structure', () => {

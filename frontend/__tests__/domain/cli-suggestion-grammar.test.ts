@@ -22,6 +22,7 @@ describe('cli suggestion grammar', () => {
       'create',
       'connect',
       'disconnect',
+      'describe',
       'go',
       'show',
       'edit',
@@ -68,6 +69,11 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('DISCONNECT_FROM')).toEqual(['<room_ref>']);
     expect(describeCliSuggestionGrammarSymbols('DISCONNECT_FROM_AFTER_DIRECTION')).toEqual(['<room_ref>']);
     expect(describeCliSuggestionGrammarSymbols('DISCONNECT_TARGET_DONE')).toEqual(['<end>']);
+  });
+
+  it('captures describe command transitions', () => {
+    expect(describeCliSuggestionGrammarSymbols('DESCRIBE')).toEqual(['<room_ref>', '<end>']);
+    expect(describeCliSuggestionGrammarSymbols('DESCRIBE_ROOM_DONE')).toEqual(['<end>']);
   });
 
   it('captures create command transitions', () => {

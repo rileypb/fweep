@@ -29,6 +29,7 @@ export type CliCommand =
   }
   | { readonly kind: 'delete'; readonly room: CliRoomReference }
   | { readonly kind: 'edit'; readonly room: CliRoomReference }
+  | { readonly kind: 'describe'; readonly room: CliRoomReference | null }
   | { readonly kind: 'show'; readonly room: CliRoomReference }
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | {
@@ -88,6 +89,7 @@ export const CLI_COMMAND_FORMS = [
   'the way above/below <room name> leads nowhere',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
+  'describe [<room name>]',
   'show/s/go to <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
@@ -129,6 +131,7 @@ export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] =
   { id: 'disconnect', insertText: 'disconnect', matchTerms: ['disconnect'], descriptionInput: 'disconnect Kitchen from Hallway' },
   { id: 'delete', insertText: 'delete', matchTerms: ['delete', 'd', 'del'], descriptionInput: 'delete Kitchen' },
   { id: 'edit', insertText: 'edit', matchTerms: ['edit', 'e', 'ed'], descriptionInput: 'edit Kitchen' },
+  { id: 'describe', insertText: 'describe', matchTerms: ['describe'], descriptionInput: 'describe Kitchen' },
   { id: 'notate', insertText: 'notate', matchTerms: ['notate', 'annotate', 'ann'], descriptionInput: 'notate Kitchen with Treasure here' },
   { id: 'put', insertText: 'put', matchTerms: ['put'], descriptionInput: 'put lantern in Kitchen' },
   { id: 'take', insertText: 'take', matchTerms: ['take', 'get'], descriptionInput: 'take lantern from Kitchen' },
@@ -1048,6 +1051,25 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
+  if (isTokenValue(tokens[0], 'describe')) {
+    if (tokens.length === 1) {
+      return {
+        kind: 'describe',
+        room: null,
+      };
+    }
+
+    const roomName = readRoomName(tokens, 1, () => false);
+    if (roomName === null || roomName.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    return {
+      kind: 'describe',
+      room: roomName.reference,
+    };
+  }
+
   if (isFirstWordAlias(tokens[0], 'show', 's')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
@@ -1154,6 +1176,10 @@ function describeCliCommand(command: CliCommand): string {
       return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as leading nowhere`;
     case 'edit':
       return `open the room editor for ${command.room.text}`;
+    case 'describe':
+      return command.room === null
+        ? 'describe the exits from the selected room'
+        : `describe the exits from ${command.room.text}`;
     case 'show':
       return `scroll the map to ${command.room.text}`;
     case 'set-room-adjective':
