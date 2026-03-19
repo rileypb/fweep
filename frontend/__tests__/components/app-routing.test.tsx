@@ -508,6 +508,19 @@ describe('URL routing', () => {
     expect(input.value).toMatch(/^create foobar,which is\s*$/);
   });
 
+  it('preserves the comma when accepting the adjective phrase after a quoted create-and-connect room name', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Quoted Create And Connect Comma Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'create and connect "firehouse" ');
+    await user.click(screen.getByRole('option', { name: /, which is/i }));
+
+    expect(input).toHaveValue('create and connect "firehouse", which is ');
+  });
+
   it('shows only "of" after a create direction and space', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Create Direction Suggestions Map');

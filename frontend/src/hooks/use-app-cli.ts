@@ -1010,22 +1010,33 @@ export function useAppCli({
     }
 
     let replaceStart = cliSuggestionResult.replaceStart;
-    if (highlightedCliSuggestion.insertText.startsWith(',')) {
+    const shouldReuseExistingComma = (
+      highlightedCliSuggestion.insertText.startsWith(',')
+      || highlightedCliSuggestion.label.trimStart().startsWith(',')
+    );
+    let foundExistingComma = false;
+    if (shouldReuseExistingComma) {
       let scanIndex = replaceStart;
       while (scanIndex > 0 && cliCommand[scanIndex - 1] === ' ') {
         scanIndex -= 1;
       }
       if (scanIndex > 0 && cliCommand[scanIndex - 1] === ',') {
         replaceStart = scanIndex - 1;
+        foundExistingComma = true;
+      } else if (scanIndex !== replaceStart) {
+        replaceStart = scanIndex;
       }
     }
 
     const replacementText = cliCommand.slice(replaceStart, cliSuggestionResult.replaceEnd);
     const shouldWrapInsertedTextInQuotes = replacementText.startsWith('"')
       && !highlightedCliSuggestion.insertText.startsWith('"');
-    const baseInsertedText = shouldWrapInsertedTextInQuotes
+    const unquotedInsertedText = shouldWrapInsertedTextInQuotes
       ? `"${highlightedCliSuggestion.insertText.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
       : highlightedCliSuggestion.insertText;
+    const baseInsertedText = shouldReuseExistingComma && !unquotedInsertedText.startsWith(',')
+      ? `${foundExistingComma ? ',' : ', '}${unquotedInsertedText}`
+      : unquotedInsertedText;
     const suffixNeedsSpace = cliSuggestionResult.replaceEnd >= cliCommand.length
       || /\s|,/.test(cliCommand[cliSuggestionResult.replaceEnd] ?? '');
     const insertedText = suffixNeedsSpace
