@@ -649,9 +649,22 @@ describe('URL routing', () => {
     expect(Array.from(getGameOutputBox().querySelectorAll('strong')).some((node) => node.textContent === 'Cellar')).toBe(true);
   });
 
-  it('keeps suggestions enabled after submitting a command when slash-mode was open', async () => {
+  it('keeps suggestions enabled after submitting a non-reading command when slash-mode was open', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Suggestion Persistence Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'arrange{enter}');
+
+    expect(input).toHaveValue('');
+    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+  });
+
+  it('closes suggestions after submitting help when slash-mode was open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Suggestion Close Map');
 
     const input = getCliInput();
 
@@ -659,7 +672,26 @@ describe('URL routing', () => {
     await user.type(input, 'help{enter}');
 
     expect(input).toHaveValue('');
-    expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('closes suggestions after submitting describe when slash-mode was open', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Describe Suggestion Close Map');
+    doc = addRoom(doc, {
+      ...createRoom('kitchen'),
+      id: 'kitchen',
+      position: { x: 0, y: 0 },
+    });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'describe kitchen{enter}');
+
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('navigates CLI command history with the up and down arrows', async () => {

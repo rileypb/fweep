@@ -254,6 +254,22 @@ function describeCliOutcome(command: CliCommand): string {
   }
 }
 
+function shouldKeepSuggestionsEnabledAfterSubmit(
+  wereSuggestionsEnabled: boolean,
+  submittedInput: string,
+): boolean {
+  if (!wereSuggestionsEnabled) {
+    return false;
+  }
+
+  const command = parseCliCommand(submittedInput.trim());
+  if (command?.kind === 'help' || command?.kind === 'describe') {
+    return false;
+  }
+
+  return true;
+}
+
 function isTextEditingElement(element: EventTarget | null): boolean {
   if (!(element instanceof HTMLElement)) {
     return false;
@@ -1083,9 +1099,12 @@ export function useAppCli({
   };
 
   const handleCliSubmit = () => {
-    const shouldKeepSuggestionsEnabled = areCliSuggestionsEnabled;
-    setHasUsedCliInput(true);
     const submittedInput = cliCommand;
+    const shouldKeepSuggestionsEnabled = shouldKeepSuggestionsEnabledAfterSubmit(
+      areCliSuggestionsEnabled,
+      submittedInput,
+    );
+    setHasUsedCliInput(true);
     if (submittedInput.trim().length > 0) {
       setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
     }
