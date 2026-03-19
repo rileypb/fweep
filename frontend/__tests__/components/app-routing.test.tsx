@@ -265,6 +265,34 @@ describe('URL routing', () => {
     expect(input).toHaveValue('show "Key West" ');
   });
 
+  it('scrolls the CLI input horizontally to keep an accepted long suggestion visible', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Long Suggestion Scroll Map');
+    doc = addRoom(doc, { ...createRoom('New York west of 5th Avenue'), position: { x: 0, y: 0 } });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+    let scrollLeftValue = 0;
+    Object.defineProperty(input, 'scrollWidth', {
+      configurable: true,
+      get: () => 600,
+    });
+    Object.defineProperty(input, 'scrollLeft', {
+      configurable: true,
+      get: () => scrollLeftValue,
+      set: (value: number) => {
+        scrollLeftValue = value;
+      },
+    });
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'show "new ');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('show "New York west of 5th Avenue" ');
+    expect(scrollLeftValue).toBe(600);
+  });
+
   it('preserves quotes when accepting a first-token room suggestion', async () => {
     const user = userEvent.setup();
     let doc = createEmptyMap('CLI Quoted Root Suggestion Map');

@@ -182,6 +182,23 @@ function getConnectionIdsBetweenRoomsFromSourceDirection(
   return getConnectionIdsBetweenRooms(doc, sourceRoomId, targetRoomId).filter((candidateId) => candidateId === connectionId);
 }
 
+function scrollCliInputSelectionIntoView(input: HTMLInputElement): void {
+  const selectionStart = input.selectionStart;
+  const selectionEnd = input.selectionEnd;
+  if (selectionStart === null || selectionEnd === null) {
+    return;
+  }
+
+  if (selectionStart === 0 && selectionEnd === input.value.length) {
+    input.scrollLeft = 0;
+    return;
+  }
+
+  if (selectionStart === selectionEnd) {
+    input.scrollLeft = input.scrollWidth;
+  }
+}
+
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
     case 'help':
@@ -370,6 +387,7 @@ export function useAppCli({
     pendingSelectionRangeRef.current = null;
     cliInputRef.current.focus();
     cliInputRef.current.setSelectionRange(nextSelectionRange.start, nextSelectionRange.end);
+    scrollCliInputSelectionIntoView(cliInputRef.current);
   }, [cliCommand]);
 
   useEffect(() => {
