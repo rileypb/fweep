@@ -85,8 +85,11 @@ export function AppCliPanel({
   onImportScriptChange,
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
+  const [screenReaderAnnouncement, setScreenReaderAnnouncement] = React.useState('');
   const suggestionListRef = React.useRef<HTMLDivElement | null>(null);
   const suggestionOptionRefs = React.useRef<Array<HTMLDivElement | null>>([]);
+  const previousOutputLengthRef = React.useRef<number | null>(null);
+  const announcementFrameRef = React.useRef<number | null>(null);
   const activeSuggestion = isSuggestionMenuOpen
     ? cliSuggestions[highlightedCliSuggestionIndex] ?? null
     : null;
@@ -120,8 +123,49 @@ export function AppCliPanel({
     }
   }, [highlightedCliSuggestionIndex, isSuggestionMenuOpen, cliSuggestions]);
 
+  React.useEffect(() => {
+    if (previousOutputLengthRef.current === null) {
+      previousOutputLengthRef.current = gameOutputLines.length;
+      return;
+    }
+
+    if (gameOutputLines.length <= previousOutputLengthRef.current) {
+      previousOutputLengthRef.current = gameOutputLines.length;
+      return;
+    }
+
+    const appendedLines = gameOutputLines
+      .slice(previousOutputLengthRef.current)
+      .filter((line) => line.trim().length > 0)
+      .map((line) => line.replace(/\*\*(.+?)\*\*/g, '$1'));
+    previousOutputLengthRef.current = gameOutputLines.length;
+
+    if (appendedLines.length === 0) {
+      return;
+    }
+
+    if (announcementFrameRef.current !== null) {
+      window.cancelAnimationFrame(announcementFrameRef.current);
+    }
+
+    setScreenReaderAnnouncement('');
+    announcementFrameRef.current = window.requestAnimationFrame(() => {
+      setScreenReaderAnnouncement(appendedLines.join(' '));
+      announcementFrameRef.current = null;
+    });
+  }, [gameOutputLines]);
+
+  React.useEffect(() => () => {
+    if (announcementFrameRef.current !== null) {
+      window.cancelAnimationFrame(announcementFrameRef.current);
+    }
+  }, []);
+
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
+      <div className="sr-only" aria-live="polite" aria-atomic="true" role="status">
+        {screenReaderAnnouncement}
+      </div>
       <div className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}>
         <div className="app-game-output-toolbar">
           <button
@@ -161,10 +205,12 @@ export function AppCliPanel({
         >
           <div className="app-game-output-lines">
             {gameOutputLines.map((line, index) => (
-              <React.Fragment key={`game-output-line-${index}`}>
-                {renderCliOutputLine(line)}
-                {index < gameOutputLines.length - 1 ? '\n' : null}
-              </React.Fragment>
+              <div
+                key={`game-output-line-${index}`}
+                className={`app-game-output-line${line.length === 0 ? ' app-game-output-line--empty' : ''}`}
+              >
+                {line.length > 0 ? renderCliOutputLine(line) : null}
+              </div>
             ))}
           </div>
         </div>

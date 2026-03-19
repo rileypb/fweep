@@ -173,6 +173,14 @@ body {
   margin-top: auto;
 }
 
+.app-game-output-line {
+  white-space: pre-wrap;
+}
+
+.app-game-output-line--empty {
+  min-height: 1lh;
+}
+
 .app-game-output-strong {
   font-weight: 800;
   color: var(--app-game-output-bold-color);

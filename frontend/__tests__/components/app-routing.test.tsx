@@ -66,6 +66,13 @@ function getRenderedCliLine(line: string): string {
   return line.replace(/\*\*(.+?)\*\*/g, '$1');
 }
 
+function getRenderedGameOutputLines(): string[] {
+  return Array.from(
+    getGameOutputBox().querySelectorAll<HTMLElement>('.app-game-output-line'),
+    (line) => line.textContent ?? '',
+  );
+}
+
 async function openCliSuggestions(user: ReturnType<typeof userEvent.setup>, input = getCliInput()): Promise<void> {
   await user.click(input);
   await user.keyboard('/');
@@ -1729,6 +1736,22 @@ describe('URL routing', () => {
       'You see a lamp here.',
       'It is dark.',
     );
+    const describedOutputLines = Array.from(getGameOutputBox().querySelectorAll('.app-game-output-line'))
+      .map((node) => node.textContent ?? '');
+    expect(describedOutputLines).toEqual(
+      expect.arrayContaining([
+        'From kitchen, one can go east to the bedroom, southwest to the living room, or west through a door to the dining room.',
+        'You see a lamp here.',
+        'It is dark.',
+      ]),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent ?? '').toContain(
+        'From kitchen, one can go east to the bedroom, southwest to the living room, or west through a door to the dining room.',
+      );
+      expect(screen.getByRole('status').textContent ?? '').toContain('You see a lamp here.');
+      expect(screen.getByRole('status').textContent ?? '').toContain('It is dark.');
+    });
   });
 
   it('describes a named room without changing selection for the explicit describe CLI command', async () => {
@@ -3601,7 +3624,7 @@ describe('URL routing', () => {
       fireEvent.submit(form);
     }
 
-    const outputLines = (getGameOutputBox().textContent ?? '').split('\n');
+    const outputLines = getRenderedGameOutputLines();
     expect(outputLines).toHaveLength(DEFAULT_CLI_OUTPUT_LINES.length + 21);
     expect(outputLines.slice(0, DEFAULT_CLI_OUTPUT_LINES.length)).toEqual(
       DEFAULT_CLI_OUTPUT_LINES.map(getRenderedCliLine),

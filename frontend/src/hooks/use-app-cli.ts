@@ -8,7 +8,7 @@ import {
 import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
 import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../domain/cli-help';
 import { parseCliScript } from '../domain/cli-script';
-import { describeRoomForCli } from '../domain/cli-room-description';
+import { describeRoomForCliLines } from '../domain/cli-room-description';
 import {
   createAmbiguousRoomCliError,
   createParseCliError,
@@ -825,7 +825,7 @@ export function useAppCli({
           return { ok: false, shouldSelectCliInput };
         }
 
-        appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, selectedRoom.id)]);
+        appendGameOutput([formatCliEcho(trimmedInput), ...describeRoomForCliLines(currentDoc, selectedRoom.id)]);
         return { ok: true, shouldSelectCliInput };
       }
 
@@ -837,7 +837,7 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      appendGameOutput([formatCliEcho(trimmedInput), describeRoomForCli(currentDoc, roomMatch.room.id)]);
+      appendGameOutput([formatCliEcho(trimmedInput), ...describeRoomForCliLines(currentDoc, roomMatch.room.id)]);
       return { ok: true, shouldSelectCliInput };
     }
 

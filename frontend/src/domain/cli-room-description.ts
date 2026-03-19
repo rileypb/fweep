@@ -262,11 +262,18 @@ export function describeRoomForCli(doc: MapDocument, roomId: string): string {
     throw new Error(`Room "${roomId}" not found.`);
   }
 
-  const sections = [
+  return describeRoomForCliLines(doc, roomId).join('\n\n');
+}
+
+export function describeRoomForCliLines(doc: MapDocument, roomId: string): readonly string[] {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+
+  return [
     describeExits(room.name, getOutgoingExits(doc, roomId)),
     describeItems(doc, roomId),
     room.isDark ? 'It is dark.' : null,
   ].filter((section): section is string => section !== null);
-
-  return sections.join('\n\n');
 }
