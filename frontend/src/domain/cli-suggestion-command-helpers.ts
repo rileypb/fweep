@@ -13,6 +13,7 @@ import {
   getRoomReferenceResolutionWithFallback,
   type RoomSlotSuggestionHelpers,
 } from './cli-suggestion-room-slots';
+import { getRoomSlotWithFallbackResolution } from './cli-suggestion-room-slot-fallback-helpers';
 import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
 
@@ -120,18 +121,20 @@ export function getParserBackedDisconnectResolution(
     return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['from']));
   }
 
-  if (fragment.tokenIndex >= 1) {
-    return getRoomReferenceResolutionWithFallback(
-      input,
-      fragment,
-      doc,
-      1,
-      [
-        ...createDirectionSuggestions(fragment.prefix),
-        ...createKeywordSuggestions(fragment.prefix, ['from']),
-      ],
-      roomSlotSuggestionHelpers,
-    );
+  const sourceRoomResolution = getRoomSlotWithFallbackResolution({
+    input,
+    fragment,
+    doc,
+    slotStartTokenIndex: 1,
+    fallbackSuggestions: [
+      ...createDirectionSuggestions(fragment.prefix),
+      ...createKeywordSuggestions(fragment.prefix, ['from']),
+    ],
+    reservedTailTokens: ['from'],
+    roomSlotSuggestionHelpers,
+  });
+  if (sourceRoomResolution !== null) {
+    return sourceRoomResolution;
   }
 
   const nextSymbols = getParserNextSymbolsForFragment(fragment);

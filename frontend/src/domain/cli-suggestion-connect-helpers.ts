@@ -10,9 +10,9 @@ import {
 } from './cli-suggestion-options';
 import {
   getRoomReferenceResolution,
-  getRoomReferenceResolutionWithFallback,
   type RoomSlotSuggestionHelpers,
 } from './cli-suggestion-room-slots';
+import { getRoomSlotWithFallbackResolution } from './cli-suggestion-room-slot-fallback-helpers';
 import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
 
@@ -86,8 +86,6 @@ export function getConnectCommandResolution(
   dependencies: ConnectResolutionDependencies,
 ): SuggestionResolution {
   const prefix = fragment.prefix;
-  const lastPrecedingToken = fragment.precedingTokens.at(-1) ?? null;
-  const lastTokenIsQuoted = lastPrecedingToken?.quoted ?? false;
   const isCreateAndConnectIntro = tokens[0] === 'create'
     && tokens[1] === 'and'
     && (tokens[2] === 'connect' || tokens[2] === 'con');
@@ -127,35 +125,17 @@ export function getConnectCommandResolution(
     return getRoomReferenceResolution(input, fragment, doc, toIndex + 1, dependencies.roomSlotSuggestionHelpers);
   }
 
-  if (fragment.tokenIndex === 1) {
-    return getRoomReferenceResolution(input, fragment, doc, 1, dependencies.roomSlotSuggestionHelpers);
-  }
-
-  if (
-    lastToken !== null
-    && (
-      lastTokenIsQuoted
-      || (
-        !isExactDirectionToken(lastToken)
-        && lastToken !== 'one-way'
-        && lastToken !== 'oneway'
-        && lastToken !== 'way'
-        && lastToken !== 'to'
-      )
-    )
-    && (prefix.length === 0 || !isDirectionLikePrefix(prefix))
-  ) {
-    const sourceRoomResolution = getRoomReferenceResolutionWithFallback(
-      input,
-      fragment,
-      doc,
-      1,
-      createDirectionSuggestions(prefix),
-      dependencies.roomSlotSuggestionHelpers,
-    );
-    if (sourceRoomResolution.suggestions.length > 0) {
-      return sourceRoomResolution;
-    }
+  const sourceRoomResolution = getRoomSlotWithFallbackResolution({
+    input,
+    fragment,
+    doc,
+    slotStartTokenIndex: 1,
+    fallbackSuggestions: createDirectionSuggestions(prefix),
+    reservedTailTokens: ['one-way', 'oneway', 'way', 'to'],
+    roomSlotSuggestionHelpers: dependencies.roomSlotSuggestionHelpers,
+  });
+  if (sourceRoomResolution !== null && sourceRoomResolution.suggestions.length > 0) {
+    return sourceRoomResolution;
   }
 
   const parserBackedConnectTailResolution = getParserBackedConnectTailResolution(fragment, canonicalLastDirection);
