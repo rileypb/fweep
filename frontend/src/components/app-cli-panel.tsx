@@ -122,24 +122,51 @@ export function AppCliPanel({
 
   return (
     <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
-      <div
-        id="app-game-output"
-        className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions text"
-        aria-atomic="false"
-        aria-label="Game output log"
-        ref={gameOutputRef}
-        onClick={onGameOutputClick}
-      >
-        <div className="app-game-output-content">
-          {gameOutputLines.map((line, index) => (
-            <React.Fragment key={`game-output-line-${index}`}>
-              {renderCliOutputLine(line)}
-              {index < gameOutputLines.length - 1 ? '\n' : null}
-            </React.Fragment>
-          ))}
+      <div className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}>
+        <div className="app-game-output-toolbar">
+          <button
+            type="button"
+            className="app-cli-collapse-button"
+            aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleOutputCollapsed();
+            }}
+          >
+            {isOutputCollapsed ? 'More' : 'Less'}
+          </button>
+          <button
+            type="button"
+            className="app-cli-import-button"
+            aria-label="Import map script"
+            onClick={(event) => {
+              event.stopPropagation();
+              cliImportInputRef.current?.click();
+            }}
+            disabled={isImportingScript}
+          >
+            {isImportingScript ? 'Importing...' : 'Import'}
+          </button>
+        </div>
+        <div
+          id="app-game-output"
+          className="app-game-output-content"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+          aria-atomic="false"
+          aria-label="Game output log"
+          ref={gameOutputRef}
+          onClick={onGameOutputClick}
+        >
+          <div className="app-game-output-lines">
+            {gameOutputLines.map((line, index) => (
+              <React.Fragment key={`game-output-line-${index}`}>
+                {renderCliOutputLine(line)}
+                {index < gameOutputLines.length - 1 ? '\n' : null}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       </div>
       <div className="app-cli-bar">

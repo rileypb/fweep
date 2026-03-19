@@ -38,6 +38,9 @@ describe('cli suggestion options', () => {
     expect(createDirectionSuggestions('n').map((suggestion) => suggestion.label)).toEqual(
       expect.arrayContaining(['north', 'northeast', 'northwest']),
     );
+    expect(createDirectionSuggestions('').map((suggestion) => suggestion.label)).not.toEqual(
+      expect.arrayContaining(['in', 'out']),
+    );
     expect(createConnectionAnnotationSuggestions('l').map((suggestion) => suggestion.label)).toEqual(['locked door']);
   });
 
@@ -45,7 +48,10 @@ describe('cli suggestion options', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
     const labels = createDefaultSuggestions(doc).map((suggestion) => suggestion.label);
-    expect(labels).toEqual(expect.arrayContaining(['create', 'connect', 'the', 'north', '<room>']));
+    expect(labels).toEqual(expect.arrayContaining(['create', 'connect', 'the', 'above', 'below', '<direction>', '<room>']));
+    expect(labels).not.toContain('get');
+    expect(labels).not.toContain('notate');
+    expect(labels).not.toContain('north');
   });
 
   it('filters help-topic suggestions by prefix', () => {

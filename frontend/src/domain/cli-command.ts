@@ -1,4 +1,4 @@
-import { normalizeDirection, oppositeDirection } from './directions';
+import { CLI_DIRECTIONS, normalizeDirection, oppositeDirection } from './directions';
 import { parseCliHelpTopic, type CliHelpTopic } from './cli-help';
 import type { PseudoRoomKind } from './map-types';
 
@@ -133,21 +133,7 @@ interface Token {
   readonly quoted: boolean;
 }
 
-const DIRECTION_WORDS = new Set([
-  'north',
-  'south',
-  'east',
-  'west',
-  'up',
-  'down',
-  'in',
-  'out',
-  'southwest',
-  'southeast',
-  'northwest',
-  'northeast',
-]);
-
+const DIRECTION_WORDS = new Set<string>(CLI_DIRECTIONS);
 function normalizeCliWhitespace(input: string): string {
   return input.replace(/\t/g, ' ').replace(/ {2,}/g, ' ').trim();
 }

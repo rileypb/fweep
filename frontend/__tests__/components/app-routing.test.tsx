@@ -161,7 +161,11 @@ describe('URL routing', () => {
     expect(optionText.some((text) => text.includes('create'))).toBe(true);
     expect(optionText.some((text) => text.includes('connect'))).toBe(true);
     expect(optionText.some((text) => text.includes('arrange'))).toBe(true);
-    expect(optionText.some((text) => text.includes('north'))).toBe(true);
+    expect(optionText).toContain('<direction>');
+    expect(optionText).not.toContain('get');
+    expect(optionText).not.toContain('notate');
+    expect(optionText).toContain('above');
+    expect(optionText).toContain('below');
     expect(optionText).toContain('<room>');
   });
 
@@ -750,12 +754,11 @@ describe('URL routing', () => {
     expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
-  it('temporarily hides the output-log collapse button', async () => {
-    const doc = createEmptyMap('CLI Collapse Button Hidden Map');
+  it('shows the output-log collapse button above the log', async () => {
+    const doc = createEmptyMap('CLI Collapse Button Map');
     await renderAppWithSavedMap(doc);
 
-    expect(screen.queryByRole('button', { name: /collapse output log/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /expand output log/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse output log/i })).toBeInTheDocument();
   });
 
   it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
@@ -802,12 +805,12 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(editable);
   });
 
-  it('temporarily hides the script import button while keeping the file input mounted', async () => {
+  it('shows the script import button above the log while keeping the file input mounted', async () => {
     await renderAppWithOpenMap('CLI Script Button Map');
 
     const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
     expect(fileInput).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /import map script/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /import map script/i })).toBeInTheDocument();
   });
 
   it('reveals a room for go to <room> CLI commands', async () => {
@@ -885,7 +888,7 @@ describe('URL routing', () => {
       expect(items[0]?.name).toBe('sword');
     });
 
-    expectGameOutputToContain('take lantern, key from Kitchen', 'Took.');
+    expectGameOutputToContain('take lantern, key from Kitchen', 'Taken.');
   });
 
   it('takes all items from a room through the CLI', async () => {
@@ -903,7 +906,7 @@ describe('URL routing', () => {
       expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
     });
 
-    expectGameOutputToContain('take all from Kitchen', 'Took.');
+    expectGameOutputToContain('take all from Kitchen', 'Taken.');
   });
 
   it('gets items from a room through the CLI', async () => {
@@ -920,7 +923,7 @@ describe('URL routing', () => {
       expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
     });
 
-    expectGameOutputToContain('get all from Kitchen', 'Took.');
+    expectGameOutputToContain('get all from Kitchen', 'Taken.');
   });
 
   it('rolls back script import changes when a later line fails', async () => {
@@ -3339,6 +3342,42 @@ describe('URL routing', () => {
     expect(outputLines[22]).toBe('>blorb room 7');
     expect(outputLines[23]).toContain("I didn't understand you.");
     expect(outputLines[24]).toBe('');
+  });
+
+  it('keeps the output log scrolled to the bottom as new lines are appended', async () => {
+    await renderAppWithOpenMap('CLI Output Scroll Map');
+
+    const log = getGameOutputBox();
+    let scrollTopValue = 0;
+    Object.defineProperty(log, 'scrollHeight', {
+      configurable: true,
+      get: () => 480,
+    });
+    Object.defineProperty(log, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+      },
+    });
+
+    const input = getCliInput();
+    const form = input.closest('form') as HTMLFormElement;
+
+    fireEvent.change(input, { target: { value: 'blorb room 1' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(480);
+    });
+
+    scrollTopValue = 0;
+    fireEvent.change(input, { target: { value: 'blorb room 2' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(scrollTopValue).toBe(480);
+    });
   });
 
   it('opens and closes the help dialog', async () => {

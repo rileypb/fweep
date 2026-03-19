@@ -1,9 +1,9 @@
-import { STANDARD_DIRECTIONS, normalizeDirection } from './directions';
+import { CLI_DIRECTIONS, normalizeDirection } from './directions';
 import type { ActiveFragment, CliSuggestion, SuggestionResolution } from './cli-suggestion-types';
 
 export function isDirectionLikePrefix(prefix: string): boolean {
   const normalizedPrefix = normalizeDirection(prefix);
-  return STANDARD_DIRECTIONS.some((direction) => direction.startsWith(normalizedPrefix));
+  return CLI_DIRECTIONS.some((direction) => direction.startsWith(normalizedPrefix));
 }
 
 export function getCanonicalDirectionToken(value: string | null): string | null {
@@ -12,11 +12,11 @@ export function getCanonicalDirectionToken(value: string | null): string | null 
   }
 
   const normalizedValue = normalizeDirection(value);
-  return STANDARD_DIRECTIONS.find((direction) => direction === normalizedValue) ?? null;
+  return CLI_DIRECTIONS.find((direction) => direction === normalizedValue) ?? null;
 }
 
 export function isExactDirectionToken(value: string | null): boolean {
-  return value !== null && (STANDARD_DIRECTIONS as readonly string[]).includes(value);
+  return value !== null && (CLI_DIRECTIONS as readonly string[]).includes(value);
 }
 
 export function isPseudoRoomLead(tokens: readonly string[]): boolean {

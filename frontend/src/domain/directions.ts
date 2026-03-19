@@ -7,6 +7,15 @@ export const STANDARD_DIRECTIONS = [
 
 export type StandardDirection = (typeof STANDARD_DIRECTIONS)[number];
 
+/** CLI-supported directions omit in/out, which are reserved for other command grammar. */
+export const CLI_DIRECTIONS = [
+  'north', 'south', 'east', 'west',
+  'northeast', 'northwest', 'southeast', 'southwest',
+  'up', 'down',
+] as const;
+
+export type CliDirection = (typeof CLI_DIRECTIONS)[number];
+
 /** Map of common abbreviations to their full direction name. */
 const ABBREVIATIONS: Record<string, string> = {
   n: 'north',

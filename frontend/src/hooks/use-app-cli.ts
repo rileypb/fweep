@@ -176,9 +176,9 @@ function describeCliOutcome(command: CliCommand): string {
     case 'put-items':
       return 'Placed.';
     case 'take-items':
-      return 'Took.';
+      return 'Taken.';
     case 'take-all-items':
-      return 'Took.';
+      return 'Taken.';
     case 'create-pseudo-room':
       if (command.pseudoKind === 'unknown') {
         return 'Marked exit as unknown.';

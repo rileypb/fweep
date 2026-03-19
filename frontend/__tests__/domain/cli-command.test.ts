@@ -407,4 +407,11 @@ describe('parseCliCommand', () => {
       room: { text: 'Kitchen', exact: false },
     });
   });
+
+  it('does not treat in and out as CLI directions', () => {
+    expect(parseCliCommand('go in')).toBeNull();
+    expect(parseCliCommand('go out')).toBeNull();
+    expect(parseCliCommand('in')).toBeNull();
+    expect(parseCliCommand('out')).toBeNull();
+  });
 });

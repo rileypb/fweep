@@ -1,5 +1,5 @@
 import { CLI_COMMAND_SUGGESTION_SPECS, parseCliCommandDescription } from './cli-command';
-import { STANDARD_DIRECTIONS } from './directions';
+import { CLI_DIRECTIONS } from './directions';
 import { getCliHelpTopics } from './cli-help';
 import { getCliSuggestionGrammarState } from './cli-suggestion-grammar';
 import type { CliSuggestion } from './cli-suggestion-types';
@@ -98,6 +98,7 @@ export function createCommandSuggestions(prefix: string): readonly CliSuggestion
 export function createDefaultSuggestions(doc: MapDocument | null): readonly CliSuggestion[] {
   const rootGrammarState = getCliSuggestionGrammarState('ROOT');
   const seenRootKeywords = new Set<string>();
+  const hiddenRootKeywords = new Set(['get', 'notate']);
   const commandSuggestions = (rootGrammarState?.nextSymbols ?? [])
     .flatMap((symbol) => {
       if (symbol.kind !== 'keyword' && symbol.kind !== 'phrase') {
@@ -105,7 +106,7 @@ export function createDefaultSuggestions(doc: MapDocument | null): readonly CliS
       }
 
       const rootKeyword = symbol.text.split(/\s+/)[0] ?? '';
-      if (rootKeyword.length === 0 || seenRootKeywords.has(rootKeyword)) {
+      if (rootKeyword.length === 0 || hiddenRootKeywords.has(rootKeyword) || seenRootKeywords.has(rootKeyword)) {
         return [];
       }
       seenRootKeywords.add(rootKeyword);
@@ -124,13 +125,7 @@ export function createDefaultSuggestions(doc: MapDocument | null): readonly CliS
       }];
     });
 
-  const directionSuggestions = STANDARD_DIRECTIONS.map((direction) => ({
-    id: `cli-suggestion-direction-${direction}`,
-    kind: 'direction' as const,
-    label: direction,
-    insertText: direction,
-    detail: 'Direction',
-  }));
+  const directionSuggestions = createPlaceholderSuggestion('<direction>');
 
   const roomSuggestions = doc === null ? [] : createPlaceholderSuggestion('<room>');
 
@@ -139,7 +134,7 @@ export function createDefaultSuggestions(doc: MapDocument | null): readonly CliS
 
 export function createDirectionSuggestions(prefix: string): readonly CliSuggestion[] {
   const normalizedPrefix = prefix.toLowerCase();
-  return STANDARD_DIRECTIONS
+  return CLI_DIRECTIONS
     .filter((direction) => startsWithNormalized(direction, normalizedPrefix) || startsWithNormalized(direction[0] ?? '', normalizedPrefix))
     .sort((left, right) => left.localeCompare(right))
     .map((direction) => ({
