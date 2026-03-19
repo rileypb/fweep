@@ -1258,7 +1258,8 @@ export function useAppCli({
       return true;
     }
 
-    let replaceStart = cliSuggestionResult.replaceStart;
+    let replaceStart = highlightedCliSuggestion.replaceStart ?? cliSuggestionResult.replaceStart;
+    const replaceEnd = highlightedCliSuggestion.replaceEnd ?? cliSuggestionResult.replaceEnd;
     const shouldReuseExistingComma = (
       highlightedCliSuggestion.insertText.startsWith(',')
       || highlightedCliSuggestion.label.trimStart().startsWith(',')
@@ -1277,7 +1278,7 @@ export function useAppCli({
       }
     }
 
-    const replacementText = cliCommand.slice(replaceStart, cliSuggestionResult.replaceEnd);
+    const replacementText = cliCommand.slice(replaceStart, replaceEnd);
     const shouldWrapInsertedTextInQuotes = replacementText.startsWith('"')
       && !highlightedCliSuggestion.insertText.startsWith('"');
     const unquotedInsertedText = shouldWrapInsertedTextInQuotes
@@ -1286,12 +1287,12 @@ export function useAppCli({
     const baseInsertedText = shouldReuseExistingComma && !unquotedInsertedText.startsWith(',')
       ? `${foundExistingComma ? ',' : ', '}${unquotedInsertedText}`
       : unquotedInsertedText;
-    const suffixNeedsSpace = cliSuggestionResult.replaceEnd >= cliCommand.length
-      || /\s|,/.test(cliCommand[cliSuggestionResult.replaceEnd] ?? '');
+    const suffixNeedsSpace = replaceEnd >= cliCommand.length
+      || /\s|,/.test(cliCommand[replaceEnd] ?? '');
     const insertedText = suffixNeedsSpace
       ? `${baseInsertedText} `
       : baseInsertedText;
-    const nextValue = `${cliCommand.slice(0, replaceStart)}${insertedText}${cliCommand.slice(cliSuggestionResult.replaceEnd)}`;
+    const nextValue = `${cliCommand.slice(0, replaceStart)}${insertedText}${cliCommand.slice(replaceEnd)}`;
     const nextCaretIndex = replaceStart + insertedText.length;
     pendingSelectionRangeRef.current = { start: nextCaretIndex, end: nextCaretIndex };
     setCliCommand(nextValue);

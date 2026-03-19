@@ -250,7 +250,11 @@ export function getRoomReferenceResolutionWithFallback(
 
   if (roomResolution.suggestions.length === 0) {
     return {
-      suggestions: fallbackSuggestions,
+      suggestions: fallbackSuggestions.map((suggestion) => ({
+        ...suggestion,
+        replaceStart: fragment.start,
+        replaceEnd: fragment.end,
+      })),
       replaceStart: fragment.start,
       replaceEnd: fragment.end,
       prefix: fragment.prefix,
@@ -258,7 +262,14 @@ export function getRoomReferenceResolutionWithFallback(
   }
 
   return {
-    suggestions: helpers.mergeSuggestions(roomResolution.suggestions, fallbackSuggestions),
+    suggestions: helpers.mergeSuggestions(
+      roomResolution.suggestions,
+      fallbackSuggestions.map((suggestion) => ({
+        ...suggestion,
+        replaceStart: fragment.start,
+        replaceEnd: fragment.end,
+      })),
+    ),
     replaceStart: roomResolution.replaceStart,
     replaceEnd: roomResolution.replaceEnd,
     prefix: roomResolution.prefix,

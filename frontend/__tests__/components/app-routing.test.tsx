@@ -576,6 +576,26 @@ describe('URL routing', () => {
     expect(input).toHaveValue('create and connect "firehouse", which is ');
   });
 
+  it('preserves the typed room prefix when accepting a fallback keyword suggestion during notate room completion', async () => {
+    const user = userEvent.setup();
+    let doc = createEmptyMap('CLI Notate Fallback Accept Map');
+    doc = addRoom(doc, {
+      ...createRoom('living room'),
+      id: 'living-room',
+      position: { x: 0, y: 0 },
+    });
+    await renderAppWithSavedMap(doc);
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'notate living ');
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Tab}');
+
+    expect(input).toHaveValue('notate living with ');
+  });
+
   it('shows only "of" after a create direction and space', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Create Direction Suggestions Map');

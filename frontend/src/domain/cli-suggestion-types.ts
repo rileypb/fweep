@@ -6,6 +6,8 @@ export interface CliSuggestion {
   readonly label: string;
   readonly insertText: string;
   readonly detail: string | null;
+  readonly replaceStart?: number;
+  readonly replaceEnd?: number;
 }
 
 export interface CliSuggestionResult {
