@@ -3222,6 +3222,29 @@ describe('URL routing', () => {
     expectGameOutputToContain('create Kitchen', 'created', 'undo', 'undone');
   });
 
+  it('undoes adjective create commands in a single step', async () => {
+    const doc = createEmptyMap('CLI Undo Adjective Create Map');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli undo adjective create map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'create garage, which is dark{enter}');
+
+    let rooms = Object.values(useEditorStore.getState().doc?.rooms ?? {});
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.name).toBe('garage');
+    expect(rooms[0]?.isDark).toBe(true);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+
+    rooms = Object.values(useEditorStore.getState().doc?.rooms ?? {});
+    expect(rooms).toHaveLength(0);
+  });
+
   it('redoes the previous undone command for the redo CLI command', async () => {
     const doc = createEmptyMap('CLI Redo Map');
     await openSavedMap(doc);

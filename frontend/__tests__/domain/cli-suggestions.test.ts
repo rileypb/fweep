@@ -239,6 +239,29 @@ describe('cli suggestions', () => {
     ).toBeNull();
   });
 
+  it('closes suggestions after a completed trailing target direction in create-and-connect commands', () => {
+    const doc = addRoom(
+      addRoom(createEmptyMap('Test'), { ...createRoom('store room'), position: { x: 0, y: 0 } }),
+      { ...createRoom('Hallway'), position: { x: 1, y: 0 } },
+    );
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to store room west ',
+        'create and connect "blah", which is dark, south to store room west '.length,
+        doc,
+      ),
+    ).toBeNull();
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to store room west e',
+        'create and connect "blah", which is dark, south to store room west e'.length,
+        doc,
+      ),
+    ).toBeNull();
+  });
+
   it('suggests room-led grammar words after a room name and space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 

@@ -1,5 +1,5 @@
 import { createDirectionSuggestions, createKeywordSuggestions, createPlaceholderSuggestion, createTerminalKeywordSuggestions } from './cli-suggestion-options';
-import { suggestionResolution, hasCommaAfterLastPrecedingToken } from './cli-suggestion-grammar-helpers';
+import { suggestionResolution, hasCommaAfterLastPrecedingToken, isExactDirectionToken } from './cli-suggestion-grammar-helpers';
 import { getRoomReferenceResolution, getRoomReferenceResolutionWithFallback } from './cli-suggestion-room-slots';
 import type { ActiveFragment, CliSuggestion, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
@@ -227,6 +227,10 @@ export function getCreateAndConnectIntroResolution(
 
   const createAndConnectToIndex = tokens.indexOf('to');
   if (createAndConnectToIndex !== -1) {
+    if (lastToken !== null && isExactDirectionToken(lastToken) && fragment.tokenIndex > createAndConnectToIndex + 1) {
+      return suggestionResolution([]);
+    }
+
     if (fragment.tokenIndex === createAndConnectToIndex + 1) {
       return getRoomReferenceResolution(input, fragment, doc, createAndConnectToIndex + 1, dependencies.roomSlotSuggestionHelpers);
     }

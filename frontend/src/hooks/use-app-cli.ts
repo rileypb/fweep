@@ -451,10 +451,14 @@ export function useAppCli({
     return requestId;
   };
 
-  const applyCliRoomAdjective = (roomId: string, adjective: CliRoomAdjective): void => {
+  const applyCliRoomAdjective = (
+    roomId: string,
+    adjective: CliRoomAdjective,
+    historyMergeKey?: string,
+  ): void => {
     switch (adjective.kind) {
       case 'lighting':
-        setRoomDark(roomId, adjective.isDark);
+        setRoomDark(roomId, adjective.isDark, historyMergeKey === undefined ? undefined : { historyMergeKey });
         return;
     }
   };
@@ -554,15 +558,16 @@ export function useAppCli({
     }
 
     if (command.kind === 'create' && currentDoc !== null) {
+      const historyMergeKey = `cli-create:${trimmedInput}`;
       const plan = planCreateRoomFromCli(
         currentDoc,
         command.roomName,
         { width: window.innerWidth, height: window.innerHeight },
         currentMapPanOffset,
       );
-      const roomId = addRoomAtPosition(plan.roomName, plan.position);
+      const roomId = addRoomAtPosition(plan.roomName, plan.position, { historyMergeKey });
       if (command.adjective !== null) {
-        applyCliRoomAdjective(roomId, command.adjective);
+        applyCliRoomAdjective(roomId, command.adjective, historyMergeKey);
       }
       setCliPronounRoomReference(roomId);
       selectRoom(roomId);

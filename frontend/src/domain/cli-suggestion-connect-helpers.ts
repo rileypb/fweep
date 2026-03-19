@@ -104,6 +104,10 @@ export function getConnectCommandResolution(
 
   const toIndex = tokens.indexOf('to');
   if (toIndex !== -1) {
+    if (lastToken !== null && isExactDirectionToken(lastToken) && fragment.tokenIndex > toIndex + 1) {
+      return suggestionResolution([]);
+    }
+
     if (
       fragment.tokenIndex === toIndex + 1
       || (prefix.length > 0 && lastToken !== null && tokens.indexOf(lastToken) > toIndex && isDirectionLikePrefix(prefix))
