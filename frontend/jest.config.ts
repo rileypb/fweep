@@ -15,6 +15,8 @@ export default {
     '\\.(css|less|scss)$': '<rootDir>/__tests__/__mocks__/style-mock.ts',
     'cli-help\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/cli-help-markdown.ts',
     'cli-help\\.md$': '<rootDir>/__tests__/__mocks__/cli-help-markdown.ts',
+    'welcome\\.txt\\?raw$': '<rootDir>/__tests__/__mocks__/welcome-text.ts',
+    'welcome\\.txt$': '<rootDir>/__tests__/__mocks__/welcome-text.ts',
     '\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
     '\\.md$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
   },

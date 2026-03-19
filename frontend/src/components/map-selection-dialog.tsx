@@ -22,7 +22,7 @@ const defaultStorage: MapSelectionStorage = {
 };
 
 export interface MapSelectionDialogProps {
-  onMapSelected: (doc: MapDocument) => void;
+  onMapSelected: (doc: MapDocument, reason: 'create' | 'open' | 'import') => void;
   storage?: MapSelectionStorage;
   initialError?: string | null;
 }
@@ -84,14 +84,14 @@ export function MapSelectionDialog({
     if (!name) return;
     const doc = createEmptyMap(name);
     await storage.saveMap(doc);
-    onMapSelected(doc);
+    onMapSelected(doc, 'create');
   };
 
   const handleSelect = async (id: string) => {
     try {
       const doc = await storage.loadMap(id);
       if (doc) {
-        onMapSelected(doc);
+        onMapSelected(doc, 'open');
       } else {
         setError(`Map not found: ${id}`);
       }
@@ -149,7 +149,7 @@ export function MapSelectionDialog({
     if (!file) return;
     try {
       const doc = await storage.importMapFromFile(file);
-      onMapSelected(doc);
+      onMapSelected(doc, 'import');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }

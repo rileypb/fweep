@@ -58,7 +58,7 @@ describe('MapSelectionDialog', () => {
 
   it('calls onMapSelected with a new map after clicking Create', async () => {
     const user = userEvent.setup();
-    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    const onSelect = jest.fn<(doc: MapDocument, reason: 'create' | 'open' | 'import') => void>();
     render(<MapSelectionDialog onMapSelected={onSelect} />);
 
     const input = screen.getByLabelText('Map name');
@@ -70,11 +70,12 @@ describe('MapSelectionDialog', () => {
     });
     const doc = onSelect.mock.calls[0][0];
     expect(doc.metadata.name).toBe('New Map');
+    expect(onSelect.mock.calls[0][1]).toBe('create');
   });
 
   it('creates a map when Enter is pressed in the name input', async () => {
     const user = userEvent.setup();
-    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    const onSelect = jest.fn<(doc: MapDocument, reason: 'create' | 'open' | 'import') => void>();
     render(<MapSelectionDialog onMapSelected={onSelect} />);
 
     const input = screen.getByLabelText('Map name');
@@ -84,6 +85,7 @@ describe('MapSelectionDialog', () => {
       expect(onSelect).toHaveBeenCalledTimes(1);
     });
     expect(onSelect.mock.calls[0][0].metadata.name).toBe('Enter Map');
+    expect(onSelect.mock.calls[0][1]).toBe('create');
   });
 
   it('calls onMapSelected when an existing map is clicked', async () => {
@@ -91,7 +93,7 @@ describe('MapSelectionDialog', () => {
     await saveMap(doc);
 
     const user = userEvent.setup();
-    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    const onSelect = jest.fn<(doc: MapDocument, reason: 'create' | 'open' | 'import') => void>();
     render(<MapSelectionDialog onMapSelected={onSelect} />);
 
     const mapBtn = await screen.findByText('Clickable Map');
@@ -101,6 +103,7 @@ describe('MapSelectionDialog', () => {
       expect(onSelect).toHaveBeenCalledTimes(1);
     });
     expect(onSelect.mock.calls[0][0].metadata.id).toBe(doc.metadata.id);
+    expect(onSelect.mock.calls[0][1]).toBe('open');
   });
 
   it('shows an error when a selected map can no longer be loaded', async () => {
@@ -319,7 +322,7 @@ describe('MapSelectionDialog', () => {
   it('calls onMapSelected when importing a valid file succeeds', async () => {
     const user = userEvent.setup();
     const importedDoc = createEmptyMap('Imported Map');
-    const onSelect = jest.fn<(doc: MapDocument) => void>();
+    const onSelect = jest.fn<(doc: MapDocument, reason: 'create' | 'open' | 'import') => void>();
     const storage = createStorageOverrides({
       importMapFromFile: async () => importedDoc,
     });
@@ -333,7 +336,7 @@ describe('MapSelectionDialog', () => {
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledTimes(1);
     });
-    expect(onSelect).toHaveBeenCalledWith(importedDoc);
+    expect(onSelect).toHaveBeenCalledWith(importedDoc, 'import');
   });
 
   it('opens the hidden file input when the import button is clicked', async () => {

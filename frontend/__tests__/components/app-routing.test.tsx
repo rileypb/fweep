@@ -84,6 +84,8 @@ beforeEach(() => {
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
   setViewportWidth(1024);
+  window.localStorage.removeItem('fweep-welcome-dialog-seen');
+  (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = false;
   // Reset editor store
   useEditorStore.setState(useEditorStore.getInitialState());
 });
@@ -3651,6 +3653,81 @@ describe('URL routing', () => {
       expect(window.location.hash).toMatch(/^#\/map\/.+$/);
     });
     expect(await screen.findByText(/fresh map/i)).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+  });
+
+  it('shows the welcome dialog only once overall, starting with the first created map', async () => {
+    navigateTo('#/');
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'First Map');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    const welcomeDialog = await screen.findByRole('dialog', { name: /welcome/i });
+    expect(welcomeDialog).toHaveTextContent(/thanks for trying out fweep/i);
+
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'Second Map');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await screen.findByText(/second map/i);
+    expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the welcome dialog the first time an existing map is opened', async () => {
+    const doc = createEmptyMap('Existing Map');
+    await saveMap(doc);
+
+    navigateTo('#/');
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByText('Existing Map'));
+
+    await screen.findByText(/existing map/i);
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+  });
+
+  it('shows the welcome dialog the first time a map is imported', async () => {
+    navigateTo('#/');
+    const user = userEvent.setup();
+    renderApp();
+
+    const fileInput = document.querySelector('.map-selection-file-input') as HTMLInputElement;
+    const fileContents = JSON.stringify(createEmptyMap('Imported Welcome Map'));
+    const file = new File(
+      [fileContents],
+      'imported-map.json',
+      { type: 'application/json' },
+    );
+    if (typeof file.text !== 'function') {
+      (file as File & { text: () => Promise<string> }).text = async () => fileContents;
+    }
+
+    await user.upload(fileInput, file);
+
+    await screen.findByText(/imported welcome map/i);
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+  });
+
+  it('reopens the welcome dialog with Ctrl+Shift+W in development', async () => {
+    (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = true;
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Welcome Hotkey Map');
+
+    expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+
+    await user.keyboard('{Control>}{Shift>}w{/Shift}{/Control}');
+
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
   });
 
   it('falls back to the selection dialog for an invalid map ID in the URL', async () => {
