@@ -9,7 +9,6 @@ import {
   getPseudoRoomNodeDimensionsForRoom,
   getPseudoRoomGlyph,
   getPseudoRoomSymbolLayoutForRoom,
-  insetPseudoRoomConnectionEndpoint,
   toPseudoRoomVisualRoom,
 } from '../domain/pseudo-room-helpers';
 import {
@@ -483,16 +482,13 @@ function drawConnectionLine(
   const targetDimensions = connection.target.kind === 'room'
     ? getRoomNodeDimensions(effectiveTargetRoom, doc.view.visualStyle)
     : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, doc.view.visualStyle);
-  const points = insetPseudoRoomConnectionEndpoint(
+  const points = computeConnectionPath(
+    effectiveSourceRoom,
+    effectiveTargetRoom,
     connection,
-    computeConnectionPath(
-      effectiveSourceRoom,
-      effectiveTargetRoom,
-      connection,
-      undefined,
-      sourceDimensions,
-      targetDimensions,
-    ),
+    undefined,
+    sourceDimensions,
+    targetDimensions,
   );
   const geometry = createConnectionRenderGeometry(
     points,

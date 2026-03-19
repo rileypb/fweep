@@ -9,7 +9,6 @@ import {
 } from '../domain/map-types';
 import {
   getPseudoRoomNodeDimensionsForRoom,
-  insetPseudoRoomConnectionEndpoint,
   toPseudoRoomVisualRoom,
 } from '../domain/pseudo-room-helpers';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
@@ -964,10 +963,7 @@ export function MapCanvasConnections({
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
           const tgtDimensions = getTargetDimensions(conn, tgt);
-          const points = insetPseudoRoomConnectionEndpoint(
-            conn,
-            computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
-          );
+          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
           const geometry = createConnectionRenderGeometry(
             points,
             conn.isBidirectional,
@@ -1157,10 +1153,7 @@ export function MapCanvasConnections({
           const effectiveSrc = getRoomForVisualStyle(src, visualStyle);
           const srcDimensions = getRoomNodeDimensions(effectiveSrc, visualStyle);
           const tgtDimensions = getTargetDimensions(conn, tgt);
-          const points = insetPseudoRoomConnectionEndpoint(
-            conn,
-            computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions),
-          );
+          const points = computeConnectionPath(effectiveSrc, tgt, conn, undefined, srcDimensions, tgtDimensions);
 
           return <g key={`labels-${conn.id}`}>{renderConnectionEndpointLabels(conn, points)}</g>;
         })}
@@ -1188,10 +1181,7 @@ export function MapCanvasConnections({
           const tgt = getRoomForVisualStyle(applyDragOffset(rawTgt, selectionDrag), visualStyle);
           const srcDimensions = getRoomNodeDimensions(src, visualStyle);
           const tgtDimensions = getTargetDimensions(conn, tgt);
-          const points = insetPseudoRoomConnectionEndpoint(
-            conn,
-            computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions),
-          );
+          const points = computeConnectionPath(src, tgt, conn, undefined, srcDimensions, tgtDimensions);
 
           return <g key={`reroute-handles-${conn.id}`}>{renderConnectionRerouteHandles(conn, points[0], points[points.length - 1])}</g>;
         })}

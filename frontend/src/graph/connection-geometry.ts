@@ -50,8 +50,6 @@ export type ConnectionRenderGeometry =
 
 const DEFAULT_ARROW_LENGTH = 12;
 const DEFAULT_ARROW_WIDTH = 10;
-const DEFAULT_ARROW_FRACTIONS = [1 / 3, 2 / 3] as const;
-
 /* ---- Handle position offsets ---- */
 
 /**
@@ -655,12 +653,43 @@ export function computeConnectionPath(
     ? getHandlePosition(srcRoom.position, srcDir, srcRoomDimensions, srcRoom.shape)
     : undefined;
   const srcStart = srcHandlePosition ?? getRoomCenter(srcRoom.position, srcRoomDimensions);
+  const srcStub = srcDir && srcHandlePosition
+    ? getStubEndpointForRoom(srcStart, srcDir, stubLength, srcRoomDimensions, srcRoom.shape)
+    : undefined;
 
   // Target endpoint
   const tgtHandlePosition = tgtDir
     ? getHandlePosition(tgtRoom.position, tgtDir, tgtRoomDimensions, tgtRoom.shape)
     : undefined;
-  const tgtEnd = tgtHandlePosition ?? getRoomCenter(tgtRoom.position, tgtRoomDimensions);
+  const targetCenter = getRoomCenter(tgtRoom.position, tgtRoomDimensions);
+  const tgtEnd = (() => {
+    if (tgtHandlePosition) {
+      return tgtHandlePosition;
+    }
+
+    if (!isOneWayBetweenDifferentRooms) {
+      return targetCenter;
+    }
+
+    const approachPoint = srcStub ?? srcStart;
+    const perimeterOffset = getRoomPerimeterOffsetTowardVector(
+      {
+        x: approachPoint.x - targetCenter.x,
+        y: approachPoint.y - targetCenter.y,
+      },
+      tgtRoomDimensions,
+      tgtRoom.shape,
+    );
+
+    if (!perimeterOffset) {
+      return targetCenter;
+    }
+
+    return {
+      x: tgtRoom.position.x + perimeterOffset.x,
+      y: tgtRoom.position.y + perimeterOffset.y,
+    };
+  })();
 
   if (
     isSelfConnection
@@ -679,9 +708,8 @@ export function computeConnectionPath(
   const points: Point[] = [srcStart];
 
   // Source stub
-  if (srcDir && srcHandlePosition) {
-    const stub = getStubEndpointForRoom(srcStart, srcDir, stubLength, srcRoomDimensions, srcRoom.shape);
-    if (stub) points.push(stub);
+  if (srcStub) {
+    points.push(srcStub);
   }
 
   // Target stub (in reverse — the stub extends outward from the target handle)
@@ -798,10 +826,6 @@ function computeArrowheadAtFraction(
   return [tip, left, right];
 }
 
-/**
- * Compute triangle points for two arrowheads on the last non-zero segment of a
- * polyline, positioned at one-third and two-thirds of the segment length.
- */
 export function computeSegmentArrowheadPoints(
   pts: Point[],
   arrowLength: number = DEFAULT_ARROW_LENGTH,
@@ -810,9 +834,27 @@ export function computeSegmentArrowheadPoints(
   const segment = getLastNonZeroSegment(pts);
   if (!segment) return [];
 
-  return DEFAULT_ARROW_FRACTIONS.map((fraction) =>
-    computeArrowheadAtFraction(segment, fraction, arrowLength, arrowWidth),
-  );
+  const halfArrowWidth = arrowWidth / 2;
+  const tip = {
+    x: segment.end.x,
+    y: segment.end.y,
+  };
+  const baseCenter = {
+    x: tip.x - (segment.ux * arrowLength),
+    y: tip.y - (segment.uy * arrowLength),
+  };
+
+  return [[
+    tip,
+    {
+      x: baseCenter.x + segment.px * halfArrowWidth,
+      y: baseCenter.y + segment.py * halfArrowWidth,
+    },
+    {
+      x: baseCenter.x - segment.px * halfArrowWidth,
+      y: baseCenter.y - segment.py * halfArrowWidth,
+    },
+  ]];
 }
 
 /** Convert an array of points to an SVG polyline `points` attribute string. */
@@ -1084,42 +1126,37 @@ export function computeGeometryArrowheadPoints(
     return computeSegmentArrowheadPoints([...geometry.points], arrowLength, arrowWidth);
   }
 
-  return DEFAULT_ARROW_FRACTIONS.flatMap((fraction) => {
-    const sample = sampleConnectionGeometryAtFraction(geometry, fraction);
-    if (!sample) {
-      return [];
-    }
+  const sample = sampleConnectionGeometryAtFraction(geometry, 1)
+    ?? sampleConnectionGeometryAtFraction(geometry, 0.999);
+  if (!sample) {
+    return [];
+  }
 
-    const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
-    if (tangentLength === 0) {
-      return [];
-    }
+  const tangentLength = Math.hypot(sample.tangent.x, sample.tangent.y);
+  if (tangentLength === 0) {
+    return [];
+  }
 
-    const ux = sample.tangent.x / tangentLength;
-    const uy = sample.tangent.y / tangentLength;
-    const px = -uy;
-    const py = ux;
-    const halfArrowLength = arrowLength / 2;
-    const halfArrowWidth = arrowWidth / 2;
-    const tip = {
-      x: sample.point.x + (ux * halfArrowLength),
-      y: sample.point.y + (uy * halfArrowLength),
-    };
-    const baseCenter = {
-      x: sample.point.x - (ux * halfArrowLength),
-      y: sample.point.y - (uy * halfArrowLength),
-    };
+  const ux = sample.tangent.x / tangentLength;
+  const uy = sample.tangent.y / tangentLength;
+  const px = -uy;
+  const py = ux;
+  const halfArrowWidth = arrowWidth / 2;
+  const tip = sample.point;
+  const baseCenter = {
+    x: sample.point.x - (ux * arrowLength),
+    y: sample.point.y - (uy * arrowLength),
+  };
 
-    return [[
-      tip,
-      {
-        x: baseCenter.x + (px * halfArrowWidth),
-        y: baseCenter.y + (py * halfArrowWidth),
-      },
-      {
-        x: baseCenter.x - (px * halfArrowWidth),
-        y: baseCenter.y - (py * halfArrowWidth),
-      },
-    ]];
-  });
+  return [[
+    tip,
+    {
+      x: baseCenter.x + (px * halfArrowWidth),
+      y: baseCenter.y + (py * halfArrowWidth),
+    },
+    {
+      x: baseCenter.x - (px * halfArrowWidth),
+      y: baseCenter.y - (py * halfArrowWidth),
+    },
+  ]];
 }

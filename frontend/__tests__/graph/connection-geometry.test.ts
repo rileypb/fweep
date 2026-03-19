@@ -334,7 +334,7 @@ describe('computeConnectionPath', () => {
     expect(points[1]).toEqual(getRoomCenter(tgtRoom.position));
   });
 
-  it('handles a connection with only source compass direction', () => {
+  it('handles a connection with only source compass direction by ending at the target perimeter', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { east: connId });
     const tgtRoom = roomAt('B', 200, 200); // no binding for this connection
@@ -342,13 +342,13 @@ describe('computeConnectionPath', () => {
 
     const points = computeConnectionPath(srcRoom, tgtRoom, conn, 20);
 
-    // Source handle + source stub + target center = 3 points
+    // Source handle + source stub + target perimeter = 3 points
     expect(points).toHaveLength(3);
     expect(points[0]).toEqual(getHandlePosition(srcRoom.position, 'east'));
-    expect(points[2]).toEqual(getRoomCenter(tgtRoom.position));
+    expect(points[2]).toEqual({ x: 200, y: 218 });
   });
 
-  it('draws a one-way connection to the target room center even when the target has a compass binding', () => {
+  it('draws a one-way connection to the target room perimeter even when the target has a compass binding', () => {
     const connId = 'conn-1';
     const srcRoom = roomAt('A', 0, 200, { north: connId });
     const tgtRoom = roomAt('B', 0, 0, { east: connId });
@@ -358,7 +358,28 @@ describe('computeConnectionPath', () => {
 
     expect(points).toHaveLength(3);
     expect(points[0]).toEqual(getHandlePosition(srcRoom.position, 'north'));
-    expect(points[2]).toEqual(getRoomCenter(tgtRoom.position));
+    expect(points[2]).toEqual({ x: 40, y: 36 });
+  });
+
+  it('lands exactly on the target corner for a diagonal one-way approach', () => {
+    const connId = 'conn-diagonal-corner';
+    const srcRoom = roomAt('A', 80, 102, { portal: connId });
+    const tgtRoom = roomAt('B', 0, 0);
+    const conn = { ...createConnection(srcRoom.id, tgtRoom.id, false), id: connId };
+
+    const points = computeConnectionPath(
+      srcRoom,
+      tgtRoom,
+      conn,
+      20,
+      { width: ROOM_WIDTH, height: ROOM_HEIGHT },
+      { width: 40, height: 40 },
+    );
+
+    expect(points).toEqual([
+      { x: 120, y: 120 },
+      { x: 40, y: 40 },
+    ]);
   });
 
   it('uses distinct source and target directions for a bidirectional self-connection', () => {
@@ -474,7 +495,7 @@ describe('computeConnectionPath', () => {
     expect(points[3].y).toBeCloseTo(36, 1);
   });
 
-  it('falls back to the room center when an unsupported direction is normalized into no visual handle', () => {
+  it('falls back to a perimeter-to-perimeter line when an unsupported direction is normalized into no visual handle', () => {
     const connId = 'conn-weird';
     const srcRoom = roomAt('A', 0, 200, { portal: connId });
     const tgtRoom = roomAt('B', 200, 200);
@@ -484,7 +505,7 @@ describe('computeConnectionPath', () => {
 
     expect(points).toEqual([
       getRoomCenter(srcRoom.position),
-      getRoomCenter(tgtRoom.position),
+      { x: 200, y: 218 },
     ]);
   });
 });
@@ -522,7 +543,7 @@ describe('computePreviewPath', () => {
 });
 
 describe('computeSegmentArrowheadPoints', () => {
-  it('places arrowheads at one-third and two-thirds of the last segment', () => {
+  it('places a single arrowhead at the end of the last segment', () => {
     const pts = [
       { x: 120, y: 200 },
       { x: 120, y: 180 },
@@ -531,18 +552,12 @@ describe('computeSegmentArrowheadPoints', () => {
 
     const arrows = computeSegmentArrowheadPoints(pts, 12, 10);
 
-    expect(arrows).toHaveLength(2);
-
-    expect(arrows[0]).toEqual([
-      { x: 120, y: 120 },
-      { x: 125, y: 132 },
-      { x: 115, y: 132 },
-    ]);
-
-    expect(arrows[1]).toEqual([
-      { x: 120, y: 66 },
-      { x: 125, y: 78 },
-      { x: 115, y: 78 },
+    expect(arrows).toEqual([
+      [
+        { x: 120, y: 18 },
+        { x: 125, y: 30 },
+        { x: 115, y: 30 },
+      ],
     ]);
   });
 
@@ -559,14 +574,9 @@ describe('computeSegmentArrowheadPoints', () => {
 
     expect(arrows).toEqual([
       [
-        { x: 16, y: 0 },
-        { x: 4, y: 5 },
-        { x: 4, y: -5 },
-      ],
-      [
-        { x: 26, y: 0 },
-        { x: 14, y: 5 },
-        { x: 14, y: -5 },
+        { x: 30, y: 0 },
+        { x: 18, y: 5 },
+        { x: 18, y: -5 },
       ],
     ]);
   });
@@ -768,14 +778,9 @@ describe('computeGeometryArrowheadPoints', () => {
       }, 12, 10),
     ).toEqual([
       [
-        { x: 16, y: 0 },
-        { x: 4, y: 5 },
-        { x: 4, y: -5 },
-      ],
-      [
-        { x: 26, y: 0 },
-        { x: 14, y: 5 },
-        { x: 14, y: -5 },
+        { x: 30, y: 0 },
+        { x: 18, y: 5 },
+        { x: 18, y: -5 },
       ],
     ]);
   });
@@ -791,7 +796,7 @@ describe('computeGeometryArrowheadPoints', () => {
     ).toEqual([]);
   });
 
-  it('returns two arrowheads for quadratic geometry', () => {
+  it('returns a single arrowhead at the end of quadratic geometry', () => {
     const arrows = computeGeometryArrowheadPoints({
       kind: 'quadratic',
       start: { x: 0, y: 0 },
@@ -799,12 +804,12 @@ describe('computeGeometryArrowheadPoints', () => {
       end: { x: 20, y: 0 },
     });
 
-    expect(arrows).toHaveLength(2);
+    expect(arrows).toHaveLength(1);
     expect(arrows[0]).toHaveLength(3);
-    expect(arrows[1]).toHaveLength(3);
+    expect(arrows[0][0]).toEqual({ x: 20, y: 0 });
   });
 
-  it('returns two arrowheads for cubic geometry', () => {
+  it('returns a single arrowhead at the end of cubic geometry', () => {
     const arrows = computeGeometryArrowheadPoints({
       kind: 'cubic',
       start: { x: 0, y: 0 },
@@ -813,8 +818,8 @@ describe('computeGeometryArrowheadPoints', () => {
       end: { x: 10, y: 0 },
     });
 
-    expect(arrows).toHaveLength(2);
-    expect(arrows[0][0].y).toBeGreaterThan(0);
-    expect(arrows[1][0].x).toBeGreaterThan(arrows[0][0].x);
+    expect(arrows).toHaveLength(1);
+    expect(arrows[0][0].x).toBeCloseTo(10, 5);
+    expect(arrows[0][0].y).toBeCloseTo(0, 5);
   });
 });

@@ -4188,7 +4188,7 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
 
-    it('renders two arrowhead polygons for a one-way connection', () => {
+    it('renders a single arrowhead polygon at the target end for a one-way connection', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -4202,15 +4202,13 @@ describe('MapCanvas', () => {
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
       expect(connectionLine.getAttribute('marker-end')).toBeNull();
-      const connectionArrowA = screen.getByTestId(`connection-arrow-${conn.id}-0`);
-      const connectionArrowB = screen.getByTestId(`connection-arrow-${conn.id}-1`);
-      expect(connectionArrowA.tagName.toLowerCase()).toBe('polygon');
-      expect(connectionArrowB.tagName.toLowerCase()).toBe('polygon');
-      expect(connectionArrowA.getAttribute('points')).toBe('122,128 127,140 117,140');
-      expect(connectionArrowB.getAttribute('points')).toBe('122,82 127,94 117,94');
+      const connectionArrow = screen.getByTestId(`connection-arrow-${conn.id}-0`);
+      expect(screen.queryByTestId(`connection-arrow-${conn.id}-1`)).not.toBeInTheDocument();
+      expect(connectionArrow.tagName.toLowerCase()).toBe('polygon');
+      expect(connectionArrow.getAttribute('points')).toBe('122,84 127,96 117,96');
     });
 
-    it('draws a one-way connection to the target room center without a target stub', () => {
+    it('draws a one-way connection to the target room edge without a target stub', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 200 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 80, y: 0 } };
@@ -4223,7 +4221,7 @@ describe('MapCanvas', () => {
       renderMapCanvas();
 
       const connectionLine = screen.getByTestId(`connection-line-${conn.id}`);
-      expect(connectionLine.getAttribute('points')).toBe('122,200 122,180 122,42');
+      expect(connectionLine.getAttribute('points')).toBe('122,200 122,180 122,84');
     });
 
     it('renders endpoint labels next to the source and target stubs for bidirectional connections', () => {
