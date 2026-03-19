@@ -3415,6 +3415,34 @@ describe('URL routing', () => {
     expect(getGameOutputBox().textContent ?? '').toContain('help rooms');
   });
 
+  it('preserves CLI usage state and output across repeated reloads after a submitted command', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Repeated Reload CLI State Map');
+    await openSavedMap(doc);
+
+    const firstRender = renderApp();
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+
+    const firstInput = getCliInput();
+    await user.type(firstInput, 'xyzzy{enter}');
+
+    firstRender.unmount();
+    const secondRender = renderApp();
+
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+    expect(getGameOutputBox().textContent ?? '').toContain('>xyzzy');
+
+    secondRender.unmount();
+    renderApp();
+
+    await screen.findByLabelText('Map name: Repeated Reload CLI State Map');
+    expect(getGameOutputBox().textContent ?? '').toContain('>xyzzy');
+
+    await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
+      expect(persisted?.cliOutputLines).toContain('>xyzzy');
+    }));
+  });
+
   it('persists the default CLI banner when an existing map has an empty output log', async () => {
     const doc = {
       ...createEmptyMap('Empty Output Banner Map'),
