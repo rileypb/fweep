@@ -4,24 +4,24 @@ export interface MapCanvasReferenceImageProps {
   readonly image: BackgroundReferenceImage;
   readonly panOffset: { readonly x: number; readonly y: number };
   readonly zoom: number;
+  readonly isDragging?: boolean;
+  readonly onMouseDown?: (event: React.MouseEvent<HTMLImageElement>) => void;
 }
 
 export function MapCanvasReferenceImage({
   image,
-  panOffset,
-  zoom,
+  panOffset: _panOffset,
+  zoom: _zoom,
+  isDragging = false,
+  onMouseDown,
 }: MapCanvasReferenceImageProps): React.JSX.Element {
-  const scaledWidth = image.width * image.zoom;
-  const scaledHeight = image.height * image.zoom;
+  const imageWidth = image.width * image.zoom;
+  const imageHeight = image.height * image.zoom;
 
   return (
     <div
       className="map-canvas-reference-image-layer"
       aria-hidden="true"
-      style={{
-        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-        transformOrigin: '0 0',
-      }}
     >
       <img
         className="map-canvas-reference-image"
@@ -29,11 +29,13 @@ export function MapCanvasReferenceImage({
         src={image.dataUrl}
         alt=""
         draggable={false}
+        onMouseDown={onMouseDown}
         style={{
-          left: `${-(scaledWidth / 2)}px`,
-          top: `${-(scaledHeight / 2)}px`,
-          width: `${scaledWidth}px`,
-          height: `${scaledHeight}px`,
+          left: `${image.position.x - (imageWidth / 2)}px`,
+          top: `${image.position.y - (imageHeight / 2)}px`,
+          width: `${imageWidth}px`,
+          height: `${imageHeight}px`,
+          cursor: isDragging ? 'grabbing' : 'grab',
         }}
       />
     </div>

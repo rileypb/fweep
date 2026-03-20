@@ -39,6 +39,7 @@ async function createBackgroundReferenceImage(
     width: dimensions.width,
     height: dimensions.height,
     zoom: 1,
+    position: { x: 0, y: 0 },
   };
 }
 
@@ -216,7 +217,7 @@ export function BackgroundImageControls(): React.JSX.Element {
                 />
               </label>
               <p className="background-image-panel__meta">
-                Centered on map origin. Native size: {referenceImage.width} x {referenceImage.height}px.
+                Option-drag or Command-drag on the canvas to recenter. Native size: {referenceImage.width} x {referenceImage.height}px.
               </p>
             </>
           )}

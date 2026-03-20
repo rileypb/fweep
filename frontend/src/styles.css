@@ -1268,7 +1268,7 @@ body {
   position: absolute;
   max-width: none;
   user-select: none;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .map-canvas-background-chunk {

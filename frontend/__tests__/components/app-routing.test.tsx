@@ -3887,6 +3887,37 @@ describe('URL routing', () => {
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();
   });
 
+  it('persists the background image position when leaving and immediately reopening a map', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Background Image Position Map');
+    await openSavedMap(doc);
+    renderApp();
+    await screen.findByText(/background image position map/i);
+
+    act(() => {
+      useEditorStore.getState().setBackgroundReferenceImage({
+        id: 'background-image-1',
+        name: 'overlay.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AAAA',
+        sourceUrl: null,
+        width: 640,
+        height: 480,
+        zoom: 1,
+        position: { x: 0, y: 0 },
+      });
+      useEditorStore.getState().setBackgroundReferenceImagePosition({ x: 120, y: -80 });
+    });
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.click(screen.getByText('Background Image Position Map').closest('button') as HTMLButtonElement);
+    await screen.findByText(/background image position map/i);
+
+    expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 120, y: -80 });
+  });
+
   it('opens the room editor after creating a room and then editing it from the CLI', async () => {
     jest.useFakeTimers();
     const doc = createEmptyMap('Create Then Edit Map');

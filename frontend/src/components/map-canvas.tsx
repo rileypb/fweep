@@ -245,6 +245,8 @@ export function MapCanvas({
   const [preferredExportScope, setPreferredExportScope] = useState<ExportScope | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [isAutoPanning, setIsAutoPanning] = useState(false);
+  const [backgroundImagePreviewPosition, setBackgroundImagePreviewPosition] = useState<Position | null>(null);
+  const [isDraggingBackgroundImage, setIsDraggingBackgroundImage] = useState(false);
   const [isShiftKeyDown, setIsShiftKeyDown] = useState(false);
   const [isRoomPlacementArmed, setIsRoomPlacementArmed] = useState(false);
   const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
@@ -285,6 +287,7 @@ export function MapCanvas({
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setMapZoom = useEditorStore((s) => s.setMapZoom);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
+  const setBackgroundReferenceImagePosition = useEditorStore((s) => s.setBackgroundReferenceImagePosition);
   const ensureDefaultBackgroundLayer = useEditorStore((s) => s.ensureDefaultBackgroundLayer);
   const beginBackgroundStroke = useEditorStore((s) => s.beginBackgroundStroke);
   const cancelBackgroundStroke = useEditorStore((s) => s.cancelBackgroundStroke);
@@ -1098,6 +1101,63 @@ export function MapCanvas({
     clearSelection();
   }, [activeStroke, addStickyNoteAtPosition, canvasRef, clearSelection, closeStickyNoteEditor, connectionEditorId, doc, isNotePlacementArmed, isRoomPlacementArmed, isRoomEditorOpen, mapVisualStyle, openNewRoomEditor, toMapPoint]);
 
+  const handleBackgroundImageMouseDown = useCallback((event: React.MouseEvent<HTMLImageElement>) => {
+    if (!doc?.background.referenceImage || isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
+      return;
+    }
+    if (!event.altKey && !event.metaKey) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    focusElementWithoutScroll(canvasRef.current);
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startPosition = doc.background.referenceImage.position;
+    let latestPosition = startPosition;
+    let hasMoved = false;
+
+    setIsDraggingBackgroundImage(true);
+    setBackgroundImagePreviewPosition(startPosition);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextPosition = {
+        x: startPosition.x + ((moveEvent.clientX - startClientX) / zoomRef.current),
+        y: startPosition.y + ((moveEvent.clientY - startClientY) / zoomRef.current),
+      };
+      if (moveEvent.clientX !== startClientX || moveEvent.clientY !== startClientY) {
+        hasMoved = true;
+        suppressCanvasClickRef.current = true;
+      }
+      latestPosition = nextPosition;
+      setBackgroundImagePreviewPosition(nextPosition);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      setIsDraggingBackgroundImage(false);
+      setBackgroundImagePreviewPosition(null);
+      if (hasMoved) {
+        setBackgroundReferenceImagePosition(latestPosition);
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [
+    canvasRef,
+    connectionDrag,
+    connectionEditorId,
+    connectionEndpointDrag,
+    doc,
+    isRoomEditorOpen,
+    setBackgroundReferenceImagePosition,
+    zoomRef,
+  ]);
+
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     if (isRoomEditorOpen || connectionEditorId !== null || connectionDrag !== null || connectionEndpointDrag !== null) {
       return;
@@ -1262,13 +1322,6 @@ export function MapCanvas({
         >
           {selectedEntityDescription}
         </span>
-        {doc?.background.referenceImage && (
-          <MapCanvasReferenceImage
-            image={doc.background.referenceImage}
-            panOffset={panOffset}
-            zoom={zoom}
-          />
-        )}
         {drawingInterfaceEnabled && doc && (
           <MapCanvasBackground
             ref={backgroundRef}
@@ -1336,6 +1389,18 @@ export function MapCanvas({
             transformOrigin: '0 0',
           }}
         >
+          {doc?.background.referenceImage && (
+            <MapCanvasReferenceImage
+              image={{
+                ...doc.background.referenceImage,
+                position: backgroundImagePreviewPosition ?? doc.background.referenceImage.position,
+              }}
+              panOffset={panOffset}
+              zoom={zoom}
+              isDragging={isDraggingBackgroundImage}
+              onMouseDown={handleBackgroundImageMouseDown}
+            />
+          )}
           {doc && (
             <MapCanvasConnections
               rooms={doc.rooms}

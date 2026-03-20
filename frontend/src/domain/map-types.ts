@@ -54,6 +54,7 @@ export interface BackgroundReferenceImage {
   readonly width: number;
   readonly height: number;
   readonly zoom: number;
+  readonly position: Position;
 }
 
 export interface BackgroundDocument {

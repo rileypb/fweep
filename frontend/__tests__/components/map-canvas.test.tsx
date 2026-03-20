@@ -262,6 +262,7 @@ describe('MapCanvas', () => {
           width: 400,
           height: 200,
           zoom: 1.5,
+          position: { x: 0, y: 0 },
         },
       },
     });
@@ -274,6 +275,108 @@ describe('MapCanvas', () => {
       top: '-150px',
       width: '600px',
       height: '300px',
+    });
+  });
+
+  it('re-centers the background reference image with Alt-drag', () => {
+    const doc = createEmptyMap('Test');
+    loadDocumentAct({
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          id: 'background-image-1',
+          name: 'overlay.png',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 400,
+          height: 200,
+          zoom: 1,
+          position: { x: 0, y: 0 },
+        },
+      },
+    });
+
+    renderMapCanvas();
+
+    const image = screen.getByTestId('map-canvas-reference-image');
+    fireEvent.mouseDown(image, { clientX: 200, clientY: 160, altKey: true });
+    fireEvent.mouseMove(document, { clientX: 260, clientY: 200 });
+    fireEvent.mouseUp(document);
+
+    expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 60, y: 40 });
+    expect(image).toHaveStyle({
+      left: '-140px',
+      top: '-60px',
+    });
+  });
+
+  it('re-centers the background reference image with Command-drag', () => {
+    const doc = createEmptyMap('Test');
+    loadDocumentAct({
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          id: 'background-image-1',
+          name: 'overlay.png',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 400,
+          height: 200,
+          zoom: 1,
+          position: { x: 0, y: 0 },
+        },
+      },
+    });
+
+    renderMapCanvas();
+
+    const image = screen.getByTestId('map-canvas-reference-image');
+    fireEvent.mouseDown(image, { clientX: 200, clientY: 160, metaKey: true });
+    fireEvent.mouseMove(document, { clientX: 240, clientY: 220 });
+    fireEvent.mouseUp(document);
+
+    expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 40, y: 60 });
+    expect(image).toHaveStyle({
+      left: '-160px',
+      top: '-40px',
+    });
+  });
+
+  it('does not re-center the background reference image without Alt-drag', () => {
+    const doc = createEmptyMap('Test');
+    loadDocumentAct({
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          id: 'background-image-1',
+          name: 'overlay.png',
+          mimeType: 'image/png',
+          dataUrl: 'data:image/png;base64,AAAA',
+          sourceUrl: null,
+          width: 400,
+          height: 200,
+          zoom: 1,
+          position: { x: 0, y: 0 },
+        },
+      },
+    });
+
+    renderMapCanvas();
+
+    const image = screen.getByTestId('map-canvas-reference-image');
+    fireEvent.mouseDown(image, { clientX: 200, clientY: 160 });
+    fireEvent.mouseMove(document, { clientX: 260, clientY: 200 });
+    fireEvent.mouseUp(document);
+
+    expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 0, y: 0 });
+    expect(image).toHaveStyle({
+      left: '-200px',
+      top: '-100px',
     });
   });
 

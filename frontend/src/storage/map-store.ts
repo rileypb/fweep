@@ -129,6 +129,7 @@ function normalizeBackground(doc: MapDocument): MapDocument['background'] {
       width: background.referenceImage.width,
       height: background.referenceImage.height,
       zoom: background.referenceImage.zoom,
+      position: background.referenceImage.position ?? { x: 0, y: 0 },
     }
     : null;
 

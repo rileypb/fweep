@@ -110,6 +110,7 @@ export function App(): React.JSX.Element {
     closeCliSuggestions,
     handleImportScriptChange,
     handleGameOutputClick,
+    flushDocumentSave,
   } = useAppCli({
     activeMap,
     loadDocument,
@@ -212,7 +213,9 @@ export function App(): React.JSX.Element {
     };
   }, []);
 
-  const handleMapSelected = useCallback((doc: Parameters<typeof openMap>[0], _reason: 'create' | 'open' | 'import') => {
+  const handleMapSelected = useCallback(async (doc: Parameters<typeof openMap>[0], _reason: 'create' | 'open' | 'import') => {
+    await flushDocumentSave();
+
     if (!hasSeenWelcomeDialog()) {
       setPendingWelcomeMapId(doc.metadata.id);
     } else {
@@ -220,7 +223,12 @@ export function App(): React.JSX.Element {
     }
 
     openMap(doc);
-  }, [openMap]);
+  }, [flushDocumentSave, openMap]);
+
+  const handleCloseMap = useCallback(async () => {
+    await flushDocumentSave();
+    closeMap();
+  }, [closeMap, flushDocumentSave]);
 
   if (!hasDesktopViewport) {
     return (
@@ -293,7 +301,9 @@ export function App(): React.JSX.Element {
               className="app-control-button app-control-button--plain"
               aria-label="Back to maps"
               title="Back to maps"
-              onClick={closeMap}
+              onClick={() => {
+                void handleCloseMap();
+              }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                 <path d="M9.5 3.5 5 8l4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -361,11 +371,18 @@ export function App(): React.JSX.Element {
       <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       <WelcomeDialog isOpen={isWelcomeOpen} onClose={() => setIsWelcomeOpen(false)} />
       {loading ? null : activeMap === null ? (
-        <MapSelectionDialog onMapSelected={handleMapSelected} initialError={routeError} />
+        <MapSelectionDialog
+          onMapSelected={(doc, reason) => {
+            void handleMapSelected(doc, reason);
+          }}
+          initialError={routeError}
+        />
       ) : (
         <MapCanvas
           mapName={activeMap.metadata.name}
-          onBack={closeMap}
+          onBack={() => {
+            void handleCloseMap();
+          }}
           visibleMapLeftInset={visibleMapLeftInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}

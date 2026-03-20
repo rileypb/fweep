@@ -815,8 +815,8 @@ async function drawBackgroundReferenceImage(
   const imageCanvas = await blobToCanvas(dataUrlToBlob(referenceImage.dataUrl));
   const width = referenceImage.width * referenceImage.zoom;
   const height = referenceImage.height * referenceImage.zoom;
-  const left = -(width / 2);
-  const top = -(height / 2);
+  const left = referenceImage.position.x - (width / 2);
+  const top = referenceImage.position.y - (height / 2);
 
   context.drawImage(imageCanvas, left, top, width, height);
 }

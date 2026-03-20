@@ -220,6 +220,7 @@ describe('useEditorStore', () => {
         width: 640,
         height: 480,
         zoom: 1,
+        position: { x: 0, y: 0 },
       });
       useEditorStore.getState().setBackgroundReferenceImageZoom(1.75);
 
@@ -228,6 +229,7 @@ describe('useEditorStore', () => {
         zoom: 1.75,
         width: 640,
         height: 480,
+        position: { x: 0, y: 0 },
       });
     });
 
@@ -243,6 +245,7 @@ describe('useEditorStore', () => {
         width: 640,
         height: 480,
         zoom: 1,
+        position: { x: 0, y: 0 },
       });
 
       useEditorStore.getState().clearBackgroundReferenceImage();
@@ -267,6 +270,28 @@ describe('useEditorStore', () => {
       expect(() => useEditorStore.getState().setBackgroundReferenceImageZoom(1.5)).toThrow(
         'Cannot update the background image zoom: no background image is set.',
       );
+    });
+
+    it('updates the background image position when one is set', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      useEditorStore.getState().setBackgroundReferenceImage({
+        id: 'background-image-1',
+        name: 'overlay.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,AAAA',
+        sourceUrl: null,
+        width: 640,
+        height: 480,
+        zoom: 1,
+        position: { x: 0, y: 0 },
+      });
+
+      useEditorStore.getState().setBackgroundReferenceImagePosition({ x: 120, y: -80 });
+
+      expect(useEditorStore.getState().doc?.background.referenceImage).toMatchObject({
+        id: 'background-image-1',
+        position: { x: 120, y: -80 },
+      });
     });
   });
 

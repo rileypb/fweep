@@ -364,6 +364,7 @@ describe('map-store', () => {
             width: 800,
             height: 600,
             zoom: 1.25,
+            position: { x: 0, y: 0 },
           },
         },
       };

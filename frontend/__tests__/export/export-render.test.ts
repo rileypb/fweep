@@ -201,6 +201,7 @@ function createBaseInput(): ExportRenderInput {
         width: 320,
         height: 180,
         zoom: 1.5,
+        position: { x: 0, y: 0 },
       },
       layers: {
         'layer-1': {

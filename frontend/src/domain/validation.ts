@@ -428,8 +428,11 @@ function parseBackgroundReferenceImage(
   const width = requireFiniteNumber(referenceImage.width, issues, 'background.referenceImage.width', 'map', 'root');
   const height = requireFiniteNumber(referenceImage.height, issues, 'background.referenceImage.height', 'map', 'root');
   const zoom = requireFiniteNumber(referenceImage.zoom, issues, 'background.referenceImage.zoom', 'map', 'root');
+  const position = referenceImage.position === undefined || referenceImage.position === null
+    ? { x: 0, y: 0 }
+    : parseSimplePosition(referenceImage.position, issues, 'background.referenceImage.position', 'map', 'root');
 
-  if (id === null || name === null || mimeType === null || dataUrl === null || width === null || height === null || zoom === null) {
+  if (id === null || name === null || mimeType === null || dataUrl === null || width === null || height === null || zoom === null || position === null) {
     return null;
   }
 
@@ -452,22 +455,33 @@ function parseBackgroundReferenceImage(
     width,
     height,
     zoom,
+    position,
   };
 }
 
-function parsePosition(value: unknown, issues: ValidationIssue[], roomId: string): Position | null {
-  const position = asRecord(value, issues, `rooms.${roomId}.position`, 'room', roomId);
+function parseSimplePosition(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): Position | null {
+  const position = asRecord(value, issues, path, entityType, entityId);
   if (!position) {
     return null;
   }
 
-  const x = requireFiniteNumber(position.x, issues, `rooms.${roomId}.position.x`, 'room', roomId);
-  const y = requireFiniteNumber(position.y, issues, `rooms.${roomId}.position.y`, 'room', roomId);
+  const x = requireFiniteNumber(position.x, issues, `${path}.x`, entityType, entityId);
+  const y = requireFiniteNumber(position.y, issues, `${path}.y`, entityType, entityId);
   if (x === null || y === null) {
     return null;
   }
 
   return { x, y };
+}
+
+function parsePosition(value: unknown, issues: ValidationIssue[], roomId: string): Position | null {
+  return parseSimplePosition(value, issues, `rooms.${roomId}.position`, 'room', roomId);
 }
 
 function parseDirections(value: unknown, issues: ValidationIssue[], roomId: string): Readonly<Record<string, string>> | null {

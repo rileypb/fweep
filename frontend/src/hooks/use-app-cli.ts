@@ -71,6 +71,7 @@ interface UseAppCliResult {
   readonly closeCliSuggestions: () => void;
   readonly handleImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly handleGameOutputClick: () => void;
+  readonly flushDocumentSave: () => Promise<void>;
 }
 
 function formatCliError(error: CliError): string {
@@ -449,6 +450,15 @@ export function useAppCli({
 
   const queueSave = (doc: MapDocument) => {
     queueSaveSnapshot(doc, latestGameOutputLinesRef.current);
+  };
+
+  const flushDocumentSave = async (): Promise<void> => {
+    const currentDoc = latestStoreDocRef.current;
+    if (currentDoc !== null) {
+      queueSave(currentDoc);
+    }
+
+    await saveQueueRef.current.catch(() => undefined);
   };
 
   useLayoutEffect(() => {
@@ -1393,5 +1403,6 @@ export function useAppCli({
     closeCliSuggestions,
     handleImportScriptChange,
     handleGameOutputClick: () => focusCliInput(areCliSuggestionsEnabled),
+    flushDocumentSave,
   };
 }

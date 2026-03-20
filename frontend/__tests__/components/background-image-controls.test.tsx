@@ -67,11 +67,12 @@ describe('BackgroundImageControls', () => {
         width: 640,
         height: 480,
         zoom: 1,
+        position: { x: 0, y: 0 },
       });
     });
 
     expect(screen.getByText('overlay.png')).toBeInTheDocument();
-    expect(screen.getByText('Centered on map origin. Native size: 640 x 480px.')).toBeInTheDocument();
+    expect(screen.getByText('Option-drag or Command-drag on the canvas to recenter. Native size: 640 x 480px.')).toBeInTheDocument();
     expect(screen.getByLabelText('Background image zoom')).toHaveValue('100');
   });
 
@@ -103,6 +104,7 @@ describe('BackgroundImageControls', () => {
       width: 640,
       height: 480,
       zoom: 1,
+      position: { x: 0, y: 0 },
     });
 
     render(<BackgroundImageControls />);
@@ -125,6 +127,7 @@ describe('BackgroundImageControls', () => {
       width: 640,
       height: 480,
       zoom: 1,
+      position: { x: 0, y: 0 },
     });
 
     render(<BackgroundImageControls />);
@@ -154,6 +157,7 @@ describe('BackgroundImageControls', () => {
       width: 640,
       height: 480,
       zoom: 1.75,
+      position: { x: 0, y: 0 },
     });
 
     render(<BackgroundImageControls />);
@@ -197,6 +201,7 @@ describe('BackgroundImageControls', () => {
       width: 640,
       height: 480,
       zoom: 1.25,
+      position: { x: 0, y: 0 },
     });
 
     render(<BackgroundImageControls />);

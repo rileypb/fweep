@@ -776,6 +776,7 @@ describe('validateMap', () => {
           width: 0,
           height: 100,
           zoom: 1,
+          position: { x: 0, y: 0 },
         },
       },
     };

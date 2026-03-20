@@ -597,6 +597,9 @@ export interface EditorState {
   /** Update the current background reference image zoom. */
   setBackgroundReferenceImageZoom: (zoom: number) => void;
 
+  /** Update the current background reference image position. */
+  setBackgroundReferenceImagePosition: (position: Position) => void;
+
   /** Move a room to a new position (snapped to grid). */
   moveRoom: (roomId: string, position: Position) => void;
 
@@ -1925,6 +1928,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...image,
           sourceUrl: image.sourceUrl ?? null,
           zoom: clampBackgroundReferenceImageZoom(image.zoom),
+          position: image.position,
         },
       },
     };
@@ -1966,6 +1970,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         referenceImage: {
           ...doc.background.referenceImage,
           zoom: clampBackgroundReferenceImageZoom(zoom),
+        },
+      },
+    };
+    set((state) => commitDocumentChange(state, doc, updatedDoc));
+  },
+
+  setBackgroundReferenceImagePosition: (position) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot update the background image position: no document is loaded.');
+    }
+    if (doc.background.referenceImage === null) {
+      throw new Error('Cannot update the background image position: no background image is set.');
+    }
+
+    const updatedDoc = {
+      ...doc,
+      background: {
+        ...doc.background,
+        referenceImage: {
+          ...doc.background.referenceImage,
+          position,
         },
       },
     };
