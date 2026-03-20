@@ -113,6 +113,7 @@ describe('cli suggestion parser', () => {
     expect(parseCliSuggestionInput('north of cellar goes').states.map((state) => state.stateId)).toContain('PSEUDO_GOES');
     expect(parseCliSuggestionInput('north of cellar goes on').states.map((state) => state.stateId)).toContain('PSEUDO_GOES_ON');
     expect(parseCliSuggestionInput('north of cellar leads').states.map((state) => state.stateId)).toContain('PSEUDO_LEADS');
+    expect(parseCliSuggestionInput('north of cellar leads to somewhere else').states.map((state) => state.stateId)).toContain('PSEUDO_DONE');
     expect(parseCliSuggestionInput('north of cellar lies').states.map((state) => state.stateId)).toContain('PSEUDO_LIES');
     expect(parseCliSuggestionInput('above').states.map((state) => state.stateId)).toContain('ABOVE_LEAD');
     expect(parseCliSuggestionInput('below').states.map((state) => state.stateId)).toContain('BELOW_LEAD');

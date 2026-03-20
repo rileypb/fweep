@@ -43,6 +43,8 @@ export function getPseudoRoomGlyph(kind: PseudoRoomKind): string {
       return '☠';
     case 'nowhere':
       return '✕';
+    case 'elsewhere':
+      return '➡';
   }
 }
 

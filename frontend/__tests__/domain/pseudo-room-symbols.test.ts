@@ -27,6 +27,11 @@ describe('pseudo-room-symbols', () => {
       paths: [],
       filledPaths: [expect.objectContaining({ d: expect.stringContaining('M504.6 148.5') })],
     });
+    expect(getPseudoRoomSymbolDefinition('elsewhere')).toMatchObject({
+      viewBoxSize: 640,
+      paths: [],
+      filledPaths: [expect.objectContaining({ d: expect.stringContaining('M566.6 342.6') })],
+    });
   });
 
   it('serializes pseudo-room path commands to SVG syntax', () => {

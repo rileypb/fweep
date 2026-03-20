@@ -226,6 +226,9 @@ function describeCliOutcome(command: CliCommand): string {
       if (command.pseudoKind === 'death') {
         return 'Marked exit as death.';
       }
+      if (command.pseudoKind === 'elsewhere') {
+        return 'Marked exit as leading to somewhere else.';
+      }
       return 'Marked exit as leading nowhere.';
     case 'delete':
       return 'Deleted.';

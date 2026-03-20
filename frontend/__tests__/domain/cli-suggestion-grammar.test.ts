@@ -124,7 +124,7 @@ describe('cli suggestion grammar', () => {
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_IS')).toEqual(['unknown']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES')).toEqual(['on']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES_ON')).toEqual(['forever']);
-    expect(describeCliSuggestionGrammarSymbols('PSEUDO_LEADS')).toEqual(['nowhere']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_LEADS')).toEqual(['nowhere', 'to somewhere else']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_LIES')).toEqual(['death']);
   });
 

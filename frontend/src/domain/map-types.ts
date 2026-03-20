@@ -92,7 +92,7 @@ export interface Room {
   readonly strokeStyle: RoomStrokeStyle;
 }
 
-export const PSEUDO_ROOM_KINDS = ['unknown', 'infinite', 'death', 'nowhere'] as const;
+export const PSEUDO_ROOM_KINDS = ['unknown', 'infinite', 'death', 'nowhere', 'elsewhere'] as const;
 export type PseudoRoomKind = (typeof PSEUDO_ROOM_KINDS)[number];
 
 export interface PseudoRoom {

@@ -292,7 +292,9 @@ function drawPseudoRoomSymbol(
       ? 'infinite'
       : room.name === getPseudoRoomGlyph('death')
         ? 'death'
-        : 'nowhere';
+        : room.name === getPseudoRoomGlyph('elsewhere')
+          ? 'elsewhere'
+          : 'nowhere';
   const symbolDefinition = getPseudoRoomSymbolDefinition(symbolKind);
   const scale = symbolLayout.size / (symbolDefinition.viewBoxSize ?? PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE);
 

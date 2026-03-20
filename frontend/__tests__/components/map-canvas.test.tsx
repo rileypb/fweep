@@ -3002,6 +3002,31 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
     });
 
+    it('can create a somewhere-else pseudo-room from the chooser', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      loadDocumentAct(addRoom(doc, kitchen));
+
+      renderMapCanvas();
+
+      const kitchenNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseEnter(kitchenNode);
+
+      const handle = screen.getByTestId('direction-handle-n');
+      fireEvent.mouseDown(handle, { clientX: 100, clientY: 120, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 220, clientY: 20 });
+      fireEvent.mouseUp(screen.getByTestId('map-canvas'), { clientX: 220, clientY: 20 });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Somewhere else' }));
+
+      const currentDoc = useEditorStore.getState().doc!;
+      const pseudoRooms = Object.values(currentDoc.pseudoRooms);
+      expect(pseudoRooms).toHaveLength(1);
+      expect(pseudoRooms[0].kind).toBe('elsewhere');
+      expect(Object.values(currentDoc.connections)[0].target).toEqual({ kind: 'pseudo-room', id: pseudoRooms[0].id });
+      expect(screen.getByTestId('pseudo-room-node')).toBeInTheDocument();
+    });
+
     it('treats an empty-drop pseudo-room creation point as the center of the pseudo-room', () => {
       setupTwoRooms();
       useEditorStore.getState().toggleSnapToGrid();

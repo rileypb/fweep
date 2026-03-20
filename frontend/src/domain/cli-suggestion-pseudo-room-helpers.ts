@@ -19,8 +19,8 @@ import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-type
 import type { MapDocument } from './map-types';
 
 const unknownPseudoRoomSuggestions = ['is unknown'] as const;
-const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'lies death'] as const;
-const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'lies death'] as const;
+const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death'] as const;
+const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death'] as const;
 
 function getParserBackedPseudoRoomResolution(
   input: string,
@@ -34,6 +34,9 @@ function getParserBackedPseudoRoomResolution(
     : rawNextSymbols;
   const keywordEntries = rawNextSymbols.filter(
     (entry): entry is typeof rawNextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'keyword' }> } => entry.symbol.kind === 'keyword',
+  );
+  const phraseEntries = rawNextSymbols.filter(
+    (entry): entry is typeof rawNextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'phrase' }> } => entry.symbol.kind === 'phrase',
   );
   const roomSlotEntries = slotAwareNextSymbols.filter(
     (entry): entry is typeof slotAwareNextSymbols[number] & { symbol: Extract<typeof entry.symbol, { kind: 'slot' }> } =>
@@ -87,6 +90,9 @@ function getParserBackedPseudoRoomResolution(
   );
   const hasNowhereKeyword = keywordEntries.some(
     (entry) => entry.symbol.text === 'nowhere' && entry.sourceStateIds.includes('PSEUDO_LEADS'),
+  );
+  const hasSomewhereElsePhrase = phraseEntries.some(
+    (entry) => entry.symbol.text === 'to somewhere else' && entry.sourceStateIds.includes('PSEUDO_LEADS'),
   );
   const hasDeathKeyword = keywordEntries.some(
     (entry) => entry.symbol.text === 'death' && entry.sourceStateIds.includes('PSEUDO_LIES'),
@@ -183,7 +189,11 @@ function getParserBackedPseudoRoomResolution(
   }
 
   if (hasNowhereKeyword) {
-    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['nowhere']));
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['nowhere', 'to somewhere else']));
+  }
+
+  if (hasSomewhereElsePhrase) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['to somewhere else']));
   }
 
   if (hasDeathKeyword) {

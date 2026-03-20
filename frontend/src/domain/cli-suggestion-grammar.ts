@@ -444,6 +444,7 @@ const cliSuggestionGrammarStates = [
   ]),
   state('PSEUDO_LEADS', [
     keyword('nowhere', 'PSEUDO_DONE'),
+    phrase('to somewhere else', 'PSEUDO_DONE'),
   ]),
   state('PSEUDO_LIES', [
     keyword('death', 'PSEUDO_DONE'),

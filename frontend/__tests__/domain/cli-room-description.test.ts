@@ -89,6 +89,17 @@ describe('cli room description', () => {
     );
   });
 
+  it('describes somewhere-else pseudo exits', () => {
+    let doc = createEmptyMap('Describe Map');
+    doc = addRoom(doc, { ...createRoom('crossroads'), id: 'crossroads', position: { x: 0, y: 0 } });
+    doc = addPseudoRoom(doc, { ...createPseudoRoom('elsewhere'), id: 'elsewhere-south', position: { x: 0, y: 1 } });
+    doc = addConnection(doc, { ...createConnection('crossroads', { kind: 'pseudo-room', id: 'elsewhere-south' }, false), id: 'south-connection' }, 'south');
+
+    expect(describeRoomForCli(doc, 'crossroads')).toBe(
+      'South leads to somewhere else.',
+    );
+  });
+
   it('handles rooms with no outgoing exits', () => {
     let doc = createEmptyMap('Describe Map');
     doc = addRoom(doc, { ...createRoom('cellar'), id: 'cellar', position: { x: 0, y: 0 } });

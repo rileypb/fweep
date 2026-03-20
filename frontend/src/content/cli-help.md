@@ -20,6 +20,8 @@
 - `above/below <room name> lies death`
 - `<direction> of <room name> leads nowhere`
 - `above/below <room name> leads nowhere`
+- `<direction> of <room name> leads to somewhere else`
+- `above/below <room name> leads to somewhere else`
 
 ## connect
 

@@ -87,6 +87,10 @@ export const CLI_COMMAND_FORMS = [
   'above/below <room name> leads nowhere',
   'the way <direction> of <room name> leads nowhere',
   'the way above/below <room name> leads nowhere',
+  '<direction> of <room name> leads to somewhere else',
+  'above/below <room name> leads to somewhere else',
+  'the way <direction> of <room name> leads to somewhere else',
+  'the way above/below <room name> leads to somewhere else',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'describe [<room name>]',
@@ -523,15 +527,39 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
     };
   };
 
+  const parseElsewhere = (startIndex: number) => {
+    const directionReference = parseDirectionReference(tokens, startIndex)
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+    if (directionReference === null) {
+      return null;
+    }
+    if (
+      !isTokenValue(tokens[directionReference.nextIndex], 'leads')
+      || !isTokenValue(tokens[directionReference.nextIndex + 1], 'to')
+      || !isTokenValue(tokens[directionReference.nextIndex + 2], 'somewhere')
+      || !isTokenValue(tokens[directionReference.nextIndex + 3], 'else')
+      || directionReference.nextIndex + 4 !== tokens.length
+    ) {
+      return null;
+    }
+
+    return {
+      kind: 'create-pseudo-room' as const,
+      pseudoKind: 'elsewhere' as const,
+      sourceRoom: directionReference.sourceRoom,
+      sourceDirection: directionReference.sourceDirection,
+    };
+  };
+
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'room')) {
     return parseUnknown(2);
   }
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'way')) {
-    return parseInfinite(2) ?? parseDeath(2) ?? parseNowhere(2);
+    return parseInfinite(2) ?? parseDeath(2) ?? parseNowhere(2) ?? parseElsewhere(2);
   }
 
-  return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0);
+  return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0) ?? parseElsewhere(0);
 }
 
 function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedConnectTail | null {
@@ -1172,6 +1200,9 @@ function describeCliCommand(command: CliCommand): string {
       }
       if (command.pseudoKind === 'death') {
         return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as death`;
+      }
+      if (command.pseudoKind === 'elsewhere') {
+        return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as leading to somewhere else`;
       }
       return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as leading nowhere`;
     case 'edit':

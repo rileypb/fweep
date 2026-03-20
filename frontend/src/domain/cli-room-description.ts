@@ -70,6 +70,8 @@ function formatPseudoTarget(pseudoKind: PseudoRoomKind): string {
       return 'nowhere';
     case 'infinite':
       return 'goes on forever';
+    case 'elsewhere':
+      return 'somewhere else';
   }
 }
 
@@ -101,6 +103,8 @@ function describeOneWayExit(exit: ExitDescription): string {
         return `${directionLead} leads nowhere.`;
       case 'infinite':
         return `${directionLead} goes on forever.`;
+      case 'elsewhere':
+        return `${directionLead} leads to somewhere else.`;
     }
   }
 

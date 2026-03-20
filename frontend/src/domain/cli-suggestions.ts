@@ -416,7 +416,13 @@ function getSuggestionsForCommandContext(
     return suggestionResolution(createKeywordSuggestions(prefix, ['forever']));
   }
 
-  if (lastToken === 'unknown' || lastToken === 'forever' || lastToken === 'nowhere' || lastToken === 'death') {
+  if (
+    lastToken === 'unknown'
+    || lastToken === 'forever'
+    || lastToken === 'nowhere'
+    || lastToken === 'death'
+    || (lastToken === 'else' && tokens.includes('leads') && tokens.includes('somewhere'))
+  ) {
     return suggestionResolution([]);
   }
 
@@ -429,7 +435,15 @@ function getSuggestionsForCommandContext(
   }
 
   if (lastToken === 'leads') {
-    return suggestionResolution(createKeywordSuggestions(prefix, ['nowhere']));
+    return suggestionResolution(createKeywordSuggestions(prefix, ['nowhere', 'to somewhere else']));
+  }
+
+  if (lastToken === 'to' && tokens.includes('leads')) {
+    return suggestionResolution(createKeywordSuggestions(prefix, ['somewhere else']));
+  }
+
+  if (lastToken === 'somewhere' && tokens.includes('leads')) {
+    return suggestionResolution(createKeywordSuggestions(prefix, ['else']));
   }
 
   if (hasMalformedPseudoRoomContinuation(tokens)) {

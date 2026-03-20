@@ -729,10 +729,11 @@ describe('cli suggestions', () => {
       'is unknown',
       'goes on forever',
       'leads nowhere',
+      'leads to somewhere else',
       'lies death',
     ]);
     expect(roomResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is unknown']);
-    expect(wayResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['goes on forever', 'leads nowhere', 'lies death']);
+    expect(wayResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });
 
   it('suggests only unknown after pseudo-room is phrases', () => {
@@ -749,6 +750,7 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('north of bedroom is unknown ', 'north of bedroom is unknown '.length, doc)).toBeNull();
     expect(getCliSuggestions('west of bedroom goes on forever ', 'west of bedroom goes on forever '.length, doc)).toBeNull();
     expect(getCliSuggestions('west of bedroom leads nowhere ', 'west of bedroom leads nowhere '.length, doc)).toBeNull();
+    expect(getCliSuggestions('west of bedroom leads to somewhere else ', 'west of bedroom leads to somewhere else '.length, doc)).toBeNull();
     expect(getCliSuggestions('west of bedroom lies death ', 'west of bedroom lies death '.length, doc)).toBeNull();
   });
 
@@ -781,7 +783,26 @@ describe('cli suggestions', () => {
         'the way east of living room l'.length,
         doc,
       )?.suggestions.map((suggestion) => suggestion.label),
-    ).toEqual(['leads nowhere', 'lies death']);
+    ).toEqual(['leads nowhere', 'leads to somewhere else', 'lies death']);
+  });
+
+  it('suggests somewhere-else pseudo-room phrase progress after leads', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+
+    expect(
+      getCliSuggestions(
+        'west of bedroom leads ',
+        'west of bedroom leads '.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['nowhere', 'to somewhere else']);
+    expect(
+      getCliSuggestions(
+        'west of bedroom leads to ',
+        'west of bedroom leads to '.length,
+        doc,
+      )?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['somewhere else']);
   });
 
   it('does not allow room-to-room connection annotation grammar inside pseudo-room phrases', () => {

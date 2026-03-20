@@ -99,7 +99,7 @@ describe('cli suggestion pseudo-room helpers', () => {
     };
 
     expect(getPseudoRoomResolution('north of bedroom ', fragment, doc, ['north', 'of', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'lies death']);
+      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });
 
   it('returns only unknown after the room room-reference completion', () => {
@@ -141,7 +141,7 @@ describe('cli suggestion pseudo-room helpers', () => {
     };
 
     expect(getPseudoRoomResolution('the way north of bedroom ', fragment, doc, ['the', 'way', 'north', 'of', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['goes on forever', 'leads nowhere', 'lies death']);
+      .toEqual(['goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });
 
   it('handles vertical pseudo-room room slots and terminal phrases', () => {
@@ -171,7 +171,7 @@ describe('cli suggestion pseudo-room helpers', () => {
     expect(getPseudoRoomResolution('above ', roomFragment, doc, ['above'], helpers)?.suggestions.map((suggestion) => suggestion.label))
       .toEqual(['<room>']);
     expect(getPseudoRoomResolution('above bedroom ', terminalFragment, doc, ['above', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'lies death']);
+      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });
 
   it('continues mid-phrase pseudo-room keywords', () => {
@@ -181,7 +181,7 @@ describe('cli suggestion pseudo-room helpers', () => {
       ['north of bedroom is ', ['unknown']],
       ['north of bedroom goes ', ['on']],
       ['north of bedroom goes on ', ['forever']],
-      ['north of bedroom leads ', ['nowhere']],
+      ['north of bedroom leads ', ['nowhere', 'to somewhere else']],
       ['north of bedroom lies ', ['death']],
     ] as const;
 

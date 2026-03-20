@@ -1408,6 +1408,7 @@ export function MapCanvas({
               <PseudoRoomMenuButton kind="infinite" label="Infinite" onSelect={handleCreateFromPendingDrop} />
               <PseudoRoomMenuButton kind="death" label="Death" onSelect={handleCreateFromPendingDrop} />
               <PseudoRoomMenuButton kind="nowhere" label="Nowhere" onSelect={handleCreateFromPendingDrop} />
+              <PseudoRoomMenuButton kind="elsewhere" label="Somewhere else" onSelect={handleCreateFromPendingDrop} />
             </div>
             <button type="button" className="room-editor-secondary" onClick={closeConnectionCreationMenu}>Cancel</button>
           </div>

@@ -25,6 +25,7 @@ describe('pseudo-room-helpers', () => {
     expect(getPseudoRoomGlyph('infinite')).toBe('∞');
     expect(getPseudoRoomGlyph('death')).toBe('☠');
     expect(getPseudoRoomGlyph('nowhere')).toBe('✕');
+    expect(getPseudoRoomGlyph('elsewhere')).toBe('➡');
   });
 
   it('creates a visual room wrapper for pseudo-rooms and supports position overrides', () => {

@@ -76,6 +76,18 @@ describe('parseCliCommandDescription', () => {
     );
   });
 
+  it('describes pseudo-room somewhere-else commands', () => {
+    expect(parseCliCommandDescription('west of Castle leads to somewhere else')).toBe(
+      'mark the west exit from Castle as leading to somewhere else',
+    );
+    expect(parseCliCommandDescription('Above Kitchen leads to somewhere else')).toBe(
+      'mark the up exit from Kitchen as leading to somewhere else',
+    );
+    expect(parseCliCommandDescription('the way east of Kitchen leads to somewhere else')).toBe(
+      'mark the east exit from Kitchen as leading to somewhere else',
+    );
+  });
+
   it('describes delete commands', () => {
     expect(parseCliCommandDescription('delete Kitchen')).toBe('delete the room called Kitchen');
     expect(parseCliCommandDescription('d Kitchen')).toBe('delete the room called Kitchen');
@@ -329,6 +341,13 @@ describe('parseCliCommand', () => {
     expect(parseCliCommand('the way east of Kitchen leads nowhere')).toEqual({
       kind: 'create-pseudo-room',
       pseudoKind: 'nowhere',
+      sourceRoom: { text: 'Kitchen', exact: false },
+      sourceDirection: 'east',
+    });
+
+    expect(parseCliCommand('the way east of Kitchen leads to somewhere else')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'elsewhere',
       sourceRoom: { text: 'Kitchen', exact: false },
       sourceDirection: 'east',
     });
