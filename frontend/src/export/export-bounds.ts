@@ -369,10 +369,10 @@ export function getViewportExportBounds(
 ): ExportBoundsResult {
   const safeZoom = zoom > 0 ? zoom : 1;
   const bounds = applyPadding({
-    left: -panOffset.x,
-    top: -panOffset.y,
-    right: -panOffset.x + (viewportSize.width / safeZoom),
-    bottom: -panOffset.y + (viewportSize.height / safeZoom),
+    left: -panOffset.x / safeZoom,
+    top: -panOffset.y / safeZoom,
+    right: (-panOffset.x / safeZoom) + (viewportSize.width / safeZoom),
+    bottom: (-panOffset.y / safeZoom) + (viewportSize.height / safeZoom),
   }, padding);
 
   return {

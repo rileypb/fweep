@@ -116,6 +116,17 @@ describe('export-bounds', () => {
     });
   });
 
+  it('derives zoomed viewport bounds from pan offset in screen space', () => {
+    const result = getViewportExportBounds({ width: 500, height: 300 }, { x: 120, y: -40 }, 0, 2);
+
+    expect(result.bounds).toEqual({
+      left: -60,
+      top: 20,
+      right: 190,
+      bottom: 170,
+    });
+  });
+
   it('includes sticky notes in entire-map and selection bounds', () => {
     const stickyNote = {
       ...createStickyNote('A note'),
