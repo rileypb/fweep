@@ -18,6 +18,9 @@ const CONNECTION_ANNOTATION_PADDING = 12;
 const PASS_THROUGH_GAP_PADDING = 6;
 const PASS_THROUGH_CROSSBAR_LENGTH = 10;
 const GAP_MERGE_TOLERANCE = 0.5;
+export const CONNECTION_ENDPOINT_DOT_RADIUS = 3.75;
+export const CONNECTION_ENDPOINT_DOT_OUTSET = 0;
+const CONNECTION_ENDPOINT_DOT_SPACING = 10;
 
 export interface VisibleConnectionSegment {
   readonly start: Point;
@@ -81,6 +84,29 @@ export interface PassThroughObstacle {
   readonly right: number;
   readonly top: number;
   readonly bottom: number;
+}
+
+export interface ConnectionEndpointDotInput {
+  readonly id: string;
+  readonly groupKey: string;
+  readonly center: Point;
+  readonly edgeVector: Point;
+  readonly outwardNormal: Point;
+}
+
+export interface ConnectionEndpointDot {
+  readonly id: string;
+  readonly center: Point;
+  readonly radius: number;
+  readonly outwardNormal: Point;
+}
+
+export interface ConnectionEndpointDotTargetBounds {
+  readonly id: string;
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export function getRoomPassThroughBounds(
@@ -162,6 +188,105 @@ function getSegmentGapIntervals(
   });
 
   return mergedIntervals;
+}
+
+function normalizeDotEdgeVector(vector: Point): Point {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length === 0) {
+    return { x: 1, y: 0 };
+  }
+
+  const normalized = {
+    x: vector.x / length,
+    y: vector.y / length,
+  };
+
+  if (normalized.x < 0 || (Math.abs(normalized.x) < 1e-9 && normalized.y < 0)) {
+    return {
+      x: -normalized.x,
+      y: -normalized.y,
+    };
+  }
+
+  return normalized;
+}
+
+export function spreadConnectionEndpointDots(
+  inputs: readonly ConnectionEndpointDotInput[],
+): readonly ConnectionEndpointDot[] {
+  const groupedInputs = new Map<string, ConnectionEndpointDotInput[]>();
+
+  inputs.forEach((input) => {
+    const existingGroup = groupedInputs.get(input.groupKey);
+    if (existingGroup) {
+      existingGroup.push(input);
+      return;
+    }
+
+    groupedInputs.set(input.groupKey, [input]);
+  });
+
+  return Array.from(groupedInputs.values()).flatMap((group) => {
+    const sortedGroup = [...group]
+      .map((input) => {
+        const edgeVector = normalizeDotEdgeVector(input.edgeVector);
+        const projection = (input.center.x * edgeVector.x) + (input.center.y * edgeVector.y);
+        return { input, edgeVector, projection };
+      })
+      .sort((left, right) => (
+        left.projection === right.projection
+          ? left.input.id.localeCompare(right.input.id)
+          : left.projection - right.projection
+      ));
+
+    let previousPlacedProjection = Number.NEGATIVE_INFINITY;
+
+    return sortedGroup.map(({ input, edgeVector, projection }) => {
+      const placedProjection = Math.max(projection, previousPlacedProjection + CONNECTION_ENDPOINT_DOT_SPACING);
+      previousPlacedProjection = placedProjection;
+      const offset = placedProjection - projection;
+
+      return {
+        id: input.id,
+        center: {
+          x: input.center.x + (edgeVector.x * offset),
+          y: input.center.y + (edgeVector.y * offset),
+        },
+        radius: CONNECTION_ENDPOINT_DOT_RADIUS,
+        outwardNormal: input.outwardNormal,
+      };
+    });
+  });
+}
+
+export function createConnectionEndpointDotInput(
+  id: string,
+  point: Point,
+  targetBounds: ConnectionEndpointDotTargetBounds,
+): ConnectionEndpointDotInput {
+  const centerX = targetBounds.left + (targetBounds.width / 2);
+  const centerY = targetBounds.top + (targetBounds.height / 2);
+  const normalizedX = targetBounds.width === 0 ? 0 : (point.x - centerX) / (targetBounds.width / 2);
+  const normalizedY = targetBounds.height === 0 ? 0 : (point.y - centerY) / (targetBounds.height / 2);
+  const isHorizontalSide = Math.abs(normalizedY) >= Math.abs(normalizedX);
+  const side = isHorizontalSide
+    ? (normalizedY <= 0 ? 'top' : 'bottom')
+    : (normalizedX <= 0 ? 'left' : 'right');
+  const outwardNormalLength = Math.hypot(point.x - centerX, point.y - centerY) || 1;
+
+  return {
+    id,
+    groupKey: `${targetBounds.id}:${side}`,
+    center: point,
+    edgeVector: {
+      x: -(point.y - centerY) / outwardNormalLength,
+      y: (point.x - centerX) / outwardNormalLength,
+    },
+    outwardNormal: {
+      x: (point.x - centerX) / outwardNormalLength,
+      y: (point.y - centerY) / outwardNormalLength,
+    },
+  };
 }
 
 function normalizeAnnotationNormal(normal: Point, preferPositiveX: boolean): Point {

@@ -26,6 +26,7 @@ import {
   findRoomDirectionForConnection,
   findRoomDirectionsForConnection,
   ROOM_CORNER_RADIUS,
+  getRoomPerimeterPointToward,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
   type Point,
@@ -37,15 +38,17 @@ import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import {
+  CONNECTION_ENDPOINT_DOT_OUTSET,
+  createConnectionEndpointDotInput,
   getAnnotationGeometryFromRenderGeometry,
   getAnnotationGeometryFromSegment,
   getDerivedVerticalAnnotationKind,
   getDirectionalAnnotationGeometry,
   getLongestSegment,
-  getRoomPassThroughBounds,
-  getVisibleConnectionSegments,
   normalizeReadableTextRotation,
-  type PassThroughObstacle,
+  spreadConnectionEndpointDots,
+  type ConnectionEndpointDotInput,
+  type ConnectionEndpointDotTargetBounds,
 } from '../graph/connection-decoration-geometry';
 import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
@@ -463,13 +466,63 @@ function drawConnectionGeometry(context: CanvasRenderingContext2D, geometry: Con
   );
 }
 
+function drawConnectionEndpointDot(
+  context: CanvasRenderingContext2D,
+  center: Point,
+  radius: number,
+  outwardNormal: Point,
+): void {
+  const visibleCenter = {
+    x: center.x + (outwardNormal.x * CONNECTION_ENDPOINT_DOT_OUTSET),
+    y: center.y + (outwardNormal.y * CONNECTION_ENDPOINT_DOT_OUTSET),
+  };
+  const tangent = {
+    x: -outwardNormal.y,
+    y: outwardNormal.x,
+  };
+  context.beginPath();
+  context.arc(visibleCenter.x, visibleCenter.y, radius, 0, Math.PI * 2);
+  context.closePath();
+}
+
+function getConnectionEndpointDotBounds(
+  room: Room,
+  dimensions: { readonly width: number; readonly height: number },
+): ConnectionEndpointDotTargetBounds {
+  return {
+    id: room.id,
+    left: room.position.x,
+    top: room.position.y,
+    width: dimensions.width,
+    height: dimensions.height,
+  };
+}
+
+function getConnectionEndpointDotPoint(
+  room: Room,
+  dimensions: { readonly width: number; readonly height: number },
+  boundaryPoint: Point,
+  adjacentPoint: Point | undefined,
+): Point {
+  if (!adjacentPoint) {
+    return boundaryPoint;
+  }
+
+  return getRoomPerimeterPointToward(
+    room.position,
+    adjacentPoint,
+    dimensions,
+    room.shape,
+  );
+}
+
 
 function drawConnectionLine(
   context: CanvasRenderingContext2D,
   doc: ExportRenderInput['doc'],
   connection: Connection,
   theme: ExportRenderInput['theme'],
-): { geometry: ConnectionRenderGeometry; points: readonly Point[] } | null {
+): { geometry: ConnectionRenderGeometry; points: readonly Point[]; dotInputs: readonly ConnectionEndpointDotInput[] } | null {
   const sourceRoom = doc.rooms[connection.sourceRoomId];
   const targetRoom = connection.target.kind === 'room'
     ? doc.rooms[connection.target.id]
@@ -503,56 +556,8 @@ function drawConnectionLine(
   context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
-  if (!(connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id)) {
-    const gapObstacles: Readonly<Record<string, PassThroughObstacle>> = Object.fromEntries([
-      ...Object.entries(doc.rooms).map(([roomId, room]) => [
-        roomId,
-        getRoomPassThroughBounds(getRoomForVisualStyle(room, doc.view.visualStyle), doc.view.visualStyle),
-      ]),
-      ...Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => {
-        const visualRoom = getRoomForVisualStyle(
-          toPseudoRoomVisualRoom(pseudoRoom),
-          doc.view.visualStyle,
-        );
-        const dimensions = getPseudoRoomNodeDimensionsForRoom(visualRoom, doc.view.visualStyle);
-        return [
-          pseudoRoomId,
-          {
-            id: pseudoRoomId,
-            left: visualRoom.position.x - 6,
-            right: visualRoom.position.x + dimensions.width + 6,
-            top: visualRoom.position.y - 6,
-            bottom: visualRoom.position.y + dimensions.height + 6,
-          },
-        ];
-      }),
-    ]);
-    const visibleGapResult = getVisibleConnectionSegments(
-      connection,
-      geometry.kind === 'polyline' ? points : geometry,
-      gapObstacles,
-    );
-    if (visibleGapResult.hasGap) {
-      visibleGapResult.segments.forEach((segment) => {
-        context.beginPath();
-        context.moveTo(segment.start.x, segment.start.y);
-        context.lineTo(segment.end.x, segment.end.y);
-        context.stroke();
-      });
-      visibleGapResult.crossbars.forEach((segment) => {
-        context.beginPath();
-        context.moveTo(segment.start.x, segment.start.y);
-        context.lineTo(segment.end.x, segment.end.y);
-        context.stroke();
-      });
-    } else {
-      drawConnectionGeometry(context, geometry);
-      context.stroke();
-    }
-  } else {
-    drawConnectionGeometry(context, geometry);
-    context.stroke();
-  }
+  drawConnectionGeometry(context, geometry);
+  context.stroke();
   context.setLineDash([]);
 
   if (!connection.isBidirectional) {
@@ -568,7 +573,31 @@ function drawConnectionLine(
     });
   }
 
-  return { geometry, points };
+  const startDotPoint = points.length >= 2
+    ? getConnectionEndpointDotPoint(effectiveSourceRoom, sourceDimensions, points[0], points[1])
+    : null;
+  const endDotPoint = points.length >= 2
+    ? getConnectionEndpointDotPoint(effectiveTargetRoom, targetDimensions, points[points.length - 1], points[points.length - 2])
+    : null;
+
+  return {
+    geometry,
+    points,
+    dotInputs: startDotPoint && endDotPoint
+      ? [
+        createConnectionEndpointDotInput(
+          `${connection.id}-start`,
+          startDotPoint,
+          getConnectionEndpointDotBounds(effectiveSourceRoom, sourceDimensions),
+        ),
+        createConnectionEndpointDotInput(
+          `${connection.id}-end`,
+          endDotPoint,
+          getConnectionEndpointDotBounds(effectiveTargetRoom, targetDimensions),
+        ),
+      ]
+      : [],
+  };
 }
 
 function drawConnectionLabels(
@@ -979,6 +1008,21 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
     connection,
     result: drawConnectionLine(context, input.doc, connection, input.theme),
   }));
+  const renderedConnectionDots = spreadConnectionEndpointDots(
+    renderedConnectionGeometry.flatMap(({ result }) => result?.dotInputs ?? []),
+  );
+
+  renderedConnectionDots.forEach((dot) => {
+    const connectionId = dot.id.replace(/-(start|end)$/, '');
+    const connection = input.doc.connections[connectionId];
+    if (!connection) {
+      return;
+    }
+
+    drawConnectionEndpointDot(context, dot.center, dot.radius, dot.outwardNormal);
+    context.fillStyle = getRoomStrokeColor(connection.strokeColorIndex, input.theme);
+    context.fill();
+  });
 
   renderableStickyNoteLinks.forEach((stickyNoteLink) => {
     drawStickyNoteLink(context, input.doc, stickyNoteLink);

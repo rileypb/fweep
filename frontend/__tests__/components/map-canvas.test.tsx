@@ -3904,7 +3904,7 @@ describe('MapCanvas', () => {
       expect(connectionLine.getAttribute('points')).toBe('164,200 164,180 112,56 112,36');
     });
 
-    it('renders a gap when an unrelated connection crosses a room', () => {
+    it('renders a full line and endpoint dots when an unrelated connection crosses a room', () => {
       const doc = createEmptyMap('Test');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
@@ -3922,33 +3922,14 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      const visibleSegments = screen.getAllByTestId(/connection-line-segment-.*-/);
-      const westNorthSegments = visibleSegments.filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-      const gapCrossbars = screen.getAllByTestId(/connection-gap-crossbar-.*-/)
-        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-      expect(westNorthSegments.length).toBeGreaterThanOrEqual(2);
-      expect(gapCrossbars).toHaveLength(2);
-      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
-
-      const segmentBounds = westNorthSegments
-        .map((segment) => ({
-          x1: Number(segment.getAttribute('x1')),
-          x2: Number(segment.getAttribute('x2')),
-          y1: Number(segment.getAttribute('y1')),
-          y2: Number(segment.getAttribute('y2')),
-        }));
-
-      expect(segmentBounds.some((segment) => Math.max(segment.y1, segment.y2) < kitchen.position.y)).toBe(true);
-      expect(segmentBounds.some((segment) => Math.min(segment.y1, segment.y2) > kitchen.position.y + ROOM_HEIGHT)).toBe(true);
-      expect(segmentBounds.some((segment) => (
-        Math.min(segment.y1, segment.y2) < kitchen.position.y
-        && Math.max(segment.y1, segment.y2) > kitchen.position.y + ROOM_HEIGHT
-        && Math.min(segment.x1, segment.x2) <= kitchen.position.x + 40
-        && Math.max(segment.x1, segment.x2) >= kitchen.position.x + 40
-      ))).toBe(false);
+      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
     });
 
-    it('renders a gap for a bezier connection when it crosses an unrelated room', () => {
+    it('renders a full bezier line and endpoint dots when it crosses an unrelated room', () => {
       const doc = createEmptyMap('Bezier Gap');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
@@ -3973,18 +3954,15 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      const gapSegments = screen.getAllByTestId(/connection-line-segment-.*-/)
-        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-      const gapCrossbars = screen.getAllByTestId(/connection-gap-crossbar-.*-/)
-        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-
-      expect(gapSegments.length).toBeGreaterThanOrEqual(2);
-      expect(gapCrossbars).toHaveLength(2);
-      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-hit-target-${westNorthConnection.id}`).tagName.toLowerCase()).toBe('path');
     });
 
-    it('renders a gap when an unrelated connection crosses a pseudo-room', () => {
+    it('renders a full line and endpoint dots when an unrelated connection crosses a pseudo-room', () => {
       const doc = createEmptyMap('Pseudo Gap');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
@@ -4002,14 +3980,11 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      const westNorthSegments = screen.getAllByTestId(/connection-line-segment-.*-/)
-        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-      const gapCrossbars = screen.getAllByTestId(/connection-gap-crossbar-.*-/)
-        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
-
-      expect(westNorthSegments.length).toBeGreaterThanOrEqual(2);
-      expect(gapCrossbars).toHaveLength(2);
-      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
+      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
+      expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
     });
 
     it('does not render an arrowhead for a bidirectional connection', () => {

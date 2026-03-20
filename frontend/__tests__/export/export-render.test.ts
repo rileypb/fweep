@@ -55,6 +55,7 @@ await jest.unstable_mockModule('../../src/graph/connection-geometry', async () =
     flattenConnectionGeometry: mockFlattenConnectionGeometry,
     findRoomDirectionForConnection: mockFindRoomDirectionForConnection,
     findRoomDirectionsForConnection: mockFindRoomDirectionsForConnection,
+    getRoomPerimeterPointToward: (_roomPosition: { x: number; y: number }, towardPoint: { x: number; y: number }) => towardPoint,
     getConnectionGeometryLength: mockGetConnectionGeometryLength,
     sampleConnectionGeometryAtFraction: mockSampleConnectionGeometryAtFraction,
   };
@@ -1102,7 +1103,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
   });
 
-  it('renders pass-through gaps and crossbars for room crossings in exported PNGs', async () => {
+  it('renders full lines and endpoint dots for room crossings in exported PNGs', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
     mockCreateSizedCanvas.mockReturnValue(canvas);
@@ -1149,16 +1150,11 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo).toHaveBeenCalledWith(120, 220);
-    expect(context.lineTo).toHaveBeenCalledWith(120, 162);
-    expect(context.moveTo).toHaveBeenCalledWith(120, 114);
     expect(context.lineTo).toHaveBeenCalledWith(120, 20);
-    expect(context.moveTo).toHaveBeenCalledWith(115, 162);
-    expect(context.lineTo).toHaveBeenCalledWith(125, 162);
-    expect(context.moveTo).toHaveBeenCalledWith(115, 114);
-    expect(context.lineTo).toHaveBeenCalledWith(125, 114);
+    expect(context.fill).toHaveBeenCalled();
   });
 
-  it('renders pass-through gaps and crossbars for bezier room crossings in exported PNGs', async () => {
+  it('renders full bezier lines and endpoint dots for room crossings in exported PNGs', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
     mockCreateSizedCanvas.mockReturnValue(canvas);
@@ -1220,8 +1216,7 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo.mock.calls.some(([x, y]) => x === 80 && y === 220)).toBe(true);
-    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y === 162)).toBe(true);
-    expect(context.moveTo.mock.calls.some(([x, y]) => x === 120 && y === 114)).toBe(true);
-    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y < 114)).toBe(true);
+    expect(context.bezierCurveTo).toHaveBeenCalledWith(80, 200, 120, 40, 120, 20);
+    expect(context.fill).toHaveBeenCalled();
   });
 });
