@@ -12,6 +12,7 @@ const mockGetRoomFillColor = jest.fn<typeof import('../../src/domain/room-color-
 const mockGetRoomLabelColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomLabelColor>();
 const mockGetRoomStrokeColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomStrokeColor>();
 const mockGetRoomStrokeDasharray = jest.fn<typeof import('../../src/components/map-canvas-helpers').getRoomStrokeDasharray>();
+const mockDrawPaperTexture = jest.fn<typeof import('../../src/graph/perlin-paper-texture').drawPaperTexture>();
 const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connection-geometry').computeConnectionPath>();
 const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/graph/connection-geometry').computeGeometryArrowheadPoints>();
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
@@ -43,6 +44,10 @@ await jest.unstable_mockModule('../../src/domain/room-color-palette', async () =
 
 await jest.unstable_mockModule('../../src/components/map-canvas-helpers', () => ({
   getRoomStrokeDasharray: mockGetRoomStrokeDasharray,
+}));
+
+await jest.unstable_mockModule('../../src/graph/perlin-paper-texture', () => ({
+  drawPaperTexture: mockDrawPaperTexture,
 }));
 
 await jest.unstable_mockModule('../../src/graph/connection-geometry', async () => {
@@ -262,6 +267,7 @@ describe('renderExportCanvas', () => {
       }
       return undefined;
     });
+    mockDrawPaperTexture.mockImplementation(() => {});
     mockGetRoomNodeWidth.mockImplementation((roomOrName) => {
       const name = typeof roomOrName === 'string' ? roomOrName : roomOrName.name;
       return Math.max(80, name.length * 10);
@@ -375,7 +381,7 @@ describe('renderExportCanvas', () => {
 
     expect(rendered).toBe(canvas);
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
-    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 1280, 480);
+    expect(mockDrawPaperTexture).toHaveBeenCalledWith(expect.anything(), 1280, 480, 'dark');
     expect(context.scale).toHaveBeenCalledWith(2, 2);
     expect(context.drawImage).toHaveBeenCalledTimes(2);
     expect(context.lineTo).toHaveBeenCalled();

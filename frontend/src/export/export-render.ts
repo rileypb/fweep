@@ -37,6 +37,7 @@ import { getRoomForVisualStyle, getRoomLabelLayout, getRoomNodeDimensions } from
 import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
+import { drawPaperTexture } from '../graph/perlin-paper-texture';
 import {
   CONNECTION_ENDPOINT_DOT_OUTSET,
   createConnectionEndpointDotInput,
@@ -1018,8 +1019,7 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   }
 
   if (input.settings.background === 'theme-canvas') {
-    context.fillStyle = getCanvasBackground(input.theme);
-    context.fillRect(0, 0, outputWidth, outputHeight);
+    drawPaperTexture(context, outputWidth, outputHeight, input.theme);
   } else if (input.settings.background === 'white') {
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, outputWidth, outputHeight);

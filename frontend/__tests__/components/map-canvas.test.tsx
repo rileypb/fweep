@@ -80,6 +80,27 @@ describe('MapCanvas', () => {
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
+  it('renders a paper texture layer beneath the grid', () => {
+    renderMapCanvas();
+
+    expect(screen.getByTestId('map-canvas-paper-layer')).toBeInTheDocument();
+  });
+
+  it('renders the paper texture layer with the parchment base color', () => {
+    act(() => {
+      useEditorStore.getState().setMapPanOffset({ x: 30, y: 45 });
+      useEditorStore.getState().setMapZoom(1.5);
+    });
+
+    renderMapCanvas();
+
+    const paperLayer = screen.getByTestId('map-canvas-paper-layer');
+
+    expect(paperLayer).toHaveStyle({
+      backgroundColor: 'rgb(236, 227, 199)',
+    });
+  });
+
   it('keeps drawing controls hidden and defaults to map interaction mode', () => {
     renderMapCanvas();
 
