@@ -45,8 +45,11 @@ import {
   getDerivedVerticalAnnotationKind,
   getDirectionalAnnotationGeometry,
   getLongestSegment,
+  getRoomPassThroughBounds,
+  getVisibleConnectionSegments,
   normalizeReadableTextRotation,
   spreadConnectionEndpointDots,
+  type PassThroughObstacle,
   type ConnectionEndpointDotInput,
   type ConnectionEndpointDotTargetBounds,
 } from '../graph/connection-decoration-geometry';
@@ -64,6 +67,7 @@ const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ICON_VIEWBOX_SIZE = 640;
 const ROOM_ITEM_LABEL_RIGHT_INSET = 7;
+const PASS_THROUGH_TINY_GAP_PADDING = 2;
 
 function getSelfVerticalAnnotationSegment(points: readonly Point[]): { start: Point; end: Point } | null {
   const firstPeak = points[1];
@@ -556,8 +560,49 @@ function drawConnectionLine(
   context.strokeStyle = getRoomStrokeColor(connection.strokeColorIndex, theme);
   context.lineWidth = 2;
   setDashArray(context, connection.strokeStyle);
-  drawConnectionGeometry(context, geometry);
-  context.stroke();
+  const gapObstacles: Readonly<Record<string, PassThroughObstacle>> = Object.fromEntries([
+    ...Object.entries(doc.rooms).map(([roomId, room]) => [
+      roomId,
+      getRoomPassThroughBounds(
+        getRoomForVisualStyle(room, doc.view.visualStyle),
+        doc.view.visualStyle,
+        PASS_THROUGH_TINY_GAP_PADDING,
+      ),
+    ]),
+    ...Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => {
+      const visualRoom = getRoomForVisualStyle(
+        toPseudoRoomVisualRoom(pseudoRoom),
+        doc.view.visualStyle,
+      );
+      const dimensions = getPseudoRoomNodeDimensionsForRoom(visualRoom, doc.view.visualStyle);
+      return [
+        pseudoRoomId,
+        {
+          id: pseudoRoomId,
+          left: visualRoom.position.x - PASS_THROUGH_TINY_GAP_PADDING,
+          right: visualRoom.position.x + dimensions.width + PASS_THROUGH_TINY_GAP_PADDING,
+          top: visualRoom.position.y - PASS_THROUGH_TINY_GAP_PADDING,
+          bottom: visualRoom.position.y + dimensions.height + PASS_THROUGH_TINY_GAP_PADDING,
+        },
+      ];
+    }),
+  ]);
+  const visibleGapResult = getVisibleConnectionSegments(
+    connection,
+    geometry.kind === 'polyline' ? points : geometry,
+    gapObstacles,
+  );
+  if (!(connection.target.kind === 'room' && connection.sourceRoomId === connection.target.id) && visibleGapResult.hasGap) {
+    visibleGapResult.segments.forEach((segment) => {
+      context.beginPath();
+      context.moveTo(segment.start.x, segment.start.y);
+      context.lineTo(segment.end.x, segment.end.y);
+      context.stroke();
+    });
+  } else {
+    drawConnectionGeometry(context, geometry);
+    context.stroke();
+  }
   context.setLineDash([]);
 
   if (!connection.isBidirectional) {

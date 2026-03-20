@@ -20,7 +20,6 @@ const PASS_THROUGH_CROSSBAR_LENGTH = 10;
 const GAP_MERGE_TOLERANCE = 0.5;
 export const CONNECTION_ENDPOINT_DOT_RADIUS = 3.75;
 export const CONNECTION_ENDPOINT_DOT_OUTSET = 0;
-const CONNECTION_ENDPOINT_DOT_SPACING = 10;
 
 export interface VisibleConnectionSegment {
   readonly start: Point;
@@ -112,14 +111,15 @@ export interface ConnectionEndpointDotTargetBounds {
 export function getRoomPassThroughBounds(
   room: Room,
   visualStyle: MapVisualStyle = 'default',
+  gapPadding: number = PASS_THROUGH_GAP_PADDING,
 ): PassThroughObstacle {
   const dimensions = getRoomNodeDimensions(room, visualStyle);
   return {
     id: room.id,
-    left: room.position.x - PASS_THROUGH_GAP_PADDING,
-    right: room.position.x + dimensions.width + PASS_THROUGH_GAP_PADDING,
-    top: room.position.y - PASS_THROUGH_GAP_PADDING,
-    bottom: room.position.y + dimensions.height + PASS_THROUGH_GAP_PADDING,
+    left: room.position.x - gapPadding,
+    right: room.position.x + dimensions.width + gapPadding,
+    top: room.position.y - gapPadding,
+    bottom: room.position.y + dimensions.height + gapPadding,
   };
 }
 
@@ -190,73 +190,15 @@ function getSegmentGapIntervals(
   return mergedIntervals;
 }
 
-function normalizeDotEdgeVector(vector: Point): Point {
-  const length = Math.hypot(vector.x, vector.y);
-  if (length === 0) {
-    return { x: 1, y: 0 };
-  }
-
-  const normalized = {
-    x: vector.x / length,
-    y: vector.y / length,
-  };
-
-  if (normalized.x < 0 || (Math.abs(normalized.x) < 1e-9 && normalized.y < 0)) {
-    return {
-      x: -normalized.x,
-      y: -normalized.y,
-    };
-  }
-
-  return normalized;
-}
-
 export function spreadConnectionEndpointDots(
   inputs: readonly ConnectionEndpointDotInput[],
 ): readonly ConnectionEndpointDot[] {
-  const groupedInputs = new Map<string, ConnectionEndpointDotInput[]>();
-
-  inputs.forEach((input) => {
-    const existingGroup = groupedInputs.get(input.groupKey);
-    if (existingGroup) {
-      existingGroup.push(input);
-      return;
-    }
-
-    groupedInputs.set(input.groupKey, [input]);
-  });
-
-  return Array.from(groupedInputs.values()).flatMap((group) => {
-    const sortedGroup = [...group]
-      .map((input) => {
-        const edgeVector = normalizeDotEdgeVector(input.edgeVector);
-        const projection = (input.center.x * edgeVector.x) + (input.center.y * edgeVector.y);
-        return { input, edgeVector, projection };
-      })
-      .sort((left, right) => (
-        left.projection === right.projection
-          ? left.input.id.localeCompare(right.input.id)
-          : left.projection - right.projection
-      ));
-
-    let previousPlacedProjection = Number.NEGATIVE_INFINITY;
-
-    return sortedGroup.map(({ input, edgeVector, projection }) => {
-      const placedProjection = Math.max(projection, previousPlacedProjection + CONNECTION_ENDPOINT_DOT_SPACING);
-      previousPlacedProjection = placedProjection;
-      const offset = placedProjection - projection;
-
-      return {
-        id: input.id,
-        center: {
-          x: input.center.x + (edgeVector.x * offset),
-          y: input.center.y + (edgeVector.y * offset),
-        },
-        radius: CONNECTION_ENDPOINT_DOT_RADIUS,
-        outwardNormal: input.outwardNormal,
-      };
-    });
-  });
+  return inputs.map((input) => ({
+    id: input.id,
+    center: input.center,
+    radius: CONNECTION_ENDPOINT_DOT_RADIUS,
+    outwardNormal: input.outwardNormal,
+  }));
 }
 
 export function createConnectionEndpointDotInput(

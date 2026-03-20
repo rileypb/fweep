@@ -1103,7 +1103,7 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('stairs', 0, 0);
   });
 
-  it('renders full lines and endpoint dots for room crossings in exported PNGs', async () => {
+  it('renders tiny split gaps and endpoint dots for room crossings in exported PNGs', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
     mockCreateSizedCanvas.mockReturnValue(canvas);
@@ -1150,11 +1150,13 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo).toHaveBeenCalledWith(120, 220);
+    expect(context.lineTo).toHaveBeenCalledWith(120, 158);
+    expect(context.moveTo).toHaveBeenCalledWith(120, 118);
     expect(context.lineTo).toHaveBeenCalledWith(120, 20);
     expect(context.fill).toHaveBeenCalled();
   });
 
-  it('renders full bezier lines and endpoint dots for room crossings in exported PNGs', async () => {
+  it('renders tiny split bezier gaps and endpoint dots for room crossings in exported PNGs', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
     mockCreateSizedCanvas.mockReturnValue(canvas);
@@ -1216,7 +1218,8 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo.mock.calls.some(([x, y]) => x === 80 && y === 220)).toBe(true);
-    expect(context.bezierCurveTo).toHaveBeenCalledWith(80, 200, 120, 40, 120, 20);
+    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y === 158)).toBe(true);
+    expect(context.moveTo.mock.calls.some(([x, y]) => x === 120 && y === 118)).toBe(true);
     expect(context.fill).toHaveBeenCalled();
   });
 });

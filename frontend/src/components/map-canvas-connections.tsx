@@ -45,8 +45,11 @@ import {
   getDirectionalAnnotationRenderIntent,
   getDerivedVerticalAnnotationKind,
   getLongestSegment,
+  getRoomPassThroughBounds,
+  getVisibleConnectionSegments,
   normalizeReadableTextRotation,
   spreadConnectionEndpointDots,
+  type PassThroughObstacle,
   type ConnectionEndpointDotTargetBounds,
 } from '../graph/connection-decoration-geometry';
 
@@ -59,6 +62,7 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_REROUTE_HANDLE_RADIUS = 8;
 const CONNECTION_REROUTE_HANDLE_INNER_RADIUS = 4;
+const PASS_THROUGH_TINY_GAP_PADDING = 2;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,
@@ -450,6 +454,13 @@ export function MapCanvasConnections({
         : null;
     const connectionStroke = getRoomStrokeColor(conn.strokeColorIndex, theme);
     const pathData = geometry.kind === 'polyline' ? null : connectionGeometryToSvgPath(geometry);
+    const visiblePolylineResult = getVisibleConnectionSegments(
+      conn,
+      geometry.kind === 'polyline' ? points : geometry,
+      gapObstacles,
+    );
+    const usesGapRendering = !(conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)
+      && visiblePolylineResult.hasGap;
 
     return (
       <>
@@ -478,30 +489,70 @@ export function MapCanvasConnections({
                 onOpenConnectionEditor(conn.id);
               }}
             />
-            <polyline
-              data-testid={`connection-line-${conn.id}`}
-              className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
-              points={pointsToSvgString(points)}
-              fill="none"
-              style={{
-                stroke: connectionStroke,
-                strokeWidth: isSelected ? 6 : 2,
-                strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-                pointerEvents: 'none',
-              }}
-            />
-            {isSelected && (
-              <polyline
-                data-testid={`connection-selection-inner-${conn.id}`}
-                className="connection-line connection-line--selected-inner"
-                points={pointsToSvgString(points)}
-                fill="none"
-                style={{
-                  stroke: '#f59e0b',
-                  strokeWidth: 2,
-                  pointerEvents: 'none',
-                }}
-              />
+            {usesGapRendering ? (
+              <>
+                {visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-line-segment-${conn.id}-${index}`}
+                    data-testid={`connection-line-segment-${conn.id}-${index}`}
+                    className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: connectionStroke,
+                      strokeWidth: isSelected ? 6 : 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-inner"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
+                <polyline
+                  data-testid={`connection-line-${conn.id}`}
+                  className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                  points={pointsToSvgString(points)}
+                  fill="none"
+                  style={{
+                    stroke: connectionStroke,
+                    strokeWidth: isSelected ? 6 : 2,
+                    strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                    pointerEvents: 'none',
+                  }}
+                />
+                {isSelected && (
+                  <polyline
+                    data-testid={`connection-selection-inner-${conn.id}`}
+                    className="connection-line connection-line--selected-inner"
+                    points={pointsToSvgString(points)}
+                    fill="none"
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         ) : (
@@ -529,30 +580,70 @@ export function MapCanvasConnections({
                 onOpenConnectionEditor(conn.id);
               }}
             />
-            <path
-              data-testid={`connection-line-${conn.id}`}
-              className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
-              d={pathData ?? ''}
-              fill="none"
-              style={{
-                stroke: connectionStroke,
-                strokeWidth: isSelected ? 6 : 2,
-                strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-                pointerEvents: 'none',
-              }}
-            />
-            {isSelected && (
-              <path
-                data-testid={`connection-selection-inner-${conn.id}`}
-                className="connection-line connection-line--selected-inner"
-                d={pathData ?? ''}
-                fill="none"
-                style={{
-                  stroke: '#f59e0b',
-                  strokeWidth: 2,
-                  pointerEvents: 'none',
-                }}
-              />
+            {usesGapRendering ? (
+              <>
+                {visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-line-segment-${conn.id}-${index}`}
+                    data-testid={`connection-line-segment-${conn.id}-${index}`}
+                    className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: connectionStroke,
+                      strokeWidth: isSelected ? 6 : 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-inner"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
+                <path
+                  data-testid={`connection-line-${conn.id}`}
+                  className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
+                  d={pathData ?? ''}
+                  fill="none"
+                  style={{
+                    stroke: connectionStroke,
+                    strokeWidth: isSelected ? 6 : 2,
+                    strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                    pointerEvents: 'none',
+                  }}
+                />
+                {isSelected && (
+                  <path
+                    data-testid={`connection-selection-inner-${conn.id}`}
+                    className="connection-line connection-line--selected-inner"
+                    d={pathData ?? ''}
+                    fill="none"
+                    style={{
+                      stroke: '#f59e0b',
+                      strokeWidth: 2,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         )}
@@ -690,6 +781,34 @@ export function MapCanvasConnections({
   const getStickyNoteWithDrag = (stickyNote: StickyNote): StickyNote => (
     applyStickyNoteDragOffset(stickyNote, selectionDrag)
   );
+
+  const gapObstacles: Readonly<Record<string, PassThroughObstacle>> = Object.fromEntries([
+    ...Object.entries(rooms).map(([roomId, room]) => [
+      roomId,
+      getRoomPassThroughBounds(
+        getRoomForVisualStyle(room, visualStyle),
+        visualStyle,
+        PASS_THROUGH_TINY_GAP_PADDING,
+      ),
+    ]),
+    ...Object.entries(pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => {
+      const visualRoom = getRoomForVisualStyle(
+        toPseudoRoomVisualRoom(applyPseudoRoomDragOffset(pseudoRoom, selectionDrag)),
+        visualStyle,
+      );
+      const dimensions = getPseudoRoomNodeDimensionsForRoom(visualRoom, visualStyle);
+      return [
+        pseudoRoomId,
+        {
+          id: pseudoRoomId,
+          left: visualRoom.position.x - PASS_THROUGH_TINY_GAP_PADDING,
+          right: visualRoom.position.x + dimensions.width + PASS_THROUGH_TINY_GAP_PADDING,
+          top: visualRoom.position.y - PASS_THROUGH_TINY_GAP_PADDING,
+          bottom: visualRoom.position.y + dimensions.height + PASS_THROUGH_TINY_GAP_PADDING,
+        },
+      ];
+    }),
+  ]);
 
   const renderConnectionRerouteHandles = (
     connection: Connection,

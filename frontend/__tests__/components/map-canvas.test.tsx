@@ -3904,7 +3904,7 @@ describe('MapCanvas', () => {
       expect(connectionLine.getAttribute('points')).toBe('164,200 164,180 112,56 112,36');
     });
 
-    it('renders a full line and endpoint dots when an unrelated connection crosses a room', () => {
+    it('renders a tiny split gap and endpoint dots when an unrelated connection crosses a room', () => {
       const doc = createEmptyMap('Test');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
@@ -3922,14 +3922,16 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      const segments = screen.getAllByTestId(/connection-line-segment-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+      expect(segments.length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
-      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
     });
 
-    it('renders a full bezier line and endpoint dots when it crosses an unrelated room', () => {
+    it('renders a tiny split bezier gap and endpoint dots when it crosses an unrelated room', () => {
       const doc = createEmptyMap('Bezier Gap');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
@@ -3954,15 +3956,17 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      const segments = screen.getAllByTestId(/connection-line-segment-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+      expect(segments.length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
-      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-hit-target-${westNorthConnection.id}`).tagName.toLowerCase()).toBe('path');
     });
 
-    it('renders a full line and endpoint dots when an unrelated connection crosses a pseudo-room', () => {
+    it('renders a tiny split gap and endpoint dots when an unrelated connection crosses a pseudo-room', () => {
       const doc = createEmptyMap('Pseudo Gap');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
       const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
@@ -3980,9 +3984,11 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      expect(screen.queryByTestId(/connection-line-segment-.*-/)).not.toBeInTheDocument();
+      const segments = screen.getAllByTestId(/connection-line-segment-.*-/)
+        .filter((segment) => segment.getAttribute('data-testid')?.includes(westNorthConnection.id));
+      expect(segments.length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByTestId(/connection-gap-crossbar-.*-/)).not.toBeInTheDocument();
-      expect(screen.getByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
     });
