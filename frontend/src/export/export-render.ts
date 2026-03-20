@@ -51,8 +51,8 @@ import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
 import { validateExportBounds } from './export-bounds';
 
-const LIGHT_CANVAS_BACKGROUND = '#ffffff';
-const DARK_CANVAS_BACKGROUND = '#111827';
+const LIGHT_CANVAS_BACKGROUND = '#eeeeee';
+const DARK_CANVAS_BACKGROUND = '#282828';
 const LIGHT_GRID_COLOR = 'rgba(0, 0, 0, 0.07)';
 const DARK_GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
 const LIGHT_FOREGROUND = '#111827';

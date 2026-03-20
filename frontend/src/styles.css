@@ -1186,7 +1186,7 @@ body {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  background-color: transparent;
+  background-color: #eeeeee;
 }
 
 .map-canvas:focus-visible {
@@ -1235,6 +1235,10 @@ body {
 
 :root[data-theme='dark'] .map-canvas-grid-layer {
   --grid-color: rgba(255, 255, 255, 0.06);
+}
+
+:root[data-theme='dark'] .map-canvas {
+  background-color: #282828;
 }
 
 .map-canvas-scene {
