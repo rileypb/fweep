@@ -12,6 +12,7 @@ import {
 } from '../domain/map-types';
 import { getRoomStrokeColor, type ThemeMode } from '../domain/room-color-palette';
 import { getPseudoRoomNodeDimensionsForRoom, toPseudoRoomVisualRoom } from '../domain/pseudo-room-helpers';
+import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import type { PanOffset } from './use-map-viewport';
 import {
   clampPointToMinimap,
@@ -81,7 +82,7 @@ function getMinimapShapePathForVisualStyle(
     getEffectiveMinimapShape(shape, visualStyle),
     width,
     height,
-    visualStyle === 'square-classic' ? 0 : 8,
+    visualStyle === 'square-classic' ? SQUARE_CLASSIC_CORNER_RADIUS : 8,
   );
 }
 

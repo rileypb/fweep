@@ -13,6 +13,7 @@ export const SQUARE_CLASSIC_ROOM_SIZE = 84;
 export const SQUARE_CLASSIC_LINE_HEIGHT = 16;
 export const SQUARE_CLASSIC_HORIZONTAL_PADDING = 4;
 export const SQUARE_CLASSIC_VERTICAL_PADDING = 10;
+export const SQUARE_CLASSIC_CORNER_RADIUS = 3;
 
 type RoomLabelTarget = Pick<Room, 'name' | 'locked' | 'isDark'>;
 

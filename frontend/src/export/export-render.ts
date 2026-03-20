@@ -33,6 +33,7 @@ import {
 import { DARK_ROOM_INNER, DARK_ROOM_OUTER } from '../graph/dark-room-geometry';
 import { PADLOCK_BODY, PADLOCK_KEYHOLE, PADLOCK_KEY_STEM } from '../graph/padlock-geometry';
 import { getRoomForVisualStyle, getRoomLabelLayout, getRoomNodeDimensions } from '../graph/room-label-geometry';
+import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import {
@@ -142,7 +143,7 @@ function drawRoomShape(
 
   context.beginPath();
   if (visualStyle === 'square-classic') {
-    traceRoomShapePath(context, 'rectangle', left, top, width, dimensions.height, 0);
+    traceRoomShapePath(context, 'rectangle', left, top, width, dimensions.height, SQUARE_CLASSIC_CORNER_RADIUS);
   } else {
     traceRoomShapePath(context, room.shape, left, top, width, dimensions.height, ROOM_CORNER_RADIUS);
   }
@@ -343,7 +344,7 @@ function drawPseudoRoomShape(
 
   context.beginPath();
   if (visualStyle === 'square-classic') {
-    traceRoomShapePath(context, 'rectangle', left, top, dimensions.width, dimensions.height, 0);
+    traceRoomShapePath(context, 'rectangle', left, top, dimensions.width, dimensions.height, SQUARE_CLASSIC_CORNER_RADIUS);
   } else {
     traceRoomShapePath(context, room.shape, left, top, dimensions.width, dimensions.height, ROOM_CORNER_RADIUS);
   }

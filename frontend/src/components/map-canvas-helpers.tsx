@@ -19,6 +19,7 @@ import {
   ROOM_CORNER_RADIUS,
 } from '../graph/connection-geometry';
 import { getRoomForVisualStyle, getRoomNodeDimensions } from '../graph/room-label-geometry';
+import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import { STICKY_NOTE_WIDTH, getStickyNoteCenter, getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import {
   getRoomShapePath,
@@ -497,8 +498,8 @@ export function renderRoomShape(
         y={0}
         width={width}
         height={height}
-        rx={0}
-        ry={0}
+        rx={SQUARE_CLASSIC_CORNER_RADIUS}
+        ry={SQUARE_CLASSIC_CORNER_RADIUS}
         {...shapeStyleProps}
       />
     );

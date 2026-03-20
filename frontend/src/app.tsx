@@ -336,7 +336,7 @@ export function App(): React.JSX.Element {
               onClick={toggleUseBezierConnections}
             >
               <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
-                <path d={useBezierConnectionsEnabled ? BEZIER_CURVE_SOLID_FULL_PATH : WAVE_SQUARE_SOLID_FULL_PATH} />
+                <path d={useBezierConnectionsEnabled ? WAVE_SQUARE_SOLID_FULL_PATH : BEZIER_CURVE_SOLID_FULL_PATH} />
               </svg>
             </button>
             <SnapToggle />
