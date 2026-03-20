@@ -47,6 +47,7 @@ export function BackgroundImageControls(): React.JSX.Element {
   const setBackgroundReferenceImage = useEditorStore((state) => state.setBackgroundReferenceImage);
   const clearBackgroundReferenceImage = useEditorStore((state) => state.clearBackgroundReferenceImage);
   const setBackgroundReferenceImageZoom = useEditorStore((state) => state.setBackgroundReferenceImageZoom);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [zoomPercent, setZoomPercent] = useState('100');
@@ -56,6 +57,31 @@ export function BackgroundImageControls(): React.JSX.Element {
   useEffect(() => {
     setZoomPercent(referenceImage ? String(Math.round(referenceImage.zoom * 100)) : '100');
   }, [referenceImage]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent): void => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      if (event.target instanceof Node && container.contains(event.target)) {
+        return;
+      }
+
+      setIsOpen(false);
+      setErrorMessage(null);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, [isOpen]);
 
   const commitZoomPercent = (value: string): void => {
     if (!referenceImage) {
@@ -88,7 +114,10 @@ export function BackgroundImageControls(): React.JSX.Element {
   };
 
   return (
-    <div className={`background-image-controls${isOpen ? ' background-image-controls--open' : ''}`}>
+    <div
+      ref={containerRef}
+      className={`background-image-controls${isOpen ? ' background-image-controls--open' : ''}`}
+    >
       <button
         className="app-control-button"
         type="button"

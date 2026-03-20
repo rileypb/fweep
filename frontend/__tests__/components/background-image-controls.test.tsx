@@ -75,6 +75,23 @@ describe('BackgroundImageControls', () => {
     expect(screen.getByLabelText('Background image zoom')).toHaveValue('100');
   });
 
+  it('closes the panel when clicking outside it', async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <BackgroundImageControls />
+        <button type="button">Outside</button>
+      </div>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Background image' }));
+    expect(screen.getByTestId('background-image-panel')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Outside' }));
+
+    expect(screen.queryByTestId('background-image-panel')).not.toBeInTheDocument();
+  });
+
   it('removes the stored background image', async () => {
     const user = userEvent.setup();
     useEditorStore.getState().setBackgroundReferenceImage({
