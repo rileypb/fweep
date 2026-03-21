@@ -126,6 +126,7 @@ export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
 export const CONTOUR_MESH_WATER_LEVEL = 48;
 export const CONTOUR_MESH_CONTOUR_INTERVAL = 4;
 const CONTOUR_MESH_WATER_DEPTH_GAMMA = 1.6;
+const CONTOUR_MESH_RENDER_DARKNESS = 0.11;
 const CONTOUR_MESH_LIGHT_VECTOR = (() => {
   const x = -1;
   const y = -1;
@@ -171,15 +172,15 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
       fillHigh: { r: 82, g: 86, b: 79 },
     }
     : {
-      base: { r: 232, g: 227, b: 208 },
-      line: { r: 123, g: 111, b: 84 },
-      contourLand: { r: 245, g: 243, b: 234 },
-      contourWater: { r: 41, g: 38, b: 57 },
-      waterDeep: { r: 82, g: 88, b: 161 },
-      waterShallow: { r: 157, g: 158, b: 201 },
-      fillDeep: { r: 177, g: 170, b: 149 },
-      fillLow: { r: 223, g: 218, b: 201 },
-      fillHigh: { r: 197, g: 190, b: 170 },
+      base: { r: 230, g: 230, b: 230 },
+      line: { r: 132, g: 132, b: 132 },
+      contourLand: { r: 230, g: 233, b: 232 },
+      contourWater: { r: 27, g: 40, b: 73 },
+      waterDeep: { r: 56, g: 95, b: 183 },
+      waterShallow: { r: 139, g: 174, b: 215 },
+      fillDeep: { r: 145, g: 171, b: 137 },
+      fillLow: { r: 207, g: 220, b: 198 },
+      fillHigh: { r: 177, g: 201, b: 173 },
     };
 }
 
@@ -201,6 +202,10 @@ function scaleRgb(color: Rgb, factor: number): Rgb {
 
 function toCssRgb(color: Rgb): string {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
+}
+
+function fadeRgbTowardBase(color: Rgb, base: Rgb, darkness: number = CONTOUR_MESH_RENDER_DARKNESS): Rgb {
+  return mixRgb(base, color, darkness);
 }
 
 function getWaterDepthMix(elevation: number): number {
@@ -723,35 +728,39 @@ function strokeContourPolyline(
   points: readonly (readonly [number, number])[],
   width: number,
   height: number,
+  smooth: boolean,
 ): void {
   if (points.length < 2) {
     return;
   }
 
+  const drawPoints = (() => {
+    if (!smooth || points.length < 3) {
+      return points;
+    }
+
+    const result: (readonly [number, number])[] = [points[0]];
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      result.push([
+        (current[0] * 0.75) + (next[0] * 0.25),
+        (current[1] * 0.75) + (next[1] * 0.25),
+      ] as const);
+      result.push([
+        (current[0] * 0.25) + (next[0] * 0.75),
+        (current[1] * 0.25) + (next[1] * 0.75),
+      ] as const);
+    }
+    result.push(points[points.length - 1]);
+    return result;
+  })();
+
   context.beginPath();
-  context.moveTo(points[0][0] * width, points[0][1] * height);
-
-  if (points.length === 2) {
-    context.lineTo(points[1][0] * width, points[1][1] * height);
-    context.stroke();
-    return;
+  context.moveTo(drawPoints[0][0] * width, drawPoints[0][1] * height);
+  for (let index = 1; index < drawPoints.length; index += 1) {
+    context.lineTo(drawPoints[index][0] * width, drawPoints[index][1] * height);
   }
-
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const current = points[index];
-    const next = points[index + 1];
-    const midpointX = ((current[0] + next[0]) / 2) * width;
-    const midpointY = ((current[1] + next[1]) / 2) * height;
-    context.quadraticCurveTo(
-      current[0] * width,
-      current[1] * height,
-      midpointX,
-      midpointY,
-    );
-  }
-
-  const last = points[points.length - 1];
-  context.lineTo(last[0] * width, last[1] * height);
   context.stroke();
 }
 
@@ -905,9 +914,11 @@ function getContourMeshSubfaceFillColor(
       return mixRgb(landBase, palette.fillHigh, clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
     })();
 
-  return subface.isWater
+  const color = subface.isWater
     ? baseFill
     : scaleRgb(baseFill, calculateContourMeshSubfaceLighting(subface));
+
+  return fadeRgbTowardBase(color, palette.base);
 }
 
 function fillImageData(data: Uint8ClampedArray, color: Rgb): void {
@@ -1077,11 +1088,11 @@ export function renderContourMeshTextureTile(
           polygons.water,
           width,
           height,
-          mixRgb(
+          fadeRgbTowardBase(mixRgb(
             palette.waterDeep,
             palette.waterShallow,
             getWaterDepthMix(polygons.water.averageElevation),
-          ),
+          ), palette.base),
         );
       }
 
@@ -1096,7 +1107,10 @@ export function renderContourMeshTextureTile(
           polygons.land,
           width,
           height,
-          mixRgb(landBase, palette.fillHigh, clamp01((polygons.land.averageElevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50)),
+          fadeRgbTowardBase(
+            mixRgb(landBase, palette.fillHigh, clamp01((polygons.land.averageElevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50)),
+            palette.base,
+          ),
         );
       }
     }
@@ -1106,7 +1120,18 @@ export function renderContourMeshTextureTile(
   const contourPolylines = generateContourMeshContourPolylines(contourSegments);
   context.lineWidth = theme === 'dark' ? 1.1 : 1;
   for (const polyline of contourPolylines) {
-    context.strokeStyle = toCssRgb(polyline.elevation <= CONTOUR_MESH_WATER_LEVEL ? palette.contourWater : palette.contourLand);
-    strokeContourPolyline(context, polyline.points, width, height);
+    context.strokeStyle = toCssRgb(
+      fadeRgbTowardBase(
+        polyline.elevation <= CONTOUR_MESH_WATER_LEVEL ? palette.contourWater : palette.contourLand,
+        palette.base,
+      ),
+    );
+    strokeContourPolyline(
+      context,
+      polyline.points,
+      width,
+      height,
+      polyline.elevation !== CONTOUR_MESH_WATER_LEVEL,
+    );
   }
 }

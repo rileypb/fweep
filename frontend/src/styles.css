@@ -238,6 +238,10 @@ body {
   --app-chrome-rail-background: rgb(223, 207, 178);
 }
 
+:root[data-theme='light'] .app-shell[data-canvas-theme='contour'] {
+  --app-chrome-rail-background: rgb(220, 224, 236);
+}
+
 :root[data-theme='dark'] .app-shell[data-canvas-theme='antique'] {
   --app-chrome-rail-background: rgb(40, 42, 38);
 }
