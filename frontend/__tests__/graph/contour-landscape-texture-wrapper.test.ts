@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import type { TextureTileRecord } from '../../src/storage/map-store';
 
 const mockBlobToCanvas = jest.fn<typeof import('../../src/components/map-background-raster').blobToCanvas>();
 const mockCanvasToBlob = jest.fn<typeof import('../../src/components/map-background-raster').canvasToBlob>();
@@ -67,6 +68,20 @@ function createFakeCanvas(label: string): HTMLCanvasElement {
   } as unknown as HTMLCanvasElement;
 }
 
+function createStoredTextureTileRecord(blob: Blob): TextureTileRecord {
+  return {
+    key: 'stored-texture-tile',
+    mapId: 'stored-map',
+    canvasTheme: 'antique',
+    themeVariant: 'light',
+    textureSeed: 0,
+    generatorVersion: 1,
+    tileSize: 512,
+    blob,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
 describe('contour-landscape-texture wrapper', () => {
   beforeEach(() => {
     mockBlobToCanvas.mockReset();
@@ -120,7 +135,7 @@ describe('contour-landscape-texture wrapper', () => {
 
     expect(result).toBe(blob);
     expect(mockGenerateContourLandscapeTextureTilePixelBuffer).toHaveBeenCalledWith(512, 512, 'light', 6, 'antique');
-    expect(mockCanvasToBlob).toHaveBeenCalledWith(generatedCanvas);
+    expect(mockCanvasToBlob.mock.calls[0]?.[0]).toBe(generatedCanvas);
     expect(mockSaveTextureTile).toHaveBeenCalledWith({
       mapId: 'map-antique-generate',
       canvasTheme: 'antique',
@@ -135,7 +150,7 @@ describe('contour-landscape-texture wrapper', () => {
     const storedBlob = new Blob(['stored-landscape']);
     const storedCanvas = createFakeCanvas('stored-landscape');
 
-    mockLoadTextureTile.mockResolvedValue({ blob: storedBlob });
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
     mockBlobToCanvas.mockResolvedValue(storedCanvas);
 
     const result = await ensureContourLandscapeTextureTileBlob({
@@ -167,8 +182,8 @@ describe('contour-landscape-texture wrapper', () => {
       },
     );
 
-    expect(mockDrawContourMeshTexture).toHaveBeenCalledWith(
-      context,
+    expect(mockDrawContourMeshTexture.mock.calls[0]).toEqual([
+      context as unknown as CanvasRenderingContext2D,
       300,
       200,
       'dark',
@@ -177,7 +192,7 @@ describe('contour-landscape-texture wrapper', () => {
         textureSeed: 8,
         theme: 'dark',
       },
-    );
+    ]);
     expect(context.fillRect).not.toHaveBeenCalled();
   });
 
@@ -207,7 +222,7 @@ describe('contour-landscape-texture wrapper', () => {
     const storedBlob = new Blob(['stored-antique']);
     const storedCanvas = createFakeCanvas('stored-antique');
 
-    mockLoadTextureTile.mockResolvedValue({ blob: storedBlob });
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
     mockBlobToCanvas.mockResolvedValue(storedCanvas);
 
     await drawContourLandscapeTexture(

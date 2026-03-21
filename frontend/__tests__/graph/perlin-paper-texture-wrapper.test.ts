@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import type { TextureTileRecord } from '../../src/storage/map-store';
 
 const mockBlobToCanvas = jest.fn<typeof import('../../src/components/map-background-raster').blobToCanvas>();
 const mockCanvasToBlob = jest.fn<typeof import('../../src/components/map-background-raster').canvasToBlob>();
@@ -60,6 +61,20 @@ function createFakeCanvas(label: string): HTMLCanvasElement {
   } as unknown as HTMLCanvasElement;
 }
 
+function createStoredTextureTileRecord(blob: Blob): TextureTileRecord {
+  return {
+    key: 'stored-texture-tile',
+    mapId: 'stored-map',
+    canvasTheme: 'paper',
+    themeVariant: 'light',
+    textureSeed: 0,
+    generatorVersion: 1,
+    tileSize: 512,
+    blob,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
 describe('perlin-paper-texture wrapper', () => {
   beforeEach(() => {
     mockBlobToCanvas.mockReset();
@@ -91,7 +106,7 @@ describe('perlin-paper-texture wrapper', () => {
     expect(result).toBe(blob);
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(512, 512);
     expect(mockGeneratePaperTextureTilePixelBuffer).toHaveBeenCalledWith(512, 512, 'light', 101);
-    expect(mockCanvasToBlob).toHaveBeenCalledWith(generatedCanvas);
+    expect(mockCanvasToBlob.mock.calls[0]?.[0]).toBe(generatedCanvas);
     expect(mockSaveTextureTile).toHaveBeenCalledWith({
       mapId: 'paper-generate',
       canvasTheme: 'paper',
@@ -106,7 +121,7 @@ describe('perlin-paper-texture wrapper', () => {
     const storedBlob = new Blob(['stored-paper']);
     const storedCanvas = createFakeCanvas('stored-paper');
 
-    mockLoadTextureTile.mockResolvedValue({ blob: storedBlob });
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
     mockBlobToCanvas.mockResolvedValue(storedCanvas);
 
     const result = await ensurePaperTextureTileBlob({
@@ -168,7 +183,7 @@ describe('perlin-paper-texture wrapper', () => {
     const storedBlob = new Blob(['stored-paper-draw']);
     const storedCanvas = createFakeCanvas('stored-paper-draw');
 
-    mockLoadTextureTile.mockResolvedValue({ blob: storedBlob });
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
     mockBlobToCanvas.mockResolvedValue(storedCanvas);
 
     await drawPaperTexture(
