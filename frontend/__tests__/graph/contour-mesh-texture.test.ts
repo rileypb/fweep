@@ -8,6 +8,7 @@ import {
   generateContourMeshContourSegments,
   generateContourMeshEdgeSubdivisions,
   getContourMeshFaceFillPolygons,
+  generateContourMeshSubfaces,
   generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
@@ -157,6 +158,27 @@ describe('contour-mesh-texture', () => {
     const topology = generateContourMeshTopology(12345);
 
     expect(generateContourMeshContourSegments(topology)).toEqual(generateContourMeshContourSegments(topology));
+  });
+
+  it('builds deterministic subfaces from the subdivided contour mesh', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(generateContourMeshSubfaces(topology)).toEqual(generateContourMeshSubfaces(topology));
+  });
+
+  it('creates subfaces with unit elevation bands', () => {
+    const topology = generateContourMeshTopology(12345);
+    const subfaces = generateContourMeshSubfaces(topology);
+
+    expect(subfaces.length).toBeGreaterThan(0);
+    expect(subfaces.some((subface) => subface.isWater)).toBe(true);
+    expect(subfaces.some((subface) => !subface.isWater)).toBe(true);
+
+    for (const subface of subfaces.slice(0, 80)) {
+      expect(subface.vertices).toHaveLength(3);
+      expect(subface.elevation).toBeGreaterThanOrEqual(0);
+      expect(subface.elevation).toBeLessThanOrEqual(100);
+    }
   });
 
   it('creates contour segments only at interval-aligned elevations above the face floor', () => {
