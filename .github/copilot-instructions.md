@@ -4,6 +4,16 @@
 
 **fweep** is a front-end web application for creating maps of interactive fiction parser games (like Zork). It is built with TypeScript and React.
 
+## Process documentation
+
+Read migration-process.md for information about how to handle migrations of the map data format, and how to write migration scripts when making breaking changes to the data model.
+
+Read release-process.md for information about how to prepare a release.
+
+## Special commands to the agent
+
+- `@release <version>`: Prepare a release branch for the specified version, following the release checklist and guidelines in release-process.md. This includes drafting release notes, running automated validation, performing manual smoke tests, and opening a PR to merge the release branch back to main when ready.
+
 ## Tech Stack
 
 - **Language:** TypeScript
