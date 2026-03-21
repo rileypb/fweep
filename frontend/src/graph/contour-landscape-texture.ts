@@ -1,6 +1,10 @@
 import { blobToCanvas, canvasToBlob, createSizedCanvas } from '../components/map-background-raster';
 import { loadTextureTile, saveTextureTile, type TextureTileLocation } from '../storage/map-store';
 import {
+  drawContourMeshTexture,
+  ensureContourMeshTextureTileBlob,
+} from './contour-mesh-texture';
+import {
   CONTOUR_LANDSCAPE_TILE_SIZE,
   generateContourLandscapeTextureTilePixelBuffer,
   getContourLandscapeBaseColor,
@@ -138,6 +142,13 @@ async function ensureContourLandscapeTextureTile(
 export async function ensureContourLandscapeTextureTileBlob(
   request: ContourLandscapeTextureTileRequest,
 ): Promise<Blob> {
+  if (request.canvasTheme === 'contour') {
+    return ensureContourMeshTextureTileBlob({
+      mapId: request.mapId,
+      textureSeed: request.textureSeed,
+      theme: request.theme,
+    });
+  }
   const tile = await ensureContourLandscapeTextureTile(request);
   return tile.blob;
 }
@@ -149,6 +160,15 @@ export async function drawContourLandscapeTexture(
   theme: ContourLandscapeTextureTheme,
   request: ContourLandscapeTextureTileRequest,
 ): Promise<void> {
+  if (request.canvasTheme === 'contour') {
+    await drawContourMeshTexture(context, width, height, theme, {
+      mapId: request.mapId,
+      textureSeed: request.textureSeed,
+      theme,
+    });
+    return;
+  }
+
   context.fillStyle = getContourLandscapeBaseColor(theme);
   context.fillRect(0, 0, width, height);
 

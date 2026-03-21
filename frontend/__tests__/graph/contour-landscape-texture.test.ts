@@ -27,7 +27,7 @@ describe('contour-landscape-texture', () => {
 
   it('matches opposite edges so the tile can repeat seamlessly', () => {
     const size = 40;
-    const tile = generateContourLandscapeTextureTilePixelBuffer(size, size, 'light', 12345, 'contour');
+    const tile = generateContourLandscapeTextureTilePixelBuffer(size, size, 'light', 12345, 'antique');
     const pixelAt = (x: number, y: number): number[] => {
       const index = ((y * size) + x) * 4;
       return Array.from(tile.slice(index, index + 4));
