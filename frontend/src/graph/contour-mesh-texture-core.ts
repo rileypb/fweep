@@ -1,4 +1,5 @@
 import { Delaunay } from 'd3-delaunay';
+import { clamp01, sampleSeamlessFractalNoise, type SeamlessFractalNoiseOptions } from './seamless-noise';
 
 export type ContourMeshTextureTheme = 'light' | 'dark';
 
@@ -16,6 +17,7 @@ interface ThemePalette {
   readonly line: Rgb;
   readonly fillLow: Rgb;
   readonly fillHigh: Rgb;
+  readonly fillDeep: Rgb;
 }
 
 interface MeshPoint {
@@ -34,6 +36,7 @@ export interface ContourMeshVertex {
   readonly x: number;
   readonly y: number;
   readonly baseIndex: number;
+  readonly elevation: number;
 }
 
 export interface ContourMeshEdge {
@@ -50,6 +53,7 @@ export interface ContourMeshFace {
   readonly vertices: readonly [readonly [number, number], readonly [number, number], readonly [number, number]];
   readonly centroid: readonly [number, number];
   readonly fillMix: number;
+  readonly elevation: number;
 }
 
 export interface ContourMeshTopology {
@@ -57,6 +61,20 @@ export interface ContourMeshTopology {
   readonly edges: readonly ContourMeshEdge[];
   readonly faces: readonly ContourMeshFace[];
 }
+
+interface ContourMeshElevationConfig {
+  readonly broad: SeamlessFractalNoiseOptions;
+  readonly detail: SeamlessFractalNoiseOptions;
+  readonly detailWeight: number;
+  readonly gamma: number;
+}
+
+export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
+  broad: { cycleX: 1, cycleY: 1, octaves: 1, persistence: 0.5, lacunarity: 2 },
+  detail: { cycleX: 3, cycleY: 3, octaves: 2, persistence: 0.5, lacunarity: 2 },
+  detailWeight: 0.18,
+  gamma: 1.15,
+};
 
 function halton(index: number, base: number): number {
   let result = 0;
@@ -86,12 +104,14 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
     ? {
       base: { r: 40, g: 42, b: 38 },
       line: { r: 116, g: 121, b: 112 },
+      fillDeep: { r: 48, g: 50, b: 45 },
       fillLow: { r: 58, g: 61, b: 55 },
       fillHigh: { r: 82, g: 86, b: 79 },
     }
     : {
       base: { r: 232, g: 227, b: 208 },
       line: { r: 123, g: 111, b: 84 },
+      fillDeep: { r: 177, g: 170, b: 149 },
       fillLow: { r: 223, g: 218, b: 201 },
       fillHigh: { r: 197, g: 190, b: 170 },
     };
@@ -133,6 +153,15 @@ function intersectsCenterTile(vertices: readonly [readonly [number, number], rea
 
 export function getContourMeshBaseColor(theme: ContourMeshTextureTheme): string {
   return toCssRgb(getPalette(theme).base);
+}
+
+export function sampleContourMeshElevation(seed: number, x: number, y: number): number {
+  const broad = sampleSeamlessFractalNoise(seed, x, y, CONTOUR_MESH_ELEVATION_CONFIG.broad);
+  const detail = sampleSeamlessFractalNoise(seed + 1009, x, y, CONTOUR_MESH_ELEVATION_CONFIG.detail);
+  const combined = (((broad * (1 - CONTOUR_MESH_ELEVATION_CONFIG.detailWeight))
+    + (detail * CONTOUR_MESH_ELEVATION_CONFIG.detailWeight)) + 1) / 2;
+
+  return Math.floor(100 * Math.pow(clamp01(combined), CONTOUR_MESH_ELEVATION_CONFIG.gamma));
 }
 
 export function generateContourMeshBasePoints(
@@ -181,7 +210,13 @@ export function generateContourMeshTopology(
   function ensureVertex(x: number, y: number, baseIndex: number): string {
     const id = getVertexId(x, y);
     if (!vertexMap.has(id)) {
-      vertexMap.set(id, { id, x, y, baseIndex });
+      vertexMap.set(id, {
+        id,
+        x,
+        y,
+        baseIndex,
+        elevation: sampleContourMeshElevation(seed, ((x % 1) + 1) % 1, ((y % 1) + 1) % 1),
+      });
     }
     return id;
   }
@@ -225,6 +260,7 @@ export function generateContourMeshTopology(
           ensureVertex(wrappedPoints[1].x, wrappedPoints[1].y, wrappedPoints[1].baseIndex),
           ensureVertex(wrappedPoints[2].x, wrappedPoints[2].y, wrappedPoints[2].baseIndex),
         ] as const;
+        const vertexElevations = vertexIds.map((vertexId) => vertexMap.get(vertexId)?.elevation ?? 0);
         const faceId = `face:${vertexIds.slice().sort().join('|')}`;
         const edgeIds = [
           getEdgeId(vertexIds[0], vertexIds[1]),
@@ -263,6 +299,7 @@ export function generateContourMeshTopology(
             (vertices[0][1] + vertices[1][1] + vertices[2][1]) / 3,
           ],
           fillMix,
+          elevation: Math.min(...vertexElevations),
         });
       }
     }
@@ -308,7 +345,7 @@ export function generateContourMeshTriangles(
 ): readonly MeshTriangle[] {
   return generateContourMeshTopology(seed, pointCount).faces.map((face) => ({
     vertices: face.vertices,
-    fillMix: face.fillMix,
+    fillMix: face.elevation / 100,
   }));
 }
 
@@ -331,7 +368,8 @@ export function renderContourMeshTextureTile(
   context.strokeStyle = toCssRgb(palette.line);
 
   for (const face of topology.faces) {
-    const fill = mixRgb(palette.fillLow, palette.fillHigh, face.fillMix);
+    const fillBase = mixRgb(palette.fillDeep, palette.fillLow, clamp01(face.elevation / 45));
+    const fill = mixRgb(fillBase, palette.fillHigh, clamp01((face.elevation - 20) / 80));
     context.beginPath();
     context.moveTo(face.vertices[0][0] * width, face.vertices[0][1] * height);
     context.lineTo(face.vertices[1][0] * width, face.vertices[1][1] * height);

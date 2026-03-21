@@ -6,6 +6,7 @@ import {
   generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
+  sampleContourMeshElevation,
 } from '../../src/graph/contour-mesh-texture-core';
 
 describe('contour-mesh-texture', () => {
@@ -52,6 +53,8 @@ describe('contour-mesh-texture', () => {
     for (const face of topology.faces) {
       expect(face.vertexIds).toHaveLength(3);
       expect(face.edgeIds).toHaveLength(3);
+      expect(face.elevation).toBeGreaterThanOrEqual(0);
+      expect(face.elevation).toBeLessThanOrEqual(100);
     }
   });
 
@@ -61,6 +64,21 @@ describe('contour-mesh-texture', () => {
     expect(topology.edges.every((edge) => edge.faceIds.length >= 1 && edge.faceIds.length <= 2)).toBe(true);
     expect(topology.edges.some((edge) => edge.faceIds.length === 2)).toBe(true);
     expect(topology.faces.some((face) => face.adjacentFaceIds.length > 0)).toBe(true);
+  });
+
+  it('assigns deterministic elevations to the same wrapped coordinate', () => {
+    expect(sampleContourMeshElevation(12345, 0.25, 0.75)).toBe(sampleContourMeshElevation(12345, 0.25, 0.75));
+    expect(sampleContourMeshElevation(12345, 0.25, 0.75)).toBe(sampleContourMeshElevation(12345, 1.25, -0.25));
+  });
+
+  it('derives face elevation from the minimum corner elevation', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+
+    for (const face of topology.faces.slice(0, 20)) {
+      const cornerElevations = face.vertexIds.map((vertexId) => verticesById.get(vertexId)?.elevation ?? -1);
+      expect(face.elevation).toBe(Math.min(...cornerElevations));
+    }
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {
