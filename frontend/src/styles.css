@@ -194,19 +194,18 @@ body {
 
 .app-title {
   position: fixed;
-  left: calc(var(--app-cli-stack-left) / 2);
-  top: 50%;
+  right: 1rem;
+  bottom: 1rem;
   z-index: 7;
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 3rem;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 100%;
-  opacity: 0.4;
+  letter-spacing: normal;
+  opacity: 0.25;
   user-select: none;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  transform-origin: center;
   pointer-events: none;
+  text-align: right;
 }
 
 .app-cli-form {
@@ -624,7 +623,7 @@ body {
   }
 
   .app-title {
-    font-size: 1.25rem;
+    font-size: 2.5rem;
   }
 
   .app-cli-form {
@@ -1417,7 +1416,7 @@ body {
 
 .map-canvas-actions {
   position: fixed;
-  right: 1rem;
+  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + 1rem);
   bottom: 1rem;
   display: flex;
   gap: 0.5rem;
@@ -1431,7 +1430,7 @@ body {
 
 .background-image-panel {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: calc(100% + 0.5rem);
   width: min(24rem, calc(100vw - 2rem));
   display: grid;

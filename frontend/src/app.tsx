@@ -65,13 +65,6 @@ function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
   return MAP_CANVAS_THEMES[(currentIndex + 1) % MAP_CANVAS_THEMES.length];
 }
 
-function formatZoomLabel(zoom: number): string {
-  const zoomPercent = Math.round(zoom * 1000) / 10;
-  return Number.isInteger(zoomPercent)
-    ? `${zoomPercent}%`
-    : `${zoomPercent.toFixed(1)}%`;
-}
-
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -79,7 +72,6 @@ export function App(): React.JSX.Element {
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
-  const mapZoom = useEditorStore((s) => s.mapZoom);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
@@ -385,13 +377,6 @@ export function App(): React.JSX.Element {
                 <path d="M5 9c1 .7 2 .7 3 0s2-.7 3 0" />
               </svg>
             </button>
-            <div
-              className="app-control-chip"
-              aria-label={`Current zoom level: ${formatZoomLabel(mapZoom)}`}
-              title={`Current zoom level: ${formatZoomLabel(mapZoom)}`}
-            >
-              {formatZoomLabel(mapZoom)}
-            </div>
             <ThemeToggle />
             <button
               type="button"
@@ -405,7 +390,7 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
           </div>
-          <h1 className="app-title">fweep!</h1>
+          <h1 className="app-title">fweep</h1>
         </>
       )}
       <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
