@@ -89,6 +89,10 @@ For `v3` and later, include explicit checks that migrated maps can load, save, a
 - Base release notes on `main...vN`.
 - Use commit messages only to recover intent or group changes when the diff alone is not enough.
 - Record the long-form release notes in `release-notes.md`.
+- Keep `release-notes.md` cumulative across releases:
+  - use `# fweep release notes` as the document title
+  - add each release as its own section such as `## v2`, `## v3`, and so on
+  - append new release notes instead of replacing the file contents
 - Use a shorter blurb when creating the published release.
 - Use a more polished narrative version when creating the PR from `vN` to `main`.
 - Organize notes around:
