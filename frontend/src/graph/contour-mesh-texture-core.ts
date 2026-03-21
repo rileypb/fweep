@@ -86,6 +86,11 @@ export interface ContourMeshContourSegment {
   readonly end: readonly [number, number];
 }
 
+interface ContourMeshContourPolyline {
+  readonly elevation: number;
+  readonly points: readonly (readonly [number, number])[];
+}
+
 export interface ContourMeshSubface {
   readonly faceId: string;
   readonly elevation: number;
@@ -615,6 +620,141 @@ export function generateContourMeshContourSegments(
   return segments;
 }
 
+function getPointKey(point: readonly [number, number]): string {
+  return `${coordinateKey(point[0])}:${coordinateKey(point[1])}`;
+}
+
+function generateContourMeshContourPolylines(
+  segments: readonly ContourMeshContourSegment[],
+): readonly ContourMeshContourPolyline[] {
+  const polylines: ContourMeshContourPolyline[] = [];
+  const segmentsByElevation = new Map<number, ContourMeshContourSegment[]>();
+
+  for (const segment of segments) {
+    const existing = segmentsByElevation.get(segment.elevation) ?? [];
+    existing.push(segment);
+    segmentsByElevation.set(segment.elevation, existing);
+  }
+
+  for (const [elevation, elevationSegments] of segmentsByElevation.entries()) {
+    const endpointMap = new Map<string, number[]>();
+    const used = new Set<number>();
+
+    for (let index = 0; index < elevationSegments.length; index += 1) {
+      const segment = elevationSegments[index];
+      for (const point of [segment.start, segment.end] as const) {
+        const key = getPointKey(point);
+        const existing = endpointMap.get(key) ?? [];
+        existing.push(index);
+        endpointMap.set(key, existing);
+      }
+    }
+
+    const buildPolyline = (seedIndex: number): readonly (readonly [number, number])[] => {
+      const seed = elevationSegments[seedIndex];
+      const points: (readonly [number, number])[] = [seed.start, seed.end];
+      used.add(seedIndex);
+
+      const extend = (atStart: boolean): void => {
+        while (true) {
+          const currentPoint = atStart ? points[0] : points[points.length - 1];
+          const candidateIndexes = endpointMap.get(getPointKey(currentPoint)) ?? [];
+          const nextIndex = candidateIndexes.find((candidateIndex) => !used.has(candidateIndex));
+          if (nextIndex === undefined) {
+            return;
+          }
+
+          used.add(nextIndex);
+          const nextSegment = elevationSegments[nextIndex];
+          const nextPoint = getPointKey(nextSegment.start) === getPointKey(currentPoint)
+            ? nextSegment.end
+            : nextSegment.start;
+
+          if (atStart) {
+            points.unshift(nextPoint);
+          } else {
+            points.push(nextPoint);
+          }
+        }
+      };
+
+      extend(true);
+      extend(false);
+      return points;
+    };
+
+    const endpointIndexes = elevationSegments
+      .map((_, index) => index)
+      .filter((index) => {
+        const segment = elevationSegments[index];
+        const startDegree = (endpointMap.get(getPointKey(segment.start)) ?? []).length;
+        const endDegree = (endpointMap.get(getPointKey(segment.end)) ?? []).length;
+        return startDegree === 1 || endDegree === 1;
+      });
+
+    for (const index of endpointIndexes) {
+      if (used.has(index)) {
+        continue;
+      }
+
+      polylines.push({
+        elevation,
+        points: buildPolyline(index),
+      });
+    }
+
+    for (let index = 0; index < elevationSegments.length; index += 1) {
+      if (used.has(index)) {
+        continue;
+      }
+
+      polylines.push({
+        elevation,
+        points: buildPolyline(index),
+      });
+    }
+  }
+
+  return polylines;
+}
+
+function strokeContourPolyline(
+  context: CanvasRenderingContext2D,
+  points: readonly (readonly [number, number])[],
+  width: number,
+  height: number,
+): void {
+  if (points.length < 2) {
+    return;
+  }
+
+  context.beginPath();
+  context.moveTo(points[0][0] * width, points[0][1] * height);
+
+  if (points.length === 2) {
+    context.lineTo(points[1][0] * width, points[1][1] * height);
+    context.stroke();
+    return;
+  }
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const midpointX = ((current[0] + next[0]) / 2) * width;
+    const midpointY = ((current[1] + next[1]) / 2) * height;
+    context.quadraticCurveTo(
+      current[0] * width,
+      current[1] * height,
+      midpointX,
+      midpointY,
+    );
+  }
+
+  const last = points[points.length - 1];
+  context.lineTo(last[0] * width, last[1] * height);
+  context.stroke();
+}
+
 interface ScalarCorner {
   readonly x: number;
   readonly y: number;
@@ -963,12 +1103,10 @@ export function renderContourMeshTextureTile(
   }
 
   const contourSegments = generateContourMeshContourSegments(topology);
+  const contourPolylines = generateContourMeshContourPolylines(contourSegments);
   context.lineWidth = theme === 'dark' ? 1.1 : 1;
-  for (const segment of contourSegments) {
-    context.beginPath();
-    context.strokeStyle = toCssRgb(segment.elevation <= CONTOUR_MESH_WATER_LEVEL ? palette.contourWater : palette.contourLand);
-    context.moveTo(segment.start[0] * width, segment.start[1] * height);
-    context.lineTo(segment.end[0] * width, segment.end[1] * height);
-    context.stroke();
+  for (const polyline of contourPolylines) {
+    context.strokeStyle = toCssRgb(polyline.elevation <= CONTOUR_MESH_WATER_LEVEL ? palette.contourWater : palette.contourLand);
+    strokeContourPolyline(context, polyline.points, width, height);
   }
 }
