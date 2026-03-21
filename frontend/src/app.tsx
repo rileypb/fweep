@@ -9,6 +9,7 @@ import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
+import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
 
 const DESKTOP_ONLY_MIN_WIDTH_PX = 960;
 const SHAPES_SOLID_FULL_PATH = 'M288 96C288 78.3 273.7 64 256 64L96 64C78.3 64 64 78.3 64 96L64 256C64 273.7 78.3 288 96 288L256 288C273.7 288 288 273.7 288 256L288 96zM384 64C348.7 64 320 92.7 320 128L320 224C320 259.3 348.7 288 384 288L512 288C547.3 288 576 259.3 576 224L576 128C576 92.7 547.3 64 512 64L384 64zM192 352C174.3 352 160 366.3 160 384L160 544C160 561.7 174.3 576 192 576L448 576C465.7 576 480 561.7 480 544L480 384C480 366.3 465.7 352 448 352L192 352z';
@@ -55,6 +56,22 @@ function isWelcomeHotkeyEnabled(): boolean {
   return import.meta.env?.DEV === true || (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ === true;
 }
 
+function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
+  const currentIndex = MAP_CANVAS_THEMES.indexOf(current);
+  if (currentIndex < 0) {
+    return MAP_CANVAS_THEMES[0];
+  }
+
+  return MAP_CANVAS_THEMES[(currentIndex + 1) % MAP_CANVAS_THEMES.length];
+}
+
+function formatZoomLabel(zoom: number): string {
+  const zoomPercent = Math.round(zoom * 1000) / 10;
+  return Number.isInteger(zoomPercent)
+    ? `${zoomPercent}%`
+    : `${zoomPercent.toFixed(1)}%`;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -62,11 +79,14 @@ export function App(): React.JSX.Element {
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
+  const mapZoom = useEditorStore((s) => s.mapZoom);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
+  const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
+  const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
@@ -250,7 +270,7 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-canvas-theme={hasOpenMap ? mapCanvasTheme : undefined}>
       {hasOpenMap && (
         <>
           <div className="app-left-rail-backdrop" aria-hidden="true" />
@@ -352,6 +372,26 @@ export function App(): React.JSX.Element {
                 <path d={mapVisualStyle === 'square-classic' ? SHAPES_SOLID_FULL_PATH : SQUARE_REGULAR_FULL_PATH} />
               </svg>
             </button>
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label={`Cycle canvas theme (current: ${mapCanvasTheme})`}
+              title={`Cycle canvas theme (current: ${mapCanvasTheme})`}
+              onClick={() => setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme))}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
+                <path d="M3 2.5h8.5a2 2 0 0 1 2 2V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V3a.5.5 0 0 1 .5-.5Z" />
+                <path d="M5 6.25c1 .7 2 .7 3 0s2-.7 3 0" />
+                <path d="M5 9c1 .7 2 .7 3 0s2-.7 3 0" />
+              </svg>
+            </button>
+            <div
+              className="app-control-chip"
+              aria-label={`Current zoom level: ${formatZoomLabel(mapZoom)}`}
+              title={`Current zoom level: ${formatZoomLabel(mapZoom)}`}
+            >
+              {formatZoomLabel(mapZoom)}
+            </div>
             <ThemeToggle />
             <button
               type="button"

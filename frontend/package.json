@@ -11,6 +11,8 @@
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest"
   },
   "dependencies": {
+    "d3-delaunay": "^6.0.4",
+    "delaunator": "^5.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.11"

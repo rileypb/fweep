@@ -6,6 +6,7 @@
   --room-label-color: #111827;
   --app-game-output-text-color: #374151;
   --app-game-output-bold-color: #000000;
+  --app-chrome-rail-background: #ffffff;
   --app-cli-stack-left: calc(1rem + 2vw);
   --app-cli-stack-width: min(37.5vw, 27rem);
   --app-cli-stack-gutter: 1rem;
@@ -35,6 +36,7 @@
   --room-label-color: #f3f4f6;
   --app-game-output-text-color: #f9fafb;
   --app-game-output-bold-color: #ffffff;
+  --app-chrome-rail-background: #111827;
   color: #f3f4f6;
   background-color: #111827;
 }
@@ -86,11 +88,7 @@ body {
   width: var(--app-cli-stack-left);
   z-index: 5;
   pointer-events: none;
-  background-color: #ffffff;
-}
-
-:root[data-theme='dark'] .app-left-rail-backdrop {
-  background-color: #111827;
+  background-color: var(--app-chrome-rail-background);
 }
 
 .app-cli-stack {
@@ -230,6 +228,26 @@ body {
   border-radius: 0.8rem;
   background: #ffffff;
   color: inherit;
+}
+
+:root[data-theme='light'] .app-shell[data-canvas-theme='antique'] {
+  --app-chrome-rail-background: rgb(232, 227, 208);
+}
+
+:root[data-theme='light'] .app-shell[data-canvas-theme='paper'] {
+  --app-chrome-rail-background: rgb(223, 207, 178);
+}
+
+:root[data-theme='light'] .app-shell[data-canvas-theme='contour'] {
+  --app-chrome-rail-background: rgb(220, 224, 236);
+}
+
+:root[data-theme='dark'] .app-shell[data-canvas-theme='antique'] {
+  --app-chrome-rail-background: rgb(40, 42, 38);
+}
+
+:root[data-theme='dark'] .app-shell[data-canvas-theme='paper'] {
+  --app-chrome-rail-background: rgb(41, 37, 30);
 }
 
 :root[data-theme='dark'] .app-game-output,
@@ -1207,6 +1225,17 @@ body {
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+.map-canvas-theme-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background-repeat: repeat;
+  pointer-events: none;
 }
 
 .map-canvas-grid-layer--animated {

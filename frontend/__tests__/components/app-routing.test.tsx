@@ -156,6 +156,22 @@ describe('URL routing', () => {
     expect(input).toHaveAttribute('placeholder', 'Type / to type commands');
   });
 
+  it('tints the CLI chrome to the antique map background color in antique theme', async () => {
+    await renderAppWithOpenMap('Antique CLI Theme Map');
+
+    act(() => {
+      useEditorStore.getState().setMapCanvasTheme('antique');
+    });
+
+    const output = getGameOutputBox().closest('.app-game-output');
+    const inputShell = getCliInput().closest('.app-cli-input-shell');
+    const appShell = document.querySelector('.app-shell');
+
+    expect(output).not.toBeNull();
+    expect(inputShell).not.toBeNull();
+    expect(appShell).toHaveAttribute('data-canvas-theme', 'antique');
+  });
+
   it('keeps suggestions closed on focus and opens them with /', async () => {
     const user = userEvent.setup();
     const map = addRoom(createEmptyMap('CLI Suggestions Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
@@ -3884,7 +3900,8 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
     await screen.findByRole('dialog', { name: /choose a map/i });
 
-    await user.click(screen.getByText('Stale Edit Request Map').closest('button') as HTMLButtonElement);
+    const reopenedMapName = await screen.findByText('Stale Edit Request Map');
+    await user.click(reopenedMapName.closest('button') as HTMLButtonElement);
     await screen.findByText(/stale edit request map/i);
 
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();

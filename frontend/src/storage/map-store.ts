@@ -1,15 +1,18 @@
 import {
   BACKGROUND_LAYER_CHUNK_SIZE,
+  MAP_CANVAS_THEMES,
   MAP_VISUAL_STYLES,
   DEFAULT_ROOM_STROKE_STYLE,
   ROOM_SHAPES,
   ROOM_STROKE_STYLES,
   createEmptyBackground,
   type MapDocument,
+  type MapCanvasTheme,
   type MapMetadata,
   type MapView,
   type Room,
 } from '../domain/map-types';
+import { createTextureSeed } from '../domain/map-defaults';
 import { MapValidationError, parseUntrustedMapDocument } from '../domain/validation';
 import {
   DEFAULT_ROOM_FILL_COLOR_INDEX,
@@ -21,10 +24,12 @@ import {
 } from '../domain/room-color-palette';
 
 const DB_NAME = 'fweep';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'maps';
 const BACKGROUND_CHUNK_STORE_NAME = 'background-chunks';
 const BACKGROUND_CHUNK_MAP_INDEX = 'by-map-id';
+const TEXTURE_TILE_STORE_NAME = 'texture-tiles';
+const TEXTURE_TILE_MAP_INDEX = 'by-map-id';
 
 export const MAX_IMPORT_FILE_BYTES = 1_048_576;
 
@@ -57,8 +62,34 @@ export interface RasterChunkHistoryEntry {
   readonly after: Blob | null;
 }
 
+export interface TextureTileLocation {
+  readonly mapId: string;
+  readonly canvasTheme: Exclude<MapCanvasTheme, 'default'>;
+  readonly themeVariant: 'light' | 'dark';
+  readonly textureSeed: number;
+  readonly generatorVersion: number;
+  readonly tileSize: number;
+}
+
+export interface TextureTileRecord extends TextureTileLocation {
+  readonly key: string;
+  readonly blob: Blob;
+  readonly updatedAt: string;
+}
+
 export function getBackgroundChunkKey(location: BackgroundChunkLocation): string {
   return `${location.mapId}:${location.layerId}:${location.chunkX}:${location.chunkY}`;
+}
+
+export function getTextureTileKey(location: TextureTileLocation): string {
+  return [
+    location.mapId,
+    location.canvasTheme,
+    location.themeVariant,
+    location.textureSeed,
+    location.generatorVersion,
+    location.tileSize,
+  ].join(':');
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -73,6 +104,10 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(BACKGROUND_CHUNK_STORE_NAME)) {
         const chunkStore = db.createObjectStore(BACKGROUND_CHUNK_STORE_NAME, { keyPath: 'key' });
         chunkStore.createIndex(BACKGROUND_CHUNK_MAP_INDEX, 'mapId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(TEXTURE_TILE_STORE_NAME)) {
+        const textureStore = db.createObjectStore(TEXTURE_TILE_STORE_NAME, { keyPath: 'key' });
+        textureStore.createIndex(TEXTURE_TILE_MAP_INDEX, 'mapId', { unique: false });
       }
     };
 
@@ -235,6 +270,15 @@ function normalizeConnection(
 }
 
 function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
+  const rawCanvasTheme = (view as { canvasTheme?: string } | undefined)?.canvasTheme;
+  const normalizedCanvasThemeValue = rawCanvasTheme === 'contours'
+    ? 'antique'
+    : rawCanvasTheme;
+  const normalizedCanvasTheme = normalizedCanvasThemeValue !== undefined
+    && MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as MapCanvasTheme)
+    ? normalizedCanvasThemeValue as MapCanvasTheme
+    : 'default';
+
   return {
     pan: {
       x: typeof view?.pan?.x === 'number' ? view.pan.x : 0,
@@ -242,6 +286,10 @@ function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
     },
     zoom: typeof view?.zoom === 'number' && Number.isFinite(view.zoom) ? view.zoom : 1,
     visualStyle: view?.visualStyle && MAP_VISUAL_STYLES.includes(view.visualStyle) ? view.visualStyle : 'square-classic',
+    canvasTheme: normalizedCanvasTheme,
+    textureSeed: typeof view?.textureSeed === 'number' && Number.isFinite(view.textureSeed)
+      ? Math.trunc(view.textureSeed)
+      : createTextureSeed(),
     showGrid: typeof view?.showGrid === 'boolean' ? view.showGrid : true,
     snapToGrid: typeof view?.snapToGrid === 'boolean' ? view.snapToGrid : true,
     useBezierConnections: typeof view?.useBezierConnections === 'boolean' ? view.useBezierConnections : false,
@@ -363,15 +411,19 @@ export async function loadMap(id: string): Promise<MapDocument | undefined> {
 export async function deleteMap(id: string): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME, BACKGROUND_CHUNK_STORE_NAME], 'readwrite');
+    const transaction = db.transaction([STORE_NAME, BACKGROUND_CHUNK_STORE_NAME, TEXTURE_TILE_STORE_NAME], 'readwrite');
     const mapStore = transaction.objectStore(STORE_NAME);
     const chunkStore = transaction.objectStore(BACKGROUND_CHUNK_STORE_NAME);
+    const textureStore = transaction.objectStore(TEXTURE_TILE_STORE_NAME);
     const mapRequest = mapStore.delete(id);
     const index = chunkStore.index(BACKGROUND_CHUNK_MAP_INDEX);
     const cursorRequest = index.openCursor(IDBKeyRange.only(id));
+    const textureIndex = textureStore.index(TEXTURE_TILE_MAP_INDEX);
+    const textureCursorRequest = textureIndex.openCursor(IDBKeyRange.only(id));
 
     mapRequest.onerror = () => reject(mapRequest.error);
     cursorRequest.onerror = () => reject(cursorRequest.error);
+    textureCursorRequest.onerror = () => reject(textureCursorRequest.error);
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result;
       if (!cursor) {
@@ -380,7 +432,42 @@ export async function deleteMap(id: string): Promise<void> {
       cursor.delete();
       cursor.continue();
     };
+    textureCursorRequest.onsuccess = () => {
+      const cursor = textureCursorRequest.result;
+      if (!cursor) {
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
 
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+export async function loadTextureTile(location: TextureTileLocation): Promise<TextureTileRecord | undefined> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(TEXTURE_TILE_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(TEXTURE_TILE_STORE_NAME);
+    const request = store.get(getTextureTileKey(location));
+    request.onsuccess = () => resolve(request.result as TextureTileRecord | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function saveTextureTile(location: TextureTileLocation, blob: Blob): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(TEXTURE_TILE_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(TEXTURE_TILE_STORE_NAME);
+    store.put({
+      key: getTextureTileKey(location),
+      ...location,
+      blob,
+      updatedAt: new Date().toISOString(),
+    } satisfies TextureTileRecord);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });

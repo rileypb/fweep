@@ -1,6 +1,7 @@
 import {
   BACKGROUND_LAYER_CHUNK_SIZE,
   CURRENT_SCHEMA_VERSION,
+  MAP_CANVAS_THEMES,
   MAP_VISUAL_STYLES,
   type ConnectionAnnotation,
   DEFAULT_ROOM_STROKE_STYLE,
@@ -29,6 +30,7 @@ import {
   isValidRoomFillColorIndex,
   isValidRoomStrokeColorIndex,
 } from './room-color-palette';
+import { createTextureSeed } from './map-defaults';
 
 export type ValidationSeverity = 'error' | 'warning';
 export type EntityType = 'map' | 'metadata' | 'room' | 'pseudo-room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
@@ -252,6 +254,8 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       pan: { x: 0, y: 0 },
       zoom: 1,
       visualStyle: 'square-classic',
+      canvasTheme: 'default',
+      textureSeed: createTextureSeed(),
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -265,6 +269,8 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
       pan: { x: 0, y: 0 },
       zoom: 1,
       visualStyle: 'square-classic',
+      canvasTheme: 'default',
+      textureSeed: createTextureSeed(),
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
@@ -281,6 +287,15 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const visualStyleValue = view.visualStyle === undefined
     ? 'square-classic'
     : requireString(view.visualStyle, issues, 'view.visualStyle', 'map', 'root');
+  const canvasThemeValue = view.canvasTheme === undefined
+    ? 'default'
+    : requireString(view.canvasTheme, issues, 'view.canvasTheme', 'map', 'root');
+  const normalizedCanvasThemeValue = canvasThemeValue === 'contours'
+    ? 'antique'
+    : canvasThemeValue;
+  const textureSeed = view.textureSeed === undefined
+    ? createTextureSeed()
+    : requireFiniteNumber(view.textureSeed, issues, 'view.textureSeed', 'map', 'root');
   const showGrid = view.showGrid === undefined
     ? true
     : requireBoolean(view.showGrid, issues, 'view.showGrid', 'map', 'root');
@@ -296,10 +311,16 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   if (visualStyleValue !== null && !MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])) {
     pushIssue(issues, 'error', 'map', 'root', 'view.visualStyle', 'view.visualStyle must be a supported map visual style.');
   }
+  if (normalizedCanvasThemeValue !== null && !MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number])) {
+    pushIssue(issues, 'error', 'map', 'root', 'view.canvasTheme', 'view.canvasTheme must be a supported canvas theme.');
+  }
 
   const visualStyle = visualStyleValue !== null && MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])
     ? visualStyleValue as typeof MAP_VISUAL_STYLES[number]
     : 'square-classic';
+  const canvasTheme = normalizedCanvasThemeValue !== null && MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number])
+    ? normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number]
+    : 'default';
 
   return {
     pan: {
@@ -308,6 +329,8 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
     },
     zoom: zoom ?? 1,
     visualStyle,
+    canvasTheme,
+    textureSeed: Math.max(0, Math.trunc(textureSeed ?? 0)),
     showGrid: showGrid ?? true,
     snapToGrid: snapToGrid ?? true,
     useBezierConnections: useBezierConnections ?? false,
@@ -1222,7 +1245,7 @@ export function parseUntrustedMapDocument(
   const schemaVersion = doc.schemaVersion;
   if (typeof schemaVersion !== 'number') {
     pushIssue(issues, 'error', 'map', 'root', 'schemaVersion', 'schemaVersion must be a number.');
-  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION && schemaVersion !== 1) {
+  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION && schemaVersion !== 1 && schemaVersion !== 2) {
     throwForIssues(
       'unsupported-schema-version',
       'This fweep map uses an unsupported schema version.',

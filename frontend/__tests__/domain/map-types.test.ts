@@ -36,7 +36,11 @@ describe('createEmptyMap', () => {
 
   it('initialises with empty rooms, connections, and items', () => {
     const doc = createEmptyMap('Empty');
-    expect(doc.view).toEqual(createDefaultMapView());
+    const defaultView = createDefaultMapView();
+    expect(doc.view).toMatchObject({
+      ...defaultView,
+      textureSeed: expect.any(Number),
+    });
     expect(doc.background).toEqual({
       layers: {},
       activeLayerId: null,

@@ -38,6 +38,7 @@ import { ExportPngDialog } from './export-png-dialog';
 import { PrettifyButton } from './prettify-button';
 import { RedoButton } from './redo-button';
 import { UndoButton } from './undo-button';
+import { MapCanvasThemeLayer } from './map-canvas-theme-layer';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import {
@@ -284,6 +285,7 @@ export function MapCanvas({
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const persistedZoom = useEditorStore((s) => s.mapZoom);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
+  const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setMapZoom = useEditorStore((s) => s.setMapZoom);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
@@ -1296,7 +1298,6 @@ export function MapCanvas({
     effectiveCanvasInteractionMode === 'map' && isShiftKeyDown && !isPanning ? 'map-canvas--pan-ready' : '',
     isAutoPanning ? 'map-canvas--grid-animated' : '',
   ].filter(Boolean).join(' ');
-
   return (
     <div
       ref={canvasRef}
@@ -1333,6 +1334,15 @@ export function MapCanvas({
             backgroundRevision={backgroundRevision}
           />
         )}
+        <MapCanvasThemeLayer
+          mapId={doc?.metadata.id ?? null}
+          textureSeed={doc?.view.textureSeed ?? null}
+          canvasTheme={mapCanvasTheme}
+          theme={theme}
+          panOffset={panOffset}
+          zoom={zoom}
+          canvasRect={effectiveCanvasRect}
+        />
         {showGrid && (
           <div
             className={`map-canvas-grid-layer${isAutoPanning ? ' map-canvas-grid-layer--animated' : ''}`}

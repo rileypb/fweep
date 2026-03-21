@@ -116,8 +116,10 @@ await jest.unstable_mockModule('../../src/storage/map-store', async () => {
       `${mapId}:${layerId}:${chunkX}:${chunkY}`,
     listBackgroundChunksInBounds: jest.fn(async () => []),
     loadBackgroundChunk: mockLoadBackgroundChunk,
+    loadTextureTile: jest.fn(async () => undefined),
     restoreBackgroundChunks: jest.fn(async () => undefined),
     saveBackgroundChunks: mockSaveBackgroundChunks,
+    saveTextureTile: jest.fn(async () => undefined),
   };
 });
 
