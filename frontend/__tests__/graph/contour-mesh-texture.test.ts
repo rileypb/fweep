@@ -3,6 +3,7 @@ import {
   CONTOUR_MESH_POINT_COUNT,
   CONTOUR_MESH_TILE_SIZE,
   generateContourMeshBasePoints,
+  generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
 } from '../../src/graph/contour-mesh-texture-core';
@@ -35,6 +36,31 @@ describe('contour-mesh-texture', () => {
 
   it('produces different triangles for different seeds', () => {
     expect(generateContourMeshTriangles(12345)).not.toEqual(generateContourMeshTriangles(54321));
+  });
+
+  it('builds a deterministic topology model for the same seed', () => {
+    expect(generateContourMeshTopology(12345)).toEqual(generateContourMeshTopology(12345));
+  });
+
+  it('creates faces, edges, and vertices from the triangulation', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(topology.vertices.length).toBeGreaterThan(0);
+    expect(topology.edges.length).toBeGreaterThan(0);
+    expect(topology.faces.length).toBeGreaterThan(0);
+
+    for (const face of topology.faces) {
+      expect(face.vertexIds).toHaveLength(3);
+      expect(face.edgeIds).toHaveLength(3);
+    }
+  });
+
+  it('tracks adjacent faces through shared edges', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(topology.edges.every((edge) => edge.faceIds.length >= 1 && edge.faceIds.length <= 2)).toBe(true);
+    expect(topology.edges.some((edge) => edge.faceIds.length === 2)).toBe(true);
+    expect(topology.faces.some((face) => face.adjacentFaceIds.length > 0)).toBe(true);
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {

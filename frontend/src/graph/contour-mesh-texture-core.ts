@@ -29,6 +29,35 @@ interface MeshTriangle {
   readonly fillMix: number;
 }
 
+export interface ContourMeshVertex {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly baseIndex: number;
+}
+
+export interface ContourMeshEdge {
+  readonly id: string;
+  readonly vertexIds: readonly [string, string];
+  readonly faceIds: readonly string[];
+}
+
+export interface ContourMeshFace {
+  readonly id: string;
+  readonly vertexIds: readonly [string, string, string];
+  readonly edgeIds: readonly [string, string, string];
+  readonly adjacentFaceIds: readonly string[];
+  readonly vertices: readonly [readonly [number, number], readonly [number, number], readonly [number, number]];
+  readonly centroid: readonly [number, number];
+  readonly fillMix: number;
+}
+
+export interface ContourMeshTopology {
+  readonly vertices: readonly ContourMeshVertex[];
+  readonly edges: readonly ContourMeshEdge[];
+  readonly faces: readonly ContourMeshFace[];
+}
+
 function halton(index: number, base: number): number {
   let result = 0;
   let factor = 1 / base;
@@ -80,6 +109,18 @@ function toCssRgb(color: Rgb): string {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
 }
 
+function coordinateKey(value: number): string {
+  return value.toFixed(6);
+}
+
+function getVertexId(x: number, y: number): string {
+  return `${coordinateKey(x)}:${coordinateKey(y)}`;
+}
+
+function getEdgeId(firstVertexId: string, secondVertexId: string): string {
+  return [firstVertexId, secondVertexId].sort().join('|');
+}
+
 function intersectsCenterTile(vertices: readonly [readonly [number, number], readonly [number, number], readonly [number, number]]): boolean {
   const xs = vertices.map(([x]) => x);
   const ys = vertices.map(([, y]) => y);
@@ -113,10 +154,10 @@ export function generateContourMeshBasePoints(
   return points;
 }
 
-export function generateContourMeshTriangles(
+export function generateContourMeshTopology(
   seed: number,
   pointCount: number = CONTOUR_MESH_POINT_COUNT,
-): readonly MeshTriangle[] {
+): ContourMeshTopology {
   const basePoints = generateContourMeshBasePoints(seed, pointCount);
   const repeatedPoints: MeshPoint[] = [];
 
@@ -133,7 +174,17 @@ export function generateContourMeshTriangles(
   }
 
   const delaunay = Delaunay.from(repeatedPoints, (point) => point.x, (point) => point.y);
-  const triangles: MeshTriangle[] = [];
+  const vertexMap = new Map<string, ContourMeshVertex>();
+  const edgeMap = new Map<string, { id: string; vertexIds: [string, string]; faceIds: string[] }>();
+  const faces: ContourMeshFace[] = [];
+
+  function ensureVertex(x: number, y: number, baseIndex: number): string {
+    const id = getVertexId(x, y);
+    if (!vertexMap.has(id)) {
+      vertexMap.set(id, { id, x, y, baseIndex });
+    }
+    return id;
+  }
 
   for (let triangleIndex = 0; triangleIndex < delaunay.triangles.length; triangleIndex += 3) {
     const pointA = repeatedPoints[delaunay.triangles[triangleIndex]];
@@ -164,15 +215,101 @@ export function generateContourMeshTriangles(
           continue;
         }
 
-        triangles.push({
+        const wrappedPoints = [
+          { x: vertices[0][0], y: vertices[0][1], baseIndex: pointA.baseIndex },
+          { x: vertices[1][0], y: vertices[1][1], baseIndex: pointB.baseIndex },
+          { x: vertices[2][0], y: vertices[2][1], baseIndex: pointC.baseIndex },
+        ] as const;
+        const vertexIds = [
+          ensureVertex(wrappedPoints[0].x, wrappedPoints[0].y, wrappedPoints[0].baseIndex),
+          ensureVertex(wrappedPoints[1].x, wrappedPoints[1].y, wrappedPoints[1].baseIndex),
+          ensureVertex(wrappedPoints[2].x, wrappedPoints[2].y, wrappedPoints[2].baseIndex),
+        ] as const;
+        const faceId = `face:${vertexIds.slice().sort().join('|')}`;
+        const edgeIds = [
+          getEdgeId(vertexIds[0], vertexIds[1]),
+          getEdgeId(vertexIds[1], vertexIds[2]),
+          getEdgeId(vertexIds[2], vertexIds[0]),
+        ] as const;
+
+        for (const edgeId of edgeIds) {
+          const firstSeparator = edgeId.indexOf('|');
+          const vertexPair: [string, string] = [
+            edgeId.slice(0, firstSeparator),
+            edgeId.slice(firstSeparator + 1),
+          ];
+          const existing = edgeMap.get(edgeId);
+          if (existing) {
+            if (!existing.faceIds.includes(faceId)) {
+              existing.faceIds.push(faceId);
+            }
+          } else {
+            edgeMap.set(edgeId, {
+              id: edgeId,
+              vertexIds: vertexPair,
+              faceIds: [faceId],
+            });
+          }
+        }
+
+        faces.push({
+          id: faceId,
+          vertexIds,
+          edgeIds,
+          adjacentFaceIds: [],
           vertices,
+          centroid: [
+            (vertices[0][0] + vertices[1][0] + vertices[2][0]) / 3,
+            (vertices[0][1] + vertices[1][1] + vertices[2][1]) / 3,
+          ],
           fillMix,
         });
       }
     }
   }
 
-  return triangles;
+  const facesById = new Map(faces.map((face) => [face.id, face]));
+  const resolvedEdges: ContourMeshEdge[] = Array.from(edgeMap.values()).map((edge) => ({
+    id: edge.id,
+    vertexIds: edge.vertexIds,
+    faceIds: edge.faceIds.slice().sort(),
+  }));
+
+  const resolvedFaces = faces.map((face) => {
+    const adjacentFaceIds = new Set<string>();
+    for (const edgeId of face.edgeIds) {
+      const edge = edgeMap.get(edgeId);
+      if (!edge) {
+        continue;
+      }
+      for (const faceId of edge.faceIds) {
+        if (faceId !== face.id && facesById.has(faceId)) {
+          adjacentFaceIds.add(faceId);
+        }
+      }
+    }
+
+    return {
+      ...face,
+      adjacentFaceIds: Array.from(adjacentFaceIds).sort(),
+    };
+  });
+
+  return {
+    vertices: Array.from(vertexMap.values()).sort((left, right) => left.id.localeCompare(right.id)),
+    edges: resolvedEdges.sort((left, right) => left.id.localeCompare(right.id)),
+    faces: resolvedFaces.sort((left, right) => left.id.localeCompare(right.id)),
+  };
+}
+
+export function generateContourMeshTriangles(
+  seed: number,
+  pointCount: number = CONTOUR_MESH_POINT_COUNT,
+): readonly MeshTriangle[] {
+  return generateContourMeshTopology(seed, pointCount).faces.map((face) => ({
+    vertices: face.vertices,
+    fillMix: face.fillMix,
+  }));
 }
 
 export function renderContourMeshTextureTile(
@@ -187,18 +324,18 @@ export function renderContourMeshTextureTile(
   context.fillStyle = toCssRgb(palette.base);
   context.fillRect(0, 0, width, height);
 
-  const triangles = generateContourMeshTriangles(seed);
+  const topology = generateContourMeshTopology(seed);
   context.lineJoin = 'round';
   context.lineCap = 'round';
   context.lineWidth = theme === 'dark' ? 0.9 : 0.8;
   context.strokeStyle = toCssRgb(palette.line);
 
-  for (const triangle of triangles) {
-    const fill = mixRgb(palette.fillLow, palette.fillHigh, triangle.fillMix);
+  for (const face of topology.faces) {
+    const fill = mixRgb(palette.fillLow, palette.fillHigh, face.fillMix);
     context.beginPath();
-    context.moveTo(triangle.vertices[0][0] * width, triangle.vertices[0][1] * height);
-    context.lineTo(triangle.vertices[1][0] * width, triangle.vertices[1][1] * height);
-    context.lineTo(triangle.vertices[2][0] * width, triangle.vertices[2][1] * height);
+    context.moveTo(face.vertices[0][0] * width, face.vertices[0][1] * height);
+    context.lineTo(face.vertices[1][0] * width, face.vertices[1][1] * height);
+    context.lineTo(face.vertices[2][0] * width, face.vertices[2][1] * height);
     context.closePath();
     context.fillStyle = toCssRgb(fill);
     context.fill();
