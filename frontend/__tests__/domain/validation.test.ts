@@ -260,11 +260,14 @@ describe('parseUntrustedMapDocument', () => {
       pan: { x: 0, y: 0 },
       zoom: 1,
       visualStyle: 'square-classic',
+      canvasTheme: 'default',
+      textureSeed: parsed.view.textureSeed,
       showGrid: true,
       snapToGrid: true,
       useBezierConnections: false,
       cliOutputCollapsed: false,
     });
+    expect(parsed.view.textureSeed).toEqual(expect.any(Number));
   });
 
   it('rejects invalid view and background container objects', () => {
@@ -298,11 +301,14 @@ describe('parseUntrustedMapDocument', () => {
       pan: { x: 12, y: -8 },
       zoom: 1.5,
       visualStyle: 'square-classic',
+      canvasTheme: 'default',
+      textureSeed: parsed.view.textureSeed,
       showGrid: false,
       snapToGrid: false,
       useBezierConnections: true,
       cliOutputCollapsed: true,
     });
+    expect(parsed.view.textureSeed).toEqual(expect.any(Number));
   });
 
   it('rejects unsupported map visual styles', () => {

@@ -68,7 +68,7 @@ interface FakeTransaction {
 
 async function putRawStoredMap(rawValue: unknown): Promise<void> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
+    const request = indexedDB.open(DB_NAME, 3);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -231,11 +231,14 @@ describe('map-store', () => {
         pan: { x: 0, y: 0 },
         zoom: 1,
         visualStyle: 'square-classic',
+        canvasTheme: 'default',
+        textureSeed: loaded?.view.textureSeed,
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,
         cliOutputCollapsed: false,
       });
+      expect(loaded?.view.textureSeed).toEqual(expect.any(Number));
     });
 
     it('normalizes invalid background, room, connection, and view fields from legacy saved maps', async () => {
@@ -340,11 +343,14 @@ describe('map-store', () => {
         pan: { x: 0, y: 0 },
         zoom: 1,
         visualStyle: 'square-classic',
+        canvasTheme: 'default',
+        textureSeed: loaded?.view.textureSeed,
         showGrid: true,
         snapToGrid: true,
         useBezierConnections: false,
         cliOutputCollapsed: false,
       });
+      expect(loaded?.view.textureSeed).toEqual(expect.any(Number));
       expect(loaded?.stickyNotes).toEqual({});
       expect(loaded?.stickyNoteLinks).toEqual({});
     });
