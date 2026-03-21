@@ -234,8 +234,16 @@ body {
   --app-chrome-rail-background: rgb(232, 227, 208);
 }
 
+:root[data-theme='light'] .app-shell[data-canvas-theme='paper'] {
+  --app-chrome-rail-background: rgb(223, 207, 178);
+}
+
 :root[data-theme='dark'] .app-shell[data-canvas-theme='antique'] {
   --app-chrome-rail-background: rgb(40, 42, 38);
+}
+
+:root[data-theme='dark'] .app-shell[data-canvas-theme='paper'] {
+  --app-chrome-rail-background: rgb(41, 37, 30);
 }
 
 :root[data-theme='dark'] .app-game-output,
