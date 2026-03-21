@@ -64,7 +64,7 @@ export interface RasterChunkHistoryEntry {
 
 export interface TextureTileLocation {
   readonly mapId: string;
-  readonly canvasTheme: Extract<MapCanvasTheme, 'paper'>;
+  readonly canvasTheme: Exclude<MapCanvasTheme, 'default'>;
   readonly themeVariant: 'light' | 'dark';
   readonly textureSeed: number;
   readonly generatorVersion: number;
@@ -270,6 +270,15 @@ function normalizeConnection(
 }
 
 function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
+  const rawCanvasTheme = (view as { canvasTheme?: string } | undefined)?.canvasTheme;
+  const normalizedCanvasThemeValue = rawCanvasTheme === 'contours'
+    ? 'antique'
+    : rawCanvasTheme;
+  const normalizedCanvasTheme = normalizedCanvasThemeValue !== undefined
+    && MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as MapCanvasTheme)
+    ? normalizedCanvasThemeValue as MapCanvasTheme
+    : 'default';
+
   return {
     pan: {
       x: typeof view?.pan?.x === 'number' ? view.pan.x : 0,
@@ -277,7 +286,7 @@ function normalizeMapView(view: MapDocument['view'] | undefined): MapView {
     },
     zoom: typeof view?.zoom === 'number' && Number.isFinite(view.zoom) ? view.zoom : 1,
     visualStyle: view?.visualStyle && MAP_VISUAL_STYLES.includes(view.visualStyle) ? view.visualStyle : 'square-classic',
-    canvasTheme: view?.canvasTheme && MAP_CANVAS_THEMES.includes(view.canvasTheme) ? view.canvasTheme : 'default',
+    canvasTheme: normalizedCanvasTheme,
     textureSeed: typeof view?.textureSeed === 'number' && Number.isFinite(view.textureSeed)
       ? Math.trunc(view.textureSeed)
       : createTextureSeed(),

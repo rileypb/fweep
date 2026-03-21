@@ -75,6 +75,12 @@ import {
   PAPER_TEXTURE_RENDER_SCALE,
   PAPER_TEXTURE_TILE_SIZE,
 } from '../graph/perlin-paper-texture';
+import {
+  CONTOUR_LANDSCAPE_RENDER_SCALE,
+  CONTOUR_LANDSCAPE_TILE_SIZE,
+  ensureContourLandscapeTextureTileBlob,
+  getContourLandscapeBaseColor,
+} from '../graph/contour-landscape-texture';
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
 const J_SOLID_FULL_PATH = 'M448 96C465.7 96 480 110.3 480 128L480 384C480 472.4 408.4 544 320 544C231.6 544 160 472.4 160 384L160 352C160 334.3 174.3 320 192 320C209.7 320 224 334.3 224 352L224 384C224 437 267 480 320 480C373 480 416 437 416 384L416 128C416 110.3 430.3 96 448 96z';
@@ -301,8 +307,8 @@ export function MapCanvas({
   const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
   const suppressCanvasClickRef = useRef(false);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
-  const [paperTextureUrl, setPaperTextureUrl] = useState<string | null>(null);
-  const paperTextureUrlRef = useRef<string | null>(null);
+  const [canvasTextureUrl, setCanvasTextureUrl] = useState<string | null>(null);
+  const canvasTextureUrlRef = useRef<string | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
   const theme = useDocumentTheme();
   const {
@@ -1307,9 +1313,9 @@ export function MapCanvas({
   ].filter(Boolean).join(' ');
   useEffect(() => {
     return () => {
-      if (paperTextureUrlRef.current) {
-        URL.revokeObjectURL(paperTextureUrlRef.current);
-        paperTextureUrlRef.current = null;
+      if (canvasTextureUrlRef.current) {
+        URL.revokeObjectURL(canvasTextureUrlRef.current);
+        canvasTextureUrlRef.current = null;
       }
     };
   }, []);
@@ -1322,31 +1328,40 @@ export function MapCanvas({
       return;
     }
 
-    if (!doc || mapCanvasTheme !== 'paper') {
-      if (paperTextureUrlRef.current) {
-        URL.revokeObjectURL(paperTextureUrlRef.current);
-        paperTextureUrlRef.current = null;
+    if (!doc || mapCanvasTheme === 'default') {
+      if (canvasTextureUrlRef.current) {
+        URL.revokeObjectURL(canvasTextureUrlRef.current);
+        canvasTextureUrlRef.current = null;
       }
-      setPaperTextureUrl(null);
+      setCanvasTextureUrl(null);
       return;
     }
 
     let cancelled = false;
-    void ensurePaperTextureTileBlob({
-      mapId: doc.metadata.id,
-      textureSeed: doc.view.textureSeed,
-      theme,
-    }).then((blob) => {
+    const texturePromise = mapCanvasTheme === 'paper'
+      ? ensurePaperTextureTileBlob({
+        mapId: doc.metadata.id,
+        textureSeed: doc.view.textureSeed,
+        theme,
+      })
+      : ensureContourLandscapeTextureTileBlob({
+        canvasTheme: mapCanvasTheme === 'antique' ? 'antique' : 'contour',
+        mapId: doc.metadata.id,
+        textureSeed: doc.view.textureSeed,
+        theme,
+      });
+
+    void texturePromise.then((blob) => {
       if (cancelled) {
         return;
       }
 
       const nextUrl = URL.createObjectURL(blob);
-      if (paperTextureUrlRef.current) {
-        URL.revokeObjectURL(paperTextureUrlRef.current);
+      if (canvasTextureUrlRef.current) {
+        URL.revokeObjectURL(canvasTextureUrlRef.current);
       }
-      paperTextureUrlRef.current = nextUrl;
-      setPaperTextureUrl(nextUrl);
+      canvasTextureUrlRef.current = nextUrl;
+      setCanvasTextureUrl(nextUrl);
     }).catch(() => {});
 
     return () => {
@@ -1391,18 +1406,24 @@ export function MapCanvas({
           />
         )}
         <div
-          className="map-canvas-paper-layer"
-          data-testid="map-canvas-paper-layer"
+          className="map-canvas-theme-layer"
+          data-testid="map-canvas-theme-layer"
           aria-hidden="true"
           style={{
             backgroundColor: mapCanvasTheme === 'paper'
               ? getPaperTextureBaseColor(theme)
-              : (theme === 'dark' ? '#282828' : '#ffffff'),
-            backgroundImage: mapCanvasTheme === 'paper' && paperTextureUrl
-              ? `url("${paperTextureUrl}")`
+              : mapCanvasTheme === 'antique' || mapCanvasTheme === 'contour'
+                ? getContourLandscapeBaseColor(theme)
+                : (theme === 'dark' ? '#282828' : '#ffffff'),
+            backgroundImage: mapCanvasTheme !== 'default' && canvasTextureUrl
+              ? `url("${canvasTextureUrl}")`
               : 'none',
             backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
-            backgroundSize: `${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px ${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px`,
+            backgroundSize: mapCanvasTheme === 'paper'
+              ? `${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px ${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px`
+              : mapCanvasTheme === 'antique' || mapCanvasTheme === 'contour'
+                ? `${CONTOUR_LANDSCAPE_TILE_SIZE * CONTOUR_LANDSCAPE_RENDER_SCALE * zoom}px ${CONTOUR_LANDSCAPE_TILE_SIZE * CONTOUR_LANDSCAPE_RENDER_SCALE * zoom}px`
+                : 'auto',
           }}
         />
         {showGrid && (

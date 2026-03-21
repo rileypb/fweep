@@ -80,10 +80,10 @@ describe('MapCanvas', () => {
     expect(canvas).toHaveClass('map-canvas--grid');
   });
 
-  it('renders a paper texture layer beneath the grid', () => {
+  it('renders a theme texture layer beneath the grid', () => {
     renderMapCanvas();
 
-    expect(screen.getByTestId('map-canvas-paper-layer')).toBeInTheDocument();
+    expect(screen.getByTestId('map-canvas-theme-layer')).toBeInTheDocument();
   });
 
   it('renders the paper texture layer with the parchment base color', () => {
@@ -95,7 +95,7 @@ describe('MapCanvas', () => {
 
     renderMapCanvas();
 
-    const paperLayer = screen.getByTestId('map-canvas-paper-layer');
+    const paperLayer = screen.getByTestId('map-canvas-theme-layer');
 
     expect(paperLayer).toHaveStyle({
       backgroundColor: 'rgb(236, 227, 199)',
@@ -105,8 +105,32 @@ describe('MapCanvas', () => {
   it('uses a white default canvas background when paper mode is off', () => {
     renderMapCanvas();
 
-    expect(screen.getByTestId('map-canvas-paper-layer')).toHaveStyle({
+    expect(screen.getByTestId('map-canvas-theme-layer')).toHaveStyle({
       backgroundColor: 'rgb(255, 255, 255)',
+    });
+  });
+
+  it('renders the contour landscape theme with its own base color', () => {
+    act(() => {
+      useEditorStore.getState().setMapCanvasTheme('antique');
+    });
+
+    renderMapCanvas();
+
+    expect(screen.getByTestId('map-canvas-theme-layer')).toHaveStyle({
+      backgroundColor: 'rgb(232, 227, 208)',
+    });
+  });
+
+  it('renders the contour theme with the same current base color', () => {
+    act(() => {
+      useEditorStore.getState().setMapCanvasTheme('contour');
+    });
+
+    renderMapCanvas();
+
+    expect(screen.getByTestId('map-canvas-theme-layer')).toHaveStyle({
+      backgroundColor: 'rgb(232, 227, 208)',
     });
   });
 

@@ -38,6 +38,7 @@ import { SQUARE_CLASSIC_CORNER_RADIUS } from '../graph/room-visual-style';
 import { traceRoomShapePath } from '../graph/room-shape-geometry';
 import { getStickyNoteCenter, getStickyNoteHeight, getStickyNoteWrappedLines, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
 import { drawPaperTexture } from '../graph/perlin-paper-texture';
+import { drawContourLandscapeTexture } from '../graph/contour-landscape-texture';
 import {
   CONNECTION_ENDPOINT_DOT_OUTSET,
   createConnectionEndpointDotInput,
@@ -1021,6 +1022,13 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   if (input.settings.background === 'theme-canvas') {
     if (input.doc.view.canvasTheme === 'paper') {
       await drawPaperTexture(context, outputWidth, outputHeight, input.theme, {
+        mapId: input.doc.metadata.id,
+        textureSeed: input.doc.view.textureSeed,
+        theme: input.theme,
+      });
+    } else if (input.doc.view.canvasTheme === 'antique' || input.doc.view.canvasTheme === 'contour') {
+      await drawContourLandscapeTexture(context, outputWidth, outputHeight, input.theme, {
+        canvasTheme: input.doc.view.canvasTheme,
         mapId: input.doc.metadata.id,
         textureSeed: input.doc.view.textureSeed,
         theme: input.theme,

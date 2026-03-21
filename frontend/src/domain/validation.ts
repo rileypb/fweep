@@ -290,6 +290,9 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   const canvasThemeValue = view.canvasTheme === undefined
     ? 'default'
     : requireString(view.canvasTheme, issues, 'view.canvasTheme', 'map', 'root');
+  const normalizedCanvasThemeValue = canvasThemeValue === 'contours'
+    ? 'antique'
+    : canvasThemeValue;
   const textureSeed = view.textureSeed === undefined
     ? createTextureSeed()
     : requireFiniteNumber(view.textureSeed, issues, 'view.textureSeed', 'map', 'root');
@@ -308,15 +311,15 @@ function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
   if (visualStyleValue !== null && !MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])) {
     pushIssue(issues, 'error', 'map', 'root', 'view.visualStyle', 'view.visualStyle must be a supported map visual style.');
   }
-  if (canvasThemeValue !== null && !MAP_CANVAS_THEMES.includes(canvasThemeValue as typeof MAP_CANVAS_THEMES[number])) {
+  if (normalizedCanvasThemeValue !== null && !MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number])) {
     pushIssue(issues, 'error', 'map', 'root', 'view.canvasTheme', 'view.canvasTheme must be a supported canvas theme.');
   }
 
   const visualStyle = visualStyleValue !== null && MAP_VISUAL_STYLES.includes(visualStyleValue as typeof MAP_VISUAL_STYLES[number])
     ? visualStyleValue as typeof MAP_VISUAL_STYLES[number]
     : 'square-classic';
-  const canvasTheme = canvasThemeValue !== null && MAP_CANVAS_THEMES.includes(canvasThemeValue as typeof MAP_CANVAS_THEMES[number])
-    ? canvasThemeValue as typeof MAP_CANVAS_THEMES[number]
+  const canvasTheme = normalizedCanvasThemeValue !== null && MAP_CANVAS_THEMES.includes(normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number])
+    ? normalizedCanvasThemeValue as typeof MAP_CANVAS_THEMES[number]
     : 'default';
 
   return {

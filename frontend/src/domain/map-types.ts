@@ -33,7 +33,7 @@ export interface MapView {
 
 export const MAP_VISUAL_STYLES = ['default', 'square-classic'] as const;
 export type MapVisualStyle = (typeof MAP_VISUAL_STYLES)[number];
-export const MAP_CANVAS_THEMES = ['default', 'paper'] as const;
+export const MAP_CANVAS_THEMES = ['default', 'paper', 'antique', 'contour'] as const;
 export type MapCanvasTheme = (typeof MAP_CANVAS_THEMES)[number];
 
 /* ---- Background ---- */

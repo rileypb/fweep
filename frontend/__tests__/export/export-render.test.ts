@@ -13,6 +13,7 @@ const mockGetRoomLabelColor = jest.fn<typeof import('../../src/domain/room-color
 const mockGetRoomStrokeColor = jest.fn<typeof import('../../src/domain/room-color-palette').getRoomStrokeColor>();
 const mockGetRoomStrokeDasharray = jest.fn<typeof import('../../src/components/map-canvas-helpers').getRoomStrokeDasharray>();
 const mockDrawPaperTexture = jest.fn<typeof import('../../src/graph/perlin-paper-texture').drawPaperTexture>();
+const mockDrawContourLandscapeTexture = jest.fn<typeof import('../../src/graph/contour-landscape-texture').drawContourLandscapeTexture>();
 const mockComputeConnectionPath = jest.fn<typeof import('../../src/graph/connection-geometry').computeConnectionPath>();
 const mockComputeGeometryArrowheadPoints = jest.fn<typeof import('../../src/graph/connection-geometry').computeGeometryArrowheadPoints>();
 const mockCreateConnectionRenderGeometry = jest.fn<typeof import('../../src/graph/connection-geometry').createConnectionRenderGeometry>();
@@ -48,6 +49,10 @@ await jest.unstable_mockModule('../../src/components/map-canvas-helpers', () => 
 
 await jest.unstable_mockModule('../../src/graph/perlin-paper-texture', () => ({
   drawPaperTexture: mockDrawPaperTexture,
+}));
+
+await jest.unstable_mockModule('../../src/graph/contour-landscape-texture', () => ({
+  drawContourLandscapeTexture: mockDrawContourLandscapeTexture,
 }));
 
 await jest.unstable_mockModule('../../src/graph/connection-geometry', async () => {
@@ -270,6 +275,7 @@ describe('renderExportCanvas', () => {
       return undefined;
     });
     mockDrawPaperTexture.mockImplementation(async () => {});
+    mockDrawContourLandscapeTexture.mockImplementation(async () => {});
     mockGetRoomNodeWidth.mockImplementation((roomOrName) => {
       const name = typeof roomOrName === 'string' ? roomOrName : roomOrName.name;
       return Math.max(80, name.length * 10);
@@ -423,6 +429,68 @@ describe('renderExportCanvas', () => {
       270,
     );
     expect(mockListBackgroundChunksInBounds).toHaveBeenCalled();
+  });
+
+  it('draws the contour landscape texture for theme-canvas exports when antique mode is enabled', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    await renderExportCanvas({
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          canvasTheme: 'antique',
+        },
+      },
+    });
+
+    expect(mockDrawContourLandscapeTexture).toHaveBeenCalledWith(
+      expect.anything(),
+      1280,
+      480,
+      'dark',
+      expect.objectContaining({
+        canvasTheme: 'antique',
+        mapId: baseInput.doc.metadata.id,
+        textureSeed: baseInput.doc.view.textureSeed,
+        theme: 'dark',
+      }),
+    );
+  });
+
+  it('draws the contour landscape texture for theme-canvas exports when contour mode is enabled', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    await renderExportCanvas({
+      ...baseInput,
+      doc: {
+        ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          canvasTheme: 'contour',
+        },
+      },
+    });
+
+    expect(mockDrawContourLandscapeTexture).toHaveBeenCalledWith(
+      expect.anything(),
+      1280,
+      480,
+      'dark',
+      expect.objectContaining({
+        canvasTheme: 'contour',
+        mapId: baseInput.doc.metadata.id,
+        textureSeed: baseInput.doc.view.textureSeed,
+        theme: 'dark',
+      }),
+    );
   });
 
   it('filters to the selection and supports transparent backgrounds', async () => {
