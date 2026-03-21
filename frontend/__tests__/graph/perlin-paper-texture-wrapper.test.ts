@@ -198,4 +198,31 @@ describe('perlin-paper-texture wrapper', () => {
     expect(context.drawImage).toHaveBeenCalledTimes(4);
     expect(context.drawImage).toHaveBeenNthCalledWith(1, storedCanvas, 0, 0, 512 * PAPER_TEXTURE_RENDER_SCALE, 512 * PAPER_TEXTURE_RENDER_SCALE);
   });
+
+  it('offsets tiled paper texture drawing from a provided origin', async () => {
+    const context = createFakeContext();
+    const storedBlob = new Blob(['stored-paper-offset']);
+    const storedCanvas = createFakeCanvas('stored-paper-offset');
+
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
+    mockBlobToCanvas.mockResolvedValue(storedCanvas);
+
+    await drawPaperTexture(
+      context as unknown as CanvasRenderingContext2D,
+      100,
+      100,
+      'dark',
+      { mapId: 'paper-offset', textureSeed: 606, theme: 'dark' },
+      { originX: -40, originY: -25, scaleMultiplier: 2 },
+    );
+
+    expect(context.drawImage).toHaveBeenNthCalledWith(
+      1,
+      storedCanvas,
+      -40,
+      -25,
+      512 * PAPER_TEXTURE_RENDER_SCALE * 2,
+      512 * PAPER_TEXTURE_RENDER_SCALE * 2,
+    );
+  });
 });

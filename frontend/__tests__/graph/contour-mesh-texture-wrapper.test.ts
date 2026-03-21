@@ -198,4 +198,31 @@ describe('contour-mesh-texture wrapper', () => {
     expect(context.drawImage).toHaveBeenCalledTimes(4);
     expect(context.drawImage).toHaveBeenNthCalledWith(1, storedCanvas, 0, 0, 512 * CONTOUR_MESH_RENDER_SCALE, 512 * CONTOUR_MESH_RENDER_SCALE);
   });
+
+  it('offsets tiled contour mesh drawing from a provided origin', async () => {
+    const context = createFakeContext();
+    const storedBlob = new Blob(['stored-offset']);
+    const storedCanvas = createFakeCanvas('tile-offset');
+
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
+    mockBlobToCanvas.mockResolvedValue(storedCanvas);
+
+    await drawContourMeshTexture(
+      context as unknown as CanvasRenderingContext2D,
+      100,
+      100,
+      'dark',
+      { mapId: 'map-draw-offset', textureSeed: 3, theme: 'dark' },
+      { originX: -40, originY: -25, scaleMultiplier: 2 },
+    );
+
+    expect(context.drawImage).toHaveBeenNthCalledWith(
+      1,
+      storedCanvas,
+      -40,
+      -25,
+      512 * CONTOUR_MESH_RENDER_SCALE * 2,
+      512 * CONTOUR_MESH_RENDER_SCALE * 2,
+    );
+  });
 });

@@ -16,6 +16,12 @@ export {
 export const PAPER_TEXTURE_GENERATOR_VERSION = 1;
 export const PAPER_TEXTURE_RENDER_SCALE = 3;
 
+export interface TextureDrawOptions {
+  readonly scaleMultiplier?: number;
+  readonly originX?: number;
+  readonly originY?: number;
+}
+
 export interface PaperTextureTileRequest {
   readonly mapId: string;
   readonly textureSeed: number;
@@ -113,6 +119,26 @@ async function ensurePaperTextureTile(request: PaperTextureTileRequest): Promise
   return inflight;
 }
 
+function createScaledPaperTextureCanvas(
+  sourceCanvas: HTMLCanvasElement,
+  scaledTileSize: number,
+): HTMLCanvasElement | null {
+  const canvasSize = Math.max(1, Math.ceil(scaledTileSize));
+  const scaledCanvas = createSizedCanvas(canvasSize, canvasSize);
+  if (!scaledCanvas) {
+    return null;
+  }
+  const scaledContext = scaledCanvas.getContext('2d');
+  if (!scaledContext) {
+    return null;
+  }
+
+  scaledContext.imageSmoothingEnabled = true;
+  scaledContext.clearRect(0, 0, canvasSize, canvasSize);
+  scaledContext.drawImage(sourceCanvas, 0, 0, canvasSize, canvasSize);
+  return scaledCanvas;
+}
+
 export async function ensurePaperTextureTileBlob(request: PaperTextureTileRequest): Promise<Blob> {
   const tile = await ensurePaperTextureTile(request);
   return tile.blob;
@@ -124,6 +150,7 @@ export async function drawPaperTexture(
   height: number,
   theme: PaperTextureTheme,
   request: PaperTextureTileRequest,
+  options: TextureDrawOptions = {},
 ): Promise<void> {
   context.fillStyle = getPaperTextureBaseColor(theme);
   context.fillRect(0, 0, width, height);
@@ -133,10 +160,28 @@ export async function drawPaperTexture(
   }
 
   const tile = await ensurePaperTextureTile(request);
-  const scaledTileSize = PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE;
+  const scaledTileSize = PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * (options.scaleMultiplier ?? 1);
+  const originX = options.originX ?? 0;
+  const originY = options.originY ?? 0;
+  const scaledPatternCanvas = createScaledPaperTextureCanvas(tile.canvas, scaledTileSize);
+  const repeatedPattern = scaledPatternCanvas && typeof context.createPattern === 'function'
+    ? context.createPattern(scaledPatternCanvas, 'repeat')
+    : null;
 
-  for (let y = 0; y < height; y += scaledTileSize) {
-    for (let x = 0; x < width; x += scaledTileSize) {
+  if (repeatedPattern) {
+    context.save();
+    context.translate(originX, originY);
+    context.fillStyle = repeatedPattern;
+    context.fillRect(-originX, -originY, width, height);
+    context.restore();
+    return;
+  }
+
+  const startX = originX > 0 ? (originX % scaledTileSize) - scaledTileSize : originX % scaledTileSize;
+  const startY = originY > 0 ? (originY % scaledTileSize) - scaledTileSize : originY % scaledTileSize;
+
+  for (let y = startY; y < height; y += scaledTileSize) {
+    for (let x = startX; x < width; x += scaledTileSize) {
       context.drawImage(tile.canvas, x, y, scaledTileSize, scaledTileSize);
     }
   }

@@ -192,6 +192,7 @@ describe('contour-landscape-texture wrapper', () => {
         textureSeed: 8,
         theme: 'dark',
       },
+      {},
     ]);
     expect(context.fillRect).not.toHaveBeenCalled();
   });
@@ -241,5 +242,37 @@ describe('contour-landscape-texture wrapper', () => {
     expect(context.fillRect).toHaveBeenCalledWith(0, 0, (512 * CONTOUR_LANDSCAPE_RENDER_SCALE) + 40, (512 * CONTOUR_LANDSCAPE_RENDER_SCALE) + 20);
     expect(context.drawImage).toHaveBeenCalledTimes(4);
     expect(context.drawImage).toHaveBeenNthCalledWith(1, storedCanvas, 0, 0, 512 * CONTOUR_LANDSCAPE_RENDER_SCALE, 512 * CONTOUR_LANDSCAPE_RENDER_SCALE);
+  });
+
+  it('offsets tiled antique texture drawing from a provided origin', async () => {
+    const context = createFakeContext();
+    const storedBlob = new Blob(['stored-antique-offset']);
+    const storedCanvas = createFakeCanvas('stored-antique-offset');
+
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
+    mockBlobToCanvas.mockResolvedValue(storedCanvas);
+
+    await drawContourLandscapeTexture(
+      context as unknown as CanvasRenderingContext2D,
+      100,
+      100,
+      'light',
+      {
+        mapId: 'map-antique-offset',
+        textureSeed: 11,
+        theme: 'light',
+        canvasTheme: 'antique',
+      },
+      { originX: -40, originY: -25, scaleMultiplier: 2 },
+    );
+
+    expect(context.drawImage).toHaveBeenNthCalledWith(
+      1,
+      storedCanvas,
+      -40,
+      -25,
+      512 * CONTOUR_LANDSCAPE_RENDER_SCALE * 2,
+      512 * CONTOUR_LANDSCAPE_RENDER_SCALE * 2,
+    );
   });
 });

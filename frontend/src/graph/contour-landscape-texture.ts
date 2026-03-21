@@ -1,5 +1,6 @@
 import { blobToCanvas, canvasToBlob, createSizedCanvas } from '../components/map-background-raster';
 import { loadTextureTile, saveTextureTile, type TextureTileLocation } from '../storage/map-store';
+import type { TextureDrawOptions } from './perlin-paper-texture';
 import {
   drawContourMeshTexture,
   ensureContourMeshTextureTileBlob,
@@ -159,13 +160,14 @@ export async function drawContourLandscapeTexture(
   height: number,
   theme: ContourLandscapeTextureTheme,
   request: ContourLandscapeTextureTileRequest,
+  options: TextureDrawOptions = {},
 ): Promise<void> {
   if (request.canvasTheme === 'contour') {
     await drawContourMeshTexture(context, width, height, theme, {
       mapId: request.mapId,
       textureSeed: request.textureSeed,
       theme,
-    });
+    }, options);
     return;
   }
 
@@ -177,10 +179,14 @@ export async function drawContourLandscapeTexture(
   }
 
   const tile = await ensureContourLandscapeTextureTile(request);
-  const scaledTileSize = CONTOUR_LANDSCAPE_TILE_SIZE * CONTOUR_LANDSCAPE_RENDER_SCALE;
+  const scaledTileSize = CONTOUR_LANDSCAPE_TILE_SIZE * CONTOUR_LANDSCAPE_RENDER_SCALE * (options.scaleMultiplier ?? 1);
+  const originX = options.originX ?? 0;
+  const originY = options.originY ?? 0;
+  const startX = originX > 0 ? (originX % scaledTileSize) - scaledTileSize : originX % scaledTileSize;
+  const startY = originY > 0 ? (originY % scaledTileSize) - scaledTileSize : originY % scaledTileSize;
 
-  for (let y = 0; y < height; y += scaledTileSize) {
-    for (let x = 0; x < width; x += scaledTileSize) {
+  for (let y = startY; y < height; y += scaledTileSize) {
+    for (let x = startX; x < width; x += scaledTileSize) {
       context.drawImage(tile.canvas, x, y, scaledTileSize, scaledTileSize);
     }
   }

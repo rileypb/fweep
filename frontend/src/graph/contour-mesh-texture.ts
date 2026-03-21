@@ -1,5 +1,6 @@
 import { blobToCanvas, canvasToBlob, createSizedCanvas } from '../components/map-background-raster';
 import { loadTextureTile, saveTextureTile, type TextureTileLocation } from '../storage/map-store';
+import type { TextureDrawOptions } from './perlin-paper-texture';
 import {
   CONTOUR_MESH_TILE_SIZE,
   getContourMeshBaseColor,
@@ -139,6 +140,7 @@ export async function drawContourMeshTexture(
   height: number,
   theme: ContourMeshTextureTheme,
   request: ContourMeshTextureTileRequest,
+  options: TextureDrawOptions = {},
 ): Promise<void> {
   context.fillStyle = getContourMeshBaseColor(theme);
   context.fillRect(0, 0, width, height);
@@ -148,10 +150,14 @@ export async function drawContourMeshTexture(
   }
 
   const tile = await ensureContourMeshTextureTile(request);
-  const scaledTileSize = CONTOUR_MESH_TILE_SIZE * CONTOUR_MESH_RENDER_SCALE;
+  const scaledTileSize = CONTOUR_MESH_TILE_SIZE * CONTOUR_MESH_RENDER_SCALE * (options.scaleMultiplier ?? 1);
+  const originX = options.originX ?? 0;
+  const originY = options.originY ?? 0;
+  const startX = originX > 0 ? (originX % scaledTileSize) - scaledTileSize : originX % scaledTileSize;
+  const startY = originY > 0 ? (originY % scaledTileSize) - scaledTileSize : originY % scaledTileSize;
 
-  for (let y = 0; y < height; y += scaledTileSize) {
-    for (let x = 0; x < width; x += scaledTileSize) {
+  for (let y = startY; y < height; y += scaledTileSize) {
+    for (let x = startX; x < width; x += scaledTileSize) {
       context.drawImage(tile.canvas, x, y, scaledTileSize, scaledTileSize);
     }
   }

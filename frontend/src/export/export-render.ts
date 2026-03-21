@@ -1025,6 +1025,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
         mapId: input.doc.metadata.id,
         textureSeed: input.doc.view.textureSeed,
         theme: input.theme,
+      }, {
+        scaleMultiplier: input.settings.scale,
+        originX: -input.bounds.left * input.settings.scale,
+        originY: -input.bounds.top * input.settings.scale,
       });
     } else if (input.doc.view.canvasTheme === 'antique' || input.doc.view.canvasTheme === 'contour') {
       await drawContourLandscapeTexture(context, outputWidth, outputHeight, input.theme, {
@@ -1032,6 +1036,10 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
         mapId: input.doc.metadata.id,
         textureSeed: input.doc.view.textureSeed,
         theme: input.theme,
+      }, {
+        scaleMultiplier: input.settings.scale,
+        originX: -input.bounds.left * input.settings.scale,
+        originY: -input.bounds.top * input.settings.scale,
       });
     } else {
       context.fillStyle = getCanvasBackground(input.theme);

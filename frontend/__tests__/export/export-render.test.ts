@@ -390,17 +390,18 @@ describe('renderExportCanvas', () => {
 
     expect(rendered).toBe(canvas);
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
-    expect(mockDrawPaperTexture).toHaveBeenCalledWith(
-      expect.anything(),
-      1280,
-      480,
-      'dark',
-      expect.objectContaining({
-        mapId: baseInput.doc.metadata.id,
-        textureSeed: baseInput.doc.view.textureSeed,
-        theme: 'dark',
-      }),
-    );
+    expect(mockDrawPaperTexture.mock.calls[0]?.[0]).toBeTruthy();
+    expect(mockDrawPaperTexture.mock.calls[0]?.[1]).toBe(1280);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[2]).toBe(480);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[3]).toBe('dark');
+    expect(mockDrawPaperTexture.mock.calls[0]?.[4]).toMatchObject({
+      mapId: baseInput.doc.metadata.id,
+      textureSeed: baseInput.doc.view.textureSeed,
+      theme: 'dark',
+    });
+    expect(mockDrawPaperTexture.mock.calls[0]?.[5]).toMatchObject({
+      scaleMultiplier: 2,
+    });
     expect(context.scale).toHaveBeenCalledWith(2, 2);
     expect(context.drawImage).toHaveBeenCalledTimes(2);
     expect(context.lineTo).toHaveBeenCalled();
@@ -448,18 +449,19 @@ describe('renderExportCanvas', () => {
       },
     });
 
-    expect(mockDrawContourLandscapeTexture).toHaveBeenCalledWith(
-      expect.anything(),
-      1280,
-      480,
-      'dark',
-      expect.objectContaining({
-        canvasTheme: 'antique',
-        mapId: baseInput.doc.metadata.id,
-        textureSeed: baseInput.doc.view.textureSeed,
-        theme: 'dark',
-      }),
-    );
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[0]).toBeTruthy();
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[1]).toBe(1280);
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[2]).toBe(480);
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[3]).toBe('dark');
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[4]).toMatchObject({
+      canvasTheme: 'antique',
+      mapId: baseInput.doc.metadata.id,
+      textureSeed: baseInput.doc.view.textureSeed,
+      theme: 'dark',
+    });
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[5]).toMatchObject({
+      scaleMultiplier: 2,
+    });
   });
 
   it('draws the contour landscape texture for theme-canvas exports when contour mode is enabled', async () => {
@@ -479,18 +481,98 @@ describe('renderExportCanvas', () => {
       },
     });
 
-    expect(mockDrawContourLandscapeTexture).toHaveBeenCalledWith(
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[0]).toBeTruthy();
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[1]).toBe(1280);
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[2]).toBe(480);
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[3]).toBe('dark');
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[4]).toMatchObject({
+      canvasTheme: 'contour',
+      mapId: baseInput.doc.metadata.id,
+      textureSeed: baseInput.doc.view.textureSeed,
+      theme: 'dark',
+    });
+    expect(mockDrawContourLandscapeTexture.mock.calls[0]?.[5]).toMatchObject({
+      scaleMultiplier: 2,
+    });
+  });
+
+  it('passes bounds-based texture origin offsets for theme-canvas exports', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    await renderExportCanvas({
+      ...baseInput,
+      bounds: {
+        left: 40,
+        top: 10,
+        right: 680,
+        bottom: 250,
+      },
+      doc: {
+        ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          canvasTheme: 'paper',
+        },
+      },
+    });
+
+    expect(mockDrawPaperTexture).toHaveBeenCalledWith(
       expect.anything(),
       1280,
       480,
       'dark',
       expect.objectContaining({
-        canvasTheme: 'contour',
         mapId: baseInput.doc.metadata.id,
         textureSeed: baseInput.doc.view.textureSeed,
         theme: 'dark',
       }),
+      {
+        scaleMultiplier: 2,
+        originX: -80,
+        originY: -20,
+      },
     );
+  });
+
+  it('uses export scale for paper texture scaling even when viewport zoom is available', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const baseInput = createBaseInput();
+    await renderExportCanvas({
+      ...baseInput,
+      viewportZoom: 1.179,
+      bounds: {
+        left: 40,
+        top: 10,
+        right: 680,
+        bottom: 250,
+      },
+      doc: {
+        ...baseInput.doc,
+        view: {
+          ...baseInput.doc.view,
+          canvasTheme: 'paper',
+        },
+      },
+    });
+
+    expect(mockDrawPaperTexture.mock.calls[0]?.[0]).toBeTruthy();
+    expect(mockDrawPaperTexture.mock.calls[0]?.[1]).toBe(1280);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[2]).toBe(480);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[3]).toBe('dark');
+    expect(mockDrawPaperTexture.mock.calls[0]?.[4]).toMatchObject({
+      mapId: baseInput.doc.metadata.id,
+      textureSeed: baseInput.doc.view.textureSeed,
+      theme: 'dark',
+    });
+    expect(mockDrawPaperTexture.mock.calls[0]?.[5]?.scaleMultiplier).toBeCloseTo(2, 10);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[5]?.originX).toBeCloseTo(-80, 10);
+    expect(mockDrawPaperTexture.mock.calls[0]?.[5]?.originY).toBeCloseTo(-20, 10);
   });
 
   it('filters to the selection and supports transparent backgrounds', async () => {
