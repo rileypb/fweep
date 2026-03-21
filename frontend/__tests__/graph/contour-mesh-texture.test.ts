@@ -1,10 +1,13 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   CONTOUR_MESH_POINT_COUNT,
+  CONTOUR_MESH_CONTOUR_INTERVAL,
   CONTOUR_MESH_TILE_SIZE,
   CONTOUR_MESH_WATER_LEVEL,
   generateContourMeshBasePoints,
+  generateContourMeshContourSegments,
   generateContourMeshEdgeSubdivisions,
+  getContourMeshFaceFillPolygons,
   generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
@@ -91,6 +94,27 @@ describe('contour-mesh-texture', () => {
     expect(topology.faces.some((face) => !face.isWater)).toBe(true);
   });
 
+  it('splits mixed faces into separate land and water fill polygons at sea level', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+    const mixedFace = topology.faces.find((face) => {
+      const elevations = face.vertexIds.map((vertexId) => verticesById.get(vertexId)?.elevation ?? 0);
+      return elevations.some((elevation) => elevation < CONTOUR_MESH_WATER_LEVEL)
+        && elevations.some((elevation) => elevation >= CONTOUR_MESH_WATER_LEVEL);
+    });
+
+    expect(mixedFace).toBeDefined();
+    if (!mixedFace) {
+      return;
+    }
+
+    const polygons = getContourMeshFaceFillPolygons(mixedFace, verticesById);
+    expect(polygons.land).not.toBeNull();
+    expect(polygons.water).not.toBeNull();
+    expect((polygons.land?.vertices.length ?? 0)).toBeGreaterThanOrEqual(3);
+    expect((polygons.water?.vertices.length ?? 0)).toBeGreaterThanOrEqual(3);
+  });
+
   it('builds deterministic edge subdivisions from the topology', () => {
     const topology = generateContourMeshTopology(12345);
 
@@ -127,6 +151,26 @@ describe('contour-mesh-texture', () => {
         elevation: end.elevation,
       });
     }
+  });
+
+  it('builds deterministic contour segments from face subdivisions', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(generateContourMeshContourSegments(topology)).toEqual(generateContourMeshContourSegments(topology));
+  });
+
+  it('creates contour segments only at interval-aligned elevations above the face floor', () => {
+    const topology = generateContourMeshTopology(12345);
+    const segments = generateContourMeshContourSegments(topology);
+
+    expect(segments.length).toBeGreaterThan(0);
+    for (const segment of segments.slice(0, 80)) {
+      expect(segment.elevation % CONTOUR_MESH_CONTOUR_INTERVAL).toBe(0);
+      expect(segment.start).not.toEqual(segment.end);
+    }
+
+    expect(topology.faces.some((face) => face.isWater)).toBe(true);
+    expect(topology.faces.some((face) => !face.isWater)).toBe(true);
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {

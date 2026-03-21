@@ -15,6 +15,8 @@ interface Rgb {
 interface ThemePalette {
   readonly base: Rgb;
   readonly line: Rgb;
+  readonly contourLand: Rgb;
+  readonly contourWater: Rgb;
   readonly waterDeep: Rgb;
   readonly waterShallow: Rgb;
   readonly fillLow: Rgb;
@@ -78,6 +80,22 @@ export interface ContourMeshEdgeSubdivision {
   readonly points: readonly ContourMeshSubdivisionPoint[];
 }
 
+export interface ContourMeshContourSegment {
+  readonly elevation: number;
+  readonly start: readonly [number, number];
+  readonly end: readonly [number, number];
+}
+
+export interface ContourMeshFillPolygon {
+  readonly vertices: readonly (readonly [number, number])[];
+  readonly averageElevation: number;
+}
+
+export interface ContourMeshFaceFillPolygons {
+  readonly land: ContourMeshFillPolygon | null;
+  readonly water: ContourMeshFillPolygon | null;
+}
+
 interface ContourMeshElevationConfig {
   readonly broad: SeamlessFractalNoiseOptions;
   readonly detail: SeamlessFractalNoiseOptions;
@@ -93,6 +111,7 @@ export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
 };
 
 export const CONTOUR_MESH_WATER_LEVEL = 44;
+export const CONTOUR_MESH_CONTOUR_INTERVAL = 4;
 
 function halton(index: number, base: number): number {
   let result = 0;
@@ -122,6 +141,8 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
     ? {
       base: { r: 40, g: 42, b: 38 },
       line: { r: 116, g: 121, b: 112 },
+      contourLand: { r: 223, g: 228, b: 214 },
+      contourWater: { r: 28, g: 31, b: 44 },
       waterDeep: { r: 51, g: 59, b: 91 },
       waterShallow: { r: 82, g: 88, b: 118 },
       fillDeep: { r: 48, g: 50, b: 45 },
@@ -131,6 +152,8 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
     : {
       base: { r: 232, g: 227, b: 208 },
       line: { r: 123, g: 111, b: 84 },
+      contourLand: { r: 245, g: 243, b: 234 },
+      contourWater: { r: 41, g: 38, b: 57 },
       waterDeep: { r: 103, g: 108, b: 178 },
       waterShallow: { r: 146, g: 147, b: 192 },
       fillDeep: { r: 177, g: 170, b: 149 },
@@ -418,6 +441,151 @@ export function generateContourMeshEdgeSubdivisions(
   });
 }
 
+function getSubdivisionPointKey(point: ContourMeshSubdivisionPoint): string {
+  return `${coordinateKey(point.x)}:${coordinateKey(point.y)}:${point.elevation}`;
+}
+
+export function generateContourMeshContourSegments(
+  topology: ContourMeshTopology,
+  interval: number = CONTOUR_MESH_CONTOUR_INTERVAL,
+): readonly ContourMeshContourSegment[] {
+  const subdivisions = generateContourMeshEdgeSubdivisions(topology);
+  const subdivisionsByEdgeId = new Map(subdivisions.map((subdivision) => [subdivision.edgeId, subdivision]));
+  const segments: ContourMeshContourSegment[] = [];
+
+  for (const face of topology.faces) {
+    const pointsByElevation = new Map<number, ContourMeshSubdivisionPoint[]>();
+
+    for (const edgeId of face.edgeIds) {
+      const subdivision = subdivisionsByEdgeId.get(edgeId);
+      if (!subdivision) {
+        continue;
+      }
+
+      for (const point of subdivision.points) {
+        if (point.elevation <= face.elevation || point.elevation % interval !== 0) {
+          continue;
+        }
+
+        const existing = pointsByElevation.get(point.elevation) ?? [];
+        if (!existing.some((candidate) => getSubdivisionPointKey(candidate) === getSubdivisionPointKey(point))) {
+          existing.push(point);
+        }
+        pointsByElevation.set(point.elevation, existing);
+      }
+    }
+
+    for (const [elevation, points] of pointsByElevation.entries()) {
+      if (points.length !== 2) {
+        continue;
+      }
+
+      segments.push({
+        elevation,
+        start: [points[0].x, points[0].y],
+        end: [points[1].x, points[1].y],
+      });
+    }
+  }
+
+  return segments;
+}
+
+interface ScalarCorner {
+  readonly x: number;
+  readonly y: number;
+  readonly elevation: number;
+}
+
+function clipPolygonByElevation(
+  polygon: readonly ScalarCorner[],
+  threshold: number,
+  keepAbove: boolean,
+): ScalarCorner[] {
+  const result: ScalarCorner[] = [];
+  const isInside = (point: ScalarCorner): boolean => (keepAbove ? point.elevation >= threshold : point.elevation < threshold);
+
+  const getIntersection = (start: ScalarCorner, end: ScalarCorner): ScalarCorner => {
+    const denominator = end.elevation - start.elevation;
+    const t = denominator === 0 ? 0 : (threshold - start.elevation) / denominator;
+    return {
+      x: start.x + ((end.x - start.x) * t),
+      y: start.y + ((end.y - start.y) * t),
+      elevation: threshold,
+    };
+  };
+
+  for (let index = 0; index < polygon.length; index += 1) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    const currentInside = isInside(current);
+    const nextInside = isInside(next);
+
+    if (currentInside && nextInside) {
+      result.push(next);
+    } else if (currentInside && !nextInside) {
+      result.push(getIntersection(current, next));
+    } else if (!currentInside && nextInside) {
+      result.push(getIntersection(current, next));
+      result.push(next);
+    }
+  }
+
+  return result;
+}
+
+function toFillPolygon(points: readonly ScalarCorner[]): ContourMeshFillPolygon | null {
+  if (points.length < 3) {
+    return null;
+  }
+
+  return {
+    vertices: points.map((point) => [point.x, point.y] as const),
+    averageElevation: points.reduce((sum, point) => sum + point.elevation, 0) / points.length,
+  };
+}
+
+export function getContourMeshFaceFillPolygons(
+  face: ContourMeshFace,
+  verticesById: ReadonlyMap<string, ContourMeshVertex>,
+  waterLevel: number = CONTOUR_MESH_WATER_LEVEL,
+): ContourMeshFaceFillPolygons {
+  const corners = face.vertexIds.map((vertexId) => {
+    const vertex = verticesById.get(vertexId);
+    if (!vertex) {
+      throw new Error(`Missing contour mesh vertex ${vertexId}.`);
+    }
+
+    return {
+      x: vertex.x,
+      y: vertex.y,
+      elevation: vertex.elevation,
+    };
+  }) as readonly ScalarCorner[];
+
+  return {
+    land: toFillPolygon(clipPolygonByElevation(corners, waterLevel, true)),
+    water: toFillPolygon(clipPolygonByElevation(corners, waterLevel, false)),
+  };
+}
+
+function fillPolygon(
+  context: CanvasRenderingContext2D,
+  polygon: ContourMeshFillPolygon,
+  width: number,
+  height: number,
+  color: Rgb,
+): void {
+  context.beginPath();
+  context.moveTo(polygon.vertices[0][0] * width, polygon.vertices[0][1] * height);
+  for (let index = 1; index < polygon.vertices.length; index += 1) {
+    context.lineTo(polygon.vertices[index][0] * width, polygon.vertices[index][1] * height);
+  }
+  context.closePath();
+  context.fillStyle = toCssRgb(color);
+  context.fill();
+}
+
 export function renderContourMeshTextureTile(
   context: CanvasRenderingContext2D,
   width: number,
@@ -431,29 +599,59 @@ export function renderContourMeshTextureTile(
   context.fillRect(0, 0, width, height);
 
   const topology = generateContourMeshTopology(seed);
+  const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
   context.lineJoin = 'round';
   context.lineCap = 'round';
   context.lineWidth = theme === 'dark' ? 0.9 : 0.8;
   context.strokeStyle = toCssRgb(palette.line);
 
   for (const face of topology.faces) {
-    const fill = face.isWater
-      ? mixRgb(
-        palette.waterDeep,
-        palette.waterShallow,
-        clamp01(face.elevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1)),
-      )
-      : (() => {
-        const fillBase = mixRgb(palette.fillDeep, palette.fillLow, clamp01((face.elevation - CONTOUR_MESH_WATER_LEVEL) / 30));
-        return mixRgb(fillBase, palette.fillHigh, clamp01((face.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
-      })();
+    const polygons = getContourMeshFaceFillPolygons(face, verticesById);
+
+    if (polygons.water) {
+      fillPolygon(
+        context,
+        polygons.water,
+        width,
+        height,
+        mixRgb(
+          palette.waterDeep,
+          palette.waterShallow,
+          clamp01(polygons.water.averageElevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1)),
+        ),
+      );
+    }
+
+    if (polygons.land) {
+      const landBase = mixRgb(
+        palette.fillDeep,
+        palette.fillLow,
+        clamp01((polygons.land.averageElevation - CONTOUR_MESH_WATER_LEVEL) / 30),
+      );
+      fillPolygon(
+        context,
+        polygons.land,
+        width,
+        height,
+        mixRgb(landBase, palette.fillHigh, clamp01((polygons.land.averageElevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50)),
+      );
+    }
+
     context.beginPath();
     context.moveTo(face.vertices[0][0] * width, face.vertices[0][1] * height);
     context.lineTo(face.vertices[1][0] * width, face.vertices[1][1] * height);
     context.lineTo(face.vertices[2][0] * width, face.vertices[2][1] * height);
     context.closePath();
-    context.fillStyle = toCssRgb(fill);
-    context.fill();
+    context.stroke();
+  }
+
+  const contourSegments = generateContourMeshContourSegments(topology);
+  context.lineWidth = theme === 'dark' ? 1.1 : 1;
+  for (const segment of contourSegments) {
+    context.beginPath();
+    context.strokeStyle = toCssRgb(segment.elevation <= CONTOUR_MESH_WATER_LEVEL ? palette.contourWater : palette.contourLand);
+    context.moveTo(segment.start[0] * width, segment.start[1] * height);
+    context.lineTo(segment.end[0] * width, segment.end[1] * height);
     context.stroke();
   }
 }
