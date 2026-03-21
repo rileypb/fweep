@@ -38,6 +38,7 @@ When preparing `release vN`:
    - base them primarily on `main...vN`
    - summarize user-visible changes, compatibility notes, and any migration or persistence implications
    - use commit messages only when the diff needs extra context or grouping
+   - user reviews the release notes before proceeding to validation and merge
 6. Run release validation:
    - run the required automated checks for the release branch
    - complete the manual smoke-test checklist
