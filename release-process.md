@@ -45,6 +45,7 @@ When preparing `release vN`:
    - treat any failing build, failing test, or broken core editing flow as a release blocker
 7. After verification, commit any release-specific fixes on `vN`.
 8. Open a pull request from `vN` to `main`.
+   - if the assistant cannot open the PR directly, write the `gh pr create` command to `pr.sh` and run it from a user-authenticated shell
 9. Merge to `main` only after the release branch is verified and approved.
 10. After merge, confirm the GitHub Pages deployment from `main` completed successfully.
 11. Perform post-deploy smoke checks against the deployed site.
@@ -84,6 +85,7 @@ Record each release smoke pass in `smoke-tests/` using a versioned filename such
 - release notes drafted from `main...vN` with commit messages used as needed
 - release fixes committed on `vN`
 - PR from `vN` to `main` opened
+  - if needed, `pr.sh` prepared and run from a user-authenticated shell
 - PR reviewed and approved
 - GitHub Pages deployment confirmed after merge
 - post-deploy smoke checks completed
