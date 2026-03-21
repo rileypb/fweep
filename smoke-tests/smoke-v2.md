@@ -76,6 +76,15 @@ This document defines the manual smoke-test pass to run before releasing `fweep`
 - Verify the user-visible features changed in `main...vN`.
 - Add any temporary smoke cases needed for the specific release before running the pass.
 
+## Latest results
+
+### v2
+- `paper` live canvas and PNG export texture alignment: passed
+- `antique` live canvas and PNG export texture alignment: passed
+- `contour` live canvas and PNG export texture alignment: passed
+- Theme-canvas PNG export visual match: passed
+  - Final verification confirmed the remaining apparent color mismatch was due to comparing on different monitors, not an application issue.
+
 ## Minimum release gate
 A release smoke pass is considered complete only if all of the following succeed:
 - app load and map selection

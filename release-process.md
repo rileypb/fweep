@@ -72,12 +72,15 @@ For `v2`, include explicit checks that older saved maps still load correctly und
 
 For `v3` and later, include explicit checks that migrated maps can load, save, and reload correctly after migration.
 
+Record each release smoke pass in `smoke-tests/` using a versioned filename such as `smoke-v2.md`, `smoke-v3.md`, and so on.
+
 ## Release checklist
 - `main...vN` reviewed
 - persisted-data impact reviewed
 - migration policy satisfied for this release
 - automated validation passed
 - manual compatibility verification completed
+- smoke-test results recorded in `smoke-tests/smoke-vN.md`
 - release notes drafted from `main...vN` with commit messages used as needed
 - release fixes committed on `vN`
 - PR from `vN` to `main` opened
