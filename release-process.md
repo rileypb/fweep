@@ -88,6 +88,9 @@ For `v3` and later, include explicit checks that migrated maps can load, save, a
 - Draft release notes before merge so they can be reviewed alongside the release PR.
 - Base release notes on `main...vN`.
 - Use commit messages only to recover intent or group changes when the diff alone is not enough.
+- Record the long-form release notes in `release-notes.md`.
+- Use a shorter blurb when creating the published release.
+- Use a more polished narrative version when creating the PR from `vN` to `main`.
 - Organize notes around:
   - user-visible changes
   - compatibility or migration notes
