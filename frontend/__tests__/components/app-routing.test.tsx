@@ -3900,7 +3900,8 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
     await screen.findByRole('dialog', { name: /choose a map/i });
 
-    await user.click(screen.getByText('Stale Edit Request Map').closest('button') as HTMLButtonElement);
+    const reopenedMapName = await screen.findByText('Stale Edit Request Map');
+    await user.click(reopenedMapName.closest('button') as HTMLButtonElement);
     await screen.findByText(/stale edit request map/i);
 
     expect(screen.queryByRole('dialog', { name: /room editor/i })).not.toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import {
   calculateContourMeshSubfaceLighting,
   CONTOUR_MESH_POINT_COUNT,
@@ -13,8 +13,51 @@ import {
   generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
+  renderContourMeshTextureTile,
   sampleContourMeshElevation,
 } from '../../src/graph/contour-mesh-texture-core';
+
+type FakeContext = {
+  readonly clearRect: ReturnType<typeof jest.fn>;
+  readonly fillRect: ReturnType<typeof jest.fn>;
+  readonly beginPath: ReturnType<typeof jest.fn>;
+  readonly moveTo: ReturnType<typeof jest.fn>;
+  readonly lineTo: ReturnType<typeof jest.fn>;
+  readonly closePath: ReturnType<typeof jest.fn>;
+  readonly fill: ReturnType<typeof jest.fn>;
+  readonly stroke: ReturnType<typeof jest.fn>;
+  readonly putImageData: ReturnType<typeof jest.fn>;
+  readonly createImageData: ReturnType<typeof jest.fn>;
+  fillStyle: string;
+  strokeStyle: string;
+  lineWidth: number;
+  lineJoin: CanvasLineJoin;
+  lineCap: CanvasLineCap;
+};
+
+function createFakeContext(): FakeContext {
+  return {
+    clearRect: jest.fn(),
+    fillRect: jest.fn(),
+    beginPath: jest.fn(),
+    moveTo: jest.fn(),
+    lineTo: jest.fn(),
+    closePath: jest.fn(),
+    fill: jest.fn(),
+    stroke: jest.fn(),
+    putImageData: jest.fn(),
+    createImageData: jest.fn((width: number, height: number) => ({
+      data: new Uint8ClampedArray(width * height * 4),
+      width,
+      height,
+    })),
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    lineJoin: 'miter',
+    lineCap: 'butt',
+  };
+}
 
 describe('contour-mesh-texture', () => {
   it('returns a theme-specific base color', () => {
@@ -117,6 +160,52 @@ describe('contour-mesh-texture', () => {
     expect((polygons.water?.vertices.length ?? 0)).toBeGreaterThanOrEqual(3);
   });
 
+  it('returns only a land polygon for an entirely land face', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+    const landFace = topology.faces.find((face) => !face.isWater);
+
+    expect(landFace).toBeDefined();
+    if (!landFace) {
+      return;
+    }
+
+    const polygons = getContourMeshFaceFillPolygons(landFace, verticesById);
+    expect(polygons.land).not.toBeNull();
+    expect(polygons.water).toBeNull();
+  });
+
+  it('returns only a water polygon for an entirely water face', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+    const waterFace = topology.faces.find((face) => face.vertexIds.every((vertexId) => (
+      (verticesById.get(vertexId)?.elevation ?? Infinity) < CONTOUR_MESH_WATER_LEVEL
+    )));
+
+    expect(waterFace).toBeDefined();
+    if (!waterFace) {
+      return;
+    }
+
+    const polygons = getContourMeshFaceFillPolygons(waterFace, verticesById);
+    expect(polygons.land).toBeNull();
+    expect(polygons.water).not.toBeNull();
+  });
+
+  it('throws if a face fill polygon is requested with a missing vertex reference', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+    const someFace = topology.faces[0];
+
+    expect(someFace).toBeDefined();
+    if (!someFace) {
+      return;
+    }
+
+    verticesById.delete(someFace.vertexIds[0]);
+    expect(() => getContourMeshFaceFillPolygons(someFace, verticesById)).toThrow(/Missing contour mesh vertex/);
+  });
+
   it('builds deterministic edge subdivisions from the topology', () => {
     const topology = generateContourMeshTopology(12345);
 
@@ -211,6 +300,61 @@ describe('contour-mesh-texture', () => {
 
     expect(topology.faces.some((face) => face.isWater)).toBe(true);
     expect(topology.faces.some((face) => !face.isWater)).toBe(true);
+  });
+
+  it('renders deterministic image data for the same seed and theme', () => {
+    const firstContext = createFakeContext();
+    const secondContext = createFakeContext();
+
+    renderContourMeshTextureTile(firstContext as unknown as CanvasRenderingContext2D, 32, 32, 'light', 12345);
+    renderContourMeshTextureTile(secondContext as unknown as CanvasRenderingContext2D, 32, 32, 'light', 12345);
+
+    expect(firstContext.putImageData).toHaveBeenCalledTimes(1);
+    expect(secondContext.putImageData).toHaveBeenCalledTimes(1);
+
+    const firstImageData = firstContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    const secondImageData = secondContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(firstImageData.data)).toEqual(Array.from(secondImageData.data));
+  });
+
+  it('renders different image data when the seed changes', () => {
+    const firstContext = createFakeContext();
+    const secondContext = createFakeContext();
+
+    renderContourMeshTextureTile(firstContext as unknown as CanvasRenderingContext2D, 32, 32, 'light', 12345);
+    renderContourMeshTextureTile(secondContext as unknown as CanvasRenderingContext2D, 32, 32, 'light', 54321);
+
+    const firstImageData = firstContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    const secondImageData = secondContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(firstImageData.data)).not.toEqual(Array.from(secondImageData.data));
+  });
+
+  it('renders different image data for light and dark themes', () => {
+    const lightContext = createFakeContext();
+    const darkContext = createFakeContext();
+
+    renderContourMeshTextureTile(lightContext as unknown as CanvasRenderingContext2D, 32, 32, 'light', 12345);
+    renderContourMeshTextureTile(darkContext as unknown as CanvasRenderingContext2D, 32, 32, 'dark', 12345);
+
+    const lightImageData = lightContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    const darkImageData = darkContext.putImageData.mock.calls[0]?.[0] as ImageData;
+    expect(Array.from(lightImageData.data)).not.toEqual(Array.from(darkImageData.data));
+  });
+
+  it('fills the backing image data and draws contour strokes during rendering', () => {
+    const context = createFakeContext();
+
+    renderContourMeshTextureTile(context as unknown as CanvasRenderingContext2D, 24, 24, 'light', 12345);
+
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 24, 24);
+    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 24, 24);
+    expect(context.createImageData).toHaveBeenCalledWith(24, 24);
+    expect(context.putImageData).toHaveBeenCalledWith(expect.objectContaining({ width: 24, height: 24 }), 0, 0);
+    expect(context.stroke).toHaveBeenCalled();
+
+    const imageData = context.putImageData.mock.calls[0]?.[0] as ImageData;
+    const uniqueAlphaValues = new Set(Array.from(imageData.data).filter((_, index) => (index % 4) === 3));
+    expect(uniqueAlphaValues).toEqual(new Set([255]));
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {
