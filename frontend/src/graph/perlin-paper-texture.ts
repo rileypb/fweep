@@ -14,6 +14,7 @@ export {
 };
 
 export const PAPER_TEXTURE_GENERATOR_VERSION = 1;
+export const PAPER_TEXTURE_RENDER_SCALE = 3;
 
 export interface PaperTextureTileRequest {
   readonly mapId: string;
@@ -132,11 +133,11 @@ export async function drawPaperTexture(
   }
 
   const tile = await ensurePaperTextureTile(request);
-  const pattern = context.createPattern(tile.canvas, 'repeat');
-  if (!pattern) {
-    return;
-  }
+  const scaledTileSize = PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE;
 
-  context.fillStyle = pattern;
-  context.fillRect(0, 0, width, height);
+  for (let y = 0; y < height; y += scaledTileSize) {
+    for (let x = 0; x < width; x += scaledTileSize) {
+      context.drawImage(tile.canvas, x, y, scaledTileSize, scaledTileSize);
+    }
+  }
 }

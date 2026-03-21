@@ -72,6 +72,7 @@ import { exportMapJsonToDownload } from '../export/export-json';
 import {
   ensurePaperTextureTileBlob,
   getPaperTextureBaseColor,
+  PAPER_TEXTURE_RENDER_SCALE,
   PAPER_TEXTURE_TILE_SIZE,
 } from '../graph/perlin-paper-texture';
 
@@ -1401,7 +1402,7 @@ export function MapCanvas({
               ? `url("${paperTextureUrl}")`
               : 'none',
             backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
-            backgroundSize: `${PAPER_TEXTURE_TILE_SIZE * zoom}px ${PAPER_TEXTURE_TILE_SIZE * zoom}px`,
+            backgroundSize: `${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px ${PAPER_TEXTURE_TILE_SIZE * PAPER_TEXTURE_RENDER_SCALE * zoom}px`,
           }}
         />
         {showGrid && (
