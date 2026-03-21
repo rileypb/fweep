@@ -4,7 +4,7 @@ import { clamp01, sampleSeamlessFractalNoise, type SeamlessFractalNoiseOptions }
 export type ContourMeshTextureTheme = 'light' | 'dark';
 
 export const CONTOUR_MESH_TILE_SIZE = 512;
-export const CONTOUR_MESH_POINT_COUNT = 220;
+export const CONTOUR_MESH_POINT_COUNT = 420;
 
 interface Rgb {
   readonly r: number;
@@ -15,6 +15,8 @@ interface Rgb {
 interface ThemePalette {
   readonly base: Rgb;
   readonly line: Rgb;
+  readonly waterDeep: Rgb;
+  readonly waterShallow: Rgb;
   readonly fillLow: Rgb;
   readonly fillHigh: Rgb;
   readonly fillDeep: Rgb;
@@ -54,6 +56,7 @@ export interface ContourMeshFace {
   readonly centroid: readonly [number, number];
   readonly fillMix: number;
   readonly elevation: number;
+  readonly isWater: boolean;
 }
 
 export interface ContourMeshTopology {
@@ -71,10 +74,12 @@ interface ContourMeshElevationConfig {
 
 export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
   broad: { cycleX: 1, cycleY: 1, octaves: 1, persistence: 0.5, lacunarity: 2 },
-  detail: { cycleX: 3, cycleY: 3, octaves: 2, persistence: 0.5, lacunarity: 2 },
-  detailWeight: 0.18,
+  detail: { cycleX: 1, cycleY: 1, octaves: 2, persistence: 0.5, lacunarity: 2 },
+  detailWeight: 0.08,
   gamma: 1.15,
 };
+
+export const CONTOUR_MESH_WATER_LEVEL = 44;
 
 function halton(index: number, base: number): number {
   let result = 0;
@@ -104,6 +109,8 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
     ? {
       base: { r: 40, g: 42, b: 38 },
       line: { r: 116, g: 121, b: 112 },
+      waterDeep: { r: 51, g: 59, b: 91 },
+      waterShallow: { r: 82, g: 88, b: 118 },
       fillDeep: { r: 48, g: 50, b: 45 },
       fillLow: { r: 58, g: 61, b: 55 },
       fillHigh: { r: 82, g: 86, b: 79 },
@@ -111,6 +118,8 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
     : {
       base: { r: 232, g: 227, b: 208 },
       line: { r: 123, g: 111, b: 84 },
+      waterDeep: { r: 103, g: 108, b: 178 },
+      waterShallow: { r: 146, g: 147, b: 192 },
       fillDeep: { r: 177, g: 170, b: 149 },
       fillLow: { r: 223, g: 218, b: 201 },
       fillHigh: { r: 197, g: 190, b: 170 },
@@ -300,6 +309,7 @@ export function generateContourMeshTopology(
           ],
           fillMix,
           elevation: Math.min(...vertexElevations),
+          isWater: Math.min(...vertexElevations) < CONTOUR_MESH_WATER_LEVEL,
         });
       }
     }
@@ -368,8 +378,16 @@ export function renderContourMeshTextureTile(
   context.strokeStyle = toCssRgb(palette.line);
 
   for (const face of topology.faces) {
-    const fillBase = mixRgb(palette.fillDeep, palette.fillLow, clamp01(face.elevation / 45));
-    const fill = mixRgb(fillBase, palette.fillHigh, clamp01((face.elevation - 20) / 80));
+    const fill = face.isWater
+      ? mixRgb(
+        palette.waterDeep,
+        palette.waterShallow,
+        clamp01(face.elevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1)),
+      )
+      : (() => {
+        const fillBase = mixRgb(palette.fillDeep, palette.fillLow, clamp01((face.elevation - CONTOUR_MESH_WATER_LEVEL) / 30));
+        return mixRgb(fillBase, palette.fillHigh, clamp01((face.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
+      })();
     context.beginPath();
     context.moveTo(face.vertices[0][0] * width, face.vertices[0][1] * height);
     context.lineTo(face.vertices[1][0] * width, face.vertices[1][1] * height);

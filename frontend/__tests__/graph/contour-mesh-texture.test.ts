@@ -2,6 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 import {
   CONTOUR_MESH_POINT_COUNT,
   CONTOUR_MESH_TILE_SIZE,
+  CONTOUR_MESH_WATER_LEVEL,
   generateContourMeshBasePoints,
   generateContourMeshTopology,
   generateContourMeshTriangles,
@@ -55,6 +56,7 @@ describe('contour-mesh-texture', () => {
       expect(face.edgeIds).toHaveLength(3);
       expect(face.elevation).toBeGreaterThanOrEqual(0);
       expect(face.elevation).toBeLessThanOrEqual(100);
+      expect(face.isWater).toBe(face.elevation < CONTOUR_MESH_WATER_LEVEL);
     }
   });
 
@@ -79,6 +81,13 @@ describe('contour-mesh-texture', () => {
       const cornerElevations = face.vertexIds.map((vertexId) => verticesById.get(vertexId)?.elevation ?? -1);
       expect(face.elevation).toBe(Math.min(...cornerElevations));
     }
+  });
+
+  it('classifies both land and water faces from the shared elevation field', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(topology.faces.some((face) => face.isWater)).toBe(true);
+    expect(topology.faces.some((face) => !face.isWater)).toBe(true);
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {
