@@ -91,6 +91,90 @@ body {
   background-color: var(--app-chrome-rail-background);
 }
 
+body.app-shell--resizing-side-panel {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.app-parchment-panel {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 11;
+  display: flex;
+  pointer-events: none;
+}
+
+.app-parchment-panel__resize-handle {
+  pointer-events: auto;
+  position: absolute;
+  left: -0.8rem;
+  top: 0;
+  bottom: 0;
+  width: 1rem;
+  cursor: ew-resize;
+  outline: none;
+}
+
+.app-parchment-panel__resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  width: 0.28rem;
+  height: 4rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.app-parchment-panel__resize-handle:hover::before,
+.app-parchment-panel__resize-handle:focus-visible::before {
+  background: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.app-parchment-panel__frame {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+:root[data-theme='dark'] .app-parchment-panel__frame {
+  background: rgba(17, 24, 39, 0.9);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+}
+
+.app-parchment-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.5rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.app-parchment-panel__iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+}
+
 .app-cli-stack {
   position: fixed;
   left: var(--app-cli-stack-left);

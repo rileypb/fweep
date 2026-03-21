@@ -29,6 +29,7 @@ interface UseMapCanvasRoomFocusParams {
   readonly setMapPanOffset: (position: Position) => void;
   readonly mapVisualStyle: MapVisualStyle;
   readonly visibleMapLeftInset: number;
+  readonly visibleMapRightInset: number;
   readonly startAutoPanAnimation: () => void;
   readonly setStickyNoteEditorId: React.Dispatch<React.SetStateAction<string | null>>;
   readonly setConnectionEditorId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -57,6 +58,7 @@ export function useMapCanvasRoomFocus({
   setMapPanOffset,
   mapVisualStyle,
   visibleMapLeftInset,
+  visibleMapRightInset,
   startAutoPanAnimation,
   setStickyNoteEditorId,
   setConnectionEditorId,
@@ -80,7 +82,7 @@ export function useMapCanvasRoomFocus({
     const roomGeometry = getRoomScreenGeometry(room, panOffsetRef.current, nextCanvasRect, zoomRef.current, mapVisualStyle);
     const roomCenterX = roomGeometry.centerX - nextCanvasRect.left;
     const roomTopY = roomGeometry.top - nextCanvasRect.top;
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - visibleMapRightInset, 0);
     const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
 
     startAutoPanAnimation();
@@ -88,7 +90,7 @@ export function useMapCanvasRoomFocus({
       x: prev.x + (visibleCenterX - roomCenterX),
       y: prev.y + ((canvasHeight / 3) - roomTopY),
     }));
-  }, [canvasRef, mapVisualStyle, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRef, mapVisualStyle, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
 
   const panToRoomEditorPosition = useCallback((roomId: string) => {
     const room = useEditorStore.getState().doc?.rooms[roomId];
@@ -129,7 +131,7 @@ export function useMapCanvasRoomFocus({
     const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
     const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
     const roomCenterY = (roomGeometry.top - (currentCanvasRect?.top ?? 0)) + (roomGeometry.height / 2);
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - visibleMapRightInset, 0);
     const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
 
     if (canvasWidth === 0 && canvasHeight === 0) {
@@ -144,7 +146,7 @@ export function useMapCanvasRoomFocus({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRect, canvasRef, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
 
   const centerRoomsOnScreen = useCallback((targetRooms: readonly Room[]) => {
     if (targetRooms.length === 0) {
@@ -168,7 +170,7 @@ export function useMapCanvasRoomFocus({
     const groupRight = Math.max(...screenBounds.map((room) => (room.left - (currentCanvasRect?.left ?? 0)) + room.width));
     const groupTop = Math.min(...screenBounds.map((room) => room.top - (currentCanvasRect?.top ?? 0)));
     const groupBottom = Math.max(...screenBounds.map((room) => (room.top - (currentCanvasRect?.top ?? 0)) + room.height));
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset, 0);
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - visibleMapRightInset, 0);
     const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
     const groupCenterX = (groupLeft + groupRight) / 2;
     const groupCenterY = (groupTop + groupBottom) / 2;
@@ -181,7 +183,7 @@ export function useMapCanvasRoomFocus({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, centerRoomOnScreen, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, zoomRef]);
+  }, [canvasRect, canvasRef, centerRoomOnScreen, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
 
   useLayoutEffect(() => {
     if (requestedRoomEditorRequest === null) {

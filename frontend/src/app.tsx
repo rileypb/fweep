@@ -18,6 +18,12 @@ const QUESTION_SOLID_FULL_PATH = 'M224 224C224 171 267 128 320 128C373 128 416 1
 const BEZIER_CURVE_SOLID_FULL_PATH = 'M296 200L296 152L344 152L344 200L296 200zM288 96C261.5 96 240 117.5 240 144L240 148L121.6 148C111.2 126.7 89.3 112 64 112C28.7 112 0 140.7 0 176C0 211.3 28.7 240 64 240C89.3 240 111.2 225.3 121.6 204L188.5 204C129.6 243.6 89.6 309 84.5 384L80 384C53.5 384 32 405.5 32 432L32 496C32 522.5 53.5 544 80 544L144 544C170.5 544 192 522.5 192 496L192 432C192 405.5 170.5 384 144 384L140.7 384C146.6 317 189.2 260.6 248.2 234.9C256.8 247.6 271.4 256 288 256L352 256C368.6 256 383.1 247.6 391.8 234.9C450.8 260.6 493.4 317 499.3 384L496 384C469.5 384 448 405.5 448 432L448 496C448 522.5 469.5 544 496 544L560 544C586.5 544 608 522.5 608 496L608 432C608 405.5 586.5 384 560 384L555.5 384C550.5 309 510.4 243.6 451.5 204L518.4 204C528.8 225.3 550.7 240 576 240C611.3 240 640 211.3 640 176C640 140.7 611.3 112 576 112C550.7 112 528.8 126.7 518.4 148L400 148L400 144C400 117.5 378.5 96 352 96L288 96zM88 440L136 440L136 488L88 488L88 440zM504 488L504 440L552 440L552 488L504 488z';
 const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
+const PARCHMENT_PANEL_WIDTH_STORAGE_KEY = 'fweep-parchment-panel-width';
+const PARCHMENT_PANEL_DEFAULT_WIDTH_PX = 420;
+const PARCHMENT_PANEL_MIN_WIDTH_PX = 300;
+const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
+const PARCHMENT_PANEL_RIGHT_MARGIN_PX = 16;
+const PARCHMENT_PANEL_HANDLE_OFFSET_PX = 12;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 function isDesktopViewport(): boolean {
@@ -56,6 +62,44 @@ function isWelcomeHotkeyEnabled(): boolean {
   return import.meta.env?.DEV === true || (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ === true;
 }
 
+function getDefaultParchmentPanelWidth(viewportWidth: number): number {
+  return clampParchmentPanelWidth(PARCHMENT_PANEL_DEFAULT_WIDTH_PX, viewportWidth);
+}
+
+function clampParchmentPanelWidth(width: number, viewportWidth: number): number {
+  const maxWidth = Math.max(
+    PARCHMENT_PANEL_MIN_WIDTH_PX,
+    Math.floor(viewportWidth * PARCHMENT_PANEL_MAX_VIEWPORT_RATIO),
+  );
+  return Math.min(Math.max(width, PARCHMENT_PANEL_MIN_WIDTH_PX), maxWidth);
+}
+
+function loadStoredParchmentPanelWidth(viewportWidth: number): number {
+  if (typeof window === 'undefined') {
+    return getDefaultParchmentPanelWidth(viewportWidth);
+  }
+
+  const rawValue = window.localStorage.getItem(PARCHMENT_PANEL_WIDTH_STORAGE_KEY);
+  if (rawValue === null) {
+    return getDefaultParchmentPanelWidth(viewportWidth);
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue)) {
+    return getDefaultParchmentPanelWidth(viewportWidth);
+  }
+
+  return clampParchmentPanelWidth(parsedValue, viewportWidth);
+}
+
+function persistParchmentPanelWidth(width: number): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(PARCHMENT_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
+}
+
 function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
   const currentIndex = MAP_CANVAS_THEMES.indexOf(current);
   if (currentIndex < 0) {
@@ -83,17 +127,25 @@ export function App(): React.JSX.Element {
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
   const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
+  const [parchmentPanelWidth, setParchmentPanelWidth] = useState(() => (
+    typeof window === 'undefined'
+      ? PARCHMENT_PANEL_DEFAULT_WIDTH_PX
+      : loadStoredParchmentPanelWidth(window.innerWidth)
+  ));
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+  const hasOpenMap = activeMap !== null;
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
     : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
       + (cliOutputCollapsedEnabled ? 0 : getAppCliStackWidth(window.innerWidth, rootFontSizePx));
-  const hasOpenMap = activeMap !== null;
+  const visibleMapRightInset = hasOpenMap
+    ? parchmentPanelWidth + PARCHMENT_PANEL_RIGHT_MARGIN_PX + PARCHMENT_PANEL_HANDLE_OFFSET_PX
+    : 0;
   const {
     cliInputRef,
     cliImportInputRef,
@@ -138,6 +190,13 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     const updateViewportAvailability = () => {
       setHasDesktopViewport(isDesktopViewport());
+      setParchmentPanelWidth((current) => {
+        const nextWidth = clampParchmentPanelWidth(current, window.innerWidth);
+        if (nextWidth !== current) {
+          persistParchmentPanelWidth(nextWidth);
+        }
+        return nextWidth;
+      });
     };
 
     updateViewportAvailability();
@@ -145,6 +204,30 @@ export function App(): React.JSX.Element {
     return () => {
       window.removeEventListener('resize', updateViewportAvailability);
     };
+  }, []);
+
+  const beginParchmentPanelResize = useCallback((pointerStartX: number) => {
+    const startWidth = parchmentPanelWidth;
+
+    const handlePointerMove = (event: PointerEvent): void => {
+      const nextWidth = clampParchmentPanelWidth(startWidth + (pointerStartX - event.clientX), window.innerWidth);
+      setParchmentPanelWidth(nextWidth);
+      persistParchmentPanelWidth(nextWidth);
+    };
+
+    const handlePointerUp = (): void => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      document.body.classList.remove('app-shell--resizing-side-panel');
+    };
+
+    document.body.classList.add('app-shell--resizing-side-panel');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  }, [parchmentPanelWidth]);
+
+  useEffect(() => () => {
+    document.body.classList.remove('app-shell--resizing-side-panel');
   }, []);
 
   useEffect(() => {
@@ -390,7 +473,44 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
           </div>
-          <h1 className="app-title">fweep</h1>
+          <h1 className="app-title" style={{ right: `${Math.max(16, visibleMapRightInset)}px` }}>fweep</h1>
+          <div
+            className="app-parchment-panel"
+            style={{ width: `${parchmentPanelWidth}px` }}
+          >
+            <div
+              className="app-parchment-panel__resize-handle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize game panel"
+              tabIndex={0}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                beginParchmentPanelResize(event.clientX);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+                  return;
+                }
+
+                event.preventDefault();
+                const delta = event.key === 'ArrowLeft' ? 32 : -32;
+                const nextWidth = clampParchmentPanelWidth(parchmentPanelWidth + delta, window.innerWidth);
+                setParchmentPanelWidth(nextWidth);
+                persistParchmentPanelWidth(nextWidth);
+              }}
+            />
+            <div className="app-parchment-panel__frame">
+              <div className="app-parchment-panel__header">
+                <span>Parchment</span>
+              </div>
+              <iframe
+                className="app-parchment-panel__iframe"
+                src="/parchment.html"
+                title="Interactive fiction player"
+              />
+            </div>
+          </div>
         </>
       )}
       <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
@@ -409,6 +529,7 @@ export function App(): React.JSX.Element {
             void handleCloseMap();
           }}
           visibleMapLeftInset={visibleMapLeftInset}
+          visibleMapRightInset={visibleMapRightInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}
