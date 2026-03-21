@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppCliPanel } from './components/app-cli-panel';
 import { HelpDialog } from './components/help-dialog';
 import { MapCanvas } from './components/map-canvas';
@@ -24,6 +24,7 @@ const PARCHMENT_PANEL_MIN_WIDTH_PX = 300;
 const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
 const PARCHMENT_PANEL_RIGHT_MARGIN_PX = 16;
 const PARCHMENT_PANEL_HANDLE_OFFSET_PX = 12;
+const PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY = 'Slash';
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 function isDesktopViewport(): boolean {
@@ -135,6 +136,8 @@ export function App(): React.JSX.Element {
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
+  const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
@@ -263,6 +266,131 @@ export function App(): React.JSX.Element {
   const handleRequestedViewportFocusHandled = useCallback((requestId: number) => {
     setRequestedViewportFocusRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
+
+  const focusFweepMain = useCallback((): void => {
+    window.focus();
+
+    const lastFocusedElement = lastFocusedFweepElementRef.current;
+    if (
+      lastFocusedElement !== null
+      && lastFocusedElement.isConnected
+      && lastFocusedElement !== parchmentIframeRef.current
+    ) {
+      lastFocusedElement.focus();
+      return;
+    }
+
+    const mapCanvasElement = document.querySelector('[data-testid="map-canvas"]');
+    if (mapCanvasElement instanceof HTMLElement) {
+      mapCanvasElement.focus();
+      return;
+    }
+
+    cliInputRef.current?.focus();
+  }, [cliInputRef]);
+
+  const focusParchmentPanel = useCallback((): void => {
+    const iframeElement = parchmentIframeRef.current;
+    if (iframeElement === null) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement !== iframeElement) {
+      lastFocusedFweepElementRef.current = activeElement;
+    }
+
+    iframeElement.focus();
+    iframeElement.contentWindow?.focus();
+  }, []);
+
+  const handleParchmentFocusToggle = useCallback((event: KeyboardEvent): void => {
+    if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+      return;
+    }
+
+    event.preventDefault();
+    focusFweepMain();
+  }, [focusFweepMain]);
+
+  useEffect(() => {
+    const handleFocusIn = (event: FocusEvent): void => {
+      if (!(event.target instanceof HTMLElement) || event.target === parchmentIframeRef.current) {
+        return;
+      }
+
+      lastFocusedFweepElementRef.current = event.target;
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasOpenMap) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (document.activeElement === parchmentIframeRef.current) {
+        focusFweepMain();
+        return;
+      }
+
+      focusParchmentPanel();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [focusFweepMain, focusParchmentPanel, hasOpenMap]);
+
+  useEffect(() => {
+    if (!hasOpenMap) {
+      return;
+    }
+
+    const iframeElement = parchmentIframeRef.current;
+    if (iframeElement === null) {
+      return;
+    }
+
+    let cleanup: (() => void) | null = null;
+
+    const registerParchmentShortcut = (): void => {
+      cleanup?.();
+
+      const iframeWindow = iframeElement.contentWindow;
+      const iframeDocument = iframeElement.contentDocument;
+      if (iframeWindow === null || iframeDocument === null) {
+        return;
+      }
+
+      iframeWindow.addEventListener('keydown', handleParchmentFocusToggle, true);
+      iframeDocument.addEventListener('keydown', handleParchmentFocusToggle, true);
+      cleanup = () => {
+        iframeWindow.removeEventListener('keydown', handleParchmentFocusToggle, true);
+        iframeDocument.removeEventListener('keydown', handleParchmentFocusToggle, true);
+      };
+    };
+
+    iframeElement.addEventListener('load', registerParchmentShortcut);
+    registerParchmentShortcut();
+
+    return () => {
+      iframeElement.removeEventListener('load', registerParchmentShortcut);
+      cleanup?.();
+    };
+  }, [handleParchmentFocusToggle, hasOpenMap]);
 
   useEffect(() => {
     if (!isHelpOpen && !isWelcomeOpen) {
@@ -502,9 +630,16 @@ export function App(): React.JSX.Element {
             />
             <div className="app-parchment-panel__frame">
               <div className="app-parchment-panel__header">
-                <span>Parchment</span>
+                <a
+                  href="https://github.com/curiousdannii/parchment"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  PARCHMENT by Dannii Willis
+                </a>
               </div>
               <iframe
+                ref={parchmentIframeRef}
                 className="app-parchment-panel__iframe"
                 src="/parchment.html"
                 title="Interactive fiction player"
