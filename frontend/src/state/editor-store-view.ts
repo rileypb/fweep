@@ -11,6 +11,7 @@ type EditorViewState = Pick<
   | 'mapPanOffset'
   | 'mapZoom'
   | 'mapVisualStyle'
+  | 'mapCanvasTheme'
 >;
 
 type ResettableEditorState = Pick<
@@ -38,7 +39,7 @@ type ResettableEditorState = Pick<
 
 export function patchDocumentView(
   doc: MapDocument,
-  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled' | 'cliOutputCollapsedEnabled'>,
+  state: Pick<EditorState, 'mapPanOffset' | 'mapZoom' | 'mapVisualStyle' | 'mapCanvasTheme' | 'showGridEnabled' | 'snapToGridEnabled' | 'useBezierConnectionsEnabled' | 'cliOutputCollapsedEnabled'>,
 ): MapDocument {
   return {
     ...doc,
@@ -46,6 +47,8 @@ export function patchDocumentView(
       pan: state.mapPanOffset,
       zoom: state.mapZoom,
       visualStyle: state.mapVisualStyle,
+      canvasTheme: state.mapCanvasTheme,
+      textureSeed: doc.view.textureSeed,
       showGrid: state.showGridEnabled,
       snapToGrid: state.snapToGridEnabled,
       useBezierConnections: state.useBezierConnectionsEnabled,
@@ -64,6 +67,7 @@ export function getDefaultEditorViewState(): EditorViewState {
     mapPanOffset: defaultMapView.pan,
     mapZoom: defaultMapView.zoom,
     mapVisualStyle: defaultMapView.visualStyle,
+    mapCanvasTheme: defaultMapView.canvasTheme,
   };
 }
 
@@ -98,6 +102,7 @@ export function getLoadedDocumentState(doc: MapDocument): Pick<EditorState, 'doc
       mapPanOffset: doc.view.pan,
       mapZoom: doc.view.zoom,
       mapVisualStyle: doc.view.visualStyle,
+      mapCanvasTheme: doc.view.canvasTheme,
       showGridEnabled: doc.view.showGrid,
       snapToGridEnabled: doc.view.snapToGrid,
       useBezierConnectionsEnabled: doc.view.useBezierConnections,
@@ -111,6 +116,7 @@ export function getLoadedDocumentState(doc: MapDocument): Pick<EditorState, 'doc
     mapPanOffset: doc.view.pan,
     mapZoom: doc.view.zoom,
     mapVisualStyle: doc.view.visualStyle,
+    mapCanvasTheme: doc.view.canvasTheme,
   };
 }
 

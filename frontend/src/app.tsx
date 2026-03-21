@@ -63,10 +63,12 @@ export function App(): React.JSX.Element {
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
   const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
+  const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
+  const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
@@ -350,6 +352,20 @@ export function App(): React.JSX.Element {
             >
               <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
                 <path d={mapVisualStyle === 'square-classic' ? SHAPES_SOLID_FULL_PATH : SQUARE_REGULAR_FULL_PATH} />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="app-control-button"
+              aria-label="Toggle canvas theme"
+              title="Toggle canvas theme"
+              aria-pressed={mapCanvasTheme === 'paper'}
+              onClick={() => setMapCanvasTheme(mapCanvasTheme === 'default' ? 'paper' : 'default')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
+                <path d="M3 2.5h8.5a2 2 0 0 1 2 2V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V3a.5.5 0 0 1 .5-.5Z" />
+                <path d="M5 6.25c1 .7 2 .7 3 0s2-.7 3 0" />
+                <path d="M5 9c1 .7 2 .7 3 0s2-.7 3 0" />
               </svg>
             </button>
             <ThemeToggle />

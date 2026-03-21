@@ -70,10 +70,9 @@ import {
 import type { ExportScope } from '../export/export-types';
 import { exportMapJsonToDownload } from '../export/export-json';
 import {
-  getCachedPaperTextureChunk,
+  ensurePaperTextureTileBlob,
   getPaperTextureBaseColor,
-  PAPER_TEXTURE_CHUNK_MAP_SIZE,
-  requestPaperTextureChunk,
+  PAPER_TEXTURE_TILE_SIZE,
 } from '../graph/perlin-paper-texture';
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
@@ -290,6 +289,7 @@ export function MapCanvas({
   const persistedPanOffset = useEditorStore((s) => s.mapPanOffset);
   const persistedZoom = useEditorStore((s) => s.mapZoom);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
+  const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const setMapPanOffset = useEditorStore((s) => s.setMapPanOffset);
   const setMapZoom = useEditorStore((s) => s.setMapZoom);
   const setCanvasInteractionMode = useEditorStore((s) => s.setCanvasInteractionMode);
@@ -300,8 +300,8 @@ export function MapCanvas({
   const commitBackgroundStroke = useEditorStore((s) => s.commitBackgroundStroke);
   const suppressCanvasClickRef = useRef(false);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
-  const paperTextureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const paperTextureFrameRef = useRef<number | null>(null);
+  const [paperTextureUrl, setPaperTextureUrl] = useState<string | null>(null);
+  const paperTextureUrlRef = useRef<string | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
   const theme = useDocumentTheme();
   const {
@@ -1305,127 +1305,53 @@ export function MapCanvas({
     isAutoPanning ? 'map-canvas--grid-animated' : '',
   ].filter(Boolean).join(' ');
   useEffect(() => {
-    const paperCanvas = paperTextureCanvasRef.current;
-    const rect = effectiveCanvasRect;
-    if (!paperCanvas || !rect) {
-      return;
-    }
-
-    if (typeof navigator !== 'undefined' && /\bjsdom\b/i.test(navigator.userAgent)) {
-      return;
-    }
-
-    const width = Math.max(1, Math.ceil(rect.width));
-    const height = Math.max(1, Math.ceil(rect.height));
-    if (paperCanvas.width !== width) {
-      paperCanvas.width = width;
-    }
-    if (paperCanvas.height !== height) {
-      paperCanvas.height = height;
-    }
-
-    const context = paperCanvas.getContext('2d');
-    if (!context) {
-      return;
-    }
-
-    if (paperTextureFrameRef.current !== null) {
-      cancelAnimationFrame(paperTextureFrameRef.current);
-      paperTextureFrameRef.current = null;
-    }
-
-    const mapOriginX = (-panOffset.x) / zoom;
-    const mapOriginY = (-panOffset.y) / zoom;
-    const visibleMapWidth = width / zoom;
-    const visibleMapHeight = height / zoom;
-    const minChunkX = Math.floor(mapOriginX / PAPER_TEXTURE_CHUNK_MAP_SIZE);
-    const minChunkY = Math.floor(mapOriginY / PAPER_TEXTURE_CHUNK_MAP_SIZE);
-    const maxChunkX = Math.floor((mapOriginX + visibleMapWidth) / PAPER_TEXTURE_CHUNK_MAP_SIZE);
-    const maxChunkY = Math.floor((mapOriginY + visibleMapHeight) / PAPER_TEXTURE_CHUNK_MAP_SIZE);
-    const visibleChunks: Array<{ readonly chunkX: number; readonly chunkY: number }> = [];
-
-    for (let chunkY = minChunkY; chunkY <= maxChunkY; chunkY += 1) {
-      for (let chunkX = minChunkX; chunkX <= maxChunkX; chunkX += 1) {
-        visibleChunks.push({ chunkX, chunkY });
+    return () => {
+      if (paperTextureUrlRef.current) {
+        URL.revokeObjectURL(paperTextureUrlRef.current);
+        paperTextureUrlRef.current = null;
       }
-    }
-
-    const paintVisibleChunks = (): number => {
-      context.fillStyle = getPaperTextureBaseColor(theme);
-      context.fillRect(0, 0, width, height);
-      context.imageSmoothingEnabled = false;
-
-      let missingChunkCount = 0;
-      for (const { chunkX, chunkY } of visibleChunks) {
-        const chunkCanvas = getCachedPaperTextureChunk(theme, chunkX, chunkY);
-        if (!chunkCanvas) {
-          missingChunkCount += 1;
-          continue;
-        }
-
-        const chunkLeft = ((chunkX * PAPER_TEXTURE_CHUNK_MAP_SIZE) - mapOriginX) * zoom;
-        const chunkTop = ((chunkY * PAPER_TEXTURE_CHUNK_MAP_SIZE) - mapOriginY) * zoom;
-        const chunkRight = (((chunkX + 1) * PAPER_TEXTURE_CHUNK_MAP_SIZE) - mapOriginX) * zoom;
-        const chunkBottom = (((chunkY + 1) * PAPER_TEXTURE_CHUNK_MAP_SIZE) - mapOriginY) * zoom;
-        const destinationLeft = Math.floor(chunkLeft);
-        const destinationTop = Math.floor(chunkTop);
-        const destinationRight = Math.ceil(chunkRight);
-        const destinationBottom = Math.ceil(chunkBottom);
-
-        context.drawImage(
-          chunkCanvas,
-          destinationLeft,
-          destinationTop,
-          Math.max(1, destinationRight - destinationLeft),
-          Math.max(1, destinationBottom - destinationTop),
-        );
-      }
-
-      return missingChunkCount;
     };
+  }, []);
 
-    paintVisibleChunks();
-
-    const missingChunks = visibleChunks.filter(({ chunkX, chunkY }) => getCachedPaperTextureChunk(theme, chunkX, chunkY) === undefined);
-    if (missingChunks.length === 0) {
+  useEffect(() => {
+    if (
+      typeof navigator !== 'undefined'
+      && /\bjsdom\b/i.test(navigator.userAgent)
+    ) {
       return;
     }
 
-    let nextMissingChunkIndex = 0;
-    let isCancelled = false;
-    const generateNextChunkBatch = (): void => {
-      if (isCancelled) {
+    if (!doc || mapCanvasTheme !== 'paper') {
+      if (paperTextureUrlRef.current) {
+        URL.revokeObjectURL(paperTextureUrlRef.current);
+        paperTextureUrlRef.current = null;
+      }
+      setPaperTextureUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    void ensurePaperTextureTileBlob({
+      mapId: doc.metadata.id,
+      textureSeed: doc.view.textureSeed,
+      theme,
+    }).then((blob) => {
+      if (cancelled) {
         return;
       }
 
-      const batchEnd = Math.min(nextMissingChunkIndex + 4, missingChunks.length);
-      for (; nextMissingChunkIndex < batchEnd; nextMissingChunkIndex += 1) {
-        const missingChunk = missingChunks[nextMissingChunkIndex];
-        void requestPaperTextureChunk(theme, missingChunk.chunkX, missingChunk.chunkY).then(() => {
-          if (isCancelled) {
-            return;
-          }
-          paintVisibleChunks();
-        }).catch(() => {});
+      const nextUrl = URL.createObjectURL(blob);
+      if (paperTextureUrlRef.current) {
+        URL.revokeObjectURL(paperTextureUrlRef.current);
       }
-
-      if (nextMissingChunkIndex < missingChunks.length) {
-        paperTextureFrameRef.current = requestAnimationFrame(generateNextChunkBatch);
-      } else {
-        paperTextureFrameRef.current = null;
-      }
-    };
-
-    paperTextureFrameRef.current = requestAnimationFrame(generateNextChunkBatch);
+      paperTextureUrlRef.current = nextUrl;
+      setPaperTextureUrl(nextUrl);
+    }).catch(() => {});
 
     return () => {
-      isCancelled = true;
-      if (paperTextureFrameRef.current !== null) {
-        cancelAnimationFrame(paperTextureFrameRef.current);
-        paperTextureFrameRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [effectiveCanvasRect, panOffset.x, panOffset.y, theme, zoom]);
+  }, [doc, mapCanvasTheme, theme]);
 
   return (
     <div
@@ -1463,13 +1389,19 @@ export function MapCanvas({
             backgroundRevision={backgroundRevision}
           />
         )}
-        <canvas
-          ref={paperTextureCanvasRef}
+        <div
           className="map-canvas-paper-layer"
           data-testid="map-canvas-paper-layer"
           aria-hidden="true"
           style={{
-            backgroundColor: getPaperTextureBaseColor(theme),
+            backgroundColor: mapCanvasTheme === 'paper'
+              ? getPaperTextureBaseColor(theme)
+              : (theme === 'dark' ? '#282828' : '#ffffff'),
+            backgroundImage: mapCanvasTheme === 'paper' && paperTextureUrl
+              ? `url("${paperTextureUrl}")`
+              : 'none',
+            backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
+            backgroundSize: `${PAPER_TEXTURE_TILE_SIZE * zoom}px ${PAPER_TEXTURE_TILE_SIZE * zoom}px`,
           }}
         />
         {showGrid && (

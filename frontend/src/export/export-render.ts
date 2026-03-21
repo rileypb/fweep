@@ -58,7 +58,7 @@ import { listBackgroundChunksInBounds } from '../storage/map-store';
 import type { ExportRegion, ExportRenderInput } from './export-types';
 import { validateExportBounds } from './export-bounds';
 
-const LIGHT_CANVAS_BACKGROUND = '#eeeeee';
+const LIGHT_CANVAS_BACKGROUND = '#ffffff';
 const DARK_CANVAS_BACKGROUND = '#282828';
 const LIGHT_GRID_COLOR = 'rgba(0, 0, 0, 0.07)';
 const DARK_GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
@@ -1019,7 +1019,16 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
   }
 
   if (input.settings.background === 'theme-canvas') {
-    drawPaperTexture(context, outputWidth, outputHeight, input.theme);
+    if (input.doc.view.canvasTheme === 'paper') {
+      await drawPaperTexture(context, outputWidth, outputHeight, input.theme, {
+        mapId: input.doc.metadata.id,
+        textureSeed: input.doc.view.textureSeed,
+        theme: input.theme,
+      });
+    } else {
+      context.fillStyle = getCanvasBackground(input.theme);
+      context.fillRect(0, 0, outputWidth, outputHeight);
+    }
   } else if (input.settings.background === 'white') {
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, outputWidth, outputHeight);

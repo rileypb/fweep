@@ -1,258 +1,129 @@
+import { blobToCanvas, canvasToBlob, createSizedCanvas } from '../components/map-background-raster';
+import { loadTextureTile, saveTextureTile, type TextureTileLocation } from '../storage/map-store';
 import {
-  generatePaperTexturePixelBuffer,
+  generatePaperTextureTilePixelBuffer,
   getPaperTextureBaseColor,
-  PAPER_TEXTURE_CHUNK_MAP_SIZE,
-  type PaperTextureRenderOptions,
+  PAPER_TEXTURE_TILE_SIZE,
   type PaperTextureTheme,
 } from './perlin-paper-texture-core';
 
 export {
   getPaperTextureBaseColor,
-  PAPER_TEXTURE_CHUNK_MAP_SIZE,
-  type PaperTextureRenderOptions,
+  PAPER_TEXTURE_TILE_SIZE,
   type PaperTextureTheme,
 };
 
-export const RUNTIME_PAPER_TEXTURE_SEED = Math.floor(Math.random() * 0x7fffffff);
+export const PAPER_TEXTURE_GENERATOR_VERSION = 1;
 
-const MAX_CACHED_PAPER_TEXTURE_CHUNKS = 192;
-type CachedPaperTextureChunk = HTMLCanvasElement | null;
-
-interface PaperTextureWorkerRequest {
-  readonly requestId: number;
-  readonly seed: number;
+export interface PaperTextureTileRequest {
+  readonly mapId: string;
+  readonly textureSeed: number;
   readonly theme: PaperTextureTheme;
-  readonly chunkX: number;
-  readonly chunkY: number;
 }
 
-interface PaperTextureWorkerResponse {
-  readonly requestId: number;
-  readonly theme: PaperTextureTheme;
-  readonly chunkX: number;
-  readonly chunkY: number;
-  readonly width: number;
-  readonly height: number;
-  readonly data: Uint8ClampedArray;
+interface CachedPaperTextureTile {
+  readonly blob: Blob;
+  readonly canvas: HTMLCanvasElement;
 }
 
-const paperTextureChunkCache = new Map<string, CachedPaperTextureChunk>();
-const paperTextureChunkInflightRequests = new Map<string, Promise<CachedPaperTextureChunk>>();
-const pendingWorkerRequests = new Map<number, {
-  readonly theme: PaperTextureTheme;
-  readonly chunkX: number;
-  readonly chunkY: number;
-  readonly resolve: (chunk: CachedPaperTextureChunk) => void;
-  readonly reject: (error: unknown) => void;
-}>();
-let nextPaperTextureWorkerRequestId = 1;
-let paperTextureWorker: Worker | null | undefined;
+const paperTextureTileCache = new Map<string, Promise<CachedPaperTextureTile>>();
 
-function canUseRuntimePaperTextureCanvas(): boolean {
-  if (typeof document === 'undefined') {
-    return false;
-  }
-
-  if (
-    typeof navigator !== 'undefined'
-    && /\bjsdom\b/i.test(navigator.userAgent)
-    && !(
-      globalThis as typeof globalThis & {
-        __FWEEP_ENABLE_TEST_PAPER_TEXTURE_CANVAS__?: boolean;
-      }
-    ).__FWEEP_ENABLE_TEST_PAPER_TEXTURE_CANVAS__
-  ) {
-    return false;
-  }
-
-  return true;
+function getPaperTextureTileLocation(request: PaperTextureTileRequest): TextureTileLocation {
+  return {
+    mapId: request.mapId,
+    canvasTheme: 'paper',
+    themeVariant: request.theme,
+    textureSeed: request.textureSeed,
+    generatorVersion: PAPER_TEXTURE_GENERATOR_VERSION,
+    tileSize: PAPER_TEXTURE_TILE_SIZE,
+  };
 }
 
-function canUsePaperTextureWorker(): boolean {
-  if (!canUseRuntimePaperTextureCanvas()) {
-    return false;
-  }
-
-  if (typeof Worker === 'undefined') {
-    return false;
-  }
-
-  return true;
+function getPaperTextureTileCacheKey(request: PaperTextureTileRequest): string {
+  const location = getPaperTextureTileLocation(request);
+  return [
+    location.mapId,
+    location.canvasTheme,
+    location.themeVariant,
+    location.textureSeed,
+    location.generatorVersion,
+    location.tileSize,
+  ].join(':');
 }
 
-function getPaperTextureChunkCacheKey(theme: PaperTextureTheme, chunkX: number, chunkY: number): string {
-  return `${RUNTIME_PAPER_TEXTURE_SEED}:${theme}:${chunkX}:${chunkY}`;
-}
-
-function trimPaperTextureChunkCache(): void {
-  while (paperTextureChunkCache.size > MAX_CACHED_PAPER_TEXTURE_CHUNKS) {
-    const oldestKey = paperTextureChunkCache.keys().next().value;
-    if (oldestKey === undefined) {
-      return;
-    }
-    paperTextureChunkCache.delete(oldestKey);
-  }
-}
-
-function createPaperTextureChunkCanvas(width: number, height: number, data: Uint8ClampedArray): CachedPaperTextureChunk {
-  if (!canUseRuntimePaperTextureCanvas()) {
-    return null;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+function createPaperTextureTileCanvas(data: Uint8ClampedArray): HTMLCanvasElement {
+  const canvas = createSizedCanvas(PAPER_TEXTURE_TILE_SIZE, PAPER_TEXTURE_TILE_SIZE);
   const context = canvas.getContext('2d');
   if (!context) {
-    return null;
+    throw new Error('Could not create paper texture canvas.');
   }
 
-  const image = context.createImageData(width, height);
+  const image = context.createImageData(PAPER_TEXTURE_TILE_SIZE, PAPER_TEXTURE_TILE_SIZE);
   image.data.set(data);
   context.putImageData(image, 0, 0);
   return canvas;
 }
 
-function storePaperTextureChunk(
-  theme: PaperTextureTheme,
-  chunkX: number,
-  chunkY: number,
-  chunk: CachedPaperTextureChunk,
-): CachedPaperTextureChunk {
-  const key = getPaperTextureChunkCacheKey(theme, chunkX, chunkY);
-  paperTextureChunkCache.set(key, chunk);
-  trimPaperTextureChunkCache();
-  return chunk;
-}
-
-function getPaperTextureWorker(): Worker | null {
-  if (paperTextureWorker !== undefined) {
-    return paperTextureWorker;
-  }
-
-  if (!canUsePaperTextureWorker()) {
-    paperTextureWorker = null;
-    return paperTextureWorker;
-  }
-
-  const worker = new Worker(new URL('./perlin-paper-texture-worker.ts', import.meta.url), { type: 'module' });
-  worker.onmessage = (event: MessageEvent<PaperTextureWorkerResponse>) => {
-    const pending = pendingWorkerRequests.get(event.data.requestId);
-    if (!pending) {
-      return;
-    }
-
-    pendingWorkerRequests.delete(event.data.requestId);
-    const chunk = createPaperTextureChunkCanvas(event.data.width, event.data.height, event.data.data);
-    const storedChunk = storePaperTextureChunk(event.data.theme, event.data.chunkX, event.data.chunkY, chunk);
-    paperTextureChunkInflightRequests.delete(getPaperTextureChunkCacheKey(event.data.theme, event.data.chunkX, event.data.chunkY));
-    pending.resolve(storedChunk);
-  };
-  worker.onerror = (event) => {
-    const error = event.error ?? new Error(event.message);
-    for (const [requestId, pending] of pendingWorkerRequests) {
-      pendingWorkerRequests.delete(requestId);
-      paperTextureChunkInflightRequests.delete(getPaperTextureChunkCacheKey(pending.theme, pending.chunkX, pending.chunkY));
-      pending.reject(error);
-    }
-  };
-  paperTextureWorker = worker;
-  return worker;
-}
-
-export function getCachedPaperTextureChunk(
-  theme: PaperTextureTheme,
-  chunkX: number,
-  chunkY: number,
-): CachedPaperTextureChunk | undefined {
-  const key = getPaperTextureChunkCacheKey(theme, chunkX, chunkY);
-  const cached = paperTextureChunkCache.get(key);
-  if (cached === undefined) {
-    return undefined;
-  }
-
-  paperTextureChunkCache.delete(key);
-  paperTextureChunkCache.set(key, cached);
-  return cached;
-}
-
-export function ensurePaperTextureChunk(
-  theme: PaperTextureTheme,
-  chunkX: number,
-  chunkY: number,
-): CachedPaperTextureChunk {
-  const existing = getCachedPaperTextureChunk(theme, chunkX, chunkY);
-  if (existing !== undefined) {
-    return existing;
-  }
-
-  if (!canUseRuntimePaperTextureCanvas()) {
-    return storePaperTextureChunk(theme, chunkX, chunkY, null);
-  }
-
-  const data = generatePaperTexturePixelBuffer(
-    PAPER_TEXTURE_CHUNK_MAP_SIZE,
-    PAPER_TEXTURE_CHUNK_MAP_SIZE,
-    theme,
-    {
-      mapOriginX: chunkX * PAPER_TEXTURE_CHUNK_MAP_SIZE,
-      mapOriginY: chunkY * PAPER_TEXTURE_CHUNK_MAP_SIZE,
-      pixelsPerMapUnit: 1,
-    },
-    RUNTIME_PAPER_TEXTURE_SEED,
+async function generatePaperTextureTile(request: PaperTextureTileRequest): Promise<CachedPaperTextureTile> {
+  const data = generatePaperTextureTilePixelBuffer(
+    PAPER_TEXTURE_TILE_SIZE,
+    PAPER_TEXTURE_TILE_SIZE,
+    request.theme,
+    request.textureSeed,
   );
-  const chunk = createPaperTextureChunkCanvas(PAPER_TEXTURE_CHUNK_MAP_SIZE, PAPER_TEXTURE_CHUNK_MAP_SIZE, data);
-  return storePaperTextureChunk(theme, chunkX, chunkY, chunk);
+  const canvas = createPaperTextureTileCanvas(data);
+  const blob = await canvasToBlob(canvas);
+  await saveTextureTile(getPaperTextureTileLocation(request), blob);
+  return { blob, canvas };
 }
 
-export function requestPaperTextureChunk(
-  theme: PaperTextureTheme,
-  chunkX: number,
-  chunkY: number,
-): Promise<CachedPaperTextureChunk> {
-  const existing = getCachedPaperTextureChunk(theme, chunkX, chunkY);
-  if (existing !== undefined) {
-    return Promise.resolve(existing);
+async function loadStoredPaperTextureTile(request: PaperTextureTileRequest): Promise<CachedPaperTextureTile | null> {
+  const stored = await loadTextureTile(getPaperTextureTileLocation(request));
+  if (!stored) {
+    return null;
   }
 
-  const key = getPaperTextureChunkCacheKey(theme, chunkX, chunkY);
-  const inflight = paperTextureChunkInflightRequests.get(key);
-  if (inflight) {
-    return inflight;
+  return {
+    blob: stored.blob,
+    canvas: await blobToCanvas(stored.blob),
+  };
+}
+
+async function ensurePaperTextureTile(request: PaperTextureTileRequest): Promise<CachedPaperTextureTile> {
+  const cacheKey = getPaperTextureTileCacheKey(request);
+  const cached = paperTextureTileCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
 
-  const worker = getPaperTextureWorker();
-  if (!worker) {
-    const fallback = Promise.resolve(ensurePaperTextureChunk(theme, chunkX, chunkY));
-    paperTextureChunkInflightRequests.set(key, fallback);
-    fallback.finally(() => {
-      paperTextureChunkInflightRequests.delete(key);
-    }).catch(() => {});
-    return fallback;
-  }
+  const inflight = (async () => {
+    const stored = await loadStoredPaperTextureTile(request);
+    if (stored) {
+      return stored;
+    }
 
-  const promise = new Promise<CachedPaperTextureChunk>((resolve, reject) => {
-    const requestId = nextPaperTextureWorkerRequestId;
-    nextPaperTextureWorkerRequestId += 1;
-    pendingWorkerRequests.set(requestId, { theme, chunkX, chunkY, resolve, reject });
-    const request: PaperTextureWorkerRequest = { requestId, seed: RUNTIME_PAPER_TEXTURE_SEED, theme, chunkX, chunkY };
-    worker.postMessage(request);
+    return generatePaperTextureTile(request);
+  })();
+
+  paperTextureTileCache.set(cacheKey, inflight);
+  inflight.catch(() => {
+    paperTextureTileCache.delete(cacheKey);
   });
-
-  paperTextureChunkInflightRequests.set(key, promise);
-  promise.finally(() => {
-    paperTextureChunkInflightRequests.delete(key);
-  }).catch(() => {});
-  return promise;
+  return inflight;
 }
 
-export function drawPaperTexture(
+export async function ensurePaperTextureTileBlob(request: PaperTextureTileRequest): Promise<Blob> {
+  const tile = await ensurePaperTextureTile(request);
+  return tile.blob;
+}
+
+export async function drawPaperTexture(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   theme: PaperTextureTheme,
-  options: PaperTextureRenderOptions = {},
-): void {
+  request: PaperTextureTileRequest,
+): Promise<void> {
   context.fillStyle = getPaperTextureBaseColor(theme);
   context.fillRect(0, 0, width, height);
 
@@ -260,7 +131,12 @@ export function drawPaperTexture(
     return;
   }
 
-  const image = context.createImageData(width, height);
-  image.data.set(generatePaperTexturePixelBuffer(width, height, theme, options, RUNTIME_PAPER_TEXTURE_SEED));
-  context.putImageData(image, 0, 0);
+  const tile = await ensurePaperTextureTile(request);
+  const pattern = context.createPattern(tile.canvas, 'repeat');
+  if (!pattern) {
+    return;
+  }
+
+  context.fillStyle = pattern;
+  context.fillRect(0, 0, width, height);
 }

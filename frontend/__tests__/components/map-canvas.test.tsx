@@ -88,6 +88,7 @@ describe('MapCanvas', () => {
 
   it('renders the paper texture layer with the parchment base color', () => {
     act(() => {
+      useEditorStore.getState().setMapCanvasTheme('paper');
       useEditorStore.getState().setMapPanOffset({ x: 30, y: 45 });
       useEditorStore.getState().setMapZoom(1.5);
     });
@@ -98,6 +99,14 @@ describe('MapCanvas', () => {
 
     expect(paperLayer).toHaveStyle({
       backgroundColor: 'rgb(236, 227, 199)',
+    });
+  });
+
+  it('uses a white default canvas background when paper mode is off', () => {
+    renderMapCanvas();
+
+    expect(screen.getByTestId('map-canvas-paper-layer')).toHaveStyle({
+      backgroundColor: 'rgb(255, 255, 255)',
     });
   });
 

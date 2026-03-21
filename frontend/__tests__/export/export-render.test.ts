@@ -74,6 +74,8 @@ await jest.unstable_mockModule('../../src/graph/minimap-geometry', async () => {
 
 await jest.unstable_mockModule('../../src/storage/map-store', () => ({
   listBackgroundChunksInBounds: mockListBackgroundChunksInBounds,
+  loadTextureTile: jest.fn(async () => undefined),
+  saveTextureTile: jest.fn(async () => undefined),
 }));
 
 const { renderExportCanvas } = await import('../../src/export/export-render');
@@ -267,7 +269,7 @@ describe('renderExportCanvas', () => {
       }
       return undefined;
     });
-    mockDrawPaperTexture.mockImplementation(() => {});
+    mockDrawPaperTexture.mockImplementation(async () => {});
     mockGetRoomNodeWidth.mockImplementation((roomOrName) => {
       const name = typeof roomOrName === 'string' ? roomOrName : roomOrName.name;
       return Math.max(80, name.length * 10);
@@ -375,13 +377,24 @@ describe('renderExportCanvas', () => {
         view: {
           ...baseInput.doc.view,
           visualStyle: 'default',
+          canvasTheme: 'paper',
         },
       },
     });
 
     expect(rendered).toBe(canvas);
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(1280, 480);
-    expect(mockDrawPaperTexture).toHaveBeenCalledWith(expect.anything(), 1280, 480, 'dark');
+    expect(mockDrawPaperTexture).toHaveBeenCalledWith(
+      expect.anything(),
+      1280,
+      480,
+      'dark',
+      expect.objectContaining({
+        mapId: baseInput.doc.metadata.id,
+        textureSeed: baseInput.doc.view.textureSeed,
+        theme: 'dark',
+      }),
+    );
     expect(context.scale).toHaveBeenCalledWith(2, 2);
     expect(context.drawImage).toHaveBeenCalledTimes(2);
     expect(context.lineTo).toHaveBeenCalled();

@@ -3,6 +3,7 @@ import type {
   BackgroundReferenceImage,
   ConnectionAnnotation,
   Item,
+  MapCanvasTheme,
   MapDocument,
   MapVisualStyle,
   Position,
@@ -282,6 +283,9 @@ export interface EditorState {
 
   /** The persisted visual style for the current map. */
   mapVisualStyle: MapVisualStyle;
+
+  /** The persisted canvas theme for the current map. */
+  mapCanvasTheme: MapCanvasTheme;
 
   /** Active connection drag state, or null when not dragging. */
   connectionDrag: ConnectionDrag | null;
@@ -584,6 +588,9 @@ export interface EditorState {
 
   /** Persist the current map visual style without adding a history entry. */
   setMapVisualStyle: (visualStyle: MapVisualStyle) => void;
+
+  /** Persist the current map canvas theme without adding a history entry. */
+  setMapCanvasTheme: (canvasTheme: MapCanvasTheme) => void;
 
   /** Toggle the persisted CLI output collapse state without adding a history entry. */
   toggleCliOutputCollapsed: () => void;
@@ -1891,6 +1898,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         : state.doc,
       mapVisualStyle: visualStyle,
+      lastHistoryMergeKey: null,
+    }));
+  },
+
+  setMapCanvasTheme: (canvasTheme) => {
+    set((state) => ({
+      doc: state.doc
+        ? {
+          ...state.doc,
+          view: {
+            ...state.doc.view,
+            canvasTheme,
+          },
+        }
+        : state.doc,
+      mapCanvasTheme: canvasTheme,
       lastHistoryMergeKey: null,
     }));
   },

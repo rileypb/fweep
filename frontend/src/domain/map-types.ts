@@ -23,6 +23,8 @@ export interface MapView {
   readonly pan: Position;
   readonly zoom: number;
   readonly visualStyle: MapVisualStyle;
+  readonly canvasTheme: MapCanvasTheme;
+  readonly textureSeed: number;
   readonly showGrid: boolean;
   readonly snapToGrid: boolean;
   readonly useBezierConnections: boolean;
@@ -31,6 +33,8 @@ export interface MapView {
 
 export const MAP_VISUAL_STYLES = ['default', 'square-classic'] as const;
 export type MapVisualStyle = (typeof MAP_VISUAL_STYLES)[number];
+export const MAP_CANVAS_THEMES = ['default', 'paper'] as const;
+export type MapCanvasTheme = (typeof MAP_CANVAS_THEMES)[number];
 
 /* ---- Background ---- */
 
@@ -171,7 +175,7 @@ export interface MapDocument {
 }
 
 /** Current schema version for new maps. */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 function getBuildMetadataValue(key: 'VITE_BUILD_RELEASE' | 'VITE_BUILD_SERIAL'): string | undefined {
   const viteValue = import.meta.env?.[key];
