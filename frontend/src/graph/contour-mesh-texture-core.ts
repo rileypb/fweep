@@ -65,6 +65,19 @@ export interface ContourMeshTopology {
   readonly faces: readonly ContourMeshFace[];
 }
 
+export interface ContourMeshSubdivisionPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly elevation: number;
+}
+
+export interface ContourMeshEdgeSubdivision {
+  readonly edgeId: string;
+  readonly vertexIds: readonly [string, string];
+  readonly diff: number;
+  readonly points: readonly ContourMeshSubdivisionPoint[];
+}
+
 interface ContourMeshElevationConfig {
   readonly broad: SeamlessFractalNoiseOptions;
   readonly detail: SeamlessFractalNoiseOptions;
@@ -357,6 +370,52 @@ export function generateContourMeshTriangles(
     vertices: face.vertices,
     fillMix: face.elevation / 100,
   }));
+}
+
+export function generateContourMeshEdgeSubdivisions(
+  topology: ContourMeshTopology,
+): readonly ContourMeshEdgeSubdivision[] {
+  const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+
+  return topology.edges.map((edge) => {
+    const start = verticesById.get(edge.vertexIds[0]);
+    const end = verticesById.get(edge.vertexIds[1]);
+    if (!start || !end) {
+      return {
+        edgeId: edge.id,
+        vertexIds: edge.vertexIds,
+        diff: 0,
+        points: [],
+      };
+    }
+
+    const diff = end.elevation - start.elevation;
+    const steps = Math.abs(diff);
+    const points: ContourMeshSubdivisionPoint[] = [];
+
+    if (steps === 0) {
+      points.push(
+        { x: start.x, y: start.y, elevation: start.elevation },
+        { x: end.x, y: end.y, elevation: end.elevation },
+      );
+    } else {
+      for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        points.push({
+          x: start.x + ((end.x - start.x) * t),
+          y: start.y + ((end.y - start.y) * t),
+          elevation: diff > 0 ? start.elevation + step : start.elevation - step,
+        });
+      }
+    }
+
+    return {
+      edgeId: edge.id,
+      vertexIds: edge.vertexIds,
+      diff,
+      points,
+    };
+  });
 }
 
 export function renderContourMeshTextureTile(

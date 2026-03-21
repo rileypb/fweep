@@ -4,6 +4,7 @@ import {
   CONTOUR_MESH_TILE_SIZE,
   CONTOUR_MESH_WATER_LEVEL,
   generateContourMeshBasePoints,
+  generateContourMeshEdgeSubdivisions,
   generateContourMeshTopology,
   generateContourMeshTriangles,
   getContourMeshBaseColor,
@@ -88,6 +89,44 @@ describe('contour-mesh-texture', () => {
 
     expect(topology.faces.some((face) => face.isWater)).toBe(true);
     expect(topology.faces.some((face) => !face.isWater)).toBe(true);
+  });
+
+  it('builds deterministic edge subdivisions from the topology', () => {
+    const topology = generateContourMeshTopology(12345);
+
+    expect(generateContourMeshEdgeSubdivisions(topology)).toEqual(generateContourMeshEdgeSubdivisions(topology));
+  });
+
+  it('subdivides edges at each integer elevation crossing', () => {
+    const topology = generateContourMeshTopology(12345);
+    const verticesById = new Map(topology.vertices.map((vertex) => [vertex.id, vertex]));
+    const subdivisions = generateContourMeshEdgeSubdivisions(topology);
+
+    expect(subdivisions.length).toBe(topology.edges.length);
+    expect(subdivisions.some((subdivision) => Math.abs(subdivision.diff) > 1)).toBe(true);
+
+    for (const subdivision of subdivisions.slice(0, 50)) {
+      const start = verticesById.get(subdivision.vertexIds[0]);
+      const end = verticesById.get(subdivision.vertexIds[1]);
+      expect(start).toBeDefined();
+      expect(end).toBeDefined();
+      expect(subdivision.points.length).toBe(Math.max(Math.abs(subdivision.diff), 1) + 1);
+
+      if (!start || !end) {
+        continue;
+      }
+
+      expect(subdivision.points[0]).toEqual({
+        x: start.x,
+        y: start.y,
+        elevation: start.elevation,
+      });
+      expect(subdivision.points[subdivision.points.length - 1]).toEqual({
+        x: end.x,
+        y: end.y,
+        elevation: end.elevation,
+      });
+    }
   });
 
   it('keeps all rendered triangle vertices in the repeatable neighborhood of the center tile', () => {
