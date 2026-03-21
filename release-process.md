@@ -23,6 +23,7 @@ This release process depends on the migration policy in [migration-process.md](/
 ## Release workflow
 When preparing `release vN`:
 
+0. Fetch the git history to ensure the release branch is up to date with `main` and the diff is accurate.
 1. Review `main...vN` to understand exactly what will ship.
 2. Audit persisted-data impact:
    - for `v2`, verify that the existing implicit compatibility behavior is sufficient
