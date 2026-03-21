@@ -120,6 +120,7 @@ export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
 
 export const CONTOUR_MESH_WATER_LEVEL = 48;
 export const CONTOUR_MESH_CONTOUR_INTERVAL = 4;
+const CONTOUR_MESH_WATER_DEPTH_GAMMA = 1.6;
 const CONTOUR_MESH_LIGHT_VECTOR = (() => {
   const x = -1;
   const y = -1;
@@ -169,8 +170,8 @@ function getPalette(theme: ContourMeshTextureTheme): ThemePalette {
       line: { r: 123, g: 111, b: 84 },
       contourLand: { r: 245, g: 243, b: 234 },
       contourWater: { r: 41, g: 38, b: 57 },
-      waterDeep: { r: 103, g: 108, b: 178 },
-      waterShallow: { r: 146, g: 147, b: 192 },
+      waterDeep: { r: 82, g: 88, b: 161 },
+      waterShallow: { r: 157, g: 158, b: 201 },
       fillDeep: { r: 177, g: 170, b: 149 },
       fillLow: { r: 223, g: 218, b: 201 },
       fillHigh: { r: 197, g: 190, b: 170 },
@@ -195,6 +196,11 @@ function scaleRgb(color: Rgb, factor: number): Rgb {
 
 function toCssRgb(color: Rgb): string {
   return `rgb(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)})`;
+}
+
+function getWaterDepthMix(elevation: number): number {
+  const normalizedElevation = clamp01(elevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1));
+  return Math.pow(normalizedElevation, CONTOUR_MESH_WATER_DEPTH_GAMMA);
 }
 
 function coordinateKey(value: number): string {
@@ -740,6 +746,122 @@ function fillPolygon(
   context.fill();
 }
 
+function getContourMeshSubfaceFillColor(
+  subface: ContourMeshSubface,
+  palette: ThemePalette,
+): Rgb {
+  const baseFill = subface.isWater
+    ? mixRgb(
+      palette.waterDeep,
+      palette.waterShallow,
+      getWaterDepthMix(subface.elevation),
+    )
+    : (() => {
+      const landBase = mixRgb(
+        palette.fillDeep,
+        palette.fillLow,
+        clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL) / 30),
+      );
+      return mixRgb(landBase, palette.fillHigh, clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
+    })();
+
+  return subface.isWater
+    ? baseFill
+    : scaleRgb(baseFill, calculateContourMeshSubfaceLighting(subface));
+}
+
+function fillImageData(data: Uint8ClampedArray, color: Rgb): void {
+  const red = Math.round(color.r);
+  const green = Math.round(color.g);
+  const blue = Math.round(color.b);
+
+  for (let index = 0; index < data.length; index += 4) {
+    data[index] = red;
+    data[index + 1] = green;
+    data[index + 2] = blue;
+    data[index + 3] = 255;
+  }
+}
+
+function writePixel(data: Uint8ClampedArray, width: number, x: number, y: number, color: Rgb): void {
+  const offset = ((y * width) + x) * 4;
+  data[offset] = Math.round(color.r);
+  data[offset + 1] = Math.round(color.g);
+  data[offset + 2] = Math.round(color.b);
+  data[offset + 3] = 255;
+}
+
+function getBarycentricWeights(
+  point: readonly [number, number],
+  a: readonly [number, number],
+  b: readonly [number, number],
+  c: readonly [number, number],
+): readonly [number, number, number] | null {
+  const denominator = ((b[1] - c[1]) * (a[0] - c[0])) + ((c[0] - b[0]) * (a[1] - c[1]));
+  if (Math.abs(denominator) < 1e-8) {
+    return null;
+  }
+
+  const w1 = (((b[1] - c[1]) * (point[0] - c[0])) + ((c[0] - b[0]) * (point[1] - c[1]))) / denominator;
+  const w2 = (((c[1] - a[1]) * (point[0] - c[0])) + ((a[0] - c[0]) * (point[1] - c[1]))) / denominator;
+  const w3 = 1 - w1 - w2;
+  return [w1, w2, w3];
+}
+
+function mixVertexColors(
+  first: Rgb,
+  second: Rgb,
+  third: Rgb,
+  weights: readonly [number, number, number],
+): Rgb {
+  return {
+    r: (first.r * weights[0]) + (second.r * weights[1]) + (third.r * weights[2]),
+    g: (first.g * weights[0]) + (second.g * weights[1]) + (third.g * weights[2]),
+    b: (first.b * weights[0]) + (second.b * weights[1]) + (third.b * weights[2]),
+  };
+}
+
+function drawInterpolatedTriangleToImageData(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  vertices: readonly [readonly [number, number], readonly [number, number], readonly [number, number]],
+  colors: readonly [Rgb, Rgb, Rgb],
+): void {
+  const scaledVertices = [
+    [vertices[0][0] * width, vertices[0][1] * height] as const,
+    [vertices[1][0] * width, vertices[1][1] * height] as const,
+    [vertices[2][0] * width, vertices[2][1] * height] as const,
+  ] as const;
+
+  const minX = Math.max(0, Math.floor(Math.min(scaledVertices[0][0], scaledVertices[1][0], scaledVertices[2][0])));
+  const maxX = Math.min(width - 1, Math.ceil(Math.max(scaledVertices[0][0], scaledVertices[1][0], scaledVertices[2][0])));
+  const minY = Math.max(0, Math.floor(Math.min(scaledVertices[0][1], scaledVertices[1][1], scaledVertices[2][1])));
+  const maxY = Math.min(height - 1, Math.ceil(Math.max(scaledVertices[0][1], scaledVertices[1][1], scaledVertices[2][1])));
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const weights = getBarycentricWeights(
+        [x + 0.5, y + 0.5],
+        scaledVertices[0],
+        scaledVertices[1],
+        scaledVertices[2],
+      );
+
+      if (!weights) {
+        continue;
+      }
+
+      const epsilon = -1e-5;
+      if (weights[0] < epsilon || weights[1] < epsilon || weights[2] < epsilon) {
+        continue;
+      }
+
+      writePixel(data, width, x, y, mixVertexColors(colors[0], colors[1], colors[2], weights));
+    }
+  }
+}
+
 export function renderContourMeshTextureTile(
   context: CanvasRenderingContext2D,
   width: number,
@@ -761,33 +883,50 @@ export function renderContourMeshTextureTile(
 
   const subfaces = generateContourMeshSubfaces(topology);
   if (subfaces.length > 0) {
-    for (const subface of subfaces) {
-      const baseFill = subface.isWater
-        ? mixRgb(
-          palette.waterDeep,
-          palette.waterShallow,
-          clamp01(subface.elevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1)),
-        )
-        : (() => {
-          const landBase = mixRgb(
-            palette.fillDeep,
-            palette.fillLow,
-            clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL) / 30),
-          );
-          return mixRgb(landBase, palette.fillHigh, clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
-        })();
-      const fill = subface.isWater
-        ? baseFill
-        : scaleRgb(baseFill, calculateContourMeshSubfaceLighting(subface));
+    const imageData = context.createImageData(width, height);
+    fillImageData(imageData.data, palette.base);
 
-      context.beginPath();
-      context.moveTo(subface.vertices[0][0] * width, subface.vertices[0][1] * height);
-      context.lineTo(subface.vertices[1][0] * width, subface.vertices[1][1] * height);
-      context.lineTo(subface.vertices[2][0] * width, subface.vertices[2][1] * height);
-      context.closePath();
-      context.fillStyle = toCssRgb(fill);
-      context.fill();
+    const colorSumsByVertexKey = new Map<string, { r: number; g: number; b: number; count: number }>();
+    for (const subface of subfaces) {
+      const fill = getContourMeshSubfaceFillColor(subface, palette);
+      for (const [x, y] of subface.vertices) {
+        const key = `${subface.isWater ? 'water' : 'land'}:${getVertexId(x, y)}`;
+        const existing = colorSumsByVertexKey.get(key) ?? { r: 0, g: 0, b: 0, count: 0 };
+        existing.r += fill.r;
+        existing.g += fill.g;
+        existing.b += fill.b;
+        existing.count += 1;
+        colorSumsByVertexKey.set(key, existing);
+      }
     }
+
+    const averagedColorsByVertexKey = new Map<string, Rgb>();
+    for (const [key, sum] of colorSumsByVertexKey.entries()) {
+      averagedColorsByVertexKey.set(key, {
+        r: sum.r / sum.count,
+        g: sum.g / sum.count,
+        b: sum.b / sum.count,
+      });
+    }
+
+    for (const subface of subfaces) {
+      const fallbackColor = getContourMeshSubfaceFillColor(subface, palette);
+      const colors = [
+        averagedColorsByVertexKey.get(`${subface.isWater ? 'water' : 'land'}:${getVertexId(subface.vertices[0][0], subface.vertices[0][1])}`) ?? fallbackColor,
+        averagedColorsByVertexKey.get(`${subface.isWater ? 'water' : 'land'}:${getVertexId(subface.vertices[1][0], subface.vertices[1][1])}`) ?? fallbackColor,
+        averagedColorsByVertexKey.get(`${subface.isWater ? 'water' : 'land'}:${getVertexId(subface.vertices[2][0], subface.vertices[2][1])}`) ?? fallbackColor,
+      ] as const;
+
+      drawInterpolatedTriangleToImageData(
+        imageData.data,
+        width,
+        height,
+        subface.vertices,
+        colors,
+      );
+    }
+
+    context.putImageData(imageData, 0, 0);
   } else {
     for (const face of topology.faces) {
       const polygons = getContourMeshFaceFillPolygons(face, verticesById);
@@ -801,7 +940,7 @@ export function renderContourMeshTextureTile(
           mixRgb(
             palette.waterDeep,
             palette.waterShallow,
-            clamp01(polygons.water.averageElevation / Math.max(CONTOUR_MESH_WATER_LEVEL, 1)),
+            getWaterDepthMix(polygons.water.averageElevation),
           ),
         );
       }
@@ -821,15 +960,6 @@ export function renderContourMeshTextureTile(
         );
       }
     }
-  }
-
-  for (const face of topology.faces) {
-    context.beginPath();
-    context.moveTo(face.vertices[0][0] * width, face.vertices[0][1] * height);
-    context.lineTo(face.vertices[1][0] * width, face.vertices[1][1] * height);
-    context.lineTo(face.vertices[2][0] * width, face.vertices[2][1] * height);
-    context.closePath();
-    context.stroke();
   }
 
   const contourSegments = generateContourMeshContourSegments(topology);
