@@ -91,6 +91,7 @@ export interface ContourMeshSubface {
   readonly elevation: number;
   readonly isWater: boolean;
   readonly vertices: readonly [readonly [number, number], readonly [number, number], readonly [number, number]];
+  readonly elevations: readonly [number, number, number];
 }
 
 export interface ContourMeshFillPolygon {
@@ -117,8 +118,15 @@ export const CONTOUR_MESH_ELEVATION_CONFIG: ContourMeshElevationConfig = {
   gamma: 1.15,
 };
 
-export const CONTOUR_MESH_WATER_LEVEL = 44;
+export const CONTOUR_MESH_WATER_LEVEL = 48;
 export const CONTOUR_MESH_CONTOUR_INTERVAL = 4;
+const CONTOUR_MESH_LIGHT_VECTOR = (() => {
+  const x = -1;
+  const y = -1;
+  const z = 0.3;
+  const length = Math.hypot(x, y, z) || 1;
+  return { x: x / length, y: y / length, z: z / length };
+})();
 
 function halton(index: number, base: number): number {
   let result = 0;
@@ -174,6 +182,14 @@ function mixRgb(left: Rgb, right: Rgb, amount: number): Rgb {
     r: left.r + ((right.r - left.r) * amount),
     g: left.g + ((right.g - left.g) * amount),
     b: left.b + ((right.b - left.b) * amount),
+  };
+}
+
+function scaleRgb(color: Rgb, factor: number): Rgb {
+  return {
+    r: color.r * factor,
+    g: color.g * factor,
+    b: color.b * factor,
   };
 }
 
@@ -464,6 +480,34 @@ function toTriangleVertices(
   ] as const;
 }
 
+export function calculateContourMeshSubfaceLighting(subface: ContourMeshSubface): number {
+  const [a, b, c] = subface.vertices;
+  const [za, zb, zc] = subface.elevations;
+
+  const abx = (b[0] - a[0]) * 100;
+  const aby = (b[1] - a[1]) * 100;
+  const abz = zb - za;
+  const acx = (c[0] - a[0]) * 100;
+  const acy = (c[1] - a[1]) * 100;
+  const acz = zc - za;
+
+  let nx = (aby * acz) - (abz * acy);
+  let ny = (abz * acx) - (abx * acz);
+  let nz = (abx * acy) - (aby * acx);
+  if (nz < 0) {
+    nx *= -1;
+    ny *= -1;
+    nz *= -1;
+  }
+
+  const length = Math.hypot(nx, ny, nz) || 1;
+  const dot = ((nx / length) * CONTOUR_MESH_LIGHT_VECTOR.x)
+    + ((ny / length) * CONTOUR_MESH_LIGHT_VECTOR.y)
+    + ((nz / length) * CONTOUR_MESH_LIGHT_VECTOR.z);
+
+  return Math.min(1, Math.max(0, 0.6 + (0.3 * dot)));
+}
+
 export function generateContourMeshSubfaces(
   topology: ContourMeshTopology,
 ): readonly ContourMeshSubface[] {
@@ -510,6 +554,7 @@ export function generateContourMeshSubfaces(
           elevation: band,
           isWater: band < CONTOUR_MESH_WATER_LEVEL,
           vertices,
+          elevations: [first.elevation, second.elevation, third.elevation],
         });
       }
     }
@@ -717,7 +762,7 @@ export function renderContourMeshTextureTile(
   const subfaces = generateContourMeshSubfaces(topology);
   if (subfaces.length > 0) {
     for (const subface of subfaces) {
-      const fill = subface.isWater
+      const baseFill = subface.isWater
         ? mixRgb(
           palette.waterDeep,
           palette.waterShallow,
@@ -731,6 +776,9 @@ export function renderContourMeshTextureTile(
           );
           return mixRgb(landBase, palette.fillHigh, clamp01((subface.elevation - CONTOUR_MESH_WATER_LEVEL - 10) / 50));
         })();
+      const fill = subface.isWater
+        ? baseFill
+        : scaleRgb(baseFill, calculateContourMeshSubfaceLighting(subface));
 
       context.beginPath();
       context.moveTo(subface.vertices[0][0] * width, subface.vertices[0][1] * height);

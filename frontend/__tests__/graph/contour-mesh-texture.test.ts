@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  calculateContourMeshSubfaceLighting,
   CONTOUR_MESH_POINT_COUNT,
   CONTOUR_MESH_CONTOUR_INTERVAL,
   CONTOUR_MESH_TILE_SIZE,
@@ -176,9 +177,26 @@ describe('contour-mesh-texture', () => {
 
     for (const subface of subfaces.slice(0, 80)) {
       expect(subface.vertices).toHaveLength(3);
+      expect(subface.elevations).toHaveLength(3);
       expect(subface.elevation).toBeGreaterThanOrEqual(0);
       expect(subface.elevation).toBeLessThanOrEqual(100);
     }
+  });
+
+  it('computes deterministic bounded lighting for subfaces', () => {
+    const topology = generateContourMeshTopology(12345);
+    const subface = generateContourMeshSubfaces(topology)[0];
+
+    expect(subface).toBeDefined();
+    if (!subface) {
+      return;
+    }
+
+    const first = calculateContourMeshSubfaceLighting(subface);
+    const second = calculateContourMeshSubfaceLighting(subface);
+    expect(first).toBe(second);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThanOrEqual(1);
   });
 
   it('creates contour segments only at interval-aligned elevations above the face floor', () => {
