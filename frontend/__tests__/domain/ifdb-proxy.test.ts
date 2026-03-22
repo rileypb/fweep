@@ -21,6 +21,22 @@ describe('buildIfdbUpstreamUrl', () => {
 
     expect(upstreamUrl).toBe('https://ifdb.org/viewgame?json=&id=abc123');
   });
+
+  it('rejects overly long search queries', () => {
+    const overlyLongQuery = 'a'.repeat(121);
+
+    expect(() => buildIfdbUpstreamUrl(
+      new URL(`http://localhost:5173/api/ifdb/search?query=${overlyLongQuery}`),
+    )).toThrow('Query parameter "query" must be at most 120 characters long.');
+  });
+
+  it('rejects overly long viewgame ids', () => {
+    const overlyLongTuid = 'a'.repeat(65);
+
+    expect(() => buildIfdbUpstreamUrl(
+      new URL(`http://localhost:5173/api/ifdb/viewgame?tuid=${overlyLongTuid}`),
+    )).toThrow('Query parameter "tuid" must be at most 64 characters long.');
+  });
 });
 
 describe('proxyIfdbRequest', () => {
@@ -55,6 +71,27 @@ describe('proxyIfdbRequest', () => {
     expect(response.status).toBe(200);
     expect(response.contentType).toBe('application/json; charset=utf-8');
     expect(JSON.parse(response.body)).toEqual({ games: [] });
+  });
+
+  it('passes an abort signal to the upstream fetch for timeouts', async () => {
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue(
+      {
+        status: 200,
+        headers: {
+          get: () => 'application/json; charset=utf-8',
+        },
+        text: async () => JSON.stringify({ games: [] }),
+      } as unknown as Response,
+    );
+
+    await proxyIfdbRequest(
+      new URL('http://localhost:5173/api/ifdb/search?query=bureau'),
+      fetchMock,
+    );
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      signal: expect.any(Object),
+    });
   });
 
   it('returns a 400 response when the search query is missing', async () => {

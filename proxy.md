@@ -187,6 +187,13 @@ Current proxy guardrails implemented:
   - `IFDB_PROXY_ALLOWED_ORIGINS`
   - comma-separated list, for example: `https://rileypb.github.io`
 - IFDB requests still use the fixed custom `User-Agent` header
+- request validation includes:
+  - `query` max length: `120`
+  - `tuid` max length: `64`
+- upstream IFDB requests use a `5s` timeout signal when available
+- cache headers are returned:
+  - search: `public, s-maxage=300, stale-while-revalidate=600`
+  - viewgame: `public, s-maxage=86400, stale-while-revalidate=604800`
 
 ## Development setup
 

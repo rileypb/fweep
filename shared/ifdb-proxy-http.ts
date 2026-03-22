@@ -54,6 +54,14 @@ function buildCorsHeaders(
   return {};
 }
 
+function buildCacheControlHeader(requestUrl: URL): string {
+  if (requestUrl.pathname === '/api/ifdb/viewgame') {
+    return 'public, s-maxage=86400, stale-while-revalidate=604800';
+  }
+
+  return 'public, s-maxage=300, stale-while-revalidate=600';
+}
+
 export function parseAllowedProxyOrigins(rawValue: string | undefined): readonly string[] {
   if (rawValue === undefined) {
     return [];
@@ -65,6 +73,7 @@ export function parseAllowedProxyOrigins(rawValue: string | undefined): readonly
 export async function handleIfdbProxyHttpRequest(
   request: IfdbProxyHttpRequest,
 ): Promise<IfdbProxyHttpResponse> {
+  const parsedRequestUrl = new URL(request.url, 'http://localhost');
   const allowedOrigins = normalizeAllowedOrigins(request.allowedOrigins ?? []);
   const requestOrigin = request.origin?.trim();
 
@@ -91,7 +100,7 @@ export async function handleIfdbProxyHttpRequest(
   }
 
   const proxyResult: IfdbProxyResult = await proxyIfdbRequest(
-    new URL(request.url, 'http://localhost'),
+    parsedRequestUrl,
     request.fetchImpl,
   );
 
@@ -99,6 +108,7 @@ export async function handleIfdbProxyHttpRequest(
     status: proxyResult.status,
     headers: {
       'content-type': proxyResult.contentType,
+      'cache-control': buildCacheControlHeader(parsedRequestUrl),
       ...corsHeaders,
     },
     body: proxyResult.body,
