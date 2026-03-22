@@ -239,6 +239,7 @@ describe('URL routing', () => {
             tuid: 'abc123',
             title: 'The Example Game',
             author: 'Pat Example',
+            link: 'https://ifdb.org/viewgame?id=abc123',
             coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
             published: {
               machine: '2024-10-15',
@@ -269,6 +270,8 @@ describe('URL routing', () => {
       'https://ifdb.org/coverart?id=abc123&version=4',
     );
     expect(coverArt).toHaveClass('app-parchment-panel__result-cover');
+    const ifdbLink = screen.getByRole('link', { name: /view the example game on IFDB/i });
+    expect(ifdbLink).toHaveAttribute('href', 'https://ifdb.org/viewgame?id=abc123');
   });
 
   it('loads the selected IFDB game into Parchment and persists the association on the map', async () => {
@@ -344,6 +347,117 @@ describe('URL routing', () => {
       storyUrl: 'https://example.com/game.ulx',
       format: 'glulx',
     });
+  });
+
+  it('loads the selected IFDB game when the cover art is clicked', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+              link: 'https://ifdb.org/viewgame?id=abc123',
+              coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Cover Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game via cover art/i }));
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    await waitFor(() => {
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    });
+  });
+
+  it('alerts when an IFDB result has no supported downloadable story file', async () => {
+    const user = userEvent.setup();
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Unsupported Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    expect(alertSpy).toHaveBeenCalledWith('No supported downloadable story file is available for The Example Game.');
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
   });
 
   it('opens a fweep-owned file chooser from the side-panel control', async () => {

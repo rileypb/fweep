@@ -368,7 +368,8 @@ export function App(): React.JSX.Element {
     try {
       const resolvedGame = await viewIfdbGame(tuid);
       if (resolvedGame.storyUrl === null) {
-        setIfdbSearchError(`No supported downloadable story file is available for ${resolvedGame.title}.`);
+        setIfdbSearchError(null);
+        window.alert(`No supported downloadable story file is available for ${resolvedGame.title}.`);
         return;
       }
 
@@ -912,6 +913,14 @@ export function App(): React.JSX.Element {
               {isParchmentGameViewVisible ? (
                 <>
                   <div className="app-parchment-panel__game-header">
+                    <a
+                      className="app-parchment-panel__source-link"
+                      href="https://github.com/curiousdannii/parchment"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Parchment by Dannii Willis
+                    </a>
                     <button
                       type="button"
                       className="app-parchment-panel__reset-button"
@@ -965,11 +974,21 @@ export function App(): React.JSX.Element {
                       {ifdbSearchResults.map((result) => (
                         <article key={result.tuid} className="app-parchment-panel__result">
                           {result.coverArtUrl ? (
-                            <img
-                              className="app-parchment-panel__result-cover"
-                              src={result.coverArtUrl}
-                              alt={`Cover art for ${result.title}`}
-                            />
+                            <button
+                              type="button"
+                              className="app-parchment-panel__result-cover-button"
+                              aria-label={`Play ${result.title} via cover art`}
+                              disabled={loadingIfdbGameTuid === result.tuid}
+                              onClick={() => {
+                                void handleIfdbGameSelected(result.tuid);
+                              }}
+                            >
+                              <img
+                                className="app-parchment-panel__result-cover"
+                                src={result.coverArtUrl}
+                                alt={`Cover art for ${result.title}`}
+                              />
+                            </button>
                           ) : null}
                           <h2 className="app-parchment-panel__result-title">
                             <button
@@ -989,6 +1008,19 @@ export function App(): React.JSX.Element {
                           </p>
                           {result.publishedDisplay ? (
                             <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>
+                          ) : null}
+                          {result.ifdbLink ? (
+                            <p className="app-parchment-panel__result-meta">
+                              <a
+                                className="app-parchment-panel__result-link"
+                                href={result.ifdbLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`View ${result.title} on IFDB`}
+                              >
+                                View on IFDB
+                              </a>
+                            </p>
                           ) : null}
                         </article>
                       ))}

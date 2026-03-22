@@ -38,6 +38,7 @@ export interface IfdbSearchResultRecord {
   readonly tuid: string;
   readonly title: string;
   readonly author?: string | null;
+  readonly link?: string | null;
   readonly coverArtLink?: string | null;
   readonly published?: string | {
     readonly machine?: string | null;
@@ -50,6 +51,7 @@ export interface NormalizedIfdbSearchResult {
   readonly tuid: string;
   readonly title: string;
   readonly author: string | null;
+  readonly ifdbLink: string | null;
   readonly coverArtUrl: string | null;
   readonly published: string | null;
   readonly publishedDisplay: string | null;
@@ -189,6 +191,7 @@ export function normalizeIfdbSearchResults(
       tuid: result.tuid,
       title: result.title,
       author: normalizeOptionalString(result.author),
+      ifdbLink: normalizeOptionalString(result.link),
       coverArtUrl: normalizeOptionalString(result.coverArtLink),
       published: published.machine,
       publishedDisplay: published.display,
