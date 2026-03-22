@@ -34,6 +34,8 @@ describe('searchIfdbGames', () => {
         publishedDisplay: 'October 15, 2024',
         publishedYear: '2024',
         averageRating: 4.25,
+        coverArtUrl: null,
+        ifdbLink: null,
       },
     ]);
   });

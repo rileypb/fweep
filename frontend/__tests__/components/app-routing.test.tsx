@@ -1373,11 +1373,11 @@ describe('URL routing', () => {
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
-  it('shows the output-log collapse button above the log', async () => {
+  it('shows the output-log resize handle above the log', async () => {
     const doc = createEmptyMap('CLI Collapse Button Map');
     await renderAppWithSavedMap(doc);
 
-    expect(screen.getByRole('button', { name: /collapse output log/i })).toBeInTheDocument();
+    expect(screen.getByRole('separator', { name: /resize output log/i })).toBeInTheDocument();
   });
 
   it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
@@ -1424,12 +1424,11 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(editable);
   });
 
-  it('shows the script import button above the log while keeping the file input mounted', async () => {
+  it('keeps the script import file input mounted above the log', async () => {
     await renderAppWithOpenMap('CLI Script Button Map');
 
     const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
     expect(fileInput).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /import map script/i })).toBeInTheDocument();
   });
 
   it('reveals a room for go to <room> CLI commands', async () => {
@@ -4424,7 +4423,8 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
     await screen.findByRole('dialog', { name: /choose a map/i });
 
-    await user.click(screen.getByText('Background Image Position Map').closest('button') as HTMLButtonElement);
+    const mapOpenButtons = await screen.findAllByRole('button', { name: /background image position map/i });
+    await user.click(mapOpenButtons.find((button) => button.classList.contains('map-selection-item')) as HTMLButtonElement);
     await screen.findByText(/background image position map/i);
 
     expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 120, y: -80 });

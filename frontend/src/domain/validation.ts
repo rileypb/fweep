@@ -32,6 +32,7 @@ import {
   isValidRoomStrokeColorIndex,
 } from './room-color-palette';
 import { createTextureSeed } from './map-defaults';
+import { isSupportedSchemaVersion, migrateMapDocumentToCurrentSchema } from './map-migrations';
 
 export type ValidationSeverity = 'error' | 'warning';
 export type EntityType = 'map' | 'metadata' | 'room' | 'pseudo-room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
@@ -1345,7 +1346,8 @@ export function parseUntrustedMapDocument(
   errorCode: MapValidationErrorCode = 'invalid-map-document',
 ): MapDocument {
   const issues: ValidationIssue[] = [];
-  const doc = asRecord(input, issues, 'root', 'map', 'root');
+  const migratedInput = migrateMapDocumentToCurrentSchema(input);
+  const doc = asRecord(migratedInput, issues, 'root', 'map', 'root');
   if (!doc) {
     throwForIssues(errorCode, 'File does not contain a valid fweep map.', issues);
   }
@@ -1353,7 +1355,7 @@ export function parseUntrustedMapDocument(
   const schemaVersion = doc.schemaVersion;
   if (typeof schemaVersion !== 'number') {
     pushIssue(issues, 'error', 'map', 'root', 'schemaVersion', 'schemaVersion must be a number.');
-  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION && schemaVersion !== 1 && schemaVersion !== 2) {
+  } else if (!isSupportedSchemaVersion(schemaVersion)) {
     throwForIssues(
       'unsupported-schema-version',
       'This fweep map uses an unsupported schema version.',

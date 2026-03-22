@@ -89,6 +89,25 @@ describe('parseUntrustedMapDocument', () => {
     });
   });
 
+  it('migrates schema-3 maps to the current schema by adding null associated game metadata', () => {
+    const doc = validMap();
+    const legacySchema3Doc = {
+      ...doc,
+      schemaVersion: 3,
+      metadata: {
+        id: doc.metadata.id,
+        name: doc.metadata.name,
+        createdAt: doc.metadata.createdAt,
+        updatedAt: doc.metadata.updatedAt,
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(legacySchema3Doc);
+
+    expect(parsed.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(parsed.metadata.associatedGame).toBeNull();
+  });
+
   it('rejects a non-numeric schema version', () => {
     const broken = {
       ...validMap(),

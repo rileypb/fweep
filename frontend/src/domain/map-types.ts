@@ -186,7 +186,7 @@ export interface MapDocument {
 }
 
 /** Current schema version for new maps. */
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 function getBuildMetadataValue(key: 'VITE_BUILD_RELEASE' | 'VITE_BUILD_SERIAL'): string | undefined {
   const viteValue = import.meta.env?.[key];
