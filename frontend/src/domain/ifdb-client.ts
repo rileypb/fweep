@@ -7,18 +7,39 @@ import {
 } from './ifdb';
 import type { AssociatedGameMetadata } from './map-types';
 
+function getIfdbProxyBaseUrl(): string {
+  const viteValue = import.meta.env?.VITE_IFDB_PROXY_BASE_URL;
+  if (typeof viteValue === 'string' && viteValue.trim().length > 0) {
+    return viteValue.trim().replace(/\/+$/, '');
+  }
+
+  const processEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const processValue = processEnv?.VITE_IFDB_PROXY_BASE_URL;
+  if (typeof processValue === 'string' && processValue.trim().length > 0) {
+    return processValue.trim().replace(/\/+$/, '');
+  }
+
+  return '';
+}
+
+function buildIfdbProxyUrl(pathname: string, params: URLSearchParams): string {
+  const baseUrl = getIfdbProxyBaseUrl();
+  const pathWithQuery = `${pathname}?${params.toString()}`;
+  return baseUrl.length > 0 ? `${baseUrl}${pathWithQuery}` : pathWithQuery;
+}
+
 function buildIfdbSearchUrl(query: string): string {
   const params = new URLSearchParams({
     query,
   });
-  return `/api/ifdb/search?${params.toString()}`;
+  return buildIfdbProxyUrl('/api/ifdb/search', params);
 }
 
 function buildIfdbViewGameUrl(tuid: string): string {
   const params = new URLSearchParams({
     tuid,
   });
-  return `/api/ifdb/viewgame?${params.toString()}`;
+  return buildIfdbProxyUrl('/api/ifdb/viewgame', params);
 }
 
 export async function searchIfdbGames(

@@ -11,7 +11,7 @@ What we observed:
 
 This means the browser cannot call IFDB directly with `fetch()` from frontend code.
 
-## Production approach
+## Development approach
 
 Use a thin proxy owned by fweep.
 
@@ -83,11 +83,28 @@ For this project, a serverless function is the recommended production choice.
   - `GET /api/ifdb/viewgame`
 - Configure CORS on the proxy to allow requests from the fweep frontend origin
 
+Current implementation in this repo:
+
+- Vercel function entry points:
+  - `api/ifdb/search.ts`
+  - `api/ifdb/viewgame.ts`
+- Shared server-side proxy logic:
+  - `shared/ifdb-proxy.ts`
+  - `shared/ifdb-proxy-http.ts`
+- Suggested Vercel config:
+  - `vercel.json`
+
 ### 3. Point the frontend at the proxy
 
 - In development, frontend code can call a local path such as `/api/ifdb/...`
 - In production, configure that path to resolve to the deployed proxy origin
 - Prefer using an environment variable for the proxy base URL
+
+Current frontend production setting:
+
+- `VITE_IFDB_PROXY_BASE_URL`
+  - Example: `https://fweep-ifdb-proxy.vercel.app`
+  - If unset, the frontend falls back to same-origin `/api/ifdb/...`
 
 ## Endpoint design
 
@@ -162,6 +179,15 @@ Keep caching simple and conservative.
 - allow only the small fixed set of IFDB upstream endpoints fweep needs
 - return sanitized error messages to the client
 
+Current proxy guardrails implemented:
+
+- only `/api/ifdb/search` and `/api/ifdb/viewgame` are supported
+- only `GET` and `OPTIONS` are accepted
+- disallowed origins can be rejected using:
+  - `IFDB_PROXY_ALLOWED_ORIGINS`
+  - comma-separated list, for example: `https://rileypb.github.io`
+- IFDB requests still use the fixed custom `User-Agent` header
+
 ## Development setup
 
 For local development, use a dev proxy so the frontend can keep calling `/api/ifdb/...`.
@@ -176,9 +202,30 @@ Current implementation:
 
 Keep the frontend code identical between dev and production as much as possible.
 
+## Vercel setup notes
+
+Recommended Vercel environment variables:
+
+- `IFDB_PROXY_ALLOWED_ORIGINS`
+  - Example: `https://rileypb.github.io`
+
+Recommended frontend environment variable:
+
+- `VITE_IFDB_PROXY_BASE_URL`
+  - Set this in the frontend build environment to the deployed Vercel proxy origin
+
+Deployment shape:
+
+1. Create a Vercel project rooted at this repository.
+2. Use the serverless endpoints under `api/ifdb/`.
+3. Set `IFDB_PROXY_ALLOWED_ORIGINS` in the Vercel project.
+4. Deploy and note the Vercel project URL.
+5. Set `VITE_IFDB_PROXY_BASE_URL` for the frontend build to that deployed URL.
+6. Redeploy the frontend so production requests target the Vercel proxy instead of same-origin `/api/ifdb/...`.
+
 ## Recommended next implementation steps
 
-1. Keep the current frontend client pointed at `/api/ifdb/search` and `/api/ifdb/viewgame`.
-2. Reuse the same request/response contract in a production serverless proxy.
-3. Update deployment configuration so the production app origin can reach that proxy.
+1. Deploy the Vercel proxy.
+2. Set `VITE_IFDB_PROXY_BASE_URL` for the frontend production build.
+3. Verify `search` and `viewgame` from the deployed site.
 4. Optionally add lightweight caching and rate limiting once end-to-end search is in regular use.

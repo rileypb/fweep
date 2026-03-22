@@ -1,7 +1,42 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { searchIfdbGames, viewIfdbGame } from '../../src/domain/ifdb-client';
 
+function getTestProcessEnv(): Record<string, string | undefined> {
+  const processValue = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  if (!processValue) {
+    throw new Error('Expected process.env to be available in tests.');
+  }
+
+  processValue.env ??= {};
+  return processValue.env;
+}
+
 describe('searchIfdbGames', () => {
+  it('uses the configured production IFDB proxy base URL when present', async () => {
+    const processEnv = getTestProcessEnv();
+    const originalBaseUrl = processEnv.VITE_IFDB_PROXY_BASE_URL;
+    processEnv.VITE_IFDB_PROXY_BASE_URL = 'https://fweep-ifdb-proxy.vercel.app/';
+
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({ games: [] }),
+    } as Response);
+
+    try {
+      await searchIfdbGames('example game', fetchMock);
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://fweep-ifdb-proxy.vercel.app/api/ifdb/search?query=example+game',
+      );
+    } finally {
+      if (originalBaseUrl === undefined) {
+        delete processEnv.VITE_IFDB_PROXY_BASE_URL;
+      } else {
+        processEnv.VITE_IFDB_PROXY_BASE_URL = originalBaseUrl;
+      }
+    }
+  });
+
   it('requests the local IFDB proxy search endpoint and returns normalized results', async () => {
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
@@ -53,6 +88,52 @@ describe('searchIfdbGames', () => {
 });
 
 describe('viewIfdbGame', () => {
+  it('uses the configured production IFDB proxy base URL for viewgame requests when present', async () => {
+    const processEnv = getTestProcessEnv();
+    const originalBaseUrl = processEnv.VITE_IFDB_PROXY_BASE_URL;
+    processEnv.VITE_IFDB_PROXY_BASE_URL = 'https://fweep-ifdb-proxy.vercel.app';
+
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        identification: {
+          ifids: ['IFID-123'],
+        },
+        bibliographic: {
+          title: 'The Example Game',
+          author: 'Pat Example',
+        },
+        ifdb: {
+          tuid: 'abc123',
+          downloads: {
+            links: [
+              {
+                title: 'Playable Glulx release',
+                url: 'https://example.com/game.ulx',
+                format: 'glulx',
+                isGame: true,
+              },
+            ],
+          },
+        },
+      }),
+    } as Response);
+
+    try {
+      await viewIfdbGame('abc123', fetchMock);
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://fweep-ifdb-proxy.vercel.app/api/ifdb/viewgame?tuid=abc123',
+      );
+    } finally {
+      if (originalBaseUrl === undefined) {
+        delete processEnv.VITE_IFDB_PROXY_BASE_URL;
+      } else {
+        processEnv.VITE_IFDB_PROXY_BASE_URL = originalBaseUrl;
+      }
+    }
+  });
+
   it('requests the local IFDB proxy viewgame endpoint and returns associated-game metadata', async () => {
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,

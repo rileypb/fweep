@@ -1,6 +1,6 @@
 import { defineConfig, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { proxyIfdbRequest } from './src/domain/ifdb-proxy';
+import { handleIfdbProxyHttpRequest } from '../shared/ifdb-proxy-http';
 
 function createIfdbProxyPlugin(): Plugin {
   const handleIfdbProxyRequest: Connect.NextHandleFunction = async (request, response, next) => {
@@ -10,17 +10,15 @@ function createIfdbProxyPlugin(): Plugin {
       return;
     }
 
-    if (request.method !== 'GET') {
-      response.statusCode = 405;
-      response.setHeader('content-type', 'application/json; charset=utf-8');
-      response.end(JSON.stringify({ error: 'Method not allowed.' }));
-      return;
-    }
-
     try {
-      const proxyResult = await proxyIfdbRequest(new URL(requestUrl, 'http://localhost'));
+      const proxyResult = await handleIfdbProxyHttpRequest({
+        method: request.method ?? 'GET',
+        url: requestUrl,
+      });
       response.statusCode = proxyResult.status;
-      response.setHeader('content-type', proxyResult.contentType);
+      for (const [headerName, headerValue] of Object.entries(proxyResult.headers)) {
+        response.setHeader(headerName, headerValue);
+      }
       response.end(proxyResult.body);
     } catch (error) {
       response.statusCode = 502;

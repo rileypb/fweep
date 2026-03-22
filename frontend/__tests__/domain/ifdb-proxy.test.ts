@@ -3,7 +3,7 @@ import {
   buildIfdbUpstreamUrl,
   IFDB_PROXY_USER_AGENT,
   proxyIfdbRequest,
-} from '../../src/domain/ifdb-proxy';
+} from '../../../shared/ifdb-proxy';
 
 describe('buildIfdbUpstreamUrl', () => {
   it('builds the IFDB search API URL from the local proxy request URL', () => {
