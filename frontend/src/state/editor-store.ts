@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  AssociatedGameMetadata,
   BackgroundReferenceImage,
   ConnectionAnnotation,
   Item,
@@ -591,6 +592,9 @@ export interface EditorState {
 
   /** Persist the current map canvas theme without adding a history entry. */
   setMapCanvasTheme: (canvasTheme: MapCanvasTheme) => void;
+
+  /** Persist the associated interactive-fiction game metadata for the current map. */
+  setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
 
   /** Toggle the persisted CLI output collapse state without adding a history entry. */
   toggleCliOutputCollapsed: () => void;
@@ -1916,6 +1920,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       mapCanvasTheme: canvasTheme,
       lastHistoryMergeKey: null,
     }));
+  },
+
+  setAssociatedGameMetadata: (associatedGame) => {
+    set((state) => {
+      const doc = state.doc;
+      if (doc === null) {
+        return state;
+      }
+
+      const updatedDoc: MapDocument = {
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          associatedGame,
+        },
+      };
+
+      return commitDocumentChange(state, doc, updatedDoc);
+    });
   },
 
   toggleCliOutputCollapsed: () => {

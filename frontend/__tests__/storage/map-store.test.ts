@@ -159,6 +159,26 @@ describe('map-store', () => {
       expect(loaded?.cliOutputLines).toEqual(DEFAULT_CLI_OUTPUT_LINES);
     });
 
+    it('migrates persisted schema-3 maps by adding null associated game metadata', async () => {
+      const doc = createEmptyMap('Legacy Associated Game');
+      const legacyDoc = {
+        ...doc,
+        schemaVersion: 3,
+        metadata: {
+          id: doc.metadata.id,
+          name: doc.metadata.name,
+          createdAt: doc.metadata.createdAt,
+          updatedAt: doc.metadata.updatedAt,
+        },
+      } as unknown as Parameters<typeof saveMap>[0];
+
+      await putRawStoredMap(legacyDoc);
+      const loaded = await loadMap(doc.metadata.id);
+
+      expect(loaded?.schemaVersion).toBe(4);
+      expect(loaded?.metadata.associatedGame).toBeNull();
+    });
+
     it('hydrates missing room style fields from older saved maps', async () => {
       const doc = createEmptyMap('Legacy Styles');
       const roomId = crypto.randomUUID();

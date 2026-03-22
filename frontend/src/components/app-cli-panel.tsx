@@ -1,6 +1,45 @@
 import React from 'react';
 import type { CliSuggestion } from '../domain/cli-suggestions';
 
+const CLI_OUTPUT_HEIGHT_STORAGE_KEY = 'fweep-cli-output-height';
+const MIN_EXPANDED_OUTPUT_HEIGHT_PX = 180;
+const DEFAULT_EXPANDED_OUTPUT_HEIGHT_PX = 320;
+const CLI_OUTPUT_RESIZE_STEP_PX = 32;
+const CLI_OUTPUT_BOTTOM_GAP_PX = 12;
+
+function loadStoredCliOutputHeight(): number | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const rawValue = window.localStorage.getItem(CLI_OUTPUT_HEIGHT_STORAGE_KEY);
+  if (rawValue === null) {
+    return null;
+  }
+
+  const parsedValue = Number(rawValue);
+  return Number.isFinite(parsedValue) && parsedValue >= MIN_EXPANDED_OUTPUT_HEIGHT_PX
+    ? parsedValue
+    : null;
+}
+
+function storeCliOutputHeight(height: number | null): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (height === null) {
+    window.localStorage.removeItem(CLI_OUTPUT_HEIGHT_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(CLI_OUTPUT_HEIGHT_STORAGE_KEY, String(Math.round(height)));
+}
+
+function clampCliOutputHeight(height: number, maxHeight: number): number {
+  return Math.max(MIN_EXPANDED_OUTPUT_HEIGHT_PX, Math.min(height, maxHeight));
+}
+
 function renderCliOutputLine(line: string): React.ReactNode {
   const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
   if (segments.length === 0) {
@@ -86,6 +125,11 @@ export function AppCliPanel({
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
   const [screenReaderAnnouncement, setScreenReaderAnnouncement] = React.useState('');
+  const [outputHeight, setOutputHeight] = React.useState<number | null>(() => loadStoredCliOutputHeight());
+  const [isResizingOutput, setIsResizingOutput] = React.useState(false);
+  const stackRef = React.useRef<HTMLDivElement | null>(null);
+  const outputRef = React.useRef<HTMLDivElement | null>(null);
+  const cliBarRef = React.useRef<HTMLDivElement | null>(null);
   const suggestionListRef = React.useRef<HTMLDivElement | null>(null);
   const suggestionOptionRefs = React.useRef<Array<HTMLDivElement | null>>([]);
   const previousOutputLengthRef = React.useRef<number | null>(null);
@@ -162,37 +206,138 @@ export function AppCliPanel({
     }
   }, []);
 
+  const getMaxExpandedOutputHeight = React.useCallback((): number => {
+    const stackRect = stackRef.current?.getBoundingClientRect();
+    const cliBarRect = cliBarRef.current?.getBoundingClientRect();
+    if (!stackRect || !cliBarRect) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return Math.max(
+      MIN_EXPANDED_OUTPUT_HEIGHT_PX,
+      stackRect.height - cliBarRect.height - CLI_OUTPUT_BOTTOM_GAP_PX,
+    );
+  }, []);
+
+  const getCurrentExpandedOutputHeight = React.useCallback((): number => {
+    const measuredHeight = outputRef.current?.getBoundingClientRect().height ?? 0;
+    if (measuredHeight > 0) {
+      return measuredHeight;
+    }
+
+    return outputHeight ?? DEFAULT_EXPANDED_OUTPUT_HEIGHT_PX;
+  }, [outputHeight]);
+
+  const updateOutputHeight = React.useCallback((nextHeight: number | null) => {
+    if (nextHeight === null) {
+      setOutputHeight(null);
+      storeCliOutputHeight(null);
+      return;
+    }
+
+    const clampedHeight = clampCliOutputHeight(nextHeight, getMaxExpandedOutputHeight());
+    setOutputHeight(clampedHeight);
+    storeCliOutputHeight(clampedHeight);
+  }, [getMaxExpandedOutputHeight]);
+
+  React.useEffect(() => {
+    if (isOutputCollapsed || outputHeight === null) {
+      return;
+    }
+
+    const handleResize = (): void => {
+      updateOutputHeight(outputHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOutputCollapsed, outputHeight, updateOutputHeight]);
+
+  const handleResizePointerDown = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const stackElement = stackRef.current;
+    const cliBarElement = cliBarRef.current;
+    if (!stackElement || !cliBarElement) {
+      return;
+    }
+
+    const updateFromClientY = (clientY: number): void => {
+      const stackRect = stackElement.getBoundingClientRect();
+      const cliBarRect = cliBarElement.getBoundingClientRect();
+      const nextHeight = stackRect.bottom - cliBarRect.height - clientY;
+      updateOutputHeight(nextHeight);
+    };
+
+    setIsResizingOutput(true);
+    document.body.classList.add('app-cli-resizing');
+    updateFromClientY(event.clientY);
+
+    const handlePointerMove = (moveEvent: PointerEvent): void => {
+      updateFromClientY(moveEvent.clientY);
+    };
+
+    const handlePointerUp = (): void => {
+      setIsResizingOutput(false);
+      document.body.classList.remove('app-cli-resizing');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  }, [updateOutputHeight]);
+
+  React.useEffect(() => () => {
+    document.body.classList.remove('app-cli-resizing');
+  }, []);
+
   return (
-    <div className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}>
+    <div
+      ref={stackRef}
+      className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}
+    >
       <div className="sr-only" aria-live="polite" aria-atomic="true" role="status">
         {screenReaderAnnouncement}
       </div>
-      <div className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}>
-        <div className="app-game-output-toolbar">
-          <button
-            type="button"
-            className="app-cli-collapse-button"
-            aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleOutputCollapsed();
-            }}
-          >
-            {isOutputCollapsed ? 'More' : 'Less'}
-          </button>
-          <button
-            type="button"
-            className="app-cli-import-button"
-            aria-label="Import map script"
-            onClick={(event) => {
-              event.stopPropagation();
-              cliImportInputRef.current?.click();
-            }}
-            disabled={isImportingScript}
-          >
-            {isImportingScript ? 'Importing...' : 'Import'}
-          </button>
+      {!isOutputCollapsed && (
+        <div
+          className={`app-cli-resize-handle${isResizingOutput ? ' app-cli-resize-handle--active' : ''}`}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize output log"
+          tabIndex={0}
+          onDoubleClick={() => {
+            updateOutputHeight(null);
+          }}
+          onPointerDown={handleResizePointerDown}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+              return;
+            }
+
+            event.preventDefault();
+            const currentHeight = getCurrentExpandedOutputHeight();
+            const delta = event.key === 'ArrowUp' ? CLI_OUTPUT_RESIZE_STEP_PX : -CLI_OUTPUT_RESIZE_STEP_PX;
+            updateOutputHeight(currentHeight + delta);
+          }}
+        >
+          <span className="app-cli-resize-handle__grip" aria-hidden="true" />
         </div>
+      )}
+      <div
+        ref={outputRef}
+        className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
+        style={!isOutputCollapsed && outputHeight !== null
+          ? {
+            flex: '0 0 auto',
+            height: `${outputHeight}px`,
+          }
+          : undefined}
+      >
         <div
           id="app-game-output"
           className="app-game-output-content"
@@ -216,7 +361,7 @@ export function AppCliPanel({
           </div>
         </div>
       </div>
-      <div className="app-cli-bar">
+      <div ref={cliBarRef} className="app-cli-bar">
         <form
           className="app-cli-form"
           onSubmit={(event) => {
