@@ -58,6 +58,37 @@ describe('parseUntrustedMapDocument', () => {
     expect(() => parseUntrustedMapDocument(broken)).toThrow('File does not contain a valid fweep map.');
   });
 
+  it('accepts persisted associated game metadata', () => {
+    const doc = validMap();
+    const withAssociatedGame = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(withAssociatedGame);
+
+    expect(parsed.metadata.associatedGame).toEqual({
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    });
+  });
+
   it('rejects a non-numeric schema version', () => {
     const broken = {
       ...validMap(),

@@ -5,11 +5,22 @@ import {
 import { createDefaultMapView, DEFAULT_ROOM_SHAPE } from './map-defaults';
 
 /** Minimal metadata for a persisted map, used by the selection dialog and storage layer. */
+export interface AssociatedGameMetadata {
+  readonly sourceType: 'ifdb' | 'local-file';
+  readonly tuid: string | null;
+  readonly ifid: string | null;
+  readonly title: string;
+  readonly author: string | null;
+  readonly storyUrl: string | null;
+  readonly format: string | null;
+}
+
 export interface MapMetadata {
   readonly id: string;
   readonly name: string;
   readonly createdAt: string;   // ISO-8601
   readonly updatedAt: string;   // ISO-8601
+  readonly associatedGame: AssociatedGameMetadata | null;
 }
 
 /* ---- Position ---- */
@@ -233,6 +244,7 @@ export function createEmptyMap(name: string): MapDocument {
       name,
       createdAt: now,
       updatedAt: now,
+      associatedGame: null,
     },
     view: createDefaultMapView(),
     background: createEmptyBackground(),

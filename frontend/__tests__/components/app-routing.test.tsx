@@ -91,6 +91,7 @@ async function submitCliCommand(command: string): Promise<HTMLInputElement> {
 }
 
 beforeEach(() => {
+  jest.restoreAllMocks();
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
   setViewportWidth(1024);
@@ -170,6 +171,130 @@ describe('URL routing', () => {
     expect(output).not.toBeNull();
     expect(inputShell).not.toBeNull();
     expect(appShell).toHaveAttribute('data-canvas-theme', 'antique');
+  });
+
+  it('shows IFDB search controls above the parchment iframe when a map is open', async () => {
+    await renderAppWithOpenMap('IFDB Panel Map');
+
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /play a story file from your device/i })).toBeInTheDocument();
+    expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
+  });
+
+  it('searches IFDB on manual submit and renders matching results', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            tuid: 'abc123',
+            title: 'The Example Game',
+            author: 'Pat Example',
+            coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
+            published: {
+              machine: '2024-10-15',
+              printable: 'October 15, 2024',
+            },
+            averageRating: 4.25,
+          },
+        ],
+      }),
+    } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Search Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+    expect(screen.getByText(/Pat Example/)).toBeInTheDocument();
+    expect(screen.getByText(/October 15, 2024/)).toBeInTheDocument();
+    const coverArt = screen.getByRole('img', { name: /cover art for the example game/i });
+    expect(coverArt).toHaveAttribute(
+      'src',
+      'https://ifdb.org/coverart?id=abc123&version=4',
+    );
+    expect(coverArt).toHaveClass('app-parchment-panel__result-cover');
+  });
+
+  it('loads the selected IFDB game into Parchment and persists the association on the map', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+              published: {
+                machine: '2024-10-15',
+                printable: 'October 15, 2024',
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
+
+    const iframe = screen.getByTitle(/interactive fiction player/i);
+    await waitFor(() => {
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    });
+    expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    });
   });
 
   it('keeps suggestions closed on focus and opens them with /', async () => {

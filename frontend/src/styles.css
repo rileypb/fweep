@@ -167,6 +167,119 @@ body.app-shell--resizing-side-panel {
   text-transform: uppercase;
 }
 
+.app-parchment-panel__search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-parchment-panel__search-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.app-parchment-panel__search-row {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.app-parchment-panel__search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.75);
+  color: inherit;
+  font: inherit;
+}
+
+.app-parchment-panel__search-button {
+  flex: 0 0 auto;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-parchment-panel__device-link {
+  font-size: 0.86rem;
+  color: inherit;
+}
+
+.app-parchment-panel__search-status {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.app-parchment-panel__results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.app-parchment-panel__result {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.app-parchment-panel__result-cover {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 0 0.55rem;
+  border-radius: 0.55rem;
+  object-fit: cover;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.app-parchment-panel__result-title {
+  margin: 0;
+  font-size: 0.96rem;
+}
+
+.app-parchment-panel__result-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__result-button:hover,
+.app-parchment-panel__result-button:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__result-button:disabled {
+  opacity: 0.68;
+  cursor: progress;
+  text-decoration: none;
+}
+
+.app-parchment-panel__result-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+}
+
+:root[data-theme='dark'] .app-parchment-panel__search-input {
+  background: rgba(17, 24, 39, 0.72);
+}
+
 .app-parchment-panel__iframe {
   flex: 1 1 auto;
   width: 100%;

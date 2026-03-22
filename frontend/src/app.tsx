@@ -10,6 +10,8 @@ import { useAppCli } from './hooks/use-app-cli';
 import { useMapRouter } from './hooks/use-map-router';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
+import { searchIfdbGames, viewIfdbGame } from './domain/ifdb-client';
+import type { NormalizedIfdbSearchResult } from './domain/ifdb';
 
 const DESKTOP_ONLY_MIN_WIDTH_PX = 960;
 const SHAPES_SOLID_FULL_PATH = 'M288 96C288 78.3 273.7 64 256 64L96 64C78.3 64 64 78.3 64 96L64 256C64 273.7 78.3 288 96 288L256 288C273.7 288 288 273.7 288 256L288 96zM384 64C348.7 64 320 92.7 320 128L320 224C320 259.3 348.7 288 384 288L512 288C547.3 288 576 259.3 576 224L576 128C576 92.7 547.3 64 512 64L384 64zM192 352C174.3 352 160 366.3 160 384L160 544C160 561.7 174.3 576 192 576L448 576C465.7 576 480 561.7 480 544L480 384C480 366.3 465.7 352 448 352L192 352z';
@@ -110,6 +112,17 @@ function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
   return MAP_CANVAS_THEMES[(currentIndex + 1) % MAP_CANVAS_THEMES.length];
 }
 
+function buildParchmentSrc(storyUrl: string | null): string {
+  if (storyUrl === null) {
+    return '/parchment.html';
+  }
+
+  const params = new URLSearchParams({
+    story: storyUrl,
+  });
+  return `/parchment.html?${params.toString()}`;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -124,6 +137,8 @@ export function App(): React.JSX.Element {
   const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
+  const associatedGame = useEditorStore((s) => s.doc?.metadata.associatedGame ?? null);
+  const setAssociatedGameMetadata = useEditorStore((s) => s.setAssociatedGameMetadata);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
@@ -133,6 +148,11 @@ export function App(): React.JSX.Element {
       ? PARCHMENT_PANEL_DEFAULT_WIDTH_PX
       : loadStoredParchmentPanelWidth(window.innerWidth)
   ));
+  const [ifdbSearchQuery, setIfdbSearchQuery] = useState('');
+  const [ifdbSearchResults, setIfdbSearchResults] = useState<readonly NormalizedIfdbSearchResult[]>([]);
+  const [ifdbSearchError, setIfdbSearchError] = useState<string | null>(null);
+  const [isIfdbSearching, setIsIfdbSearching] = useState(false);
+  const [loadingIfdbGameTuid, setLoadingIfdbGameTuid] = useState<string | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
@@ -266,6 +286,49 @@ export function App(): React.JSX.Element {
   const handleRequestedViewportFocusHandled = useCallback((requestId: number) => {
     setRequestedViewportFocusRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
+
+  const handleIfdbSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+
+    const trimmedQuery = ifdbSearchQuery.trim();
+    if (trimmedQuery.length === 0) {
+      setIfdbSearchResults([]);
+      setIfdbSearchError(null);
+      return;
+    }
+
+    setIsIfdbSearching(true);
+    setIfdbSearchError(null);
+
+    try {
+      const results = await searchIfdbGames(trimmedQuery);
+      setIfdbSearchResults(results);
+    } catch (error) {
+      setIfdbSearchResults([]);
+      setIfdbSearchError(error instanceof Error ? error.message : 'IFDB search failed.');
+    } finally {
+      setIsIfdbSearching(false);
+    }
+  }, [ifdbSearchQuery]);
+
+  const handleIfdbGameSelected = useCallback(async (tuid: string): Promise<void> => {
+    setLoadingIfdbGameTuid(tuid);
+    setIfdbSearchError(null);
+
+    try {
+      const resolvedGame = await viewIfdbGame(tuid);
+      if (resolvedGame.storyUrl === null) {
+        setIfdbSearchError(`No supported downloadable story file is available for ${resolvedGame.title}.`);
+        return;
+      }
+
+      setAssociatedGameMetadata(resolvedGame);
+    } catch (error) {
+      setIfdbSearchError(error instanceof Error ? error.message : 'IFDB game lookup failed.');
+    } finally {
+      setLoadingIfdbGameTuid(null);
+    }
+  }, [setAssociatedGameMetadata]);
 
   const focusFweepMain = useCallback((): void => {
     window.focus();
@@ -638,10 +701,69 @@ export function App(): React.JSX.Element {
                   PARCHMENT by Dannii Willis
                 </a>
               </div>
+              <form className="app-parchment-panel__search" onSubmit={(event) => { void handleIfdbSearchSubmit(event); }}>
+                <label className="app-parchment-panel__search-label" htmlFor="app-ifdb-search">
+                  Search IFDB for a game
+                </label>
+                <div className="app-parchment-panel__search-row">
+                  <input
+                    id="app-ifdb-search"
+                    className="app-parchment-panel__search-input"
+                    type="text"
+                    value={ifdbSearchQuery}
+                    onChange={(event) => {
+                      setIfdbSearchQuery(event.target.value);
+                    }}
+                  />
+                  <button type="submit" className="app-parchment-panel__search-button" disabled={isIfdbSearching}>
+                    {isIfdbSearching ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+                <a className="app-parchment-panel__device-link" href="/parchment.html">
+                  Or, click here to play a story file from your device
+                </a>
+                {ifdbSearchError ? (
+                  <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
+                ) : null}
+                {ifdbSearchResults.length > 0 ? (
+                  <div className="app-parchment-panel__results" aria-label="IFDB search results">
+                    {ifdbSearchResults.map((result) => (
+                      <article key={result.tuid} className="app-parchment-panel__result">
+                        {result.coverArtUrl ? (
+                          <img
+                            className="app-parchment-panel__result-cover"
+                            src={result.coverArtUrl}
+                            alt={`Cover art for ${result.title}`}
+                          />
+                        ) : null}
+                        <h2 className="app-parchment-panel__result-title">
+                          <button
+                            type="button"
+                            className="app-parchment-panel__result-button"
+                            aria-label={`Play ${result.title}`}
+                            disabled={loadingIfdbGameTuid === result.tuid}
+                            onClick={() => {
+                              void handleIfdbGameSelected(result.tuid);
+                            }}
+                          >
+                            {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
+                          </button>
+                        </h2>
+                        <p className="app-parchment-panel__result-meta">
+                          {result.author ?? 'Unknown author'}
+                        </p>
+                        {result.publishedDisplay ? (
+                          <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
               <iframe
                 ref={parchmentIframeRef}
                 className="app-parchment-panel__iframe"
-                src="/parchment.html"
+                src={buildParchmentSrc(associatedGame?.storyUrl ?? null)}
                 title="Interactive fiction player"
               />
             </div>
