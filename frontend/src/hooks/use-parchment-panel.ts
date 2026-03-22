@@ -85,6 +85,14 @@ export function useParchmentPanel({
     ? `Reconnect ${associatedGame.title}`
     : 'Or, click here to play a story file from your device';
 
+  const resetChooserState = useCallback((): void => {
+    setIfdbSearchQuery('');
+    setIfdbSearchResults([]);
+    setIfdbSearchError(null);
+    setIsIfdbSearching(false);
+    setLoadingIfdbGameTuid(null);
+  }, []);
+
   useEffect(() => {
     const updateViewportAvailability = () => {
       setParchmentPanelWidth((current) => {
@@ -237,6 +245,7 @@ export function useParchmentPanel({
     syncedParchmentMapIdRef.current = activeMapId;
 
     if (activeMapId === null) {
+      resetChooserState();
       setParchmentSrc(buildParchmentSrc(null));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
@@ -253,6 +262,7 @@ export function useParchmentPanel({
     }
 
     if (hasSwitchedMaps) {
+      resetChooserState();
       setParchmentSrc(buildParchmentSrc(null));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
@@ -264,6 +274,7 @@ export function useParchmentPanel({
     associatedGame?.storyUrl,
     isParchmentChooserForcedVisible,
     isParchmentGameViewVisible,
+    resetChooserState,
   ]);
 
   const handleOpenParchmentFileChooser = useCallback((): void => {

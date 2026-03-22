@@ -183,8 +183,23 @@ describe('URL routing', () => {
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
+    expect(screen.getByText('Use Ctrl+/ to switch the keyboard focus between the game and the mapper.')).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps the chooser tip visible while typing until search results appear', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('IFDB Tip Visibility Map');
+
+    const tipText = 'Use Ctrl+/ to switch the keyboard focus between the game and the mapper.';
+    const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+
+    expect(screen.getByText(tipText)).toBeInTheDocument();
+
+    await user.type(searchInput, 'exam');
+
+    expect(screen.getByText(tipText)).toBeInTheDocument();
   });
 
   it('shows the associated game title beneath the map name chip when a game is linked', async () => {
@@ -328,6 +343,52 @@ describe('URL routing', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Network down');
     expect(screen.queryByText('The Example Game')).not.toBeInTheDocument();
+  });
+
+  it('clears the chooser search state when leaving one map and opening another', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            tuid: 'abc123',
+            title: 'The Example Game',
+          },
+        ],
+      }),
+    } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    const firstMap = createEmptyMap('First Search Map');
+    const secondMap = createEmptyMap('Second Search Map');
+    await saveMap(firstMap);
+    await saveMap(secondMap);
+
+    navigateTo(`#/map/${firstMap.metadata.id}`);
+    renderApp();
+    await screen.findByLabelText(`Map name: ${firstMap.metadata.name}`);
+
+    const firstSearchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+    await user.type(firstSearchInput, 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    const secondMapLabel = await screen.findByText('Second Search Map');
+    await user.click(secondMapLabel.closest('button') as HTMLButtonElement);
+    await screen.findByLabelText(`Map name: ${secondMap.metadata.name}`);
+
+    const secondSearchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i }) as HTMLInputElement;
+    expect(secondSearchInput).toHaveValue('');
+    expect(screen.queryByText('The Example Game')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('loads the selected IFDB game into Parchment and persists the association on the map', async () => {
