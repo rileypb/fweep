@@ -96,9 +96,13 @@ body.app-shell--resizing-side-panel {
   user-select: none;
 }
 
+body.app-shell--resizing-side-panel-height {
+  cursor: ns-resize;
+  user-select: none;
+}
+
 .app-parchment-panel {
   position: fixed;
-  top: 1rem;
   right: 1rem;
   bottom: 1rem;
   z-index: 11;
@@ -119,6 +123,16 @@ body.app-shell--resizing-side-panel {
   user-select: none;
 }
 
+.app-parchment-panel__resize-handle--height {
+  left: 0;
+  right: 0;
+  top: -1rem;
+  bottom: auto;
+  width: auto;
+  height: 1.4rem;
+  cursor: ns-resize;
+}
+
 .app-parchment-panel__resize-handle::before {
   content: '';
   position: absolute;
@@ -129,6 +143,14 @@ body.app-shell--resizing-side-panel {
   transform: translateY(-50%);
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.app-parchment-panel__resize-handle--height::before {
+  left: 50%;
+  top: 0.4rem;
+  width: 4rem;
+  height: 0.28rem;
+  transform: translateX(-50%);
 }
 
 .app-parchment-panel__resize-handle:hover::before,
@@ -365,6 +387,10 @@ body.app-shell--resizing-side-panel {
 }
 
 body.app-shell--resizing-side-panel .app-parchment-panel__iframe {
+  pointer-events: none;
+}
+
+body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   pointer-events: none;
 }
 

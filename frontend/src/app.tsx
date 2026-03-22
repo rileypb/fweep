@@ -22,8 +22,10 @@ const BEZIER_CURVE_SOLID_FULL_PATH = 'M296 200L296 152L344 152L344 200L296 200zM
 const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
 const PARCHMENT_PANEL_WIDTH_STORAGE_KEY = 'fweep-parchment-panel-width';
+const PARCHMENT_PANEL_HEIGHT_STORAGE_KEY = 'fweep-parchment-panel-height';
 const PARCHMENT_PANEL_DEFAULT_WIDTH_PX = 420;
 const PARCHMENT_PANEL_MIN_WIDTH_PX = 300;
+const PARCHMENT_PANEL_MIN_HEIGHT_PX = 240;
 const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
 const PARCHMENT_PANEL_RIGHT_MARGIN_PX = 16;
 const PARCHMENT_PANEL_HANDLE_OFFSET_PX = 12;
@@ -72,12 +74,21 @@ function getDefaultParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(PARCHMENT_PANEL_DEFAULT_WIDTH_PX, viewportWidth);
 }
 
+function getDefaultParchmentPanelHeight(viewportHeight: number): number {
+  return clampParchmentPanelHeight(viewportHeight - 32, viewportHeight);
+}
+
 function clampParchmentPanelWidth(width: number, viewportWidth: number): number {
   const maxWidth = Math.max(
     PARCHMENT_PANEL_MIN_WIDTH_PX,
     Math.floor(viewportWidth * PARCHMENT_PANEL_MAX_VIEWPORT_RATIO),
   );
   return Math.min(Math.max(width, PARCHMENT_PANEL_MIN_WIDTH_PX), maxWidth);
+}
+
+function clampParchmentPanelHeight(height: number, viewportHeight: number): number {
+  const maxHeight = Math.max(PARCHMENT_PANEL_MIN_HEIGHT_PX, viewportHeight - 32);
+  return Math.min(Math.max(height, PARCHMENT_PANEL_MIN_HEIGHT_PX), maxHeight);
 }
 
 function loadStoredParchmentPanelWidth(viewportWidth: number): number {
@@ -98,12 +109,38 @@ function loadStoredParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(parsedValue, viewportWidth);
 }
 
+function loadStoredParchmentPanelHeight(viewportHeight: number): number {
+  if (typeof window === 'undefined') {
+    return getDefaultParchmentPanelHeight(viewportHeight);
+  }
+
+  const rawValue = window.localStorage.getItem(PARCHMENT_PANEL_HEIGHT_STORAGE_KEY);
+  if (rawValue === null) {
+    return getDefaultParchmentPanelHeight(viewportHeight);
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue)) {
+    return getDefaultParchmentPanelHeight(viewportHeight);
+  }
+
+  return clampParchmentPanelHeight(parsedValue, viewportHeight);
+}
+
 function persistParchmentPanelWidth(width: number): void {
   if (typeof window === 'undefined') {
     return;
   }
 
   window.localStorage.setItem(PARCHMENT_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
+}
+
+function persistParchmentPanelHeight(height: number): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(PARCHMENT_PANEL_HEIGHT_STORAGE_KEY, String(Math.round(height)));
 }
 
 function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
@@ -168,6 +205,11 @@ export function App(): React.JSX.Element {
     typeof window === 'undefined'
       ? PARCHMENT_PANEL_DEFAULT_WIDTH_PX
       : loadStoredParchmentPanelWidth(window.innerWidth)
+  ));
+  const [parchmentPanelHeight, setParchmentPanelHeight] = useState(() => (
+    typeof window === 'undefined'
+      ? 600
+      : loadStoredParchmentPanelHeight(window.innerHeight)
   ));
   const [ifdbSearchQuery, setIfdbSearchQuery] = useState('');
   const [ifdbSearchResults, setIfdbSearchResults] = useState<readonly NormalizedIfdbSearchResult[]>([]);
@@ -252,6 +294,13 @@ export function App(): React.JSX.Element {
         }
         return nextWidth;
       });
+      setParchmentPanelHeight((current) => {
+        const nextHeight = clampParchmentPanelHeight(current, window.innerHeight);
+        if (nextHeight !== current) {
+          persistParchmentPanelHeight(nextHeight);
+        }
+        return nextHeight;
+      });
     };
 
     updateViewportAvailability();
@@ -293,8 +342,41 @@ export function App(): React.JSX.Element {
     window.addEventListener('pointercancel', finishResize);
   }, [parchmentPanelWidth]);
 
+  const beginParchmentPanelHeightResize = useCallback((pointerId: number, pointerStartY: number) => {
+    const startHeight = parchmentPanelHeight;
+
+    const handlePointerMove = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) {
+        return;
+      }
+
+      const nextHeight = clampParchmentPanelHeight(startHeight + (pointerStartY - event.clientY), window.innerHeight);
+      setParchmentPanelHeight(nextHeight);
+    };
+
+    const finishResize = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) {
+        return;
+      }
+
+      const nextHeight = clampParchmentPanelHeight(startHeight + (pointerStartY - event.clientY), window.innerHeight);
+      setParchmentPanelHeight(nextHeight);
+      persistParchmentPanelHeight(nextHeight);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finishResize);
+      window.removeEventListener('pointercancel', finishResize);
+      document.body.classList.remove('app-shell--resizing-side-panel-height');
+    };
+
+    document.body.classList.add('app-shell--resizing-side-panel-height');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finishResize);
+    window.addEventListener('pointercancel', finishResize);
+  }, [parchmentPanelHeight]);
+
   useEffect(() => () => {
     document.body.classList.remove('app-shell--resizing-side-panel');
+    document.body.classList.remove('app-shell--resizing-side-panel-height');
   }, []);
 
   useEffect(() => () => {
@@ -875,13 +957,36 @@ export function App(): React.JSX.Element {
           <h1 className="app-title" style={{ right: `${Math.max(16, visibleMapRightInset)}px` }}>fweep</h1>
           <div
             className="app-parchment-panel"
-            style={{ width: `${parchmentPanelWidth}px` }}
+            style={{ width: `${parchmentPanelWidth}px`, height: `${parchmentPanelHeight}px` }}
           >
+            <div
+              className="app-parchment-panel__resize-handle app-parchment-panel__resize-handle--height"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize game panel height"
+              tabIndex={0}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                beginParchmentPanelHeightResize(event.pointerId, event.clientY);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+                  return;
+                }
+
+                event.preventDefault();
+                const delta = event.key === 'ArrowUp' ? 32 : -32;
+                const nextHeight = clampParchmentPanelHeight(parchmentPanelHeight + delta, window.innerHeight);
+                setParchmentPanelHeight(nextHeight);
+                persistParchmentPanelHeight(nextHeight);
+              }}
+            />
             <div
               className="app-parchment-panel__resize-handle"
               role="separator"
               aria-orientation="vertical"
-              aria-label="Resize game panel"
+              aria-label="Resize game panel width"
               tabIndex={0}
               onPointerDown={(event) => {
                 event.preventDefault();

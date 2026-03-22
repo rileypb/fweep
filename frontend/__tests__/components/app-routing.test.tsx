@@ -176,6 +176,8 @@ describe('URL routing', () => {
   it('shows only the chooser/search panel when no game is active', async () => {
     await renderAppWithOpenMap('IFDB Panel Map');
 
+    expect(screen.getByRole('separator', { name: /resize game panel width/i })).toBeInTheDocument();
+    expect(screen.getByRole('separator', { name: /resize game panel height/i })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
