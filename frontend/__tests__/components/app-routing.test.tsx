@@ -173,13 +173,14 @@ describe('URL routing', () => {
     expect(appShell).toHaveAttribute('data-canvas-theme', 'antique');
   });
 
-  it('shows IFDB search controls above the parchment iframe when a map is open', async () => {
+  it('shows only the chooser/search panel when no game is active', async () => {
     await renderAppWithOpenMap('IFDB Panel Map');
 
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
-    expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
   });
 
   it('shows the associated game title beneath the map name chip when a game is linked', async () => {
@@ -328,10 +329,12 @@ describe('URL routing', () => {
 
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
 
-    const iframe = screen.getByTitle(/interactive fiction player/i);
+    const iframe = await screen.findByTitle(/interactive fiction player/i);
     await waitFor(() => {
       expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
+    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
       sourceType: 'ifdb',
       tuid: 'abc123',
@@ -358,19 +361,7 @@ describe('URL routing', () => {
   });
 
   it('loads a locally chosen file into the parchment iframe', async () => {
-    const user = userEvent.setup();
     await renderAppWithOpenMap('Parchment Local File Map');
-
-    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    const loadUploadedFile = jest.fn<(file: File) => Promise<void>>().mockResolvedValue(undefined);
-    Object.defineProperty(iframe, 'contentWindow', {
-      configurable: true,
-      value: {
-        parchment: {
-          load_uploaded_file: loadUploadedFile,
-        },
-      },
-    });
 
     const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
     expect(chooserInput).not.toBeNull();
@@ -384,14 +375,51 @@ describe('URL routing', () => {
       });
     });
 
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const loadUploadedFile = jest.fn<(file: File) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: {
+          load_uploaded_file: loadUploadedFile,
+        },
+      },
+    });
+    fireEvent.load(iframe);
+
     expect(loadUploadedFile).toHaveBeenCalledTimes(1);
     expect(loadUploadedFile).toHaveBeenCalledWith(file);
+    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
+        sourceType: 'local-file',
+        tuid: null,
+        ifid: null,
+        title: 'story.ulx',
+        author: null,
+        storyUrl: null,
+        format: 'glulx',
+      });
+    });
   });
 
   it('calls the parchment uploader with the parchment instance as this', async () => {
     await renderAppWithOpenMap('Parchment Bound Method Map');
 
-    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     const parchmentInstance = {
       seenFile: null as File | null,
       async load_uploaded_file(this: { seenFile: File | null }, file: File) {
@@ -404,31 +432,64 @@ describe('URL routing', () => {
         parchment: parchmentInstance,
       },
     });
-
-    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
-    expect(chooserInput).not.toBeNull();
-
-    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
-    await act(async () => {
-      fireEvent.change(chooserInput!, {
-        target: {
-          files: [file],
-        },
-      });
-    });
+    fireEvent.load(iframe);
 
     expect(parchmentInstance.seenFile).toBe(file);
   });
 
-  it('shows an error if parchment is not ready to receive a local file', async () => {
-    const user = userEvent.setup();
-    await renderAppWithOpenMap('Parchment Not Ready Map');
+  it('retries opening a local file until parchment becomes ready after iframe load', async () => {
+    jest.useFakeTimers();
 
-    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    Object.defineProperty(iframe, 'contentWindow', {
-      configurable: true,
-      value: {},
-    });
+    try {
+      await renderAppWithOpenMap('Parchment Delayed Ready Map');
+
+      const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+      expect(chooserInput).not.toBeNull();
+
+      const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+      await act(async () => {
+        fireEvent.change(chooserInput!, {
+          target: {
+            files: [file],
+          },
+        });
+      });
+
+      const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: {},
+      });
+      fireEvent.load(iframe);
+
+      const loadUploadedFile = jest.fn<(nextFile: File) => Promise<void>>().mockResolvedValue(undefined);
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: {
+          parchment: {
+            load_uploaded_file: loadUploadedFile,
+          },
+        },
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(300);
+      });
+
+      await waitFor(() => {
+        expect(loadUploadedFile).toHaveBeenCalledTimes(1);
+      });
+      expect(loadUploadedFile).toHaveBeenCalledWith(file);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('shows an error if parchment is not ready to receive a local file', async () => {
+    jest.useFakeTimers();
+
+    try {
+    await renderAppWithOpenMap('Parchment Not Ready Map');
 
     const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
     expect(chooserInput).not.toBeNull();
@@ -442,102 +503,49 @@ describe('URL routing', () => {
       });
     });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
-
-    await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
-  });
-
-  it('persists local-file metadata without resetting the iframe src after an IFDB launch', async () => {
-    const user = userEvent.setup();
-    const fetchMock = jest.fn<typeof fetch>()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          games: [
-            {
-              tuid: 'abc123',
-              title: 'The Example Game',
-              author: 'Pat Example',
-            },
-          ],
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          identification: {
-            ifids: ['IFID-123'],
-          },
-          bibliographic: {
-            title: 'The Example Game',
-            author: 'Pat Example',
-          },
-          ifdb: {
-            tuid: 'abc123',
-            downloads: {
-              links: [
-                {
-                  title: 'Playable Glulx release',
-                  url: 'https://example.com/game.ulx',
-                  format: 'glulx',
-                  isGame: true,
-                },
-              ],
-            },
-          },
-        }),
-      } as Response);
-    Object.defineProperty(globalThis, 'fetch', {
-      configurable: true,
-      writable: true,
-      value: fetchMock,
-    });
-
-    await renderAppWithOpenMap('Parchment Local Metadata Map');
-
-    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
-    await user.click(screen.getByRole('button', { name: /^search$/i }));
-    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
-
-    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
-    });
-
-    const parchmentInstance = {
-      async load_uploaded_file(this: unknown, _file: File) {
-        return undefined;
-      },
-    };
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     Object.defineProperty(iframe, 'contentWindow', {
       configurable: true,
-      value: {
-        parchment: parchmentInstance,
-      },
+      value: {},
     });
+    fireEvent.load(iframe);
 
-    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
-    expect(chooserInput).not.toBeNull();
-
-    const file = new File(['story data'], 'Local Story.gblorb', { type: 'application/octet-stream' });
     await act(async () => {
-      fireEvent.change(chooserInput!, {
-        target: {
-          files: [file],
-        },
-      });
+      await jest.advanceTimersByTimeAsync(1200);
     });
 
-    expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
-      sourceType: 'local-file',
-      tuid: null,
-      ifid: null,
-      title: 'Local Story.gblorb',
-      author: null,
-      storyUrl: null,
-      format: 'glulx',
-    });
-    expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('returns from the game view to the chooser when reset is clicked', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Reset Panel Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
   });
 
   it('keeps suggestions closed on focus and opens them with /', async () => {

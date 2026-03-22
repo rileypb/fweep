@@ -154,25 +154,12 @@ body.app-shell--resizing-side-panel {
   box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
 }
 
-.app-parchment-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 2.5rem;
-  padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
 .app-parchment-panel__search {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 0.55rem;
   padding: 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .app-parchment-panel__search-label {
@@ -238,8 +225,9 @@ body.app-shell--resizing-side-panel {
 .app-parchment-panel__results {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 0.55rem;
-  max-height: 12rem;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -289,6 +277,36 @@ body.app-shell--resizing-side-panel {
 .app-parchment-panel__result-meta {
   margin: 0.2rem 0 0;
   font-size: 0.84rem;
+}
+
+.app-parchment-panel__game-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.75rem 0.85rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-parchment-panel__reset-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__reset-button:hover,
+.app-parchment-panel__reset-button:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__game-status {
+  margin: 0;
+  padding: 0 0.85rem 0.75rem;
+  font-size: 0.86rem;
 }
 
 :root[data-theme='dark'] .app-parchment-panel__search-input {

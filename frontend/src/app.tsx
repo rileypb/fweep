@@ -28,6 +28,8 @@ const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
 const PARCHMENT_PANEL_RIGHT_MARGIN_PX = 16;
 const PARCHMENT_PANEL_HANDLE_OFFSET_PX = 12;
 const PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY = 'Slash';
+const PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS = 100;
+const PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS = 10;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 function isDesktopViewport(): boolean {
@@ -169,6 +171,9 @@ export function App(): React.JSX.Element {
   const [isIfdbSearching, setIsIfdbSearching] = useState(false);
   const [loadingIfdbGameTuid, setLoadingIfdbGameTuid] = useState<string | null>(null);
   const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null));
+  const [isParchmentGameViewVisible, setIsParchmentGameViewVisible] = useState(false);
+  const [isParchmentChooserForcedVisible, setIsParchmentChooserForcedVisible] = useState(false);
+  const [pendingLocalFile, setPendingLocalFile] = useState<File | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
@@ -176,6 +181,7 @@ export function App(): React.JSX.Element {
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
   const syncedParchmentMapIdRef = useRef<string | null>(null);
+  const pendingLocalFileRetryTimeoutRef = useRef<number | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
@@ -274,6 +280,12 @@ export function App(): React.JSX.Element {
     document.body.classList.remove('app-shell--resizing-side-panel');
   }, []);
 
+  useEffect(() => () => {
+    if (pendingLocalFileRetryTimeoutRef.current !== null) {
+      window.clearTimeout(pendingLocalFileRetryTimeoutRef.current);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeMap !== null) {
       return;
@@ -343,6 +355,9 @@ export function App(): React.JSX.Element {
         return;
       }
 
+      setPendingLocalFile(null);
+      setIsParchmentChooserForcedVisible(false);
+      setIsParchmentGameViewVisible(true);
       setAssociatedGameMetadata(resolvedGame);
     } catch (error) {
       setIfdbSearchError(error instanceof Error ? error.message : 'IFDB game lookup failed.');
@@ -358,22 +373,64 @@ export function App(): React.JSX.Element {
 
     if (activeMapId === null) {
       setParchmentSrc(buildParchmentSrc(null));
+      setIsParchmentGameViewVisible(false);
+      setIsParchmentChooserForcedVisible(false);
+      setPendingLocalFile(null);
       return;
     }
 
     if (associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
       setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
+      if (!isParchmentChooserForcedVisible && !isParchmentGameViewVisible) {
+        setIsParchmentGameViewVisible(true);
+      }
       return;
     }
 
     if (hasSwitchedMaps) {
       setParchmentSrc(buildParchmentSrc(null));
+      setIsParchmentGameViewVisible(false);
+      setIsParchmentChooserForcedVisible(false);
+      setPendingLocalFile(null);
     }
-  }, [activeMap?.metadata.id, associatedGame?.sourceType, associatedGame?.storyUrl]);
+  }, [
+    activeMap?.metadata.id,
+    associatedGame?.sourceType,
+    associatedGame?.storyUrl,
+    isParchmentChooserForcedVisible,
+    isParchmentGameViewVisible,
+  ]);
 
   const handleOpenParchmentFileChooser = useCallback((): void => {
     parchmentDeviceInputRef.current?.click();
   }, []);
+
+  const tryLoadParchmentLocalFile = useCallback(async (
+    selectedFile: File,
+    reportUnavailable: boolean,
+  ): Promise<boolean> => {
+    const parchment = getParchmentInstance(parchmentIframeRef.current);
+    if (parchment === null || typeof parchment.load_uploaded_file !== 'function') {
+      if (reportUnavailable) {
+        setIfdbSearchError('Parchment is not ready to open a local file yet.');
+        setPendingLocalFile(null);
+      }
+      return false;
+    }
+
+    setIfdbSearchError(null);
+
+    try {
+      await parchment.load_uploaded_file(selectedFile);
+      setAssociatedGameMetadata(createLocalFileAssociatedGameMetadata(selectedFile));
+      setPendingLocalFile(null);
+      return true;
+    } catch (error) {
+      setPendingLocalFile(null);
+      setIfdbSearchError(error instanceof Error ? error.message : 'Opening the local story file failed.');
+      return true;
+    }
+  }, [setAssociatedGameMetadata]);
 
   const handleParchmentDeviceFileChange = useCallback(async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -385,21 +442,53 @@ export function App(): React.JSX.Element {
       return;
     }
 
-    const parchment = getParchmentInstance(parchmentIframeRef.current);
-    if (parchment === null || typeof parchment.load_uploaded_file !== 'function') {
-      setIfdbSearchError('Parchment is not ready to open a local file yet.');
+    setIfdbSearchError(null);
+    setParchmentSrc(buildParchmentSrc(null));
+    setPendingLocalFile(selectedFile);
+    setIsParchmentChooserForcedVisible(false);
+    setIsParchmentGameViewVisible(true);
+
+    await tryLoadParchmentLocalFile(selectedFile, false);
+  }, [tryLoadParchmentLocalFile]);
+
+  const handleResetParchmentPanel = useCallback((): void => {
+    if (pendingLocalFileRetryTimeoutRef.current !== null) {
+      window.clearTimeout(pendingLocalFileRetryTimeoutRef.current);
+      pendingLocalFileRetryTimeoutRef.current = null;
+    }
+    setIfdbSearchError(null);
+    setPendingLocalFile(null);
+    setParchmentSrc(buildParchmentSrc(null));
+    setIsParchmentChooserForcedVisible(true);
+    setIsParchmentGameViewVisible(false);
+  }, []);
+
+  const retryPendingParchmentLocalFileLoad = useCallback((selectedFile: File, attemptsRemaining: number): void => {
+    void (async () => {
+      const didFinish = await tryLoadParchmentLocalFile(selectedFile, attemptsRemaining <= 0);
+      if (didFinish || attemptsRemaining <= 0) {
+        pendingLocalFileRetryTimeoutRef.current = null;
+        return;
+      }
+
+      pendingLocalFileRetryTimeoutRef.current = window.setTimeout(() => {
+        retryPendingParchmentLocalFileLoad(selectedFile, attemptsRemaining - 1);
+      }, PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS);
+    })();
+  }, [tryLoadParchmentLocalFile]);
+
+  const handleParchmentIframeLoad = useCallback((): void => {
+    if (pendingLocalFile === null) {
       return;
     }
 
-    setIfdbSearchError(null);
-
-    try {
-      await parchment.load_uploaded_file(selectedFile);
-      setAssociatedGameMetadata(createLocalFileAssociatedGameMetadata(selectedFile));
-    } catch (error) {
-      setIfdbSearchError(error instanceof Error ? error.message : 'Opening the local story file failed.');
+    if (pendingLocalFileRetryTimeoutRef.current !== null) {
+      window.clearTimeout(pendingLocalFileRetryTimeoutRef.current);
+      pendingLocalFileRetryTimeoutRef.current = null;
     }
-  }, [setAssociatedGameMetadata]);
+
+    retryPendingParchmentLocalFileLoad(pendingLocalFile, PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS);
+  }, [pendingLocalFile, retryPendingParchmentLocalFileLoad]);
 
   const focusFweepMain = useCallback((): void => {
     window.focus();
@@ -505,7 +594,14 @@ export function App(): React.JSX.Element {
 
       const iframeWindow = iframeElement.contentWindow;
       const iframeDocument = iframeElement.contentDocument;
-      if (iframeWindow === null || iframeDocument === null) {
+      if (
+        iframeWindow === null
+        || iframeDocument === null
+        || typeof iframeWindow.addEventListener !== 'function'
+        || typeof iframeWindow.removeEventListener !== 'function'
+        || typeof iframeDocument.addEventListener !== 'function'
+        || typeof iframeDocument.removeEventListener !== 'function'
+      ) {
         return;
       }
 
@@ -766,93 +862,102 @@ export function App(): React.JSX.Element {
               }}
             />
             <div className="app-parchment-panel__frame">
-              <div className="app-parchment-panel__header">
-                <a
-                  href="https://github.com/curiousdannii/parchment"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  PARCHMENT by Dannii Willis
-                </a>
-              </div>
-              <form className="app-parchment-panel__search" onSubmit={(event) => { void handleIfdbSearchSubmit(event); }}>
-                <label className="app-parchment-panel__search-label" htmlFor="app-ifdb-search">
-                  Search IFDB for a game
-                </label>
-                <div className="app-parchment-panel__search-row">
-                  <input
-                    id="app-ifdb-search"
-                    className="app-parchment-panel__search-input"
-                    type="text"
-                    value={ifdbSearchQuery}
-                    onChange={(event) => {
-                      setIfdbSearchQuery(event.target.value);
-                    }}
-                  />
-                  <button type="submit" className="app-parchment-panel__search-button" disabled={isIfdbSearching}>
-                    {isIfdbSearching ? 'Searching...' : 'Search'}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="app-parchment-panel__device-link"
-                  onClick={handleOpenParchmentFileChooser}
-                >
-                  {parchmentDeviceLinkLabel}
-                </button>
-                <input
-                  ref={parchmentDeviceInputRef}
-                  className="app-parchment-panel__device-input"
-                  type="file"
-                  tabIndex={-1}
-                  onChange={(event) => {
-                    void handleParchmentDeviceFileChange(event);
-                  }}
-                />
-                {ifdbSearchError ? (
-                  <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
-                ) : null}
-                {ifdbSearchResults.length > 0 ? (
-                  <div className="app-parchment-panel__results" aria-label="IFDB search results">
-                    {ifdbSearchResults.map((result) => (
-                      <article key={result.tuid} className="app-parchment-panel__result">
-                        {result.coverArtUrl ? (
-                          <img
-                            className="app-parchment-panel__result-cover"
-                            src={result.coverArtUrl}
-                            alt={`Cover art for ${result.title}`}
-                          />
-                        ) : null}
-                        <h2 className="app-parchment-panel__result-title">
-                          <button
-                            type="button"
-                            className="app-parchment-panel__result-button"
-                            aria-label={`Play ${result.title}`}
-                            disabled={loadingIfdbGameTuid === result.tuid}
-                            onClick={() => {
-                              void handleIfdbGameSelected(result.tuid);
-                            }}
-                          >
-                            {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
-                          </button>
-                        </h2>
-                        <p className="app-parchment-panel__result-meta">
-                          {result.author ?? 'Unknown author'}
-                        </p>
-                        {result.publishedDisplay ? (
-                          <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
-              </form>
-              <iframe
-                ref={parchmentIframeRef}
-                className="app-parchment-panel__iframe"
-                src={parchmentSrc}
-                title="Interactive fiction player"
+              <input
+                ref={parchmentDeviceInputRef}
+                className="app-parchment-panel__device-input"
+                type="file"
+                tabIndex={-1}
+                onChange={(event) => {
+                  void handleParchmentDeviceFileChange(event);
+                }}
               />
+              {isParchmentGameViewVisible ? (
+                <>
+                  <div className="app-parchment-panel__game-header">
+                    <button
+                      type="button"
+                      className="app-parchment-panel__reset-button"
+                      onClick={handleResetParchmentPanel}
+                    >
+                      reset
+                    </button>
+                  </div>
+                  {ifdbSearchError ? (
+                    <p className="app-parchment-panel__game-status" role="alert">{ifdbSearchError}</p>
+                  ) : null}
+                  <iframe
+                    ref={parchmentIframeRef}
+                    className="app-parchment-panel__iframe"
+                    src={parchmentSrc}
+                    title="Interactive fiction player"
+                    onLoad={handleParchmentIframeLoad}
+                  />
+                </>
+              ) : (
+                <form className="app-parchment-panel__search" onSubmit={(event) => { void handleIfdbSearchSubmit(event); }}>
+                  <label className="app-parchment-panel__search-label" htmlFor="app-ifdb-search">
+                    Search IFDB for a game
+                  </label>
+                  <div className="app-parchment-panel__search-row">
+                    <input
+                      id="app-ifdb-search"
+                      className="app-parchment-panel__search-input"
+                      type="text"
+                      value={ifdbSearchQuery}
+                      onChange={(event) => {
+                        setIfdbSearchQuery(event.target.value);
+                      }}
+                    />
+                    <button type="submit" className="app-parchment-panel__search-button" disabled={isIfdbSearching}>
+                      {isIfdbSearching ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="app-parchment-panel__device-link"
+                    onClick={handleOpenParchmentFileChooser}
+                  >
+                    {parchmentDeviceLinkLabel}
+                  </button>
+                  {ifdbSearchError ? (
+                    <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
+                  ) : null}
+                  {ifdbSearchResults.length > 0 ? (
+                    <div className="app-parchment-panel__results" aria-label="IFDB search results">
+                      {ifdbSearchResults.map((result) => (
+                        <article key={result.tuid} className="app-parchment-panel__result">
+                          {result.coverArtUrl ? (
+                            <img
+                              className="app-parchment-panel__result-cover"
+                              src={result.coverArtUrl}
+                              alt={`Cover art for ${result.title}`}
+                            />
+                          ) : null}
+                          <h2 className="app-parchment-panel__result-title">
+                            <button
+                              type="button"
+                              className="app-parchment-panel__result-button"
+                              aria-label={`Play ${result.title}`}
+                              disabled={loadingIfdbGameTuid === result.tuid}
+                              onClick={() => {
+                                void handleIfdbGameSelected(result.tuid);
+                              }}
+                            >
+                              {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
+                            </button>
+                          </h2>
+                          <p className="app-parchment-panel__result-meta">
+                            {result.author ?? 'Unknown author'}
+                          </p>
+                          {result.publishedDisplay ? (
+                            <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+                </form>
+              )}
             </div>
           </div>
         </>
