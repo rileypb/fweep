@@ -183,7 +183,7 @@ describe('AppCliPanel', () => {
           isSuggestionMenuOpen: true,
           cliSuggestions: [{
             id: 'suggestion-1',
-            kind: 'keyword',
+            kind: 'command',
             label: 'look',
             insertText: 'look',
             detail: null,

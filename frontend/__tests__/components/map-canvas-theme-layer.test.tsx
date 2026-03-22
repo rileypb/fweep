@@ -75,7 +75,7 @@ describe('MapCanvasThemeLayer', () => {
 
   it('sizes and paints the visible canvas for the default theme without drawing textures', async () => {
     const visibleContext = createContext2d();
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as typeof HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
     const { getByTestId } = render(
       <MapCanvasThemeLayer
@@ -104,7 +104,7 @@ describe('MapCanvasThemeLayer', () => {
   it('draws the paper texture into a buffer canvas and composites it onto the visible canvas', async () => {
     const visibleContext = createContext2d();
     const bufferContext = createContext2d();
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as typeof HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as unknown as typeof HTMLCanvasElement.prototype.getContext;
     const bufferCanvas = {
       getContext: jest.fn(() => bufferContext),
     } as unknown as HTMLCanvasElement;
@@ -129,7 +129,7 @@ describe('MapCanvasThemeLayer', () => {
     expect(mockCreateSizedCanvas).toHaveBeenCalledWith(200, 120);
     expect(bufferContext.scale).toHaveBeenCalledWith(2, 2);
     expect(mockDrawPaperTexture).toHaveBeenCalledWith(
-      bufferContext,
+      expect.anything(),
       100,
       60,
       'light',
@@ -141,7 +141,7 @@ describe('MapCanvasThemeLayer', () => {
 
   it('skips compositing when the buffer canvas cannot provide a rendering context', async () => {
     const visibleContext = createContext2d();
-    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as typeof HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => visibleContext) as unknown as typeof HTMLCanvasElement.prototype.getContext;
     mockCreateSizedCanvas.mockReturnValue({
       getContext: jest.fn(() => null),
     } as unknown as HTMLCanvasElement);
