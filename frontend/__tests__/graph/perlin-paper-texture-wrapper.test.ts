@@ -35,6 +35,10 @@ const {
 type FakeContext = {
   readonly fillRect: ReturnType<typeof jest.fn>;
   readonly drawImage: ReturnType<typeof jest.fn>;
+  readonly createPattern?: ReturnType<typeof jest.fn>;
+  readonly save?: ReturnType<typeof jest.fn>;
+  readonly restore?: ReturnType<typeof jest.fn>;
+  readonly translate?: ReturnType<typeof jest.fn>;
   fillStyle: string;
 };
 
@@ -42,6 +46,10 @@ function createFakeContext(): FakeContext {
   return {
     fillRect: jest.fn(),
     drawImage: jest.fn(),
+    createPattern: jest.fn(),
+    save: jest.fn(),
+    restore: jest.fn(),
+    translate: jest.fn(),
     fillStyle: '',
   };
 }
@@ -57,6 +65,17 @@ function createFakeCanvas(label: string): HTMLCanvasElement {
   };
   return {
     dataset: { label },
+    getContext: jest.fn(() => context),
+  } as unknown as HTMLCanvasElement;
+}
+
+function createScalingCanvas(): HTMLCanvasElement {
+  const context = {
+    clearRect: jest.fn(),
+    drawImage: jest.fn(),
+    imageSmoothingEnabled: false,
+  };
+  return {
     getContext: jest.fn(() => context),
   } as unknown as HTMLCanvasElement;
 }
@@ -224,5 +243,47 @@ describe('perlin-paper-texture wrapper', () => {
       512 * PAPER_TEXTURE_RENDER_SCALE * 2,
       512 * PAPER_TEXTURE_RENDER_SCALE * 2,
     );
+  });
+
+  it('uses a repeated canvas pattern when the context supports it', async () => {
+    const context = createFakeContext();
+    const repeatedPattern = { kind: 'pattern' };
+    const storedBlob = new Blob(['stored-paper-pattern']);
+    const storedCanvas = createFakeCanvas('stored-paper-pattern');
+    const scaledCanvas = createScalingCanvas();
+
+    mockLoadTextureTile.mockResolvedValue(createStoredTextureTileRecord(storedBlob));
+    mockBlobToCanvas.mockResolvedValue(storedCanvas);
+    mockCreateSizedCanvas.mockReturnValue(scaledCanvas);
+    context.createPattern!.mockReturnValue(repeatedPattern as unknown as CanvasPattern);
+
+    await drawPaperTexture(
+      context as unknown as CanvasRenderingContext2D,
+      80,
+      60,
+      'light',
+      { mapId: 'paper-pattern', textureSeed: 707, theme: 'light' },
+      { originX: 12, originY: 8 },
+    );
+
+    expect(context.createPattern).toHaveBeenCalledWith(scaledCanvas, 'repeat');
+    expect(context.save).toHaveBeenCalledTimes(1);
+    expect(context.translate).toHaveBeenCalledWith(12, 8);
+    expect(context.fillRect).toHaveBeenLastCalledWith(-12, -8, 80, 60);
+    expect(context.restore).toHaveBeenCalledTimes(1);
+    expect(context.drawImage).not.toHaveBeenCalled();
+  });
+
+  it('throws when the generated paper canvas cannot provide a 2d context', async () => {
+    mockLoadTextureTile.mockResolvedValue(undefined);
+    mockCreateSizedCanvas.mockReturnValue({
+      getContext: jest.fn(() => null),
+    } as unknown as HTMLCanvasElement);
+
+    await expect(ensurePaperTextureTileBlob({
+      mapId: 'paper-no-context',
+      textureSeed: 808,
+      theme: 'light',
+    })).rejects.toThrow('Could not create paper texture canvas.');
   });
 });

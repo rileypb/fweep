@@ -7,7 +7,7 @@ const DEFAULT_EXPANDED_OUTPUT_HEIGHT_PX = 320;
 const CLI_OUTPUT_RESIZE_STEP_PX = 32;
 const CLI_OUTPUT_BOTTOM_GAP_PX = 12;
 
-function loadStoredCliOutputHeight(): number | null {
+export function loadStoredCliOutputHeight(): number | null {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -23,7 +23,7 @@ function loadStoredCliOutputHeight(): number | null {
     : null;
 }
 
-function storeCliOutputHeight(height: number | null): void {
+export function storeCliOutputHeight(height: number | null): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -36,11 +36,11 @@ function storeCliOutputHeight(height: number | null): void {
   window.localStorage.setItem(CLI_OUTPUT_HEIGHT_STORAGE_KEY, String(Math.round(height)));
 }
 
-function clampCliOutputHeight(height: number, maxHeight: number): number {
+export function clampCliOutputHeight(height: number, maxHeight: number): number {
   return Math.max(MIN_EXPANDED_OUTPUT_HEIGHT_PX, Math.min(height, maxHeight));
 }
 
-function renderCliOutputLine(line: string): React.ReactNode {
+export function renderCliOutputLine(line: string): React.ReactNode {
   const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
   if (segments.length === 0) {
     return null;

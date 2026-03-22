@@ -35,15 +35,15 @@ const PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS = 100;
 const PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS = 10;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
-function isDesktopViewport(): boolean {
+export function isDesktopViewport(): boolean {
   return typeof window === 'undefined' || window.innerWidth >= DESKTOP_ONLY_MIN_WIDTH_PX;
 }
 
-function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
+export function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
   return rootFontSizePx + (viewportWidth * 0.02);
 }
 
-function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): number {
+export function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): number {
   const leftOffset = getAppCliLeftOffset(viewportWidth, rootFontSizePx);
   const preferredStackWidth = viewportWidth <= 720
     ? Math.min(viewportWidth * 0.52, rootFontSizePx * 18)
@@ -51,7 +51,7 @@ function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): num
   return Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
 }
 
-function hasSeenWelcomeDialog(): boolean {
+export function hasSeenWelcomeDialog(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
@@ -59,7 +59,7 @@ function hasSeenWelcomeDialog(): boolean {
   return window.localStorage.getItem(WELCOME_DIALOG_SEEN_STORAGE_KEY) === 'true';
 }
 
-function markWelcomeDialogSeen(): void {
+export function markWelcomeDialogSeen(): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -67,19 +67,19 @@ function markWelcomeDialogSeen(): void {
   window.localStorage.setItem(WELCOME_DIALOG_SEEN_STORAGE_KEY, 'true');
 }
 
-function isWelcomeHotkeyEnabled(): boolean {
+export function isWelcomeHotkeyEnabled(): boolean {
   return import.meta.env?.DEV === true || (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ === true;
 }
 
-function getDefaultParchmentPanelWidth(viewportWidth: number): number {
+export function getDefaultParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(PARCHMENT_PANEL_DEFAULT_WIDTH_PX, viewportWidth);
 }
 
-function getDefaultParchmentPanelHeight(viewportHeight: number): number {
+export function getDefaultParchmentPanelHeight(viewportHeight: number): number {
   return clampParchmentPanelHeight(viewportHeight - 32, viewportHeight);
 }
 
-function clampParchmentPanelWidth(width: number, viewportWidth: number): number {
+export function clampParchmentPanelWidth(width: number, viewportWidth: number): number {
   const maxWidth = Math.max(
     PARCHMENT_PANEL_MIN_WIDTH_PX,
     Math.floor(viewportWidth * PARCHMENT_PANEL_MAX_VIEWPORT_RATIO),
@@ -87,12 +87,12 @@ function clampParchmentPanelWidth(width: number, viewportWidth: number): number 
   return Math.min(Math.max(width, PARCHMENT_PANEL_MIN_WIDTH_PX), maxWidth);
 }
 
-function clampParchmentPanelHeight(height: number, viewportHeight: number): number {
+export function clampParchmentPanelHeight(height: number, viewportHeight: number): number {
   const maxHeight = Math.max(PARCHMENT_PANEL_MIN_HEIGHT_PX, viewportHeight - 32);
   return Math.min(Math.max(height, PARCHMENT_PANEL_MIN_HEIGHT_PX), maxHeight);
 }
 
-function loadStoredParchmentPanelWidth(viewportWidth: number): number {
+export function loadStoredParchmentPanelWidth(viewportWidth: number): number {
   if (typeof window === 'undefined') {
     return getDefaultParchmentPanelWidth(viewportWidth);
   }
@@ -110,7 +110,7 @@ function loadStoredParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(parsedValue, viewportWidth);
 }
 
-function loadStoredParchmentPanelHeight(viewportHeight: number): number {
+export function loadStoredParchmentPanelHeight(viewportHeight: number): number {
   if (typeof window === 'undefined') {
     return getDefaultParchmentPanelHeight(viewportHeight);
   }
@@ -128,7 +128,7 @@ function loadStoredParchmentPanelHeight(viewportHeight: number): number {
   return clampParchmentPanelHeight(parsedValue, viewportHeight);
 }
 
-function persistParchmentPanelWidth(width: number): void {
+export function persistParchmentPanelWidth(width: number): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -136,7 +136,7 @@ function persistParchmentPanelWidth(width: number): void {
   window.localStorage.setItem(PARCHMENT_PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
 }
 
-function persistParchmentPanelHeight(height: number): void {
+export function persistParchmentPanelHeight(height: number): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -144,7 +144,7 @@ function persistParchmentPanelHeight(height: number): void {
   window.localStorage.setItem(PARCHMENT_PANEL_HEIGHT_STORAGE_KEY, String(Math.round(height)));
 }
 
-function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
+export function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
   const currentIndex = MAP_CANVAS_THEMES.indexOf(current);
   if (currentIndex < 0) {
     return MAP_CANVAS_THEMES[0];
@@ -153,7 +153,37 @@ function getNextCanvasTheme(current: MapCanvasTheme): MapCanvasTheme {
   return MAP_CANVAS_THEMES[(currentIndex + 1) % MAP_CANVAS_THEMES.length];
 }
 
-function buildParchmentSrc(storyUrl: string | null): string {
+export function getNextMapVisualStyle(current: 'default' | 'square-classic'): 'default' | 'square-classic' {
+  return current === 'default' ? 'square-classic' : 'default';
+}
+
+export function getNextParchmentPanelHeightFromKey(
+  key: string,
+  currentHeight: number,
+  viewportHeight: number,
+): number | null {
+  if (key !== 'ArrowUp' && key !== 'ArrowDown') {
+    return null;
+  }
+
+  const delta = key === 'ArrowUp' ? 32 : -32;
+  return clampParchmentPanelHeight(currentHeight + delta, viewportHeight);
+}
+
+export function getNextParchmentPanelWidthFromKey(
+  key: string,
+  currentWidth: number,
+  viewportWidth: number,
+): number | null {
+  if (key !== 'ArrowLeft' && key !== 'ArrowRight') {
+    return null;
+  }
+
+  const delta = key === 'ArrowLeft' ? 32 : -32;
+  return clampParchmentPanelWidth(currentWidth + delta, viewportWidth);
+}
+
+export function buildParchmentSrc(storyUrl: string | null): string {
   if (storyUrl === null) {
     return '/parchment.html';
   }
@@ -172,13 +202,13 @@ type ParchmentWindow = Window & {
 
 type ParchmentInstance = NonNullable<ParchmentWindow['parchment']>;
 
-function getParchmentInstance(iframeElement: HTMLIFrameElement | null): ParchmentInstance | null {
+export function getParchmentInstance(iframeElement: HTMLIFrameElement | null): ParchmentInstance | null {
   const iframeWindow = iframeElement?.contentWindow as ParchmentWindow | null;
   const parchment = iframeWindow?.parchment;
   return parchment !== undefined ? parchment : null;
 }
 
-function shouldWarnAboutLeavingParchmentGame(hasOpenMap: boolean, isParchmentGameViewVisible: boolean): boolean {
+export function shouldWarnAboutLeavingParchmentGame(hasOpenMap: boolean, isParchmentGameViewVisible: boolean): boolean {
   return hasOpenMap && isParchmentGameViewVisible;
 }
 
@@ -1007,7 +1037,7 @@ export function App(): React.JSX.Element {
               aria-label="Toggle map visual style"
               title="Toggle map visual style"
               aria-pressed={mapVisualStyle === 'square-classic'}
-              onClick={() => setMapVisualStyle(mapVisualStyle === 'default' ? 'square-classic' : 'default')}
+              onClick={() => setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle))}
             >
               <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
                 <path d={mapVisualStyle === 'square-classic' ? SHAPES_SOLID_FULL_PATH : SQUARE_REGULAR_FULL_PATH} />
@@ -1056,13 +1086,12 @@ export function App(): React.JSX.Element {
                 beginParchmentPanelHeightResize(event.pointerId, event.clientY);
               }}
               onKeyDown={(event) => {
-                if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+                const nextHeight = getNextParchmentPanelHeightFromKey(event.key, parchmentPanelHeight, window.innerHeight);
+                if (nextHeight === null) {
                   return;
                 }
 
                 event.preventDefault();
-                const delta = event.key === 'ArrowUp' ? 32 : -32;
-                const nextHeight = clampParchmentPanelHeight(parchmentPanelHeight + delta, window.innerHeight);
                 setParchmentPanelHeight(nextHeight);
                 persistParchmentPanelHeight(nextHeight);
               }}
@@ -1079,13 +1108,12 @@ export function App(): React.JSX.Element {
                 beginParchmentPanelResize(event.pointerId, event.clientX);
               }}
               onKeyDown={(event) => {
-                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+                const nextWidth = getNextParchmentPanelWidthFromKey(event.key, parchmentPanelWidth, window.innerWidth);
+                if (nextWidth === null) {
                   return;
                 }
 
                 event.preventDefault();
-                const delta = event.key === 'ArrowLeft' ? 32 : -32;
-                const nextWidth = clampParchmentPanelWidth(parchmentPanelWidth + delta, window.innerWidth);
                 setParchmentPanelWidth(nextWidth);
                 persistParchmentPanelWidth(nextWidth);
               }}

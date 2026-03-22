@@ -96,6 +96,8 @@ beforeEach(() => {
   window.history.replaceState({}, '', '#/');
   setViewportWidth(1024);
   window.localStorage.removeItem('fweep-welcome-dialog-seen');
+  window.localStorage.removeItem('fweep-parchment-panel-width');
+  window.localStorage.removeItem('fweep-parchment-panel-height');
   (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = false;
   // Reset editor store
   useEditorStore.setState(useEditorStore.getInitialState());
@@ -274,6 +276,58 @@ describe('URL routing', () => {
     expect(coverArt).toHaveClass('app-parchment-panel__result-cover');
     const ifdbLink = screen.getByRole('link', { name: /view the example game on IFDB/i });
     expect(ifdbLink).toHaveAttribute('href', 'https://ifdb.org/viewgame?id=abc123');
+  });
+
+  it('clears IFDB results when the search is submitted with only whitespace', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            tuid: 'abc123',
+            title: 'The Example Game',
+          },
+        ],
+      }),
+    } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Blank Search Map');
+
+    const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+    await user.type(searchInput, 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+
+    await user.clear(searchInput);
+    await user.type(searchInput, '   ');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+
+    expect(screen.queryByText('The Example Game')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows IFDB search failures from manual submit', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: jest.fn<typeof fetch>().mockRejectedValue(new Error('Network down')),
+    });
+
+    await renderAppWithOpenMap('IFDB Search Error Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network down');
+    expect(screen.queryByText('The Example Game')).not.toBeInTheDocument();
   });
 
   it('loads the selected IFDB game into Parchment and persists the association on the map', async () => {
@@ -462,6 +516,37 @@ describe('URL routing', () => {
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
   });
 
+  it('shows IFDB game lookup failures in the chooser panel', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+            },
+          ],
+        }),
+      } as Response)
+      .mockRejectedValueOnce(new Error('Lookup failed'));
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Lookup Error Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Lookup failed');
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+  });
+
   it('opens a fweep-owned file chooser from the side-panel control', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('Parchment Chooser Map');
@@ -518,6 +603,118 @@ describe('URL routing', () => {
         format: 'glulx',
       });
     });
+  });
+
+  it('shows a local-file loading error when Parchment rejects the upload', async () => {
+    await renderAppWithOpenMap('Parchment Local File Error Map');
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const loadUploadedFile = jest.fn<(file: File) => Promise<void>>().mockRejectedValue(new Error('Upload failed'));
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: {
+          load_uploaded_file: loadUploadedFile,
+        },
+      },
+    });
+    fireEvent.load(iframe);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Upload failed');
+    expect(useEditorStore.getState().doc?.metadata.associatedGame).toBeNull();
+  });
+
+  it('ignores an empty local-file chooser selection', async () => {
+    await renderAppWithOpenMap('Parchment Empty File Selection Map');
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [],
+        },
+      });
+    });
+
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
+    expect(useEditorStore.getState().doc?.metadata.associatedGame).toBeNull();
+  });
+
+  it('does nothing when the parchment iframe loads without a pending local file', async () => {
+    const doc = createEmptyMap('Parchment Idle Load Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    fireEvent.load(iframe);
+
+    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(useEditorStore.getState().doc?.metadata.associatedGame?.storyUrl).toBe('https://example.com/game.ulx');
+  });
+
+  it('clears a pending local-file retry when reset is clicked', async () => {
+    jest.useFakeTimers();
+    try {
+      await renderAppWithOpenMap('Parchment Reset Retry Map');
+
+      const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+      expect(chooserInput).not.toBeNull();
+
+      const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+      await act(async () => {
+        fireEvent.change(chooserInput!, {
+          target: {
+            files: [file],
+          },
+        });
+      });
+
+      const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: {},
+      });
+
+      fireEvent.load(iframe);
+      await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /^reset$/i }));
+      act(() => {
+        jest.runOnlyPendingTimers();
+      });
+
+      expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+      expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('calls the parchment uploader with the parchment instance as this', async () => {
@@ -1378,6 +1575,54 @@ describe('URL routing', () => {
     await renderAppWithSavedMap(doc);
 
     expect(screen.getByRole('separator', { name: /resize output log/i })).toBeInTheDocument();
+  });
+
+  it('supports keyboard resizing for the parchment panel width and height', async () => {
+    await renderAppWithOpenMap('Parchment Keyboard Resize Map');
+
+    const panel = document.querySelector('.app-parchment-panel') as HTMLElement | null;
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+
+    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel width/i }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel height/i }), { key: 'ArrowDown' });
+
+    expect(panel).toHaveStyle({ width: '452px', height: '704px' });
+    expect(window.localStorage.getItem('fweep-parchment-panel-width')).toBe('452');
+    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBe('704');
+  });
+
+  it('ignores unrelated keys on the parchment panel resize handles', async () => {
+    await renderAppWithOpenMap('Parchment Resize Ignore Keys Map');
+
+    const panel = document.querySelector('.app-parchment-panel') as HTMLElement | null;
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+
+    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel width/i }), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel height/i }), { key: 'Enter' });
+
+    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+    expect(window.localStorage.getItem('fweep-parchment-panel-width')).toBeNull();
+    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBeNull();
+  });
+
+  it('opens help, closes it with Escape, and returns to the map chooser from the toolbar', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Toolbar Controls Map');
+
+    await user.click(screen.getByRole('button', { name: /^help$/i }));
+    expect(await screen.findByRole('dialog', { name: /help/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /help/i })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
 
   it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
@@ -4628,6 +4873,69 @@ describe('URL routing', () => {
     });
   });
 
+  it('ignores unrelated parchment toggle messages before handling the matching one', async () => {
+    const user = userEvent.setup();
+    const baseDoc = createEmptyMap('Parchment Message Guard Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const cliInput = getCliInput();
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    expect(iframe.contentWindow).not.toBeNull();
+
+    await user.click(cliInput);
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      ctrlKey: true,
+    });
+    expect(document.activeElement).toBe(iframe);
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'fweep:toggle-focus-from-parchment' },
+      origin: 'https://example.com',
+      source: iframe.contentWindow,
+    }));
+    expect(document.activeElement).toBe(iframe);
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'fweep:toggle-focus-from-parchment' },
+      origin: window.location.origin,
+      source: window,
+    }));
+    expect(document.activeElement).toBe(iframe);
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'something-else' },
+      origin: window.location.origin,
+      source: iframe.contentWindow,
+    }));
+    expect(document.activeElement).toBe(iframe);
+
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'fweep:toggle-focus-from-parchment' },
+      origin: window.location.origin,
+      source: iframe.contentWindow,
+    }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cliInput);
+    });
+  });
+
   it('warns before leaving to the map selection screen when the parchment game view is visible', async () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
     const doc = createEmptyMap('Protected Return Map');
@@ -4653,7 +4961,7 @@ describe('URL routing', () => {
 
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
 
-    expect(confirmSpy).toHaveBeenCalledWith('Save your game in Parchment before leaving this map?');
+    expect(confirmSpy).toHaveBeenCalledWith('You may have an unsaved game. Do you really want to leave?');
     expect(window.location.hash).toBe(`#/map/${linkedDoc.metadata.id}`);
     expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
   });
@@ -4836,6 +5144,21 @@ describe('URL routing', () => {
     await user.keyboard('{Control>}{Shift>}w{/Shift}{/Control}');
 
     expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+  });
+
+  it('closes the welcome dialog with Escape', async () => {
+    (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = true;
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Welcome Escape Map');
+
+    await user.keyboard('{Control>}{Shift>}w{/Shift}{/Control}');
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+    });
   });
 
   it('falls back to the selection dialog for an invalid map ID in the URL', async () => {
