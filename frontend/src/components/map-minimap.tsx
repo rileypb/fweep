@@ -58,6 +58,7 @@ export interface MapMinimapProps {
   readonly visualStyle?: MapVisualStyle;
   readonly canvasRect: CanvasRectLike | null;
   readonly visibleMapLeftInset?: number;
+  readonly visibleMapRightInset?: number;
   readonly theme: ThemeMode;
   readonly disabled?: boolean;
   readonly onPanToMapPoint: (point: { x: number; y: number }) => void;
@@ -124,6 +125,7 @@ export function MapMinimap({
   visualStyle = 'default',
   canvasRect,
   visibleMapLeftInset = 0,
+  visibleMapRightInset = 0,
   theme,
   disabled = false,
   onPanToMapPoint,
@@ -238,9 +240,10 @@ export function MapMinimap({
         transform,
         zoom,
         visibleMapLeftInset,
+        visibleMapRightInset,
       )
       : null,
-    [canvasRect, panOffset, transform, visibleMapLeftInset, zoom],
+    [canvasRect, panOffset, transform, visibleMapLeftInset, visibleMapRightInset, zoom],
   );
   const dragStateRef = useRef<{ previousX: number; previousY: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -322,6 +325,7 @@ export function MapMinimap({
       aria-label="Map overview"
       aria-description="Click to recenter the map; drag the frame to pan."
       tabIndex={isPlaceholder ? -1 : 0}
+      style={{ right: `${visibleMapRightInset + 12}px` }}
       onKeyDown={handleKeyDown}
     >
       <svg

@@ -10,6 +10,7 @@ import {
   type BackgroundDocument,
   type BackgroundLayer,
   type BackgroundReferenceImage,
+  type AssociatedGameMetadata,
   type Connection,
   type Item,
   type MapDocument,
@@ -31,6 +32,7 @@ import {
   isValidRoomStrokeColorIndex,
 } from './room-color-palette';
 import { createTextureSeed } from './map-defaults';
+import { isSupportedSchemaVersion, migrateMapDocumentToCurrentSchema } from './map-migrations';
 
 export type ValidationSeverity = 'error' | 'warning';
 export type EntityType = 'map' | 'metadata' | 'room' | 'pseudo-room' | 'connection' | 'sticky-note' | 'sticky-note-link' | 'item';
@@ -225,6 +227,112 @@ function validateLength(
   }
 }
 
+function parseNullableStringField(
+  value: unknown,
+  issues: ValidationIssue[],
+  path: string,
+  entityType: EntityType,
+  entityId: string,
+): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    pushIssue(issues, 'error', entityType, entityId, path, `${path} must be a string or null.`);
+    return null;
+  }
+
+  return value;
+}
+
+function parseAssociatedGameMetadata(value: unknown, issues: ValidationIssue[]): AssociatedGameMetadata | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const associatedGame = asRecord(value, issues, 'metadata.associatedGame', 'metadata', 'metadata');
+  if (!associatedGame) {
+    return null;
+  }
+
+  const sourceType = requireString(
+    associatedGame.sourceType,
+    issues,
+    'metadata.associatedGame.sourceType',
+    'metadata',
+    'metadata',
+  );
+  const title = requireString(
+    associatedGame.title,
+    issues,
+    'metadata.associatedGame.title',
+    'metadata',
+    'metadata',
+  );
+  const tuid = parseNullableStringField(
+    associatedGame.tuid,
+    issues,
+    'metadata.associatedGame.tuid',
+    'metadata',
+    'metadata',
+  );
+  const ifid = parseNullableStringField(
+    associatedGame.ifid,
+    issues,
+    'metadata.associatedGame.ifid',
+    'metadata',
+    'metadata',
+  );
+  const author = parseNullableStringField(
+    associatedGame.author,
+    issues,
+    'metadata.associatedGame.author',
+    'metadata',
+    'metadata',
+  );
+  const storyUrl = parseNullableStringField(
+    associatedGame.storyUrl,
+    issues,
+    'metadata.associatedGame.storyUrl',
+    'metadata',
+    'metadata',
+  );
+  const format = parseNullableStringField(
+    associatedGame.format,
+    issues,
+    'metadata.associatedGame.format',
+    'metadata',
+    'metadata',
+  );
+
+  if (sourceType === null || title === null) {
+    return null;
+  }
+
+  if (sourceType !== 'ifdb' && sourceType !== 'local-file') {
+    pushIssue(
+      issues,
+      'error',
+      'metadata',
+      'metadata',
+      'metadata.associatedGame.sourceType',
+      'metadata.associatedGame.sourceType must be "ifdb" or "local-file".',
+    );
+    return null;
+  }
+
+  return {
+    sourceType,
+    tuid,
+    ifid,
+    title,
+    author,
+    storyUrl,
+    format,
+  };
+}
+
 function parseMetadata(value: unknown, issues: ValidationIssue[]): MapMetadata | null {
   const metadata = asRecord(value, issues, 'metadata', 'metadata', 'metadata');
   if (!metadata) {
@@ -235,6 +343,7 @@ function parseMetadata(value: unknown, issues: ValidationIssue[]): MapMetadata |
   const name = requireString(metadata.name, issues, 'metadata.name', 'metadata', 'metadata');
   const createdAt = requireString(metadata.createdAt, issues, 'metadata.createdAt', 'metadata', 'metadata');
   const updatedAt = requireString(metadata.updatedAt, issues, 'metadata.updatedAt', 'metadata', 'metadata');
+  const associatedGame = parseAssociatedGameMetadata(metadata.associatedGame, issues);
 
   if (id === null || name === null || createdAt === null || updatedAt === null) {
     return null;
@@ -245,7 +354,7 @@ function parseMetadata(value: unknown, issues: ValidationIssue[]): MapMetadata |
   }
   validateLength(name, MAX_MAP_NAME_LENGTH, issues, 'metadata.name', 'metadata', id, 'Map name');
 
-  return { id, name, createdAt, updatedAt };
+  return { id, name, createdAt, updatedAt, associatedGame };
 }
 
 function parseMapView(value: unknown, issues: ValidationIssue[]): MapView {
@@ -1237,7 +1346,8 @@ export function parseUntrustedMapDocument(
   errorCode: MapValidationErrorCode = 'invalid-map-document',
 ): MapDocument {
   const issues: ValidationIssue[] = [];
-  const doc = asRecord(input, issues, 'root', 'map', 'root');
+  const migratedInput = migrateMapDocumentToCurrentSchema(input);
+  const doc = asRecord(migratedInput, issues, 'root', 'map', 'root');
   if (!doc) {
     throwForIssues(errorCode, 'File does not contain a valid fweep map.', issues);
   }
@@ -1245,7 +1355,7 @@ export function parseUntrustedMapDocument(
   const schemaVersion = doc.schemaVersion;
   if (typeof schemaVersion !== 'number') {
     pushIssue(issues, 'error', 'map', 'root', 'schemaVersion', 'schemaVersion must be a number.');
-  } else if (schemaVersion !== CURRENT_SCHEMA_VERSION && schemaVersion !== 1 && schemaVersion !== 2) {
+  } else if (!isSupportedSchemaVersion(schemaVersion)) {
     throwForIssues(
       'unsupported-schema-version',
       'This fweep map uses an unsupported schema version.',

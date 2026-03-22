@@ -91,6 +91,7 @@ async function submitCliCommand(command: string): Promise<HTMLInputElement> {
 }
 
 beforeEach(() => {
+  jest.restoreAllMocks();
   // Reset URL to the selection screen before each test
   window.history.replaceState({}, '', '#/');
   setViewportWidth(1024);
@@ -170,6 +171,497 @@ describe('URL routing', () => {
     expect(output).not.toBeNull();
     expect(inputShell).not.toBeNull();
     expect(appShell).toHaveAttribute('data-canvas-theme', 'antique');
+  });
+
+  it('shows only the chooser/search panel when no game is active', async () => {
+    await renderAppWithOpenMap('IFDB Panel Map');
+
+    expect(screen.getByRole('separator', { name: /resize game panel width/i })).toBeInTheDocument();
+    expect(screen.getByRole('separator', { name: /resize game panel height/i })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the associated game title beneath the map name chip when a game is linked', async () => {
+    const doc = createEmptyMap('Linked Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(screen.getByText('The Example Game')).toHaveClass('app-map-name-chip__game-title');
+  });
+
+  it('shows a reconnect prompt when the map is linked to a local story file', async () => {
+    const doc = createEmptyMap('Reconnect Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'local-file',
+          tuid: null,
+          ifid: null,
+          title: 'Galaxy Jones.gblorb',
+          author: null,
+          storyUrl: null,
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(screen.getByRole('button', { name: /reconnect galaxy jones\.gblorb/i })).toBeInTheDocument();
+  });
+
+  it('searches IFDB on manual submit and renders matching results', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            tuid: 'abc123',
+            title: 'The Example Game',
+            author: 'Pat Example',
+            link: 'https://ifdb.org/viewgame?id=abc123',
+            coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
+            published: {
+              machine: '2024-10-15',
+              printable: 'October 15, 2024',
+            },
+            averageRating: 4.25,
+          },
+        ],
+      }),
+    } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Search Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+    expect(screen.getByText(/Pat Example/)).toBeInTheDocument();
+    expect(screen.getByText(/October 15, 2024/)).toBeInTheDocument();
+    const coverArt = screen.getByRole('img', { name: /cover art for the example game/i });
+    expect(coverArt).toHaveAttribute(
+      'src',
+      'https://ifdb.org/coverart?id=abc123&version=4',
+    );
+    expect(coverArt).toHaveClass('app-parchment-panel__result-cover');
+    const ifdbLink = screen.getByRole('link', { name: /view the example game on IFDB/i });
+    expect(ifdbLink).toHaveAttribute('href', 'https://ifdb.org/viewgame?id=abc123');
+  });
+
+  it('loads the selected IFDB game into Parchment and persists the association on the map', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+              published: {
+                machine: '2024-10-15',
+                printable: 'October 15, 2024',
+              },
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    await waitFor(() => {
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    });
+    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
+    expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    });
+  });
+
+  it('loads the selected IFDB game when the cover art is clicked', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+              link: 'https://ifdb.org/viewgame?id=abc123',
+              coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Cover Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game via cover art/i }));
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    await waitFor(() => {
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    });
+  });
+
+  it('alerts when an IFDB result has no supported downloadable story file', async () => {
+    const user = userEvent.setup();
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Unsupported Selection Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    expect(alertSpy).toHaveBeenCalledWith('No supported downloadable story file is available for The Example Game.');
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
+  });
+
+  it('opens a fweep-owned file chooser from the side-panel control', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Parchment Chooser Map');
+
+    const clickSpy = jest.fn<() => void>();
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+    chooserInput!.click = clickSpy;
+
+    await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a locally chosen file into the parchment iframe', async () => {
+    await renderAppWithOpenMap('Parchment Local File Map');
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const loadUploadedFile = jest.fn<(file: File) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: {
+          load_uploaded_file: loadUploadedFile,
+        },
+      },
+    });
+    fireEvent.load(iframe);
+
+    expect(loadUploadedFile).toHaveBeenCalledTimes(1);
+    expect(loadUploadedFile).toHaveBeenCalledWith(file);
+    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
+        sourceType: 'local-file',
+        tuid: null,
+        ifid: null,
+        title: 'story.ulx',
+        author: null,
+        storyUrl: null,
+        format: 'glulx',
+      });
+    });
+  });
+
+  it('calls the parchment uploader with the parchment instance as this', async () => {
+    await renderAppWithOpenMap('Parchment Bound Method Map');
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const parchmentInstance = {
+      seenFile: null as File | null,
+      async load_uploaded_file(this: { seenFile: File | null }, file: File) {
+        this.seenFile = file;
+      },
+    };
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: parchmentInstance,
+      },
+    });
+    fireEvent.load(iframe);
+
+    expect(parchmentInstance.seenFile).toBe(file);
+  });
+
+  it('retries opening a local file until parchment becomes ready after iframe load', async () => {
+    jest.useFakeTimers();
+
+    try {
+      await renderAppWithOpenMap('Parchment Delayed Ready Map');
+
+      const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+      expect(chooserInput).not.toBeNull();
+
+      const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+      await act(async () => {
+        fireEvent.change(chooserInput!, {
+          target: {
+            files: [file],
+          },
+        });
+      });
+
+      const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: {},
+      });
+      fireEvent.load(iframe);
+
+      const loadUploadedFile = jest.fn<(nextFile: File) => Promise<void>>().mockResolvedValue(undefined);
+      Object.defineProperty(iframe, 'contentWindow', {
+        configurable: true,
+        value: {
+          parchment: {
+            load_uploaded_file: loadUploadedFile,
+          },
+        },
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(300);
+      });
+
+      await waitFor(() => {
+        expect(loadUploadedFile).toHaveBeenCalledTimes(1);
+      });
+      expect(loadUploadedFile).toHaveBeenCalledWith(file);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('shows an error if parchment is not ready to receive a local file', async () => {
+    jest.useFakeTimers();
+
+    try {
+    await renderAppWithOpenMap('Parchment Not Ready Map');
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {},
+    });
+    fireEvent.load(iframe);
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('returns from the game view to the chooser when reset is clicked', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Reset Panel Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+    expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
   });
 
   it('keeps suggestions closed on focus and opens them with /', async () => {
@@ -881,11 +1373,11 @@ describe('URL routing', () => {
     expect(screen.getByRole('listbox', { name: /cli suggestions/i })).toBeInTheDocument();
   });
 
-  it('shows the output-log collapse button above the log', async () => {
+  it('shows the output-log resize handle above the log', async () => {
     const doc = createEmptyMap('CLI Collapse Button Map');
     await renderAppWithSavedMap(doc);
 
-    expect(screen.getByRole('button', { name: /collapse output log/i })).toBeInTheDocument();
+    expect(screen.getByRole('separator', { name: /resize output log/i })).toBeInTheDocument();
   });
 
   it('uses / to toggle suggestions in an already focused CLI input without inserting it', async () => {
@@ -932,12 +1424,11 @@ describe('URL routing', () => {
     expect(document.activeElement).toBe(editable);
   });
 
-  it('shows the script import button above the log while keeping the file input mounted', async () => {
+  it('keeps the script import file input mounted above the log', async () => {
     await renderAppWithOpenMap('CLI Script Button Map');
 
     const fileInput = document.querySelector('.app-cli-import-input') as HTMLInputElement;
     expect(fileInput).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /import map script/i })).toBeInTheDocument();
   });
 
   it('reveals a room for go to <room> CLI commands', async () => {
@@ -3932,7 +4423,8 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
     await screen.findByRole('dialog', { name: /choose a map/i });
 
-    await user.click(screen.getByText('Background Image Position Map').closest('button') as HTMLButtonElement);
+    const mapOpenButtons = await screen.findAllByRole('button', { name: /background image position map/i });
+    await user.click(mapOpenButtons.find((button) => button.classList.contains('map-selection-item')) as HTMLButtonElement);
     await screen.findByText(/background image position map/i);
 
     expect(useEditorStore.getState().doc?.background.referenceImage?.position).toEqual({ x: 120, y: -80 });
@@ -4003,6 +4495,122 @@ describe('URL routing', () => {
     renderApp();
 
     await screen.findByText(/return map/i);
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/');
+    });
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+  });
+
+  it('warns before browser unload when the parchment game view is visible', async () => {
+    const doc = createEmptyMap('Unload Warning Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
+    const event = new Event('beforeunload', { cancelable: true });
+    Object.defineProperty(event, 'returnValue', {
+      configurable: true,
+      writable: true,
+      value: '',
+    });
+
+    const dispatchResult = window.dispatchEvent(event);
+    const unloadEvent = event as Event & { returnValue?: unknown };
+
+    expect(dispatchResult).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(unloadEvent.returnValue).toBe('');
+  });
+
+  it('does not warn before browser unload when the chooser/search panel is visible', async () => {
+    await renderAppWithOpenMap('Chooser Unload Map');
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+
+    const event = new Event('beforeunload', { cancelable: true });
+    Object.defineProperty(event, 'returnValue', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+
+    const dispatchResult = window.dispatchEvent(event);
+    const unloadEvent = event as Event & { returnValue?: unknown };
+
+    expect(dispatchResult).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(unloadEvent.returnValue).toBeUndefined();
+  });
+
+  it('warns before leaving to the map selection screen when the parchment game view is visible', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+    const doc = createEmptyMap('Protected Return Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const user = userEvent.setup();
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith('Save your game in Parchment before leaving this map?');
+    expect(window.location.hash).toBe(`#/map/${linkedDoc.metadata.id}`);
+    expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
+  });
+
+  it('leaves to the map selection screen after confirmation when the parchment game view is visible', async () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    const doc = createEmptyMap('Confirmed Return Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const user = userEvent.setup();
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: /back to maps/i }));
 
     await waitFor(() => {

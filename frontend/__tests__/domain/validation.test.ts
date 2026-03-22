@@ -58,6 +58,56 @@ describe('parseUntrustedMapDocument', () => {
     expect(() => parseUntrustedMapDocument(broken)).toThrow('File does not contain a valid fweep map.');
   });
 
+  it('accepts persisted associated game metadata', () => {
+    const doc = validMap();
+    const withAssociatedGame = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(withAssociatedGame);
+
+    expect(parsed.metadata.associatedGame).toEqual({
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    });
+  });
+
+  it('migrates schema-3 maps to the current schema by adding null associated game metadata', () => {
+    const doc = validMap();
+    const legacySchema3Doc = {
+      ...doc,
+      schemaVersion: 3,
+      metadata: {
+        id: doc.metadata.id,
+        name: doc.metadata.name,
+        createdAt: doc.metadata.createdAt,
+        updatedAt: doc.metadata.updatedAt,
+      },
+    };
+
+    const parsed = parseUntrustedMapDocument(legacySchema3Doc);
+
+    expect(parsed.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(parsed.metadata.associatedGame).toBeNull();
+  });
+
   it('rejects a non-numeric schema version', () => {
     const broken = {
       ...validMap(),

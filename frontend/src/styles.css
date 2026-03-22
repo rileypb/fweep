@@ -91,6 +91,309 @@ body {
   background-color: var(--app-chrome-rail-background);
 }
 
+body.app-shell--resizing-side-panel {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+body.app-shell--resizing-side-panel-height {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.app-parchment-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 11;
+  display: flex;
+  pointer-events: none;
+}
+
+.app-parchment-panel__resize-handle {
+  pointer-events: auto;
+  position: absolute;
+  left: -1rem;
+  top: 0;
+  bottom: 0;
+  width: 1.4rem;
+  cursor: ew-resize;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.app-parchment-panel__resize-handle--height {
+  left: 0;
+  right: 0;
+  top: -1rem;
+  bottom: auto;
+  width: auto;
+  height: 1.4rem;
+  cursor: ns-resize;
+}
+
+.app-parchment-panel__resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 0.4rem;
+  top: 50%;
+  width: 0.28rem;
+  height: 4rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.app-parchment-panel__resize-handle--height::before {
+  left: 50%;
+  top: 0.4rem;
+  width: 4rem;
+  height: 0.28rem;
+  transform: translateX(-50%);
+}
+
+.app-parchment-panel__resize-handle:hover::before,
+.app-parchment-panel__resize-handle:focus-visible::before {
+  background: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.app-parchment-panel__frame {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+:root[data-theme='dark'] .app-parchment-panel__frame {
+  background: rgba(17, 24, 39, 0.9);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.45);
+}
+
+.app-parchment-panel__search {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  overflow-y: auto;
+}
+
+.app-parchment-panel__search-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.app-parchment-panel__search-row {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.app-parchment-panel__search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.75);
+  color: inherit;
+  font: inherit;
+}
+
+.app-parchment-panel__search-button {
+  flex: 0 0 auto;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-parchment-panel__device-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.86rem;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__device-link:hover,
+.app-parchment-panel__device-link:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__device-input {
+  display: none;
+}
+
+.app-parchment-panel__search-status {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.app-parchment-panel__results {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 0.55rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-parchment-panel__result {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+
+.app-parchment-panel__result-cover-button {
+  display: block;
+  padding: 0;
+  margin: 0 0 0.55rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.app-parchment-panel__result-cover-button:disabled {
+  cursor: progress;
+}
+
+.app-parchment-panel__result-cover {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 0.55rem;
+  object-fit: cover;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.app-parchment-panel__result-title {
+  margin: 0;
+  font-size: 0.96rem;
+}
+
+.app-parchment-panel__result-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__result-button:hover,
+.app-parchment-panel__result-button:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__result-button:disabled {
+  opacity: 0.68;
+  cursor: progress;
+  text-decoration: none;
+}
+
+.app-parchment-panel__result-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.84rem;
+}
+
+.app-parchment-panel__result-link {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.app-parchment-panel__result-link:hover,
+.app-parchment-panel__result-link:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+.app-parchment-panel__game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.app-parchment-panel__source-link {
+  min-width: 0;
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.app-parchment-panel__source-link:hover,
+.app-parchment-panel__source-link:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+.app-parchment-panel__reset-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__reset-button:hover,
+.app-parchment-panel__reset-button:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__game-status {
+  margin: 0;
+  padding: 0 0.85rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+:root[data-theme='dark'] .app-parchment-panel__search-input {
+  background: rgba(17, 24, 39, 0.72);
+}
+
+.app-parchment-panel__iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+}
+
+body.app-shell--resizing-side-panel .app-parchment-panel__iframe {
+  pointer-events: none;
+}
+
+body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
+  pointer-events: none;
+}
+
 .app-cli-stack {
   position: fixed;
   left: var(--app-cli-stack-left);
@@ -104,8 +407,6 @@ body {
   justify-content: flex-end;
   pointer-events: none;
   color: var(--room-label-color);
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-radius: 1rem;
   overflow: visible;
 }
 
@@ -123,13 +424,19 @@ body {
   width: 100%;
   min-height: 0;
   padding: 0.8rem 0.9rem;
-  border: none;
-  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-bottom: none;
+  border-radius: 0.9rem 0.9rem 0 0;
   background: #ffffff;
   color: var(--app-game-output-text-color);
   font: 600 0.92rem/1.45 'IBM Plex Serif', Georgia, serif;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+.app-cli-resizing {
+  cursor: ns-resize;
+  user-select: none;
 }
 
 .app-game-output-toolbar {
@@ -145,6 +452,34 @@ body {
   flex: 0 0 auto;
   min-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
   max-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
+}
+
+.app-cli-resize-handle {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0.9rem;
+  margin: 0.15rem 0;
+  cursor: ns-resize;
+  outline: none;
+}
+
+.app-cli-resize-handle__grip {
+  display: block;
+  width: 3.5rem;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 26%, transparent);
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.app-cli-resize-handle:hover .app-cli-resize-handle__grip,
+.app-cli-resize-handle:focus-visible .app-cli-resize-handle__grip,
+.app-cli-resize-handle--active .app-cli-resize-handle__grip {
+  background: color-mix(in srgb, currentColor 42%, transparent);
+  transform: scaleY(1.15);
 }
 
 .app-game-output:focus {
@@ -194,19 +529,18 @@ body {
 
 .app-title {
   position: fixed;
-  left: calc(var(--app-cli-stack-left) / 2);
-  top: 50%;
+  right: 1rem;
+  bottom: 1rem;
   z-index: 7;
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 3rem;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 100%;
-  opacity: 0.4;
+  letter-spacing: normal;
+  opacity: 0.25;
   user-select: none;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  transform-origin: center;
   pointer-events: none;
+  text-align: right;
 }
 
 .app-cli-form {
@@ -225,7 +559,9 @@ body {
   align-items: center;
   gap: 0.35rem;
   padding: 0 0.4em;
-  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-top: none;
+  border-radius: 0 0 0.8rem 0.8rem;
   background: #ffffff;
   color: inherit;
 }
@@ -518,11 +854,28 @@ body {
 }
 
 .app-map-name-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.08rem;
   min-height: 2.5rem;
   height: auto;
   padding-top: 0.2rem;
   padding-bottom: 0.2rem;
   font-size: 1.9rem;
+}
+
+.app-map-name-chip__map-title {
+  display: block;
+  line-height: 1.05;
+}
+
+.app-map-name-chip__game-title {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  opacity: 0.72;
+  letter-spacing: 0.01em;
 }
 
 .app-control-button--active-history {
@@ -624,7 +977,7 @@ body {
   }
 
   .app-title {
-    font-size: 1.25rem;
+    font-size: 2.5rem;
   }
 
   .app-cli-form {
@@ -1417,7 +1770,7 @@ body {
 
 .map-canvas-actions {
   position: fixed;
-  right: 1rem;
+  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + 1rem);
   bottom: 1rem;
   display: flex;
   gap: 0.5rem;
@@ -1431,7 +1784,7 @@ body {
 
 .background-image-panel {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: calc(100% + 0.5rem);
   width: min(24rem, calc(100vw - 2rem));
   display: grid;

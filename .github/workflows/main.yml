@@ -43,6 +43,7 @@ jobs:
         run: |
           echo "VITE_BUILD_RELEASE=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           echo "VITE_BUILD_SERIAL=$(date -u +'%y%m%d')" >> "$GITHUB_ENV"
+          echo "VITE_IFDB_PROXY_BASE_URL=${{ vars.VITE_IFDB_PROXY_BASE_URL }}" >> "$GITHUB_ENV"
 
       - name: Build
         run: npm run build

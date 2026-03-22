@@ -152,6 +152,7 @@ export interface MapCanvasProps {
   showGrid?: boolean;
   onBack?: () => void;
   visibleMapLeftInset?: number;
+  visibleMapRightInset?: number;
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
@@ -227,6 +228,7 @@ export function MapCanvas({
   mapName,
   showGrid: initialShowGrid = true,
   visibleMapLeftInset = 0,
+  visibleMapRightInset = 0,
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
   requestedViewportFocusRequest = null,
@@ -438,6 +440,7 @@ export function MapCanvas({
     setMapPanOffset,
     mapVisualStyle,
     visibleMapLeftInset,
+    visibleMapRightInset,
     startAutoPanAnimation,
     setStickyNoteEditorId,
     setConnectionEditorId,
@@ -1377,6 +1380,7 @@ export function MapCanvas({
             visualStyle={mapVisualStyle}
             canvasRect={effectiveCanvasRect}
             visibleMapLeftInset={visibleMapLeftInset}
+            visibleMapRightInset={visibleMapRightInset}
             theme={theme}
             disabled={isRoomEditorOpen || connectionEditorId !== null}
             onPanToMapPoint={centerOnMapPoint}
@@ -1608,6 +1612,7 @@ export function MapCanvas({
           pseudoRoomId={roomEditorState?.pseudoRoomId}
           initialPosition={roomEditorState.initialPosition}
           visibleMapLeftInset={visibleMapLeftInset}
+          visibleMapRightInset={visibleMapRightInset}
           theme={theme}
           onClose={(savedRoomId) => {
             closeRoomEditor();
@@ -1623,6 +1628,7 @@ export function MapCanvas({
           key={connectionEditorId}
           connectionId={connectionEditorId}
           visibleMapLeftInset={visibleMapLeftInset}
+          visibleMapRightInset={visibleMapRightInset}
           onClose={closeConnectionEditor}
           onBackdropClose={closeConnectionEditorFromBackdrop}
         />

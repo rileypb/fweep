@@ -59,6 +59,25 @@ Before merge, the release branch should pass:
 
 If a check fails, the release is blocked until the failure is understood and either fixed or explicitly deferred by policy.
 
+## Handling release blockers
+If a release blocker is found during diff review, automated validation, smoke testing, or post-merge verification:
+
+- pause the release workflow at the step where the blocker was found
+- record the blocker briefly:
+  - what failed
+  - where it was found
+  - why it blocks release
+- fix the issue on the current release branch
+- verify the fix with the smallest relevant check first:
+  - focused automated tests
+  - focused manual repro
+- then rerun the broader release gate affected by the fix:
+  - rerun the affected smoke-test steps if the blocker was found manually
+  - rerun automated validation if the fix touches shared logic, persistence, routing, or build behavior
+- update release notes or smoke-test records if the fix changes what should be documented
+- commit the fix on the release branch
+- resume the release workflow from the blocked step rather than restarting the whole process unless the fix was broad enough to justify a full revalidation pass
+
 ## Manual smoke tests
 Before merge, verify at minimum:
 

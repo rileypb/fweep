@@ -1,42 +1,48 @@
 gh pr create \
   --base main \
-  --head v2 \
-  --title "Release v2" \
+  --head v3 \
+  --title "Release v3" \
   --body "$(cat <<'EOF'
-This PR releases `fweep v2` from `v2` to `main`.
+This PR releases `fweep v3` from `v3` to `main`.
 
-`v2` adds new canvas texture themes and related rendering improvements, updates persisted map view settings to support the new theme behavior, and includes release, migration, and smoke-test process documentation.
+`v3` brings interactive fiction play directly into fweep with an embedded Parchment panel, IFDB game search, local story-file launching, and persisted map-to-game associations.
 
 ## What’s included
 
-- Added new canvas themes:
-  - paper
-  - antique
-  - contour
-- Added procedural texture rendering and texture-tile caching for themed backgrounds.
-- Improved contour rendering and related export behavior.
-- Persisted additional map view settings:
-  - `canvasTheme`
-  - `textureSeed`
-- Added migration, release, and smoke-test process documentation.
-- Fixed texture-wrapper test typing so the branch builds cleanly.
-- Corrected theme-canvas PNG export alignment so paper, antique, and contour exports match the interactive map.
+- Added a resizable right-hand game panel with an embedded Parchment player.
+- Added IFDB search and launch flow for supported downloadable games.
+- Added local story-file loading into the embedded player.
+- Added persisted associated-game metadata on maps.
+- Added associated game title display beneath the map name.
+- Added leave-page warnings when a game is active in the embedded player.
+- Added horizontal and vertical resize controls for the game panel.
+- Added `Ctrl+/` focus-switch support between fweep and the game panel.
+- Added IFDB development proxy support and production proxy planning documentation.
+- Added the first explicit schema migration for persisted map data.
 
 ## Compatibility / persistence
 
-`v2` includes persisted-data changes for map view settings, but it continues to rely on the existing implicit compatibility behavior in the loader and storage path for older saved maps.
+`v3` introduces persisted associated-game metadata on maps and begins the explicit migration policy documented for `v3+` releases.
 
-This release does not introduce the formal explicit map-document migration framework. Per the current policy, explicit schema migrations begin with `v3`.
+- schema version is now `4`
+- a `3 -> 4` migration upgrades older saved maps by adding `metadata.associatedGame`
+- older schema-3 maps continue to load and save correctly after migration
+
+Production note:
+
+- local development supports IFDB search through the same-origin proxy path
+- GitHub Pages production still requires a separately hosted proxy for live IFDB API access
 
 ## Validation
 
 - `npm run build` passes
-- automated test suite passes
-- manual smoke checks passed for theme-canvas PNG export alignment in `paper`, `antique`, and `contour`
+- automated test suite passes: `67` suites, `1367` tests
+- manual smoke checks recorded in `smoke-tests/smoke-v3.md` passed overall
 
 ## Notes
 
-Long-form release notes are recorded in `release-notes.md`.
-Smoke-test results are recorded in `smoke-tests/smoke-v2.md`.
+- Long-form release notes are recorded in `release-notes.md`.
+- Smoke-test results are recorded in `smoke-tests/smoke-v3.md`.
+- One non-blocking smoke note remains: `Ctrl+/` reliably moves focus from fweep into Parchment, but does not reliably return focus from inside the game back to fweep.
 EOF
 )"
