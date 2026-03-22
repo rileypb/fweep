@@ -178,7 +178,7 @@ describe('URL routing', () => {
 
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /play a story file from your device/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
     expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
   });
 
@@ -295,6 +295,110 @@ describe('URL routing', () => {
       storyUrl: 'https://example.com/game.ulx',
       format: 'glulx',
     });
+  });
+
+  it('opens a fweep-owned file chooser from the side-panel control', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Parchment Chooser Map');
+
+    const clickSpy = jest.fn<() => void>();
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+    chooserInput!.click = clickSpy;
+
+    await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a locally chosen file into the parchment iframe', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Parchment Local File Map');
+
+    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const loadUploadedFile = jest.fn<(file: File) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: {
+          load_uploaded_file: loadUploadedFile,
+        },
+      },
+    });
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    expect(loadUploadedFile).toHaveBeenCalledTimes(1);
+    expect(loadUploadedFile).toHaveBeenCalledWith(file);
+  });
+
+  it('calls the parchment uploader with the parchment instance as this', async () => {
+    await renderAppWithOpenMap('Parchment Bound Method Map');
+
+    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const parchmentInstance = {
+      seenFile: null as File | null,
+      async load_uploaded_file(this: { seenFile: File | null }, file: File) {
+        this.seenFile = file;
+      },
+    };
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: parchmentInstance,
+      },
+    });
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    expect(parchmentInstance.seenFile).toBe(file);
+  });
+
+  it('shows an error if parchment is not ready to receive a local file', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Parchment Not Ready Map');
+
+    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {},
+    });
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'story.ulx', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
+
+    await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
   });
 
   it('keeps suggestions closed on focus and opens them with /', async () => {

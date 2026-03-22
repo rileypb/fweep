@@ -211,8 +211,23 @@ body.app-shell--resizing-side-panel {
 }
 
 .app-parchment-panel__device-link {
+  padding: 0;
+  border: 0;
+  background: none;
   font-size: 0.86rem;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-parchment-panel__device-link:hover,
+.app-parchment-panel__device-link:focus-visible {
+  text-decoration: underline;
+}
+
+.app-parchment-panel__device-input {
+  display: none;
 }
 
 .app-parchment-panel__search-status {

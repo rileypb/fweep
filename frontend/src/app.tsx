@@ -123,6 +123,20 @@ function buildParchmentSrc(storyUrl: string | null): string {
   return `/parchment.html?${params.toString()}`;
 }
 
+type ParchmentWindow = Window & {
+  parchment?: {
+    load_uploaded_file?: (file: File) => Promise<void> | void;
+  };
+};
+
+type ParchmentInstance = NonNullable<ParchmentWindow['parchment']>;
+
+function getParchmentInstance(iframeElement: HTMLIFrameElement | null): ParchmentInstance | null {
+  const iframeWindow = iframeElement?.contentWindow as ParchmentWindow | null;
+  const parchment = iframeWindow?.parchment;
+  return parchment !== undefined ? parchment : null;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -153,10 +167,12 @@ export function App(): React.JSX.Element {
   const [ifdbSearchError, setIfdbSearchError] = useState<string | null>(null);
   const [isIfdbSearching, setIsIfdbSearching] = useState(false);
   const [loadingIfdbGameTuid, setLoadingIfdbGameTuid] = useState<string | null>(null);
+  const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null));
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
@@ -329,6 +345,39 @@ export function App(): React.JSX.Element {
       setLoadingIfdbGameTuid(null);
     }
   }, [setAssociatedGameMetadata]);
+
+  useEffect(() => {
+    setParchmentSrc(buildParchmentSrc(associatedGame?.storyUrl ?? null));
+  }, [associatedGame?.storyUrl]);
+
+  const handleOpenParchmentFileChooser = useCallback((): void => {
+    parchmentDeviceInputRef.current?.click();
+  }, []);
+
+  const handleParchmentDeviceFileChange = useCallback(async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ): Promise<void> => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    event.target.value = '';
+
+    if (selectedFile === null) {
+      return;
+    }
+
+    const parchment = getParchmentInstance(parchmentIframeRef.current);
+    if (parchment === null || typeof parchment.load_uploaded_file !== 'function') {
+      setIfdbSearchError('Parchment is not ready to open a local file yet.');
+      return;
+    }
+
+    setIfdbSearchError(null);
+
+    try {
+      await parchment.load_uploaded_file(selectedFile);
+    } catch (error) {
+      setIfdbSearchError(error instanceof Error ? error.message : 'Opening the local story file failed.');
+    }
+  }, []);
 
   const focusFweepMain = useCallback((): void => {
     window.focus();
@@ -719,9 +768,22 @@ export function App(): React.JSX.Element {
                     {isIfdbSearching ? 'Searching...' : 'Search'}
                   </button>
                 </div>
-                <a className="app-parchment-panel__device-link" href="/parchment.html">
+                <button
+                  type="button"
+                  className="app-parchment-panel__device-link"
+                  onClick={handleOpenParchmentFileChooser}
+                >
                   Or, click here to play a story file from your device
-                </a>
+                </button>
+                <input
+                  ref={parchmentDeviceInputRef}
+                  className="app-parchment-panel__device-input"
+                  type="file"
+                  tabIndex={-1}
+                  onChange={(event) => {
+                    void handleParchmentDeviceFileChange(event);
+                  }}
+                />
                 {ifdbSearchError ? (
                   <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
                 ) : null}
@@ -763,7 +825,7 @@ export function App(): React.JSX.Element {
               <iframe
                 ref={parchmentIframeRef}
                 className="app-parchment-panel__iframe"
-                src={buildParchmentSrc(associatedGame?.storyUrl ?? null)}
+                src={parchmentSrc}
                 title="Interactive fiction player"
               />
             </div>
