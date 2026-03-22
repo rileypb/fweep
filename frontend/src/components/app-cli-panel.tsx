@@ -338,31 +338,6 @@ export function AppCliPanel({
           }
           : undefined}
       >
-        <div className="app-game-output-toolbar">
-          <button
-            type="button"
-            className="app-cli-collapse-button"
-            aria-label={isOutputCollapsed ? 'Expand output log' : 'Collapse output log'}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleOutputCollapsed();
-            }}
-          >
-            {isOutputCollapsed ? 'More' : 'Less'}
-          </button>
-          <button
-            type="button"
-            className="app-cli-import-button"
-            aria-label="Import map script"
-            onClick={(event) => {
-              event.stopPropagation();
-              cliImportInputRef.current?.click();
-            }}
-            disabled={isImportingScript}
-          >
-            {isImportingScript ? 'Importing...' : 'Import'}
-          </button>
-        </div>
         <div
           id="app-game-output"
           className="app-game-output-content"
