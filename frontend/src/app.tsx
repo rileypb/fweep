@@ -13,6 +13,7 @@ import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
 import { searchIfdbGames, viewIfdbGame } from './domain/ifdb-client';
 import type { NormalizedIfdbSearchResult } from './domain/ifdb';
 import { createLocalFileAssociatedGameMetadata } from './domain/associated-game';
+import { doesRegionOverlapProtectedBand, getVisibleMapRightInset } from './components/app-layout';
 
 const DESKTOP_ONLY_MIN_WIDTH_PX = 960;
 const SHAPES_SOLID_FULL_PATH = 'M288 96C288 78.3 273.7 64 256 64L96 64C78.3 64 64 78.3 64 96L64 256C64 273.7 78.3 288 96 288L256 288C273.7 288 288 273.7 288 256L288 96zM384 64C348.7 64 320 92.7 320 128L320 224C320 259.3 348.7 288 384 288L512 288C547.3 288 576 259.3 576 224L576 128C576 92.7 547.3 64 512 64L384 64zM192 352C174.3 352 160 366.3 160 384L160 544C160 561.7 174.3 576 192 576L448 576C465.7 576 480 561.7 480 544L480 384C480 366.3 465.7 352 448 352L192 352z';
@@ -27,8 +28,8 @@ const PARCHMENT_PANEL_DEFAULT_WIDTH_PX = 420;
 const PARCHMENT_PANEL_MIN_WIDTH_PX = 300;
 const PARCHMENT_PANEL_MIN_HEIGHT_PX = 240;
 const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
-const PARCHMENT_PANEL_RIGHT_MARGIN_PX = 16;
-const PARCHMENT_PANEL_HANDLE_OFFSET_PX = 12;
+const APP_TOP_BAND_TOP_PX = 16;
+const APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX = 72;
 const PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY = 'Slash';
 const PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS = 100;
 const PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS = 10;
@@ -220,6 +221,7 @@ export function App(): React.JSX.Element {
   const [isParchmentGameViewVisible, setIsParchmentGameViewVisible] = useState(false);
   const [isParchmentChooserForcedVisible, setIsParchmentChooserForcedVisible] = useState(false);
   const [pendingLocalFile, setPendingLocalFile] = useState<File | null>(null);
+  const [cliOutputTop, setCliOutputTop] = useState<number | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
@@ -240,9 +242,36 @@ export function App(): React.JSX.Element {
     ? 0
     : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
       + (cliOutputCollapsedEnabled ? 0 : getAppCliStackWidth(window.innerWidth, rootFontSizePx));
-  const visibleMapRightInset = hasOpenMap
-    ? parchmentPanelWidth + PARCHMENT_PANEL_RIGHT_MARGIN_PX + PARCHMENT_PANEL_HANDLE_OFFSET_PX
-    : 0;
+  const visibleMapRightInset = typeof window === 'undefined'
+    ? 0
+    : getVisibleMapRightInset({
+      hasOpenMap,
+      viewportHeight: window.innerHeight,
+      parchmentPanelWidth,
+      parchmentPanelHeight,
+    });
+  const mapNameChipRightInset = typeof window === 'undefined'
+    ? 0
+    : getVisibleMapRightInset({
+      hasOpenMap,
+      viewportHeight: window.innerHeight,
+      parchmentPanelWidth,
+      parchmentPanelHeight,
+      protectedBandBottom: APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
+    });
+  const mapNameChipOverlapsOutputBand = doesRegionOverlapProtectedBand(
+    cliOutputTop,
+    APP_TOP_BAND_TOP_PX,
+    APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
+  );
+  const mapNameChipLeft = typeof window === 'undefined'
+    ? 16
+    : mapNameChipOverlapsOutputBand
+      ? visibleMapLeftInset + rootFontSizePx
+      : getAppCliLeftOffset(window.innerWidth, rootFontSizePx);
+  const mapNameChipMaxWidth = typeof window === 'undefined'
+    ? undefined
+    : Math.max(window.innerWidth - mapNameChipLeft - mapNameChipRightInset - 16, 0);
   const {
     cliInputRef,
     cliImportInputRef,
@@ -857,10 +886,15 @@ export function App(): React.JSX.Element {
             onCloseSuggestions={closeCliSuggestions}
             onToggleOutputCollapsed={toggleCliOutputCollapsed}
             onImportScriptChange={handleImportScriptChange}
+            onOutputTopChange={setCliOutputTop}
           />
           <div
             className="app-control-chip app-map-name-chip app-control-chip--plain"
             aria-label={`Map name: ${activeMap.metadata.name}`}
+            style={{
+              left: `${mapNameChipLeft}px`,
+              maxWidth: mapNameChipMaxWidth === undefined ? undefined : `${mapNameChipMaxWidth}px`,
+            }}
           >
             <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
             {associatedGame?.title ? (

@@ -90,6 +90,7 @@ interface AppCliPanelProps {
   readonly onCloseSuggestions: () => void;
   readonly onToggleOutputCollapsed: () => void;
   readonly onImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  readonly onOutputTopChange?: (top: number | null) => void;
 }
 
 export function AppCliPanel({
@@ -122,6 +123,7 @@ export function AppCliPanel({
   onCloseSuggestions,
   onToggleOutputCollapsed,
   onImportScriptChange,
+  onOutputTopChange,
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
   const [screenReaderAnnouncement, setScreenReaderAnnouncement] = React.useState('');
@@ -205,6 +207,44 @@ export function AppCliPanel({
       window.cancelAnimationFrame(announcementFrameRef.current);
     }
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (onOutputTopChange === undefined) {
+      return undefined;
+    }
+
+    const measure = (): void => {
+      onOutputTopChange(outputRef.current?.getBoundingClientRect().top ?? null);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => {
+        window.removeEventListener('resize', measure);
+        onOutputTopChange(null);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(measure);
+
+    if (outputRef.current !== null) {
+      resizeObserver.observe(outputRef.current);
+    }
+
+    if (stackRef.current !== null && stackRef.current !== outputRef.current) {
+      resizeObserver.observe(stackRef.current);
+    }
+
+    window.addEventListener('resize', measure);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', measure);
+      onOutputTopChange(null);
+    };
+  }, [onOutputTopChange, outputHeight, isOutputCollapsed]);
 
   const getMaxExpandedOutputHeight = React.useCallback((): number => {
     const stackRect = stackRef.current?.getBoundingClientRect();
