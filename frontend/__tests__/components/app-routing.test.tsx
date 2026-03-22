@@ -4558,6 +4558,76 @@ describe('URL routing', () => {
     expect(unloadEvent.returnValue).toBeUndefined();
   });
 
+  it('uses Ctrl+/ to toggle focus between fweep and the chooser search input', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Chooser Focus Toggle Map');
+
+    const cliInput = getCliInput();
+    const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+
+    await user.click(cliInput);
+    expect(document.activeElement).toBe(cliInput);
+
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      ctrlKey: true,
+    });
+    expect(document.activeElement).toBe(searchInput);
+
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      ctrlKey: true,
+    });
+    expect(document.activeElement).toBe(cliInput);
+  });
+
+  it('uses Ctrl+/ to return from the parchment iframe to fweep', async () => {
+    const user = userEvent.setup();
+    const baseDoc = createEmptyMap('Parchment Focus Toggle Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const cliInput = getCliInput();
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    expect(iframe.contentDocument).not.toBeNull();
+
+    await user.click(cliInput);
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      ctrlKey: true,
+    });
+    expect(document.activeElement).toBe(iframe);
+
+    act(() => {
+      iframe.focus();
+    });
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'fweep:toggle-focus-from-parchment' },
+      origin: window.location.origin,
+      source: iframe.contentWindow,
+    }));
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cliInput);
+    });
+  });
+
   it('warns before leaving to the map selection screen when the parchment game view is visible', async () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
     const doc = createEmptyMap('Protected Return Map');
