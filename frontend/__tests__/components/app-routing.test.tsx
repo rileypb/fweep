@@ -4387,6 +4387,122 @@ describe('URL routing', () => {
     expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
   });
 
+  it('warns before browser unload when the parchment game view is visible', async () => {
+    const doc = createEmptyMap('Unload Warning Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
+    const event = new Event('beforeunload', { cancelable: true });
+    Object.defineProperty(event, 'returnValue', {
+      configurable: true,
+      writable: true,
+      value: '',
+    });
+
+    const dispatchResult = window.dispatchEvent(event);
+    const unloadEvent = event as Event & { returnValue?: unknown };
+
+    expect(dispatchResult).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(unloadEvent.returnValue).toBe('');
+  });
+
+  it('does not warn before browser unload when the chooser/search panel is visible', async () => {
+    await renderAppWithOpenMap('Chooser Unload Map');
+    expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
+
+    const event = new Event('beforeunload', { cancelable: true });
+    Object.defineProperty(event, 'returnValue', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+
+    const dispatchResult = window.dispatchEvent(event);
+    const unloadEvent = event as Event & { returnValue?: unknown };
+
+    expect(dispatchResult).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    expect(unloadEvent.returnValue).toBeUndefined();
+  });
+
+  it('warns before leaving to the map selection screen when the parchment game view is visible', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+    const doc = createEmptyMap('Protected Return Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const user = userEvent.setup();
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    expect(confirmSpy).toHaveBeenCalledWith('Save your game in Parchment before leaving this map?');
+    expect(window.location.hash).toBe(`#/map/${linkedDoc.metadata.id}`);
+    expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
+  });
+
+  it('leaves to the map selection screen after confirmation when the parchment game view is visible', async () => {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    const doc = createEmptyMap('Confirmed Return Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const user = userEvent.setup();
+    expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/');
+    });
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+  });
+
   it('autosaves after undoing back to the originally loaded state', async () => {
     const originalDoc = createEmptyMap('Undo Save Map');
     await openSavedMap(originalDoc);

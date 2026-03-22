@@ -140,6 +140,10 @@ function getParchmentInstance(iframeElement: HTMLIFrameElement | null): Parchmen
   return parchment !== undefined ? parchment : null;
 }
 
+function shouldWarnAboutLeavingParchmentGame(hasOpenMap: boolean, isParchmentGameViewVisible: boolean): boolean {
+  return hasOpenMap && isParchmentGameViewVisible;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
@@ -186,6 +190,7 @@ export function App(): React.JSX.Element {
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
   const hasOpenMap = activeMap !== null;
+  const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
   const parchmentDeviceLinkLabel = associatedGame?.sourceType === 'local-file' && associatedGame.title.trim().length > 0
     ? `Reconnect ${associatedGame.title}`
     : 'Or, click here to play a story file from your device';
@@ -646,6 +651,22 @@ export function App(): React.JSX.Element {
   }, [isHelpOpen, isWelcomeOpen]);
 
   useEffect(() => {
+    if (!shouldWarnAboutLeavingActiveGame) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [shouldWarnAboutLeavingActiveGame]);
+
+  useEffect(() => {
     if (!isWelcomeHotkeyEnabled()) {
       return;
     }
@@ -679,9 +700,13 @@ export function App(): React.JSX.Element {
   }, [flushDocumentSave, openMap]);
 
   const handleCloseMap = useCallback(async () => {
+    if (shouldWarnAboutLeavingActiveGame && !window.confirm('Save your game in Parchment before leaving this map?')) {
+      return;
+    }
+
     await flushDocumentSave();
     closeMap();
-  }, [closeMap, flushDocumentSave]);
+  }, [closeMap, flushDocumentSave, shouldWarnAboutLeavingActiveGame]);
 
   if (!hasDesktopViewport) {
     return (
