@@ -85,6 +85,7 @@ This document defines the manual smoke-test pass for `fweep v3`.
 2. Launch a game so the iframe is visible.
 3. Press `Ctrl+/` from the main app and confirm focus moves into the Parchment panel.
 4. Press `Ctrl+/` from inside the game and confirm focus returns to fweep.
+   - Failed: An error beep sounds and focus does not change.
 5. With the game panel active, use `Back to maps` and confirm the app warns that the user should save the game before leaving.
 6. With the game panel active, refresh the page or attempt to close/navigate away and confirm the browser-native unload warning appears.
 
@@ -113,7 +114,18 @@ This document defines the manual smoke-test pass for `fweep v3`.
 ## Latest results
 
 ### v3
-- Pending
+- Core app flow: passed
+- Save and reload: passed
+- Import and export: passed
+- Parchment panel: passed
+- IFDB search and launch: passed
+- Local story file launch: passed
+- Compatibility and migration: passed
+- Release-specific checks: passed
+- Focus switching via `Ctrl+/`: partial pass with one non-blocking discrepancy
+  - `Ctrl+/` from the main app moves focus into the Parchment panel.
+  - `Ctrl+/` from inside the game does not reliably return focus to fweep and currently causes an error beep instead.
+  - This was judged non-blocking for the release.
 
 ## Minimum release gate
 A `v3` smoke pass is complete only if all of the following succeed:
