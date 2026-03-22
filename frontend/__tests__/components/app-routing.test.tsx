@@ -182,6 +182,52 @@ describe('URL routing', () => {
     expect(screen.getByTitle(/interactive fiction player/i)).toBeInTheDocument();
   });
 
+  it('shows the associated game title beneath the map name chip when a game is linked', async () => {
+    const doc = createEmptyMap('Linked Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(screen.getByText('The Example Game')).toHaveClass('app-map-name-chip__game-title');
+  });
+
+  it('shows a reconnect prompt when the map is linked to a local story file', async () => {
+    const doc = createEmptyMap('Reconnect Map');
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'local-file',
+          tuid: null,
+          ifid: null,
+          title: 'Galaxy Jones.gblorb',
+          author: null,
+          storyUrl: null,
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+
+    expect(screen.getByRole('button', { name: /reconnect galaxy jones\.gblorb/i })).toBeInTheDocument();
+  });
+
   it('searches IFDB on manual submit and renders matching results', async () => {
     const user = userEvent.setup();
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
@@ -399,6 +445,99 @@ describe('URL routing', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
 
     await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
+  });
+
+  it('persists local-file metadata without resetting the iframe src after an IFDB launch', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('Parchment Local Metadata Map');
+
+    await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+
+    const iframe = screen.getByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    await waitFor(() => {
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+    });
+
+    const parchmentInstance = {
+      async load_uploaded_file(this: unknown, _file: File) {
+        return undefined;
+      },
+    };
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: {
+        parchment: parchmentInstance,
+      },
+    });
+
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+
+    const file = new File(['story data'], 'Local Story.gblorb', { type: 'application/octet-stream' });
+    await act(async () => {
+      fireEvent.change(chooserInput!, {
+        target: {
+          files: [file],
+        },
+      });
+    });
+
+    expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
+      sourceType: 'local-file',
+      tuid: null,
+      ifid: null,
+      title: 'Local Story.gblorb',
+      author: null,
+      storyUrl: null,
+      format: 'glulx',
+    });
+    expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
   });
 
   it('keeps suggestions closed on focus and opens them with /', async () => {

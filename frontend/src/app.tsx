@@ -12,6 +12,7 @@ import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
 import { searchIfdbGames, viewIfdbGame } from './domain/ifdb-client';
 import type { NormalizedIfdbSearchResult } from './domain/ifdb';
+import { createLocalFileAssociatedGameMetadata } from './domain/associated-game';
 
 const DESKTOP_ONLY_MIN_WIDTH_PX = 960;
 const SHAPES_SOLID_FULL_PATH = 'M288 96C288 78.3 273.7 64 256 64L96 64C78.3 64 64 78.3 64 96L64 256C64 273.7 78.3 288 96 288L256 288C273.7 288 288 273.7 288 256L288 96zM384 64C348.7 64 320 92.7 320 128L320 224C320 259.3 348.7 288 384 288L512 288C547.3 288 576 259.3 576 224L576 128C576 92.7 547.3 64 512 64L384 64zM192 352C174.3 352 160 366.3 160 384L160 544C160 561.7 174.3 576 192 576L448 576C465.7 576 480 561.7 480 544L480 384C480 366.3 465.7 352 448 352L192 352z';
@@ -174,10 +175,14 @@ export function App(): React.JSX.Element {
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
+  const syncedParchmentMapIdRef = useRef<string | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
   const hasOpenMap = activeMap !== null;
+  const parchmentDeviceLinkLabel = associatedGame?.sourceType === 'local-file' && associatedGame.title.trim().length > 0
+    ? `Reconnect ${associatedGame.title}`
+    : 'Or, click here to play a story file from your device';
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
     : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
@@ -347,8 +352,24 @@ export function App(): React.JSX.Element {
   }, [setAssociatedGameMetadata]);
 
   useEffect(() => {
-    setParchmentSrc(buildParchmentSrc(associatedGame?.storyUrl ?? null));
-  }, [associatedGame?.storyUrl]);
+    const activeMapId = activeMap?.metadata.id ?? null;
+    const hasSwitchedMaps = syncedParchmentMapIdRef.current !== activeMapId;
+    syncedParchmentMapIdRef.current = activeMapId;
+
+    if (activeMapId === null) {
+      setParchmentSrc(buildParchmentSrc(null));
+      return;
+    }
+
+    if (associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
+      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
+      return;
+    }
+
+    if (hasSwitchedMaps) {
+      setParchmentSrc(buildParchmentSrc(null));
+    }
+  }, [activeMap?.metadata.id, associatedGame?.sourceType, associatedGame?.storyUrl]);
 
   const handleOpenParchmentFileChooser = useCallback((): void => {
     parchmentDeviceInputRef.current?.click();
@@ -374,10 +395,11 @@ export function App(): React.JSX.Element {
 
     try {
       await parchment.load_uploaded_file(selectedFile);
+      setAssociatedGameMetadata(createLocalFileAssociatedGameMetadata(selectedFile));
     } catch (error) {
       setIfdbSearchError(error instanceof Error ? error.message : 'Opening the local story file failed.');
     }
-  }, []);
+  }, [setAssociatedGameMetadata]);
 
   const focusFweepMain = useCallback((): void => {
     window.focus();
@@ -624,7 +646,10 @@ export function App(): React.JSX.Element {
             className="app-control-chip app-map-name-chip app-control-chip--plain"
             aria-label={`Map name: ${activeMap.metadata.name}`}
           >
-            {`Map: ${activeMap.metadata.name}`}
+            <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
+            {associatedGame?.title ? (
+              <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
+            ) : null}
           </div>
         </>
       )}
@@ -773,7 +798,7 @@ export function App(): React.JSX.Element {
                   className="app-parchment-panel__device-link"
                   onClick={handleOpenParchmentFileChooser}
                 >
-                  Or, click here to play a story file from your device
+                  {parchmentDeviceLinkLabel}
                 </button>
                 <input
                   ref={parchmentDeviceInputRef}
