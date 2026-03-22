@@ -424,8 +424,9 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   width: 100%;
   min-height: 0;
   padding: 0.8rem 0.9rem;
-  border: none;
-  border-radius: 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-bottom: none;
+  border-radius: 0.9rem 0.9rem 0 0;
   background: #ffffff;
   color: var(--app-game-output-text-color);
   font: 600 0.92rem/1.45 'IBM Plex Serif', Georgia, serif;
@@ -558,7 +559,9 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   align-items: center;
   gap: 0.35rem;
   padding: 0 0.4em;
-  border-radius: 0.8rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-top: none;
+  border-radius: 0 0 0.8rem 0.8rem;
   background: #ffffff;
   color: inherit;
 }
