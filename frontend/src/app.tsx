@@ -795,7 +795,7 @@ export function App(): React.JSX.Element {
   }, [flushDocumentSave, openMap]);
 
   const handleCloseMap = useCallback(async () => {
-    if (shouldWarnAboutLeavingActiveGame && !window.confirm('Save your game in Parchment before leaving this map?')) {
+    if (shouldWarnAboutLeavingActiveGame && !window.confirm('You may have an unsaved game. Do you really want to leave?')) {
       return;
     }
 
