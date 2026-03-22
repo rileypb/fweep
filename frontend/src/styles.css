@@ -109,12 +109,14 @@ body.app-shell--resizing-side-panel {
 .app-parchment-panel__resize-handle {
   pointer-events: auto;
   position: absolute;
-  left: -0.8rem;
+  left: -1rem;
   top: 0;
   bottom: 0;
-  width: 1rem;
+  width: 1.4rem;
   cursor: ew-resize;
   outline: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .app-parchment-panel__resize-handle::before {
@@ -319,6 +321,10 @@ body.app-shell--resizing-side-panel {
   min-height: 0;
   border: 0;
   background: #ffffff;
+}
+
+body.app-shell--resizing-side-panel .app-parchment-panel__iframe {
+  pointer-events: none;
 }
 
 .app-cli-stack {

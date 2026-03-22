@@ -261,24 +261,36 @@ export function App(): React.JSX.Element {
     };
   }, []);
 
-  const beginParchmentPanelResize = useCallback((pointerStartX: number) => {
+  const beginParchmentPanelResize = useCallback((pointerId: number, pointerStartX: number) => {
     const startWidth = parchmentPanelWidth;
 
     const handlePointerMove = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) {
+        return;
+      }
+
+      const nextWidth = clampParchmentPanelWidth(startWidth + (pointerStartX - event.clientX), window.innerWidth);
+      setParchmentPanelWidth(nextWidth);
+    };
+
+    const finishResize = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) {
+        return;
+      }
+
       const nextWidth = clampParchmentPanelWidth(startWidth + (pointerStartX - event.clientX), window.innerWidth);
       setParchmentPanelWidth(nextWidth);
       persistParchmentPanelWidth(nextWidth);
-    };
-
-    const handlePointerUp = (): void => {
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointerup', finishResize);
+      window.removeEventListener('pointercancel', finishResize);
       document.body.classList.remove('app-shell--resizing-side-panel');
     };
 
     document.body.classList.add('app-shell--resizing-side-panel');
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointerup', finishResize);
+    window.addEventListener('pointercancel', finishResize);
   }, [parchmentPanelWidth]);
 
   useEffect(() => () => {
@@ -872,7 +884,8 @@ export function App(): React.JSX.Element {
               tabIndex={0}
               onPointerDown={(event) => {
                 event.preventDefault();
-                beginParchmentPanelResize(event.clientX);
+                event.currentTarget.setPointerCapture(event.pointerId);
+                beginParchmentPanelResize(event.pointerId, event.clientX);
               }}
               onKeyDown={(event) => {
                 if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
