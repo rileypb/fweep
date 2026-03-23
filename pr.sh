@@ -29,8 +29,7 @@ This PR releases `fweep v4` from `v4` to `main`.
 
 - `npm run build` passes
 - automated test suite passes: `72` suites, `1427` tests
-- manual smoke checks are recorded in `smoke-tests/smoke-v4.md`
-  - manual smoke pass is still pending before merge
+- manual smoke checks recorded in `smoke-tests/smoke-v4.md` passed
 
 ## Notes
 

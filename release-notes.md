@@ -138,4 +138,4 @@
 ### Validation summary
 - Production build passes.
 - Automated test suite passes: `72` suites, `1427` tests.
-- Manual smoke-test confirmation is still pending before merge.
+- Manual smoke-test confirmation passed.

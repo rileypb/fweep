@@ -87,8 +87,7 @@ This document defines the manual smoke-test pass for `fweep v4`.
 - Production build output: passed
   - Vite build succeeded
   - One chunk-size warning remains for the main JS bundle; this is non-blocking unless performance review disagrees
-- Manual smoke pass: pending
-  - This still needs to be completed before merge according to the release process
+- Manual smoke pass: passed
 
 ## Minimum release gate
 A `v4` smoke pass is complete only if all of the following succeed:
