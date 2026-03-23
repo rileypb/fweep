@@ -99,3 +99,43 @@
 - Production build passes.
 - Automated test suite passes.
 - Manual smoke-test confirmation is still pending before release.
+
+## v4
+
+`v4` polishes the embedded game workflow with smoother panel behavior, better keyboard focus switching, and clearer chooser guidance.
+
+### Highlights
+- Improved `Ctrl+/` focus switching between fweep and the game/search panel.
+- Refined panel-aware layout so top overlays and the minimap reclaim space when the side panels no longer overlap them.
+- Added chooser tips and reset behavior to keep the game-search panel more understandable across maps.
+
+### User-visible changes
+- `Ctrl+/` now works more reliably as a two-way focus shortcut:
+  - from fweep into the chooser search field or embedded game
+  - back from search or Parchment to the CLI input
+- The minimap now slides back to the right wall instead of hanging in empty space when the Parchment panel becomes short enough.
+- The map/game name chip now shifts left when the output log is short enough instead of reserving unnecessary space.
+- The chooser panel now shows usage tips when it has no search results yet.
+- The first chooser tip explains the keyboard-focus shortcut:
+  - `Use Ctrl+/ to switch the keyboard focus between the game and the mapper.`
+- IFDB chooser state is now cleared when leaving one map and opening another, so stale searches do not bleed across maps.
+- The leave-map confirmation copy is clearer when a game may have unsaved progress.
+
+### Compatibility and persistence
+- `v4` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- Existing saved maps continue to use the `v3` persistence and migration behavior unchanged.
+
+### Quality and internal improvements
+- Raised cumulative automated coverage back above 90%.
+- Added focused regression coverage for:
+  - Parchment panel layout behavior
+  - focus switching across fweep, chooser search, and embedded Parchment
+  - chooser empty-state tips and per-map reset behavior
+  - panel sizing helpers and related app-shell helpers
+- Refactored Parchment app-shell logic into dedicated helpers, hooks, and sidebar components to make the release easier to maintain without changing behavior.
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `72` suites, `1427` tests.
+- Manual smoke-test confirmation is still pending before merge.
