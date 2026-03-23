@@ -7,7 +7,7 @@ const DEFAULT_EXPANDED_OUTPUT_HEIGHT_PX = 320;
 const CLI_OUTPUT_RESIZE_STEP_PX = 32;
 const CLI_OUTPUT_BOTTOM_GAP_PX = 12;
 
-function loadStoredCliOutputHeight(): number | null {
+export function loadStoredCliOutputHeight(): number | null {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -23,7 +23,7 @@ function loadStoredCliOutputHeight(): number | null {
     : null;
 }
 
-function storeCliOutputHeight(height: number | null): void {
+export function storeCliOutputHeight(height: number | null): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -36,11 +36,11 @@ function storeCliOutputHeight(height: number | null): void {
   window.localStorage.setItem(CLI_OUTPUT_HEIGHT_STORAGE_KEY, String(Math.round(height)));
 }
 
-function clampCliOutputHeight(height: number, maxHeight: number): number {
+export function clampCliOutputHeight(height: number, maxHeight: number): number {
   return Math.max(MIN_EXPANDED_OUTPUT_HEIGHT_PX, Math.min(height, maxHeight));
 }
 
-function renderCliOutputLine(line: string): React.ReactNode {
+export function renderCliOutputLine(line: string): React.ReactNode {
   const segments = line.split(/(\*\*.+?\*\*)/g).filter((segment) => segment.length > 0);
   if (segments.length === 0) {
     return null;
@@ -90,6 +90,7 @@ interface AppCliPanelProps {
   readonly onCloseSuggestions: () => void;
   readonly onToggleOutputCollapsed: () => void;
   readonly onImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  readonly onOutputTopChange?: (top: number | null) => void;
 }
 
 export function AppCliPanel({
@@ -122,6 +123,7 @@ export function AppCliPanel({
   onCloseSuggestions,
   onToggleOutputCollapsed,
   onImportScriptChange,
+  onOutputTopChange,
 }: AppCliPanelProps): React.JSX.Element {
   const [isCliInputFocused, setIsCliInputFocused] = React.useState(false);
   const [screenReaderAnnouncement, setScreenReaderAnnouncement] = React.useState('');
@@ -205,6 +207,44 @@ export function AppCliPanel({
       window.cancelAnimationFrame(announcementFrameRef.current);
     }
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (onOutputTopChange === undefined) {
+      return undefined;
+    }
+
+    const measure = (): void => {
+      onOutputTopChange(outputRef.current?.getBoundingClientRect().top ?? null);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => {
+        window.removeEventListener('resize', measure);
+        onOutputTopChange(null);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(measure);
+
+    if (outputRef.current !== null) {
+      resizeObserver.observe(outputRef.current);
+    }
+
+    if (stackRef.current !== null && stackRef.current !== outputRef.current) {
+      resizeObserver.observe(stackRef.current);
+    }
+
+    window.addEventListener('resize', measure);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', measure);
+      onOutputTopChange(null);
+    };
+  }, [onOutputTopChange, outputHeight, isOutputCollapsed]);
 
   const getMaxExpandedOutputHeight = React.useCallback((): number => {
     const stackRect = stackRef.current?.getBoundingClientRect();

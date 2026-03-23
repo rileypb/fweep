@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import { addConnection, addItem, addPseudoRoom, addRoom } from '../../src/domain/map-operations';
-import { describeRoomForCli } from '../../src/domain/cli-room-description';
+import { describeRoomForCli, describeRoomForCliLines } from '../../src/domain/cli-room-description';
 import { createConnection, createEmptyMap, createItem, createPseudoRoom, createRoom } from '../../src/domain/map-types';
 
 describe('cli room description', () => {
@@ -105,5 +105,87 @@ describe('cli room description', () => {
     doc = addRoom(doc, { ...createRoom('cellar'), id: 'cellar', position: { x: 0, y: 0 } });
 
     expect(describeRoomForCli(doc, 'cellar')).toBe('From cellar, one cannot go anywhere.');
+  });
+
+  it('keeps article-prefixed room and item names intact and formats long item lists', () => {
+    let doc = createEmptyMap('Describe Map');
+    doc = addRoom(doc, { ...createRoom('the Atrium'), id: 'atrium', position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('the Observatory'), id: 'observatory', position: { x: 1, y: 0 } });
+    doc = addConnection(doc, { ...createConnection('atrium', 'observatory', false), id: 'east-connection', annotation: { kind: 'door' } }, 'east');
+    doc = addItem(doc, { ...createItem('apple', 'atrium'), id: 'apple' });
+    doc = addItem(doc, { ...createItem('an orb', 'atrium'), id: 'orb' });
+    doc = addItem(doc, { ...createItem('the idol', 'atrium'), id: 'idol' });
+
+    expect(describeRoomForCli(doc, 'atrium')).toBe(
+      'To the east is a one-way exit through a door that leads to the Observatory.\n\n'
+      + 'You see an apple, an orb, and the idol here.',
+    );
+  });
+
+  it('describes one-way directional annotations for down and out exits', () => {
+    let doc = createEmptyMap('Describe Map');
+    doc = addRoom(doc, { ...createRoom('tower'), id: 'tower', position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('cellar'), id: 'cellar', position: { x: 0, y: 1 } });
+    doc = addRoom(doc, { ...createRoom('garden'), id: 'garden', position: { x: 1, y: 0 } });
+    doc = addConnection(
+      doc,
+      { ...createConnection('tower', 'cellar', false), id: 'down-connection', annotation: { kind: 'in' } },
+      'down',
+    );
+    doc = addConnection(
+      doc,
+      { ...createConnection('tower', 'garden', false), id: 'out-connection', annotation: { kind: 'out' } },
+      'out',
+    );
+
+    expect(describeRoomForCli(doc, 'tower')).toBe(
+      'Down is a one-way exit that leads into the cellar. Out is a one-way exit that leads out to the garden.',
+    );
+  });
+
+  it('ignores broken references and reports missing rooms explicitly', () => {
+    const doc = createEmptyMap('Describe Map');
+
+    expect(() => describeRoomForCli(doc, 'missing-room')).toThrow('Room "missing-room" not found.');
+    expect(() => describeRoomForCliLines(doc, 'missing-room')).toThrow('Room "missing-room" not found.');
+  });
+
+  it('drops missing connections and missing pseudo-room targets from the description', () => {
+    let doc = createEmptyMap('Describe Map');
+    doc = addRoom(doc, {
+      ...createRoom('hall'),
+      id: 'hall',
+      position: { x: 0, y: 0 },
+      directions: {
+        east: 'missing-connection',
+      },
+    });
+    doc = addPseudoRoom(doc, { ...createPseudoRoom('unknown'), id: 'temporary-pseudo-room', position: { x: -1, y: 0 } });
+    doc = addConnection(
+      doc,
+      { ...createConnection('hall', { kind: 'pseudo-room', id: 'temporary-pseudo-room' }, false), id: 'west-connection' },
+      'west',
+    );
+    doc = {
+      ...doc,
+      pseudoRooms: {},
+    };
+
+    expect(describeRoomForCli(doc, 'hall')).toBe('From hall, one cannot go anywhere.');
+  });
+
+  it('drops reverse exits whose source room is missing', () => {
+    let doc = createEmptyMap('Describe Map');
+    doc = addRoom(doc, { ...createRoom('temporary room'), id: 'temporary-room', position: { x: 0, y: -1 } });
+    doc = addRoom(doc, { ...createRoom('surviving room'), id: 'surviving-room', position: { x: 0, y: 0 } });
+    doc = addConnection(doc, { ...createConnection('temporary-room', 'surviving-room', true), id: 'north-connection' }, 'north', 'south');
+    doc = {
+      ...doc,
+      rooms: {
+        'surviving-room': doc.rooms['surviving-room'],
+      },
+    };
+
+    expect(describeRoomForCli(doc, 'surviving-room')).toBe('From surviving room, one cannot go anywhere.');
   });
 });

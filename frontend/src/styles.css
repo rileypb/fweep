@@ -248,6 +248,32 @@ body.app-shell--resizing-side-panel-height {
   font-size: 0.86rem;
 }
 
+.app-parchment-panel__empty-state {
+  display: grid;
+  place-items: center;
+  flex: 1 1 auto;
+  min-height: 7rem;
+  padding: 1rem 0.75rem;
+  text-align: center;
+  align-content: center;
+}
+
+.app-parchment-panel__empty-state-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.app-parchment-panel__empty-state-tip {
+  margin: 0;
+  max-width: 16rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
 .app-parchment-panel__results {
   display: flex;
   flex-direction: column;
@@ -810,6 +836,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + var(--app-cli-stack-gutter));
   z-index: 7;
   max-width: calc(100vw - var(--app-cli-stack-left) - min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) - 2rem - var(--app-cli-stack-gutter));
+  transition: left 180ms ease, max-width 180ms ease;
 }
 
 .app-control-button {
@@ -2197,6 +2224,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   backdrop-filter: blur(14px);
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
   outline: none;
+  transition: right 180ms ease;
 }
 
 .map-minimap:focus-visible {
@@ -2323,6 +2351,12 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 @media (max-width: 700px) {
   .map-minimap {
     width: min(144px, calc(100vw - 2rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-minimap {
+    transition: none;
   }
 }
 

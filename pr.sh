@@ -1,48 +1,39 @@
 gh pr create \
   --base main \
-  --head v3 \
-  --title "Release v3" \
+  --head v4 \
+  --title "Release v4" \
   --body "$(cat <<'EOF'
-This PR releases `fweep v3` from `v3` to `main`.
+This PR releases `fweep v4` from `v4` to `main`.
 
-`v3` brings interactive fiction play directly into fweep with an embedded Parchment panel, IFDB game search, local story-file launching, and persisted map-to-game associations.
+`v4` focuses on usability polish for the embedded game workflow: smoother panel-aware layout, stronger keyboard focus switching, and clearer chooser behavior.
 
 ## What’s included
 
-- Added a resizable right-hand game panel with an embedded Parchment player.
-- Added IFDB search and launch flow for supported downloadable games.
-- Added local story-file loading into the embedded player.
-- Added persisted associated-game metadata on maps.
-- Added associated game title display beneath the map name.
-- Added leave-page warnings when a game is active in the embedded player.
-- Added horizontal and vertical resize controls for the game panel.
-- Added `Ctrl+/` focus-switch support between fweep and the game panel.
-- Added IFDB development proxy support and production proxy planning documentation.
-- Added the first explicit schema migration for persisted map data.
+- Improved `Ctrl+/` focus switching between fweep, the chooser search field, and embedded Parchment.
+- Made the minimap and map-title chip reclaim space when the right-hand panels no longer overlap them.
+- Added chooser empty-state tips, starting with the `Ctrl+/` usage hint.
+- Cleared chooser search state when leaving one map and opening another.
+- Updated the leave-map warning copy for active games.
+- Added focused regression coverage across the app shell, chooser, and Parchment flows.
+- Refactored Parchment app-shell logic into dedicated helpers, hooks, and sidebar components.
 
 ## Compatibility / persistence
 
-`v3` introduces persisted associated-game metadata on maps and begins the explicit migration policy documented for `v3+` releases.
+`v4` does not change the persisted map schema.
 
-- schema version is now `4`
-- a `3 -> 4` migration upgrades older saved maps by adding `metadata.associatedGame`
-- older schema-3 maps continue to load and save correctly after migration
-
-Production note:
-
-- local development supports IFDB search through the same-origin proxy path
-- GitHub Pages production still requires a separately hosted proxy for live IFDB API access
+- schema version remains unchanged from `v3`
+- no migration or schema-version bump is required for this release
+- existing saved maps continue to load and save under the existing schema-4 behavior
 
 ## Validation
 
 - `npm run build` passes
-- automated test suite passes: `67` suites, `1367` tests
-- manual smoke checks recorded in `smoke-tests/smoke-v3.md` passed overall
+- automated test suite passes: `72` suites, `1427` tests
+- manual smoke checks recorded in `smoke-tests/smoke-v4.md` passed
 
 ## Notes
 
 - Long-form release notes are recorded in `release-notes.md`.
-- Smoke-test results are recorded in `smoke-tests/smoke-v3.md`.
-- One non-blocking smoke note remains: `Ctrl+/` reliably moves focus from fweep into Parchment, but does not reliably return focus from inside the game back to fweep.
+- Smoke-test results are recorded in `smoke-tests/smoke-v4.md`.
 EOF
 )"
