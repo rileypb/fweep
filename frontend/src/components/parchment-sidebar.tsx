@@ -25,6 +25,7 @@ interface ParchmentSidebarProps {
   readonly deviceLinkLabel: string;
   readonly onIfdbSearchQueryChange: (value: string) => void;
   readonly onIfdbSearchSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  readonly onIfdbAuthorSearch: (author: string) => void;
   readonly onIfdbGameSelected: (tuid: string) => void;
   readonly onOpenParchmentFileChooser: () => void;
   readonly onParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -52,6 +53,7 @@ export function ParchmentSidebar({
   deviceLinkLabel,
   onIfdbSearchQueryChange,
   onIfdbSearchSubmit,
+  onIfdbAuthorSearch,
   onIfdbGameSelected,
   onOpenParchmentFileChooser,
   onParchmentDeviceFileChange,
@@ -197,7 +199,19 @@ export function ParchmentSidebar({
                       </button>
                     </h2>
                     <p className="app-parchment-panel__result-meta">
-                      {result.author ?? 'Unknown author'}
+                      {result.author ? (
+                        <button
+                          type="button"
+                          className="app-parchment-panel__result-link"
+                          aria-label={`Search IFDB for games by ${result.author}`}
+                          disabled={isIfdbSearching}
+                          onClick={() => {
+                            onIfdbAuthorSearch(result.author);
+                          }}
+                        >
+                          {result.author}
+                        </button>
+                      ) : 'Unknown author'}
                     </p>
                     {result.publishedDisplay ? (
                       <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>

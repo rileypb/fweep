@@ -154,6 +154,7 @@ export function App(): React.JSX.Element {
     handleParchmentPanelWidthResizeKeyDown,
     handleParchmentPanelHeightResizeKeyDown,
     handleIfdbSearchSubmit,
+    handleIfdbAuthorSearch,
     handleIfdbGameSelected,
     handleOpenParchmentFileChooser,
     handleParchmentDeviceFileChange,
@@ -551,6 +552,9 @@ export function App(): React.JSX.Element {
             onIfdbSearchQueryChange={setIfdbSearchQuery}
             onIfdbSearchSubmit={(event) => {
               void handleIfdbSearchSubmit(event);
+            }}
+            onIfdbAuthorSearch={(author) => {
+              void handleIfdbAuthorSearch(author);
             }}
             onIfdbGameSelected={(tuid) => {
               void handleIfdbGameSelected(tuid);

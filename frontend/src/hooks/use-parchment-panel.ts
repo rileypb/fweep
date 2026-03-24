@@ -45,6 +45,7 @@ interface UseParchmentPanelResult {
   readonly handleParchmentPanelWidthResizeKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
   readonly handleParchmentPanelHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
   readonly handleIfdbSearchSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  readonly handleIfdbAuthorSearch: (author: string) => Promise<void>;
   readonly handleIfdbGameSelected: (tuid: string) => Promise<void>;
   readonly handleOpenParchmentFileChooser: () => void;
   readonly handleParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
@@ -193,10 +194,8 @@ export function useParchmentPanel({
     }
   }, []);
 
-  const handleIfdbSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault();
-
-    const trimmedQuery = ifdbSearchQuery.trim();
+  const performIfdbSearch = useCallback(async (query: string): Promise<void> => {
+    const trimmedQuery = query.trim();
     if (trimmedQuery.length === 0) {
       setIfdbSearchResults([]);
       setIfdbSearchError(null);
@@ -215,7 +214,17 @@ export function useParchmentPanel({
     } finally {
       setIsIfdbSearching(false);
     }
-  }, [ifdbSearchQuery]);
+  }, []);
+
+  const handleIfdbSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    await performIfdbSearch(ifdbSearchQuery);
+  }, [ifdbSearchQuery, performIfdbSearch]);
+
+  const handleIfdbAuthorSearch = useCallback(async (author: string): Promise<void> => {
+    setIfdbSearchQuery(author);
+    await performIfdbSearch(author);
+  }, [performIfdbSearch]);
 
   const handleIfdbGameSelected = useCallback(async (tuid: string): Promise<void> => {
     setLoadingIfdbGameTuid(tuid);
@@ -405,6 +414,7 @@ export function useParchmentPanel({
     handleParchmentPanelWidthResizeKeyDown,
     handleParchmentPanelHeightResizeKeyDown,
     handleIfdbSearchSubmit,
+    handleIfdbAuthorSearch,
     handleIfdbGameSelected,
     handleOpenParchmentFileChooser,
     handleParchmentDeviceFileChange,
