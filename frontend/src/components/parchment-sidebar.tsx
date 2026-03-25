@@ -199,19 +199,22 @@ export function ParchmentSidebar({
                       </button>
                     </h2>
                     <p className="app-parchment-panel__result-meta">
-                      {result.author ? (
-                        <button
-                          type="button"
-                          className="app-parchment-panel__result-link"
-                          aria-label={`Search IFDB for games by ${result.author}`}
-                          disabled={isIfdbSearching}
-                          onClick={() => {
-                            onIfdbAuthorSearch(result.author);
-                          }}
-                        >
-                          {result.author}
-                        </button>
-                      ) : 'Unknown author'}
+                      {result.author ? (() => {
+                        const author = result.author;
+                        return (
+                          <button
+                            type="button"
+                            className="app-parchment-panel__result-link"
+                            aria-label={`Search IFDB for games by ${author}`}
+                            disabled={isIfdbSearching}
+                            onClick={() => {
+                              onIfdbAuthorSearch(author);
+                            }}
+                          >
+                            {author}
+                          </button>
+                        );
+                      })() : 'Unknown author'}
                     </p>
                     {result.publishedDisplay ? (
                       <p className="app-parchment-panel__result-meta">{result.publishedDisplay}</p>

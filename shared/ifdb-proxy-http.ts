@@ -55,6 +55,10 @@ function buildCorsHeaders(
 }
 
 function buildCacheControlHeader(requestUrl: URL): string {
+  if (requestUrl.pathname === '/api/ifdb/ping') {
+    return 'no-store';
+  }
+
   if (requestUrl.pathname === '/api/ifdb/viewgame') {
     return 'public, s-maxage=86400, stale-while-revalidate=604800';
   }
@@ -97,6 +101,18 @@ export async function handleIfdbProxyHttpRequest(
 
   if (request.method !== 'GET') {
     return createJsonResponse(405, { error: 'Method not allowed.' }, corsHeaders);
+  }
+
+  if (parsedRequestUrl.pathname === '/api/ifdb/ping') {
+    return {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': buildCacheControlHeader(parsedRequestUrl),
+        ...corsHeaders,
+      },
+      body: '{}',
+    };
   }
 
   const proxyResult: IfdbProxyResult = await proxyIfdbRequest(
