@@ -139,3 +139,42 @@
 - Production build passes.
 - Automated test suite passes: `72` suites, `1427` tests.
 - Manual smoke-test confirmation passed.
+
+## v5
+
+`v5` adds a few small but practical quality improvements around IFDB usage visibility, chooser navigation, and installable site metadata.
+
+### Highlights
+- Added silent production heartbeats to the hosted IFDB proxy so live usage can be observed without interrupting users.
+- Added clickable author links in IFDB search results to let users pivot into author-based browsing faster.
+- Added favicon, touch-icon, and web manifest metadata for a more complete installed/browser presence.
+
+### User-visible changes
+- IFDB search results now render the author name as a button when author metadata is available.
+  - Clicking the author launches a new IFDB search for that author.
+- The app now publishes favicon and PWA-style metadata:
+  - SVG favicon
+  - PNG favicon
+  - ICO shortcut icon
+  - Apple touch icon
+  - web manifest and theme color
+- Production builds now emit a background heartbeat to `/api/ifdb/ping`:
+  - one ping when the app starts
+  - one additional ping every 15 minutes while the app remains open
+  - heartbeat failures are discarded silently
+  - local development skips sending the heartbeat
+
+### Compatibility and persistence
+- `v5` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- Existing saved maps continue to use the `v4` persistence and migration behavior unchanged.
+
+### Quality and internal improvements
+- Added dedicated client, proxy, and scheduler coverage for the IFDB heartbeat behavior.
+- Kept the heartbeat endpoint local to the proxy layer so it does not contact IFDB upstream.
+- Tightened IFDB chooser typing around author-link rendering so the branch stays build-clean.
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `73` suites, `1435` tests.
+- Manual smoke-test confirmation passed.
