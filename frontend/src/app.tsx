@@ -8,6 +8,8 @@ import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
 import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
+import { pingIfdbProxy } from './domain/ifdb-client';
+import { startIfdbProxyHeartbeat } from './domain/ifdb-proxy-heartbeat';
 import { useMapRouter } from './hooks/use-map-router';
 import { useParchmentFocusToggle } from './hooks/use-parchment-focus-toggle';
 import { useParchmentPanel } from './hooks/use-parchment-panel';
@@ -154,6 +156,7 @@ export function App(): React.JSX.Element {
     handleParchmentPanelWidthResizeKeyDown,
     handleParchmentPanelHeightResizeKeyDown,
     handleIfdbSearchSubmit,
+    handleIfdbAuthorSearch,
     handleIfdbGameSelected,
     handleOpenParchmentFileChooser,
     handleParchmentDeviceFileChange,
@@ -241,6 +244,10 @@ export function App(): React.JSX.Element {
     setRequestedRoomRevealRequest,
     setRequestedViewportFocusRequest,
   });
+
+  useEffect(() => {
+    return startIfdbProxyHeartbeat(() => pingIfdbProxy(), window);
+  }, []);
 
   useEffect(() => {
     const updateViewportAvailability = () => {
@@ -551,6 +558,9 @@ export function App(): React.JSX.Element {
             onIfdbSearchQueryChange={setIfdbSearchQuery}
             onIfdbSearchSubmit={(event) => {
               void handleIfdbSearchSubmit(event);
+            }}
+            onIfdbAuthorSearch={(author) => {
+              void handleIfdbAuthorSearch(author);
             }}
             onIfdbGameSelected={(tuid) => {
               void handleIfdbGameSelected(tuid);

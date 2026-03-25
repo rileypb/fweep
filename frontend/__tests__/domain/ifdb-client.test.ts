@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { searchIfdbGames, viewIfdbGame } from '../../src/domain/ifdb-client';
+import { pingIfdbProxy, searchIfdbGames, viewIfdbGame } from '../../src/domain/ifdb-client';
 
 function getTestProcessEnv(): Record<string, string | undefined> {
   const processValue = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
@@ -14,7 +14,9 @@ function getTestProcessEnv(): Record<string, string | undefined> {
 describe('searchIfdbGames', () => {
   it('uses the configured production IFDB proxy base URL when present', async () => {
     const processEnv = getTestProcessEnv();
+    const originalNodeEnv = processEnv.NODE_ENV;
     const originalBaseUrl = processEnv.VITE_IFDB_PROXY_BASE_URL;
+    processEnv.NODE_ENV = 'production';
     processEnv.VITE_IFDB_PROXY_BASE_URL = 'https://fweep-ifdb-proxy.vercel.app/';
 
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
@@ -29,6 +31,11 @@ describe('searchIfdbGames', () => {
         'https://fweep-ifdb-proxy.vercel.app/api/ifdb/search?query=example+game',
       );
     } finally {
+      if (originalNodeEnv === undefined) {
+        delete processEnv.NODE_ENV;
+      } else {
+        processEnv.NODE_ENV = originalNodeEnv;
+      }
       if (originalBaseUrl === undefined) {
         delete processEnv.VITE_IFDB_PROXY_BASE_URL;
       } else {
@@ -83,6 +90,67 @@ describe('searchIfdbGames', () => {
 
     await expect(searchIfdbGames('example game', fetchMock)).rejects.toThrow(
       'IFDB search failed with status 503.',
+    );
+  });
+});
+
+describe('pingIfdbProxy', () => {
+  it('uses the configured production IFDB proxy base URL when present', async () => {
+    const processEnv = getTestProcessEnv();
+    const originalBaseUrl = processEnv.VITE_IFDB_PROXY_BASE_URL;
+    processEnv.VITE_IFDB_PROXY_BASE_URL = 'https://fweep-ifdb-proxy.vercel.app/';
+
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+    } as Response);
+
+    try {
+      await pingIfdbProxy(fetchMock, { force: true });
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://fweep-ifdb-proxy.vercel.app/api/ifdb/ping',
+      );
+    } finally {
+      if (originalBaseUrl === undefined) {
+        delete processEnv.VITE_IFDB_PROXY_BASE_URL;
+      } else {
+        processEnv.VITE_IFDB_PROXY_BASE_URL = originalBaseUrl;
+      }
+    }
+  });
+
+  it('does not send a ping in development mode', async () => {
+    (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = true;
+    const fetchMock = jest.fn<typeof fetch>();
+
+    try {
+      await pingIfdbProxy(fetchMock);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = false;
+    }
+  });
+
+  it('requests the local IFDB proxy ping endpoint in production mode', async () => {
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+    } as Response);
+
+    await pingIfdbProxy(fetchMock, { force: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/ifdb/ping');
+  });
+
+  it('throws when the IFDB ping request fails', async () => {
+    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: false,
+      status: 503,
+    } as Response);
+
+    await expect(pingIfdbProxy(fetchMock, { force: true })).rejects.toThrow(
+      'IFDB ping failed with status 503.',
     );
   });
 });

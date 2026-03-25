@@ -2,6 +2,24 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { handleIfdbProxyHttpRequest } from '../../../shared/ifdb-proxy-http';
 
 describe('handleIfdbProxyHttpRequest', () => {
+  it('returns 200 for ping requests without calling IFDB', async () => {
+    const fetchMock = jest.fn<typeof fetch>();
+
+    const response = await handleIfdbProxyHttpRequest({
+      method: 'GET',
+      url: '/api/ifdb/ping',
+      origin: 'https://rileypb.github.io',
+      allowedOrigins: ['https://rileypb.github.io'],
+      fetchImpl: fetchMock,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('https://rileypb.github.io');
+    expect(response.headers['content-type']).toBe('application/json; charset=utf-8');
+    expect(response.body).toBe('{}');
+  });
+
   it('returns CORS headers for an allowed origin on GET requests', async () => {
     const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
       status: 200,

@@ -466,6 +466,54 @@ describe('URL routing', () => {
     });
   });
 
+  it('searches IFDB for an author when the author name is clicked in search results', async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'abc123',
+              title: 'The Example Game',
+              author: 'Pat Example',
+            },
+          ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          games: [
+            {
+              tuid: 'def456',
+              title: 'Another Example Game',
+              author: 'Pat Example',
+            },
+          ],
+        }),
+      } as Response);
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
+
+    await renderAppWithOpenMap('IFDB Author Search Map');
+
+    const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+    await user.type(searchInput, 'example game');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await screen.findByRole('button', { name: /play the example game/i });
+
+    await user.click(screen.getByRole('button', { name: /search IFDB for games by Pat Example/i }));
+
+    await screen.findByRole('button', { name: /play another example game/i });
+    expect(searchInput).toHaveValue('Pat Example');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/ifdb/search?query=example+game');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/search?query=Pat+Example');
+  });
+
   it('loads the selected IFDB game when the cover art is clicked', async () => {
     const user = userEvent.setup();
     const fetchMock = jest.fn<typeof fetch>()

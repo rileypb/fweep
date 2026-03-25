@@ -344,14 +344,26 @@ body.app-shell--resizing-side-panel-height {
 }
 
 .app-parchment-panel__result-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: inherit;
+  font: inherit;
+  cursor: pointer;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.14em;
 }
 
 .app-parchment-panel__result-link:hover,
 .app-parchment-panel__result-link:focus-visible {
+  text-decoration: underline;
   text-decoration-thickness: 2px;
+}
+
+.app-parchment-panel__result-link:disabled {
+  opacity: 0.68;
+  cursor: progress;
+  text-decoration: none;
 }
 
 .app-parchment-panel__game-header {
