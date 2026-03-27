@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+  areStartupTipsEnabled,
   buildParchmentSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
@@ -17,11 +18,14 @@ import {
   hasSeenWelcomeDialog,
   isDesktopViewport,
   isWelcomeHotkeyEnabled,
+  loadStartupTipIndex,
   loadStoredParchmentPanelHeight,
   loadStoredParchmentPanelWidth,
   markWelcomeDialogSeen,
   persistParchmentPanelHeight,
   persistParchmentPanelWidth,
+  persistStartupTipIndex,
+  setStartupTipsEnabled,
   shouldWarnAboutLeavingParchmentGame,
 } from '../../src/app';
 
@@ -54,6 +58,32 @@ describe('app helpers', () => {
 
     expect(hasSeenWelcomeDialog()).toBe(true);
     expect(window.localStorage.getItem('fweep-welcome-dialog-seen')).toBe('true');
+  });
+
+  it('stores the startup tips preference app-wide', () => {
+    expect(areStartupTipsEnabled()).toBe(true);
+
+    setStartupTipsEnabled(false);
+    expect(areStartupTipsEnabled()).toBe(false);
+    expect(window.localStorage.getItem('fweep-startup-tips-enabled')).toBe('false');
+
+    setStartupTipsEnabled(true);
+    expect(areStartupTipsEnabled()).toBe(true);
+    expect(window.localStorage.getItem('fweep-startup-tips-enabled')).toBe('true');
+  });
+
+  it('stores and normalizes the startup tip index app-wide', () => {
+    expect(loadStartupTipIndex(3)).toBe(0);
+
+    persistStartupTipIndex(4, 3);
+    expect(loadStartupTipIndex(3)).toBe(1);
+    expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('1');
+
+    window.localStorage.setItem('fweep-startup-tip-index', '-1');
+    expect(loadStartupTipIndex(3)).toBe(2);
+
+    window.localStorage.setItem('fweep-startup-tip-index', 'NaN');
+    expect(loadStartupTipIndex(3)).toBe(0);
   });
 
   it('enables the welcome hotkey only in development or tests', () => {

@@ -6,6 +6,7 @@ import { MapSelectionDialog } from './components/map-selection-dialog';
 import { ParchmentSidebar } from './components/parchment-sidebar';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
+import { STARTUP_TIPS, TipsDialog } from './components/tips-dialog';
 import {
   getShortcutTitle,
   isUiShortcutPressed,
@@ -47,6 +48,8 @@ const QUESTION_SOLID_FULL_PATH = 'M224 224C224 171 267 128 320 128C373 128 416 1
 const BEZIER_CURVE_SOLID_FULL_PATH = 'M296 200L296 152L344 152L344 200L296 200zM288 96C261.5 96 240 117.5 240 144L240 148L121.6 148C111.2 126.7 89.3 112 64 112C28.7 112 0 140.7 0 176C0 211.3 28.7 240 64 240C89.3 240 111.2 225.3 121.6 204L188.5 204C129.6 243.6 89.6 309 84.5 384L80 384C53.5 384 32 405.5 32 432L32 496C32 522.5 53.5 544 80 544L144 544C170.5 544 192 522.5 192 496L192 432C192 405.5 170.5 384 144 384L140.7 384C146.6 317 189.2 260.6 248.2 234.9C256.8 247.6 271.4 256 288 256L352 256C368.6 256 383.1 247.6 391.8 234.9C450.8 260.6 493.4 317 499.3 384L496 384C469.5 384 448 405.5 448 432L448 496C448 522.5 469.5 544 496 544L560 544C586.5 544 608 522.5 608 496L608 432C608 405.5 586.5 384 560 384L555.5 384C550.5 309 510.4 243.6 451.5 204L518.4 204C528.8 225.3 550.7 240 576 240C611.3 240 640 211.3 640 176C640 140.7 611.3 112 576 112C550.7 112 528.8 126.7 518.4 148L400 148L400 144C400 117.5 378.5 96 352 96L288 96zM88 440L136 440L136 488L88 488L88 440zM504 488L504 440L552 440L552 488L504 488z';
 const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
+const STARTUP_TIPS_ENABLED_STORAGE_KEY = 'fweep-startup-tips-enabled';
+const STARTUP_TIP_INDEX_STORAGE_KEY = 'fweep-startup-tip-index';
 const APP_TOP_BAND_TOP_PX = 16;
 const APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX = 72;
 const batImage = new URL('../bat.png', import.meta.url).href;
@@ -99,6 +102,57 @@ export function markWelcomeDialogSeen(): void {
   window.localStorage.setItem(WELCOME_DIALOG_SEEN_STORAGE_KEY, 'true');
 }
 
+export function areStartupTipsEnabled(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return window.localStorage.getItem(STARTUP_TIPS_ENABLED_STORAGE_KEY) !== 'false';
+}
+
+export function setStartupTipsEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(STARTUP_TIPS_ENABLED_STORAGE_KEY, enabled ? 'true' : 'false');
+}
+
+export function loadStartupTipIndex(tipCount: number): number {
+  if (typeof window === 'undefined' || tipCount <= 0) {
+    return 0;
+  }
+
+  const rawValue = window.localStorage.getItem(STARTUP_TIP_INDEX_STORAGE_KEY);
+  if (rawValue === null) {
+    return 0;
+  }
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsedValue)) {
+    return 0;
+  }
+
+  return ((parsedValue % tipCount) + tipCount) % tipCount;
+}
+
+export function persistStartupTipIndex(index: number, tipCount: number): void {
+  if (typeof window === 'undefined' || tipCount <= 0) {
+    return;
+  }
+
+  const normalizedIndex = ((Math.trunc(index) % tipCount) + tipCount) % tipCount;
+  window.localStorage.setItem(STARTUP_TIP_INDEX_STORAGE_KEY, String(normalizedIndex));
+}
+
+function getWrappedStartupTipIndex(index: number, tipCount: number): number {
+  if (tipCount <= 0) {
+    return 0;
+  }
+
+  return ((Math.trunc(index) % tipCount) + tipCount) % tipCount;
+}
+
 export function isWelcomeHotkeyEnabled(): boolean {
   return import.meta.env?.DEV === true || (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ === true;
 }
@@ -135,7 +189,12 @@ export function App(): React.JSX.Element {
   const setAssociatedGameMetadata = useEditorStore((s) => s.setAssociatedGameMetadata);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isTipsOpen, setIsTipsOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
+  const [pendingTipsMapId, setPendingTipsMapId] = useState<string | null>(null);
+  const [showTipsOnStartup, setShowTipsOnStartup] = useState(areStartupTipsEnabled);
+  const [startupTipIndex, setStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
+  const [nextStartupTipIndex, setNextStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
   const [cliOutputTop, setCliOutputTop] = useState<number | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
@@ -144,6 +203,7 @@ export function App(): React.JSX.Element {
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
+  const previousTipsMapIdRef = useRef<string | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
@@ -276,11 +336,30 @@ export function App(): React.JSX.Element {
     }
 
     setIsWelcomeOpen(false);
+    setIsTipsOpen(false);
     setPendingWelcomeMapId(null);
+    setPendingTipsMapId(null);
+    previousTipsMapIdRef.current = null;
+    setNextStartupTipIndex(startupTipIndex);
     setRequestedRoomEditorRequest(null);
     setRequestedRoomRevealRequest(null);
     setRequestedViewportFocusRequest(null);
-  }, [activeMap]);
+  }, [activeMap, startupTipIndex]);
+
+  useEffect(() => {
+    const activeMapId = activeMap?.metadata.id ?? null;
+    if (activeMapId === null) {
+      return;
+    }
+
+    if (previousTipsMapIdRef.current === activeMapId) {
+      return;
+    }
+
+    previousTipsMapIdRef.current = activeMapId;
+    setIsTipsOpen(false);
+    setPendingTipsMapId(showTipsOnStartup ? activeMapId : null);
+  }, [activeMap, showTipsOnStartup]);
 
   useEffect(() => {
     if (activeMap === null || pendingWelcomeMapId === null || activeMap.metadata.id !== pendingWelcomeMapId) {
@@ -291,6 +370,22 @@ export function App(): React.JSX.Element {
     setPendingWelcomeMapId(null);
     setIsWelcomeOpen(true);
   }, [activeMap, pendingWelcomeMapId]);
+
+  useEffect(() => {
+    if (
+      activeMap === null
+      || pendingTipsMapId === null
+      || activeMap.metadata.id !== pendingTipsMapId
+      || isWelcomeOpen
+      || isHelpOpen
+    ) {
+      return;
+    }
+
+    setPendingTipsMapId(null);
+    setNextStartupTipIndex(getWrappedStartupTipIndex(startupTipIndex + 1, STARTUP_TIPS.length));
+    setIsTipsOpen(true);
+  }, [activeMap, isHelpOpen, isWelcomeOpen, pendingTipsMapId, startupTipIndex]);
 
   const handleRequestedRoomEditorHandled = useCallback((requestId: number) => {
     setRequestedRoomEditorRequest((current) => current?.requestId === requestId ? null : current);
@@ -313,7 +408,7 @@ export function App(): React.JSX.Element {
   });
 
   useEffect(() => {
-    if (!isHelpOpen && !isWelcomeOpen) {
+    if (!isHelpOpen && !isWelcomeOpen && !isTipsOpen) {
       return;
     }
 
@@ -325,6 +420,13 @@ export function App(): React.JSX.Element {
           return;
         }
 
+        if (isTipsOpen) {
+          setIsTipsOpen(false);
+          setStartupTipIndex(nextStartupTipIndex);
+          persistStartupTipIndex(nextStartupTipIndex, STARTUP_TIPS.length);
+          return;
+        }
+
         setIsHelpOpen(false);
       }
     };
@@ -333,7 +435,7 @@ export function App(): React.JSX.Element {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isHelpOpen, isWelcomeOpen]);
+  }, [isHelpOpen, isTipsOpen, isWelcomeOpen, nextStartupTipIndex]);
 
   useEffect(() => {
     if (!shouldWarnAboutLeavingActiveGame) {
@@ -394,7 +496,7 @@ export function App(): React.JSX.Element {
   }, [closeMap, flushDocumentSave, shouldWarnAboutLeavingActiveGame]);
 
   useEffect(() => {
-    if (!hasOpenMap || isHelpOpen || isWelcomeOpen) {
+    if (!hasOpenMap || isHelpOpen || isWelcomeOpen || isTipsOpen) {
       return;
     }
 
@@ -468,6 +570,7 @@ export function App(): React.JSX.Element {
     hasOpenMap,
     isHelpOpen,
     isParchmentGameViewVisible,
+    isTipsOpen,
     isWelcomeOpen,
     mapCanvasTheme,
     mapVisualStyle,
@@ -701,6 +804,22 @@ export function App(): React.JSX.Element {
       )}
       <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       <WelcomeDialog isOpen={isWelcomeOpen} onClose={() => setIsWelcomeOpen(false)} />
+      <TipsDialog
+        initialTipIndex={startupTipIndex}
+        isOpen={isTipsOpen}
+        onTipIndexChange={setNextStartupTipIndex}
+        showTipsOnStartup={showTipsOnStartup}
+        onClose={(nextTipIndex) => {
+          setIsTipsOpen(false);
+          setStartupTipIndex(nextTipIndex);
+          setNextStartupTipIndex(nextTipIndex);
+          persistStartupTipIndex(nextTipIndex, STARTUP_TIPS.length);
+        }}
+        onShowTipsOnStartupChange={(enabled) => {
+          setShowTipsOnStartup(enabled);
+          setStartupTipsEnabled(enabled);
+        }}
+      />
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog
           onMapSelected={(doc, reason) => {

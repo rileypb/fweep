@@ -48,6 +48,7 @@ async function openSavedMap(doc: MapDocument): Promise<void> {
 }
 
 async function renderAppWithSavedMap(doc: MapDocument): Promise<void> {
+  window.localStorage.setItem('fweep-startup-tips-enabled', 'false');
   await openSavedMap(doc);
   renderApp();
   await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
@@ -100,6 +101,8 @@ beforeEach(() => {
   window.history.replaceState({}, '', '#/');
   setViewportWidth(1024);
   window.localStorage.removeItem('fweep-welcome-dialog-seen');
+  window.localStorage.setItem('fweep-startup-tips-enabled', 'false');
+  window.localStorage.removeItem('fweep-startup-tip-index');
   window.localStorage.removeItem('fweep-parchment-panel-width');
   window.localStorage.removeItem('fweep-parchment-panel-height');
   (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = false;
@@ -5210,6 +5213,26 @@ describe('URL routing', () => {
     expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
   });
 
+  it('shows the tips dialog when a map is opened', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('fweep-welcome-dialog-seen', 'true');
+    window.localStorage.setItem('fweep-startup-tips-enabled', 'true');
+    const doc = createEmptyMap('Tips Map');
+    await saveMap(doc);
+    navigateTo(`#/map/${doc.metadata.id}`);
+    renderApp();
+    await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
+
+    const tipsDialog = await screen.findByRole('dialog', { name: /tips/i });
+    expect(tipsDialog).toHaveTextContent(/shift-click empty canvas/i);
+
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /tips/i })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the welcome dialog only once overall, starting with the first created map', async () => {
     navigateTo('#/');
     const user = userEvent.setup();
@@ -5234,6 +5257,93 @@ describe('URL routing', () => {
 
     await screen.findByText(/second map/i);
     expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+  });
+
+  it('shows tips after the welcome dialog is dismissed on first open', async () => {
+    navigateTo('#/');
+    const user = userEvent.setup();
+    window.localStorage.setItem('fweep-startup-tips-enabled', 'true');
+    renderApp();
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'Tips After Welcome Map');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('dialog', { name: /welcome/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /tips/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^ok$/i }));
+
+    expect(await screen.findByRole('dialog', { name: /tips/i })).toBeInTheDocument();
+  });
+
+  it('stops showing tips for all maps when disabled from the dialog', async () => {
+    navigateTo('#/');
+    const user = userEvent.setup();
+    window.localStorage.setItem('fweep-startup-tips-enabled', 'true');
+    renderApp();
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'No More Tips Map');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await user.click(await screen.findByRole('button', { name: /^ok$/i }));
+    expect(await screen.findByRole('dialog', { name: /tips/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: /don't show tips at startup/i }));
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    expect(await screen.findByRole('dialog', { name: /choose a map/i })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'Second No Tips Map');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await screen.findByText(/second no tips map/i);
+    expect(screen.queryByRole('dialog', { name: /welcome/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /tips/i })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('fweep-startup-tips-enabled')).toBe('false');
+  });
+
+  it('starts each map-open tips dialog at the next stored tip and wraps after the end', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('fweep-welcome-dialog-seen', 'true');
+    window.localStorage.setItem('fweep-startup-tips-enabled', 'true');
+
+    const firstDoc = createEmptyMap('Rotating Tips One');
+    await saveMap(firstDoc);
+    navigateTo(`#/map/${firstDoc.metadata.id}`);
+    renderApp();
+    await screen.findByLabelText(`Map name: ${firstDoc.metadata.name}`);
+
+    expect(await screen.findByText(/shift-click empty canvas/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('1');
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.type(screen.getByPlaceholderText('Map name'), 'Rotating Tips Two');
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByText(/drag from a room's directional handle/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    expect(await screen.findByText(/press \/ in the cli input/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^done$/i }));
+    expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('0');
+  });
+
+  it('persists the next startup tip index when the tips dialog is dismissed with Escape', async () => {
+    window.localStorage.setItem('fweep-welcome-dialog-seen', 'true');
+    window.localStorage.setItem('fweep-startup-tips-enabled', 'true');
+
+    const doc = createEmptyMap('Escape Tips Map');
+    await saveMap(doc);
+    navigateTo(`#/map/${doc.metadata.id}`);
+    renderApp();
+    await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
+
+    expect(await screen.findByText(/shift-click empty canvas/i)).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('1');
   });
 
   it('shows the welcome dialog the first time an existing map is opened', async () => {

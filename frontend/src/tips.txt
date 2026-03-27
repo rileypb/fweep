@@ -1,0 +1,37 @@
+fweep is meant to be used with your keyboard, though it will work with the mouse too.
+Shift-click empty canvas to create a new room at the pointer location.
+Drag from a room's directional handle to create a connection. Drop on empty space to create a new target room automatically.
+Press / in the CLI input to open command suggestions and discover supported commands.
+Press Ctrl+/ to switch keyboard focus between the interactive fiction game and the mapper.
+Use Alt+Shift+M to jump back to the map list.
+Use Alt+Shift+G to toggle the background grid.
+Use Alt+Shift+S to toggle grid snapping.
+Use Alt+Shift+C to switch between curved and straight connection styles.
+Use Alt+Shift+V to toggle the map's visual style.
+Use Alt+Shift+Y to cycle through the canvas themes.
+Use Alt+Shift+D to switch between light and dark app themes.
+Use Alt+Shift+H to open the help dialog.
+Use Alt+Shift+P to prettify the current layout.
+Use Alt+Shift+O to open the background image controls.
+Use Alt+Shift+J to export the current map as JSON.
+Use Alt+Shift+E to export the current map as a PNG image.
+Use Alt+Shift+R to reset the linked game panel when a game is running.
+Use Alt+Shift+F to open a story file from your device when no game is running yet.
+Press D to toggle draw mode on the map canvas.
+Press R to arm room placement from the keyboard.
+Press N to arm sticky-note placement from the keyboard.
+Press L to toggle the selected room's lock state.
+Use the arrow keys on the focused map canvas to move selection from room to room.
+Press Enter on the focused map canvas to open the selected room editor.
+Press Delete or Backspace on the focused map canvas to delete the current selection.
+Press +, -, and 0 on the focused map canvas to zoom in, zoom out, or reset zoom.
+Double-click a room to open its room editor.
+Shift-click rooms or connections to add them to the current selection.
+Use the Parchment panel to search IFDB, load a local story file, or play a linked game beside the map.
+The background image popup lets you import a reference image, adjust its zoom, and recenter it with Option-drag or Command-drag on the canvas.
+The CLI output log and the game transcript are both keyboard-focusable scroll regions.
+Resize the game and output splitters with the arrow keys after focusing them.
+The minimap overview helps you keep large maps navigable and shows where your current viewport sits.
+Export PNG supports entire-map, selection, and region capture modes.
+The map name chip also shows the linked game's title when a story is associated with the map.
+The help dialog includes a keyboard-shortcuts section if you want the full cheat sheet later.

@@ -5,6 +5,7 @@ import { ConnectionEditorOverlay, RoomEditorOverlay } from '../../src/components
 import { ExportPngDialog } from '../../src/components/export-png-dialog';
 import { HelpDialog } from '../../src/components/help-dialog';
 import { MapSelectionDialog } from '../../src/components/map-selection-dialog';
+import { TipsDialog } from '../../src/components/tips-dialog';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
@@ -45,6 +46,20 @@ describe('accessibility smoke tests', () => {
         panOffset={{ x: 0, y: 0 }}
         onScopeChange={() => undefined}
         onRequestRegionSelection={() => undefined}
+      />,
+    );
+
+    const result = await axe(container);
+    expect(result.violations).toEqual([]);
+  });
+
+  it('has no obvious violations on the tips dialog', async () => {
+    const { container } = render(
+      <TipsDialog
+        isOpen
+        showTipsOnStartup
+        onClose={() => undefined}
+        onShowTipsOnStartupChange={() => undefined}
       />,
     );
 
