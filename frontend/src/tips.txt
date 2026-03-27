@@ -1,7 +1,7 @@
 fweep is meant to be used with your keyboard, though it will work with the mouse too.
 Pressing / from most places in the app will focus on the keyboard mapper.
 Using double quotes around a room name (e.g., "back room") will differentiate it from otherwise ambiguous rooms (e.g., "laundromat back room").
-Shift-click empty canvas to create a new room at the pointer location.
+Press R, then click empty canvas to place a new room at the pointer location.
 Drag from a room's directional handle to create a connection. Drop on empty space to create a new target room automatically.
 Press / in the CLI input to open command suggestions and discover supported commands.
 Type help in the CLI to see the main command list, or help rooms, help connections, and help items for focused topics.

@@ -5233,7 +5233,7 @@ describe('URL routing', () => {
     await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
 
     const tipsDialog = await screen.findByRole('dialog', { name: /tips/i });
-    expect(tipsDialog).toHaveTextContent(/shift-click empty canvas/i);
+    expect(tipsDialog).toHaveTextContent(/press r, then click empty canvas/i);
 
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
 
@@ -5323,7 +5323,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByLabelText(`Map name: ${firstDoc.metadata.name}`);
 
-    expect(await screen.findByText(/shift-click empty canvas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/press r, then click empty canvas/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
     expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('1');
 
@@ -5350,7 +5350,7 @@ describe('URL routing', () => {
     renderApp();
     await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
 
-    expect(await screen.findByText(/shift-click empty canvas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/press r, then click empty canvas/i)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('1');
   });

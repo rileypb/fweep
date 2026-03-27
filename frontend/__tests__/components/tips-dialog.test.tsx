@@ -21,7 +21,7 @@ describe('TipsDialog', () => {
 
     expect(screen.getByRole('dialog', { name: /tips/i })).toBeInTheDocument();
     expect(screen.getByText(/tip 1 of/i)).toBeInTheDocument();
-    expect(screen.getByText(/Shift-click empty canvas/i)).toBeInTheDocument();
+    expect(screen.getByText(/Press R, then click empty canvas/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^next$/i }));
 
@@ -48,7 +48,7 @@ describe('TipsDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /^back$/i }));
 
-    expect(screen.getByText(/Shift-click empty canvas/i)).toBeInTheDocument();
+    expect(screen.getByText(/Press R, then click empty canvas/i)).toBeInTheDocument();
   });
 
   it('wraps backward from the first tip to the last tip', async () => {
@@ -65,7 +65,7 @@ describe('TipsDialog', () => {
       />,
     );
 
-    expect(screen.getByText(/Shift-click empty canvas/i)).toBeInTheDocument();
+    expect(screen.getByText(/Press R, then click empty canvas/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^back$/i }));
 
