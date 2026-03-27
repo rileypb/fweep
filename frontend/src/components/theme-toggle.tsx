@@ -55,6 +55,7 @@ export function ThemeToggle(): React.JSX.Element {
       onClick={toggle}
       aria-label={nextThemeLabel}
       aria-keyshortcuts={UI_SHORTCUTS.toggleThemeMode.ariaKeyShortcuts}
+      data-shortcut={UI_SHORTCUTS.toggleThemeMode.display}
       title={getShortcutTitle(nextThemeLabel, UI_SHORTCUTS.toggleThemeMode)}
       type="button"
     >

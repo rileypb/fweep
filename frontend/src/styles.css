@@ -239,6 +239,45 @@ body.app-shell--resizing-side-panel-height {
   text-decoration: underline;
 }
 
+.app-control-button[data-shortcut],
+.app-parchment-panel__reset-button[data-shortcut],
+.app-parchment-panel__device-link[data-shortcut] {
+  position: relative;
+}
+
+.app-control-button[data-shortcut]::after,
+.app-parchment-panel__reset-button[data-shortcut]::after,
+.app-parchment-panel__device-link[data-shortcut]::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.45rem);
+  transform: translate(-50%, 0.2rem);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.45rem;
+  background: rgba(17, 24, 39, 0.92);
+  color: #f9fafb;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 40;
+}
+
+.app-control-button[data-shortcut]:hover::after,
+.app-control-button[data-shortcut]:focus-visible::after,
+.app-parchment-panel__reset-button[data-shortcut]:hover::after,
+.app-parchment-panel__reset-button[data-shortcut]:focus-visible::after,
+.app-parchment-panel__device-link[data-shortcut]:hover::after,
+.app-parchment-panel__device-link[data-shortcut]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .app-parchment-panel__device-input {
   display: none;
 }

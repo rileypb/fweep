@@ -557,6 +557,7 @@ export function App(): React.JSX.Element {
               className="app-control-button app-control-button--plain"
               aria-label="Back to maps"
               aria-keyshortcuts={UI_SHORTCUTS.backToMaps.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.backToMaps.display}
               title={getShortcutTitle('Back to maps', UI_SHORTCUTS.backToMaps)}
               onClick={() => {
                 void handleCloseMap();
@@ -572,6 +573,7 @@ export function App(): React.JSX.Element {
               className="app-control-button"
               aria-label="Toggle grid"
               aria-keyshortcuts={UI_SHORTCUTS.toggleGrid.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleGrid.display}
               title={getShortcutTitle('Toggle grid', UI_SHORTCUTS.toggleGrid)}
               aria-pressed={showGridEnabled}
               onClick={toggleShowGrid}
@@ -590,6 +592,7 @@ export function App(): React.JSX.Element {
               className="app-control-button"
               aria-label={useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections'}
               aria-keyshortcuts={UI_SHORTCUTS.toggleConnectionStyle.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleConnectionStyle.display}
               title={getShortcutTitle(
                 useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections',
                 UI_SHORTCUTS.toggleConnectionStyle,
@@ -607,6 +610,7 @@ export function App(): React.JSX.Element {
               className="app-control-button"
               aria-label="Toggle map visual style"
               aria-keyshortcuts={UI_SHORTCUTS.toggleMapVisualStyle.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleMapVisualStyle.display}
               title={getShortcutTitle('Toggle map visual style', UI_SHORTCUTS.toggleMapVisualStyle)}
               aria-pressed={mapVisualStyle === 'square-classic'}
               onClick={() => setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle))}
@@ -620,6 +624,7 @@ export function App(): React.JSX.Element {
               className="app-control-button"
               aria-label={`Cycle canvas theme (current: ${mapCanvasTheme})`}
               aria-keyshortcuts={UI_SHORTCUTS.cycleCanvasTheme.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.cycleCanvasTheme.display}
               title={getShortcutTitle(`Cycle canvas theme (current: ${mapCanvasTheme})`, UI_SHORTCUTS.cycleCanvasTheme)}
               onClick={() => setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme))}
             >
@@ -635,6 +640,7 @@ export function App(): React.JSX.Element {
               className="app-control-button"
               aria-label="Help"
               aria-keyshortcuts={UI_SHORTCUTS.openHelp.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.openHelp.display}
               title={getShortcutTitle('Help', UI_SHORTCUTS.openHelp)}
               onClick={() => setIsHelpOpen(true)}
             >

@@ -13,6 +13,7 @@ export function PrettifyButton(): React.JSX.Element {
       onClick={prettifyLayout}
       aria-label="Prettify layout"
       aria-keyshortcuts={UI_SHORTCUTS.prettifyLayout.ariaKeyShortcuts}
+      data-shortcut={UI_SHORTCUTS.prettifyLayout.display}
       title={getShortcutTitle('Prettify layout', UI_SHORTCUTS.prettifyLayout)}
       type="button"
       disabled={doc === null}

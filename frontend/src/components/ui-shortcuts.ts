@@ -2,6 +2,7 @@ import { isEditableTarget } from './map-canvas-helpers';
 
 export interface UiShortcutSpec {
   readonly key: string;
+  readonly code: string;
   readonly display: string;
   readonly ariaKeyShortcuts: string;
 }
@@ -10,6 +11,7 @@ function createAltShiftShortcut(key: string): UiShortcutSpec {
   const upperKey = key.toUpperCase();
   return {
     key,
+    code: `Key${upperKey}`,
     display: `Alt+Shift+${upperKey}`,
     ariaKeyShortcuts: `Alt+Shift+${upperKey}`,
   };
@@ -33,11 +35,11 @@ export const UI_SHORTCUTS = {
 } as const satisfies Record<string, UiShortcutSpec>;
 
 export function getShortcutTitle(label: string, shortcut: UiShortcutSpec): string {
-  return `${label} (${shortcut.display})`;
+  return label;
 }
 
 export function isUiShortcutPressed(
-  event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'repeat' | 'shiftKey'>,
+  event: Pick<KeyboardEvent, 'altKey' | 'code' | 'ctrlKey' | 'key' | 'metaKey' | 'repeat' | 'shiftKey'>,
   shortcut: UiShortcutSpec,
 ): boolean {
   return !event.repeat
@@ -45,7 +47,7 @@ export function isUiShortcutPressed(
     && event.shiftKey
     && !event.ctrlKey
     && !event.metaKey
-    && event.key.toLowerCase() === shortcut.key;
+    && (event.code === shortcut.code || event.key.toLowerCase() === shortcut.key);
 }
 
 export function shouldIgnoreUiShortcut(event: KeyboardEvent): boolean {

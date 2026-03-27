@@ -11,6 +11,7 @@ export function SnapToggle(): React.JSX.Element {
       onClick={toggleSnapToGrid}
       aria-label={snapToGridEnabled ? 'Disable grid snapping' : 'Enable grid snapping'}
       aria-keyshortcuts={UI_SHORTCUTS.toggleSnapToGrid.ariaKeyShortcuts}
+      data-shortcut={UI_SHORTCUTS.toggleSnapToGrid.display}
       title={getShortcutTitle(
         snapToGridEnabled ? 'Disable grid snapping' : 'Enable grid snapping',
         UI_SHORTCUTS.toggleSnapToGrid,

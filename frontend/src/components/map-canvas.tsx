@@ -1580,6 +1580,7 @@ export function MapCanvas({
             type="button"
             aria-label="Export JSON"
             aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+            data-shortcut={UI_SHORTCUTS.exportJson.display}
             title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
             onClick={() => {
               if (!doc) {
@@ -1598,6 +1599,7 @@ export function MapCanvas({
             type="button"
             aria-label="Export PNG"
             aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+            data-shortcut={UI_SHORTCUTS.exportPng.display}
             title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
             onClick={() => {
               clearExportRegion();

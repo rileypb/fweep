@@ -136,6 +136,7 @@ export function ParchmentSidebar({
                 type="button"
                 className="app-parchment-panel__reset-button"
                 aria-keyshortcuts={UI_SHORTCUTS.resetGamePanel.ariaKeyShortcuts}
+                data-shortcut={UI_SHORTCUTS.resetGamePanel.display}
                 title={getShortcutTitle('Reset game panel', UI_SHORTCUTS.resetGamePanel)}
                 onClick={onResetParchmentPanel}
               >
@@ -177,6 +178,7 @@ export function ParchmentSidebar({
               type="button"
               className="app-parchment-panel__device-link"
               aria-keyshortcuts={UI_SHORTCUTS.openStoryFile.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.openStoryFile.display}
               title={getShortcutTitle(deviceLinkLabel, UI_SHORTCUTS.openStoryFile)}
               onClick={onOpenParchmentFileChooser}
             >

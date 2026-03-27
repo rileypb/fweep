@@ -176,6 +176,7 @@ export function BackgroundImageControls(): React.JSX.Element {
         type="button"
         aria-label="Background image"
         aria-keyshortcuts={UI_SHORTCUTS.toggleBackgroundImage.ariaKeyShortcuts}
+        data-shortcut={UI_SHORTCUTS.toggleBackgroundImage.display}
         title={getShortcutTitle('Background image', UI_SHORTCUTS.toggleBackgroundImage)}
         aria-pressed={isOpen}
         onClick={() => {
