@@ -64,6 +64,7 @@ export interface MapMinimapProps {
   readonly onPanToMapPoint: (point: { x: number; y: number }) => void;
   readonly onPanBy: (delta: PanOffset) => void;
   readonly onOpenSelectedRoomEditor?: () => void;
+  readonly onOpenSelectedConnectionEditor?: () => void;
 }
 
 interface MinimapBackgroundChunk extends BackgroundChunkRecord {
@@ -132,6 +133,7 @@ export function MapMinimap({
   onPanToMapPoint,
   onPanBy,
   onOpenSelectedRoomEditor,
+  onOpenSelectedConnectionEditor,
 }: MapMinimapProps): React.JSX.Element | null {
   const roomEntries = useMemo(() => Object.values(rooms), [rooms]);
   const pseudoRoomEntries = useMemo(() => Object.values(pseudoRooms), [pseudoRooms]);
@@ -282,12 +284,18 @@ export function MapMinimap({
     }
 
     if (event.key === 'Enter') {
-      if (selectedRoomIds.length !== 1 || !onOpenSelectedRoomEditor) {
+      if (selectedRoomIds.length === 1 && onOpenSelectedRoomEditor) {
+        event.preventDefault();
+        onOpenSelectedRoomEditor();
         return;
       }
 
-      event.preventDefault();
-      onOpenSelectedRoomEditor();
+      if (selectedConnectionIds.length === 1 && onOpenSelectedConnectionEditor) {
+        event.preventDefault();
+        onOpenSelectedConnectionEditor();
+        return;
+      }
+
       return;
     }
 
@@ -326,7 +334,16 @@ export function MapMinimap({
       event.preventDefault();
       onPanBy({ x: 0, y: -MINIMAP_KEYBOARD_STEP });
     }
-  }, [disabled, onOpenSelectedRoomEditor, onPanBy, onPanToMapPoint, selectedRoomIds.length, worldBounds]);
+  }, [
+    disabled,
+    onOpenSelectedConnectionEditor,
+    onOpenSelectedRoomEditor,
+    onPanBy,
+    onPanToMapPoint,
+    selectedConnectionIds.length,
+    selectedRoomIds.length,
+    worldBounds,
+  ]);
 
   const isPlaceholder = !transform || !viewportRect;
 

@@ -14,6 +14,7 @@ interface UseMapCanvasWindowControlsParams {
   readonly cancelConnectionEndpointDrag: () => void;
   readonly removeSelectedEntities: () => void;
   readonly openSelectedRoomEditor: (roomId: string) => void;
+  readonly openSelectedConnectionEditor: (connectionId: string) => void;
   readonly undo: () => void | Promise<void>;
   readonly redo: () => void | Promise<void>;
   readonly setIsRoomPlacementArmed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -32,6 +33,7 @@ export function useMapCanvasWindowControls({
   cancelConnectionEndpointDrag,
   removeSelectedEntities,
   openSelectedRoomEditor,
+  openSelectedConnectionEditor,
   undo,
   redo,
   setIsRoomPlacementArmed,
@@ -97,18 +99,34 @@ export function useMapCanvasWindowControls({
           selectedStickyNoteLinkIds,
         } = useEditorStore.getState();
 
-        if (
-          selectedRoomIds.length !== 1
-          || selectedPseudoRoomIds.length > 0
-          || selectedStickyNoteIds.length > 0
-          || selectedConnectionIds.length > 0
-          || selectedStickyNoteLinkIds.length > 0
-        ) {
+        const onlyRoomSelected = (
+          selectedRoomIds.length === 1
+          && selectedPseudoRoomIds.length === 0
+          && selectedStickyNoteIds.length === 0
+          && selectedConnectionIds.length === 0
+          && selectedStickyNoteLinkIds.length === 0
+        );
+
+        if (onlyRoomSelected) {
+          event.preventDefault();
+          openSelectedRoomEditor(selectedRoomIds[0]);
+          return;
+        }
+
+        const onlyConnectionSelected = (
+          selectedRoomIds.length === 0
+          && selectedPseudoRoomIds.length === 0
+          && selectedStickyNoteIds.length === 0
+          && selectedConnectionIds.length === 1
+          && selectedStickyNoteLinkIds.length === 0
+        );
+
+        if (!onlyConnectionSelected) {
           return;
         }
 
         event.preventDefault();
-        openSelectedRoomEditor(selectedRoomIds[0]);
+        openSelectedConnectionEditor(selectedConnectionIds[0]);
         return;
       }
 
@@ -174,6 +192,7 @@ export function useMapCanvasWindowControls({
     connectionEndpointDrag,
     drawingInterfaceEnabled,
     isRoomEditorOpen,
+    openSelectedConnectionEditor,
     openSelectedRoomEditor,
     redo,
     removeSelectedEntities,

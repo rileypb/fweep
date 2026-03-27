@@ -1705,6 +1705,52 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
     });
 
+    it('opens the connection editor for a single selected connection when Enter is pressed', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      const canvas = screen.getByTestId('map-canvas');
+
+      act(() => {
+        useEditorStore.getState().selectConnection(connection.id);
+      });
+
+      fireEvent.keyDown(canvas, { key: 'Enter' });
+
+      expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('opens the connection editor from the minimap Enter handler', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectConnection(connection.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
+    });
+
     it('does not immediately close the room editor when it is opened from minimap Enter', async () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };

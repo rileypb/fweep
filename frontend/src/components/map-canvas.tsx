@@ -587,6 +587,7 @@ export function MapCanvas({
     cancelConnectionEndpointDrag,
     removeSelectedEntities,
     openSelectedRoomEditor: openRoomEditor,
+    openSelectedConnectionEditor: openConnectionEditor,
     undo,
     redo,
     setIsRoomPlacementArmed,
@@ -1376,12 +1377,18 @@ export function MapCanvas({
     }
 
     if (e.key === 'Enter') {
-      if (selectedRoomIds.length !== 1) {
+      if (selectedRoomIds.length === 1) {
+        e.preventDefault();
+        openRoomEditor(selectedRoomIds[0]);
+        return;
+      }
+
+      if (selectedConnectionIds.length !== 1) {
         return;
       }
 
       e.preventDefault();
-      openRoomEditor(selectedRoomIds[0]);
+      openConnectionEditor(selectedConnectionIds[0]);
       return;
     }
 
@@ -1556,6 +1563,11 @@ export function MapCanvas({
             onOpenSelectedRoomEditor={() => {
               if (selectedRoomIds.length === 1) {
                 openRoomEditor(selectedRoomIds[0]);
+              }
+            }}
+            onOpenSelectedConnectionEditor={() => {
+              if (selectedConnectionIds.length === 1) {
+                openConnectionEditor(selectedConnectionIds[0]);
               }
             }}
           />
