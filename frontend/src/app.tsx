@@ -260,6 +260,11 @@ export function App(): React.JSX.Element {
       parchmentPanelHeight,
       protectedBandBottom: APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
     });
+  const appTitleRightInset = typeof window === 'undefined'
+    ? 16
+    : hasOpenMap
+      ? parchmentPanelWidth + 16 + 12
+      : 16;
   const mapNameChipOverlapsOutputBand = doesRegionOverlapProtectedBand(
     cliOutputTop,
     APP_TOP_BAND_TOP_PX,
@@ -752,7 +757,7 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
           </div>
-          <h1 className="app-title" style={{ right: `${Math.max(16, visibleMapRightInset)}px` }}>fweep</h1>
+          <h1 className="app-title" style={{ right: `${appTitleRightInset}px` }}>fweep</h1>
           <ParchmentSidebar
             deviceInputRef={parchmentDeviceInputRef}
             iframeRef={parchmentIframeRef}

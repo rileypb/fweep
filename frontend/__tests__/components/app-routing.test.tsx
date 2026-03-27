@@ -134,6 +134,15 @@ describe('URL routing', () => {
     expect(screen.queryByRole('button', { name: /create a new map/i })).not.toBeInTheDocument();
   });
 
+  it('keeps the fweep wordmark clear of the parchment panel even when the minimap can hug the right edge', async () => {
+    window.localStorage.setItem('fweep-parchment-panel-width', '420');
+    window.localStorage.setItem('fweep-parchment-panel-height', '240');
+
+    await renderAppWithOpenMap();
+
+    expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ right: '448px' });
+  });
+
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
     setViewportWidth(959);
     renderApp();
