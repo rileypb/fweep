@@ -970,15 +970,16 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   max-height: min(18rem, calc(100vh - 10rem));
   overflow-y: auto;
   padding: 0.35rem;
+  border: 2px solid color-mix(in srgb, currentColor 14%, transparent);
   border-radius: 0.8rem;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
   z-index: 12;
 }
 
 :root[data-theme='dark'] .app-cli-suggestion-list {
   background: rgba(17, 24, 39, 0.98);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
 
 .app-cli-suggestion-option {
