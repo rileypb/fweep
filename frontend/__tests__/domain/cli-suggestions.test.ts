@@ -477,6 +477,14 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('keeps above and below available while typing their first token prefixes', () => {
+    expect(getCliSuggestions('a', 1, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label))
+      .toContain('above');
+
+    expect(getCliSuggestions('b', 1, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label))
+      .toContain('below');
+  });
+
   it('allows edit alongside east and show alongside south at the first token', () => {
     const eastResult = getCliSuggestions('e', 1, createEmptyMap('Test'));
     const southResult = getCliSuggestions('s', 1, createEmptyMap('Test'));

@@ -179,6 +179,7 @@ function getSuggestionsForCommandContext(
     return suggestionResolution([
       ...createCommandSuggestions(prefix),
       ...createDirectionSuggestions(prefix),
+      ...createKeywordSuggestions(prefix, ['above', 'below']),
       ...createKeywordSuggestions(prefix, ['the']),
       ...createRoomSuggestions(doc, prefix),
     ]);

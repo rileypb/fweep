@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
+import { createPseudoRoom, createRoom, type MapDocument, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
@@ -128,6 +128,138 @@ function isCanvasChromeTarget(target: Element | null): boolean {
   return Boolean(target?.closest(
     '[data-room-id], [data-sticky-note-id], [data-connection-id], [data-sticky-note-link-id], .map-drawing-toolbar, .map-canvas-actions',
   ));
+}
+
+function truncateSelectionLabel(value: string, maxLength = 48): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function getPseudoRoomSelectionLabel(kind: PseudoRoomKind | undefined): string {
+  return `${kind ?? 'unknown'} pseudo-room`;
+}
+
+function getConnectionSelectionLabel(doc: MapDocument, connectionId: string): string {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    return 'Selected connection';
+  }
+
+  const sourceName = doc.rooms[connection.sourceRoomId]?.name ?? 'Unknown room';
+  const targetName = connection.target.kind === 'room'
+    ? (doc.rooms[connection.target.id]?.name ?? 'Unknown room')
+    : getPseudoRoomSelectionLabel(doc.pseudoRooms[connection.target.id]?.kind);
+
+  return `Selected connection: ${sourceName} to ${targetName}`;
+}
+
+function getStickyNoteSelectionLabel(doc: MapDocument, stickyNoteId: string): string {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  if (!stickyNote) {
+    return 'Selected sticky note';
+  }
+
+  const preview = truncateSelectionLabel(stickyNote.text);
+  return preview.length > 0
+    ? `Selected sticky note: ${preview}`
+    : 'Selected sticky note';
+}
+
+function getStickyNoteLinkSelectionLabel(doc: MapDocument, stickyNoteLinkId: string): string {
+  const stickyNoteLink = doc.stickyNoteLinks[stickyNoteLinkId];
+  if (!stickyNoteLink) {
+    return 'Selected sticky-note link';
+  }
+
+  const notePreview = truncateSelectionLabel(doc.stickyNotes[stickyNoteLink.stickyNoteId]?.text ?? '');
+  const targetLabel = stickyNoteLink.target.kind === 'room'
+    ? (doc.rooms[stickyNoteLink.target.id]?.name ?? 'Unknown room')
+    : getPseudoRoomSelectionLabel(doc.pseudoRooms[stickyNoteLink.target.id]?.kind);
+
+  if (notePreview.length === 0) {
+    return `Selected sticky-note link to ${targetLabel}`;
+  }
+
+  return `Selected sticky-note link: ${notePreview} to ${targetLabel}`;
+}
+
+function describeSelectionCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function joinSelectionParts(parts: readonly string[]): string {
+  if (parts.length === 0) {
+    return '';
+  }
+
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
+function getSelectedEntityDescription(
+  doc: MapDocument | null,
+  selectedRoomIds: readonly string[],
+  selectedPseudoRoomIds: readonly string[],
+  selectedConnectionIds: readonly string[],
+  selectedStickyNoteIds: readonly string[],
+  selectedStickyNoteLinkIds: readonly string[],
+): string {
+  if (!doc) {
+    return 'Selection cleared';
+  }
+
+  const totalSelectionCount = selectedRoomIds.length
+    + selectedPseudoRoomIds.length
+    + selectedConnectionIds.length
+    + selectedStickyNoteIds.length
+    + selectedStickyNoteLinkIds.length;
+
+  if (totalSelectionCount === 0) {
+    return 'Selection cleared';
+  }
+
+  if (totalSelectionCount === 1) {
+    if (selectedRoomIds.length === 1) {
+      return `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`;
+    }
+
+    if (selectedPseudoRoomIds.length === 1) {
+      return `Selected ${getPseudoRoomSelectionLabel(doc.pseudoRooms[selectedPseudoRoomIds[0]]?.kind)}`;
+    }
+
+    if (selectedConnectionIds.length === 1) {
+      return getConnectionSelectionLabel(doc, selectedConnectionIds[0]);
+    }
+
+    if (selectedStickyNoteIds.length === 1) {
+      return getStickyNoteSelectionLabel(doc, selectedStickyNoteIds[0]);
+    }
+
+    if (selectedStickyNoteLinkIds.length === 1) {
+      return getStickyNoteLinkSelectionLabel(doc, selectedStickyNoteLinkIds[0]);
+    }
+  }
+
+  const selectionParts = [
+    selectedRoomIds.length > 0 ? describeSelectionCount(selectedRoomIds.length, 'room') : null,
+    selectedPseudoRoomIds.length > 0 ? describeSelectionCount(selectedPseudoRoomIds.length, 'pseudo-room') : null,
+    selectedConnectionIds.length > 0 ? describeSelectionCount(selectedConnectionIds.length, 'connection') : null,
+    selectedStickyNoteIds.length > 0 ? describeSelectionCount(selectedStickyNoteIds.length, 'sticky note') : null,
+    selectedStickyNoteLinkIds.length > 0 ? describeSelectionCount(selectedStickyNoteLinkIds.length, 'sticky-note link') : null,
+  ].filter((value): value is string => value !== null);
+
+  return `Selected ${joinSelectionParts(selectionParts)}`;
 }
 
 function centerToTopLeft(position: Position, width: number, height: number): Position {
@@ -392,11 +524,14 @@ export function MapCanvas({
     setMapZoom,
   });
 
-  const selectedEntityDescription = selectedRoomIds.length === 1 && doc
-    ? `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`
-    : selectedPseudoRoomIds.length === 1 && doc
-      ? `Selected ${doc.pseudoRooms[selectedPseudoRoomIds[0]]?.kind ?? 'pseudo-room'} pseudo-room`
-      : 'No room selected';
+  const selectedEntityDescription = getSelectedEntityDescription(
+    doc,
+    selectedRoomIds,
+    selectedPseudoRoomIds,
+    selectedConnectionIds,
+    selectedStickyNoteIds,
+    selectedStickyNoteLinkIds,
+  );
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorState(null);

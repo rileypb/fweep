@@ -57,6 +57,91 @@ describe('MapCanvas', () => {
     expect(screen.getByLabelText('Map canvas')).toHaveAttribute('tabindex', '0');
   });
 
+  it('announces selection changes through the canvas status region', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    renderMapCanvas();
+
+    const status = document.getElementById('map-canvas-selection-status');
+
+    expect(status).toHaveTextContent('Selection cleared');
+
+    act(() => {
+      useEditorStore.setState({ selectedRoomIds: [room.id] });
+    });
+
+    expect(status).toHaveTextContent('Selected room: Kitchen');
+
+    act(() => {
+      useEditorStore.getState().clearSelection();
+    });
+
+    expect(status).toHaveTextContent('Selection cleared');
+  });
+
+  it('announces selected connections with their endpoints', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+    const [connectionId] = Object.keys(doc.connections);
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({ selectedConnectionIds: [connectionId] });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected connection: Kitchen to Hallway',
+    );
+  });
+
+  it('announces mixed multi-selection counts', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const stickyNote = { ...createStickyNote('Remember the lantern on the table.'), position: { x: 220, y: 140 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addStickyNote(doc, stickyNote);
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({
+        selectedRoomIds: [room.id],
+        selectedStickyNoteIds: [stickyNote.id],
+      });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected 1 room and 1 sticky note',
+    );
+  });
+
+  it('announces selected sticky-note links with their destination', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check under the rug for a key before leaving.'), position: { x: 260, y: 120 } };
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
+    loadDocumentAct({
+      ...addRoom(createEmptyMap('Test'), room),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+    });
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({ selectedStickyNoteLinkIds: [stickyNoteLink.id] });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected sticky-note link: Check under the rug for a key before leaving. to Kitchen',
+    );
+  });
+
   it('shows a placeholder minimap when the document has no rooms', () => {
     const doc = createEmptyMap('Test');
     renderLoadedMap(doc);
