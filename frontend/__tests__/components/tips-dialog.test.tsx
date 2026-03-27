@@ -27,6 +27,49 @@ describe('TipsDialog', () => {
 
     expect(screen.getByText(/Drag from a room's directional handle/i)).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /^back$/i })).toBeEnabled();
+  });
+
+  it('moves backward through tips from the back button', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TipsDialog
+        initialTipIndex={1}
+        isOpen
+        onTipIndexChange={() => undefined}
+        showTipsOnStartup
+        onClose={() => undefined}
+        onShowTipsOnStartupChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/Drag from a room's directional handle/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^back$/i }));
+
+    expect(screen.getByText(/Shift-click empty canvas/i)).toBeInTheDocument();
+  });
+
+  it('wraps backward from the first tip to the last tip', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TipsDialog
+        initialTipIndex={0}
+        isOpen
+        onTipIndexChange={() => undefined}
+        showTipsOnStartup
+        onClose={() => undefined}
+        onShowTipsOnStartupChange={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText(/Shift-click empty canvas/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^back$/i }));
+
+    expect(screen.getByText(/Press \/ in the CLI input/i)).toBeInTheDocument();
   });
 
   it('reports checkbox changes and closes from cancel', async () => {

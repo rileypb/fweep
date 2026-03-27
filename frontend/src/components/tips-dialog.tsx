@@ -102,21 +102,32 @@ export function TipsDialog({
             >
               Cancel
             </button>
-            <button
-              ref={nextButtonRef}
-              className="tips-next"
-              type="button"
-              onClick={() => {
-                if (isLastTip) {
-                  onClose(nextStartupTipIndex);
-                  return;
-                }
+            <div className="tips-stepper-actions">
+              <button
+                className="tips-back"
+                type="button"
+                onClick={() => {
+                  setTipIndex((current) => normalizeTipIndex(current - 1));
+                }}
+              >
+                Back
+              </button>
+              <button
+                ref={nextButtonRef}
+                className="tips-next"
+                type="button"
+                onClick={() => {
+                  if (isLastTip) {
+                    onClose(nextStartupTipIndex);
+                    return;
+                  }
 
-                setTipIndex((current) => current + 1);
-              }}
-            >
-              {isLastTip ? 'Done' : 'Next'}
-            </button>
+                  setTipIndex((current) => current + 1);
+                }}
+              >
+                {isLastTip ? 'Done' : 'Next'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

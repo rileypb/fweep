@@ -854,7 +854,15 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   gap: 0.85rem;
 }
 
+.tips-stepper-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
 .tips-cancel,
+.tips-back,
 .tips-next {
   border-radius: 999px;
   padding: 0.72rem 1rem;
@@ -863,6 +871,12 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .tips-cancel {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: transparent;
+  color: inherit;
+}
+
+.tips-back {
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   background: transparent;
   color: inherit;
@@ -880,7 +894,12 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .tips-cancel:hover,
+.tips-back:hover,
 .tips-cancel:focus-visible {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.tips-back:focus-visible {
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
@@ -890,6 +909,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .tips-cancel:focus-visible,
+.tips-back:focus-visible,
 .tips-next:focus-visible {
   outline: 2px solid color-mix(in srgb, currentColor 55%, transparent);
   outline-offset: 2px;

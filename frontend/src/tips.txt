@@ -1,7 +1,18 @@
 fweep is meant to be used with your keyboard, though it will work with the mouse too.
+Pressing / from most places in the app will focus on the keyboard mapper.
+Using double quotes around a room name (e.g., "back room") will differentiate it from otherwise ambiguous rooms (e.g., "laundromat back room").
 Shift-click empty canvas to create a new room at the pointer location.
 Drag from a room's directional handle to create a connection. Drop on empty space to create a new target room automatically.
 Press / in the CLI input to open command suggestions and discover supported commands.
+Type help in the CLI to see the main command list, or help rooms, help connections, and help items for focused topics.
+Use the Up and Down Arrow keys in the CLI input to walk through your command history.
+Press Tab while the CLI suggestion menu is open to accept the highlighted suggestion quickly.
+Commands like create Kitchen, connect Kitchen to Hallway, edit Kitchen, show Kitchen, and delete Kitchen all work directly from the CLI.
+Bare directions like north and south can navigate from the currently selected room when that exit exists.
+Use go to <room name> in the CLI to jump selection and center the map on a known room.
+Type notate <room name> to drop a sticky note linked to a room without leaving the keyboard.
+The CLI accepts arrange and prettify as layout commands to tidy the current map automatically.
+You can import a plain-text command script into the CLI and fweep will run it line by line.
 Press Ctrl+/ to switch keyboard focus between the interactive fiction game and the mapper.
 Use Alt+Shift+M to jump back to the map list.
 Use Alt+Shift+G to toggle the background grid.
