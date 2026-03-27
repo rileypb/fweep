@@ -2,7 +2,6 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
-import { getMapCanvasRoomNodeId } from '../../src/components/map-canvas-a11y';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createItem, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../../src/domain/pseudo-room-helpers';
@@ -1666,7 +1665,7 @@ describe('MapCanvas', () => {
 
     expect(canvas).toHaveFocus();
     expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
-    expect(canvas).toHaveAttribute('aria-activedescendant', getMapCanvasRoomNodeId(hallway.id));
+    expect(canvas).not.toHaveAttribute('aria-activedescendant');
 
     fireEvent.keyDown(canvas, { key: 'Enter' });
     expect(await screen.findByLabelText('Room name')).toHaveValue('Hallway');

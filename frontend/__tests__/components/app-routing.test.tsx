@@ -27,7 +27,11 @@ function setViewportWidth(width: number) {
 }
 
 function getGameOutputBox(): HTMLElement {
-  return screen.getByRole('log', { name: /game output log/i });
+  return screen.getByRole('log');
+}
+
+function getGameOutputRegion(): HTMLElement {
+  return screen.getByRole('region', { name: /game output log/i });
 }
 
 function getCliInput(): HTMLInputElement {
@@ -451,7 +455,7 @@ describe('URL routing', () => {
 
     const iframe = await screen.findByTitle(/interactive fiction player/i);
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
     expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
@@ -570,7 +574,7 @@ describe('URL routing', () => {
 
     const iframe = await screen.findByTitle(/interactive fiction player/i);
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
   });
 
@@ -666,6 +670,19 @@ describe('URL routing', () => {
     chooserInput!.click = clickSpy;
 
     await user.click(screen.getByRole('button', { name: /play a story file from your device/i }));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a fweep-owned file chooser from the keyboard shortcut', async () => {
+    await renderAppWithOpenMap('Parchment Shortcut Chooser Map');
+
+    const clickSpy = jest.fn<() => void>();
+    const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
+    expect(chooserInput).not.toBeNull();
+    chooserInput!.click = clickSpy;
+
+    fireEvent.keyDown(window, { key: 'F', altKey: true, shiftKey: true });
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
@@ -1690,13 +1707,25 @@ describe('URL routing', () => {
     await renderAppWithOpenMap('Parchment Keyboard Resize Map');
 
     const panel = document.querySelector('.app-parchment-panel') as HTMLElement | null;
+    const widthSeparator = screen.getByRole('separator', { name: /resize game panel width/i });
+    const heightSeparator = screen.getByRole('separator', { name: /resize game panel height/i });
     expect(panel).not.toBeNull();
     expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+    expect(widthSeparator).toHaveAttribute('aria-describedby', 'parchment-panel-width-resize-help');
+    expect(widthSeparator).toHaveAttribute('aria-valuemin', '300');
+    expect(widthSeparator).toHaveAttribute('aria-valuenow', '420');
+    expect(heightSeparator).toHaveAttribute('aria-describedby', 'parchment-panel-height-resize-help');
+    expect(heightSeparator).toHaveAttribute('aria-valuemin', '240');
+    expect(heightSeparator).toHaveAttribute('aria-valuenow', '736');
+    expect(screen.getByText('Use Left and Right Arrow keys to resize the game panel width.')).toHaveAttribute('id', 'parchment-panel-width-resize-help');
+    expect(screen.getByText('Use Up and Down Arrow keys to resize the game panel height.')).toHaveAttribute('id', 'parchment-panel-height-resize-help');
 
-    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel width/i }), { key: 'ArrowLeft' });
-    fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel height/i }), { key: 'ArrowDown' });
+    fireEvent.keyDown(widthSeparator, { key: 'ArrowLeft' });
+    fireEvent.keyDown(heightSeparator, { key: 'ArrowDown' });
 
     expect(panel).toHaveStyle({ width: '452px', height: '704px' });
+    expect(widthSeparator).toHaveAttribute('aria-valuenow', '452');
+    expect(heightSeparator).toHaveAttribute('aria-valuenow', '704');
     expect(window.localStorage.getItem('fweep-parchment-panel-width')).toBe('452');
     expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBe('704');
   });
@@ -4579,13 +4608,13 @@ describe('URL routing', () => {
   it('keeps the output log scrolled to the bottom as new lines are appended', async () => {
     await renderAppWithOpenMap('CLI Output Scroll Map');
 
-    const log = getGameOutputBox();
+    const outputRegion = getGameOutputRegion();
     let scrollTopValue = 0;
-    Object.defineProperty(log, 'scrollHeight', {
+    Object.defineProperty(outputRegion, 'scrollHeight', {
       configurable: true,
       get: () => 480,
     });
-    Object.defineProperty(log, 'scrollTop', {
+    Object.defineProperty(outputRegion, 'scrollTop', {
       configurable: true,
       get: () => scrollTopValue,
       set: (value: number) => {

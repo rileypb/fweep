@@ -77,7 +77,18 @@ describe('AppCliPanel', () => {
   it('renders a resize handle when the output log is expanded', () => {
     render(<AppCliPanel {...createProps()} />);
 
-    expect(screen.getByRole('separator', { name: 'Resize output log' })).toBeInTheDocument();
+    const separator = screen.getByRole('separator', { name: 'Resize output log' });
+    const outputPanel = screen.getByRole('region', { name: 'Game output log' });
+    const outputLog = screen.getByRole('log');
+
+    expect(separator).toBeInTheDocument();
+    expect(separator).toHaveAttribute('aria-describedby', 'app-cli-output-resize-help');
+    expect(separator).toHaveAttribute('aria-valuemin', '180');
+    expect(separator).toHaveAttribute('aria-valuemax', '320');
+    expect(separator).toHaveAttribute('aria-valuenow', '320');
+    expect(outputPanel).toHaveAttribute('tabindex', '0');
+    expect(outputLog).not.toHaveAttribute('aria-label');
+    expect(screen.getByText('Use Up and Down Arrow keys to resize the output log.')).toHaveAttribute('id', 'app-cli-output-resize-help');
   });
 
   it('does not render a resize handle when the output log is collapsed', () => {

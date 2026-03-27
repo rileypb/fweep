@@ -6,6 +6,12 @@ import { MapSelectionDialog } from './components/map-selection-dialog';
 import { ParchmentSidebar } from './components/parchment-sidebar';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
+import {
+  getShortcutTitle,
+  isUiShortcutPressed,
+  shouldIgnoreUiShortcut,
+  UI_SHORTCUTS,
+} from './components/ui-shortcuts';
 import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
 import { pingIfdbProxy } from './domain/ifdb-client';
@@ -27,6 +33,8 @@ import {
   getParchmentInstance,
   loadStoredParchmentPanelHeight,
   loadStoredParchmentPanelWidth,
+  PARCHMENT_PANEL_MIN_HEIGHT_PX,
+  PARCHMENT_PANEL_MIN_WIDTH_PX,
   persistParchmentPanelHeight,
   persistParchmentPanelWidth,
   shouldWarnAboutLeavingParchmentGame,
@@ -120,6 +128,7 @@ export function App(): React.JSX.Element {
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
   const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
+  const toggleSnapToGrid = useEditorStore((s) => s.toggleSnapToGrid);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
   const associatedGame = useEditorStore((s) => s.doc?.metadata.associatedGame ?? null);
@@ -384,6 +393,91 @@ export function App(): React.JSX.Element {
     closeMap();
   }, [closeMap, flushDocumentSave, shouldWarnAboutLeavingActiveGame]);
 
+  useEffect(() => {
+    if (!hasOpenMap || isHelpOpen || isWelcomeOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (shouldIgnoreUiShortcut(event)) {
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.backToMaps)) {
+        event.preventDefault();
+        void handleCloseMap();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleGrid)) {
+        event.preventDefault();
+        toggleShowGrid();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleConnectionStyle)) {
+        event.preventDefault();
+        toggleUseBezierConnections();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleSnapToGrid)) {
+        event.preventDefault();
+        toggleSnapToGrid();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleMapVisualStyle)) {
+        event.preventDefault();
+        setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle));
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.cycleCanvasTheme)) {
+        event.preventDefault();
+        setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme));
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.openHelp)) {
+        event.preventDefault();
+        setIsHelpOpen(true);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.resetGamePanel) && isParchmentGameViewVisible) {
+        event.preventDefault();
+        handleResetParchmentPanel();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.openStoryFile) && !isParchmentGameViewVisible) {
+        event.preventDefault();
+        handleOpenParchmentFileChooser();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    handleCloseMap,
+    handleOpenParchmentFileChooser,
+    handleResetParchmentPanel,
+    hasOpenMap,
+    isHelpOpen,
+    isParchmentGameViewVisible,
+    isWelcomeOpen,
+    mapCanvasTheme,
+    mapVisualStyle,
+    setMapCanvasTheme,
+    setMapVisualStyle,
+    toggleShowGrid,
+    toggleSnapToGrid,
+    toggleUseBezierConnections,
+  ]);
+
   if (!hasDesktopViewport) {
     return (
       <main className="app-shell app-shell--desktop-only">
@@ -462,7 +556,8 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button app-control-button--plain"
               aria-label="Back to maps"
-              title="Back to maps"
+              aria-keyshortcuts={UI_SHORTCUTS.backToMaps.ariaKeyShortcuts}
+              title={getShortcutTitle('Back to maps', UI_SHORTCUTS.backToMaps)}
               onClick={() => {
                 void handleCloseMap();
               }}
@@ -476,7 +571,8 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label="Toggle grid"
-              title="Toggle grid"
+              aria-keyshortcuts={UI_SHORTCUTS.toggleGrid.ariaKeyShortcuts}
+              title={getShortcutTitle('Toggle grid', UI_SHORTCUTS.toggleGrid)}
               aria-pressed={showGridEnabled}
               onClick={toggleShowGrid}
             >
@@ -493,7 +589,11 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label={useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections'}
-              title={useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections'}
+              aria-keyshortcuts={UI_SHORTCUTS.toggleConnectionStyle.ariaKeyShortcuts}
+              title={getShortcutTitle(
+                useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections',
+                UI_SHORTCUTS.toggleConnectionStyle,
+              )}
               aria-pressed={!useBezierConnectionsEnabled}
               onClick={toggleUseBezierConnections}
             >
@@ -506,7 +606,8 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label="Toggle map visual style"
-              title="Toggle map visual style"
+              aria-keyshortcuts={UI_SHORTCUTS.toggleMapVisualStyle.ariaKeyShortcuts}
+              title={getShortcutTitle('Toggle map visual style', UI_SHORTCUTS.toggleMapVisualStyle)}
               aria-pressed={mapVisualStyle === 'square-classic'}
               onClick={() => setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle))}
             >
@@ -518,7 +619,8 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label={`Cycle canvas theme (current: ${mapCanvasTheme})`}
-              title={`Cycle canvas theme (current: ${mapCanvasTheme})`}
+              aria-keyshortcuts={UI_SHORTCUTS.cycleCanvasTheme.ariaKeyShortcuts}
+              title={getShortcutTitle(`Cycle canvas theme (current: ${mapCanvasTheme})`, UI_SHORTCUTS.cycleCanvasTheme)}
               onClick={() => setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme))}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
@@ -532,7 +634,8 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label="Help"
-              title="Help"
+              aria-keyshortcuts={UI_SHORTCUTS.openHelp.ariaKeyShortcuts}
+              title={getShortcutTitle('Help', UI_SHORTCUTS.openHelp)}
               onClick={() => setIsHelpOpen(true)}
             >
               <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
@@ -547,6 +650,10 @@ export function App(): React.JSX.Element {
             searchInputRef={parchmentSearchInputRef}
             width={parchmentPanelWidth}
             height={parchmentPanelHeight}
+            minWidth={PARCHMENT_PANEL_MIN_WIDTH_PX}
+            maxWidth={clampParchmentPanelWidth(window.innerWidth, window.innerWidth)}
+            minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
+            maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
             isGameViewVisible={isParchmentGameViewVisible}
             parchmentSrc={parchmentSrc}
             ifdbSearchQuery={ifdbSearchQuery}

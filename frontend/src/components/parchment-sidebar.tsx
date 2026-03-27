@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
+import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
 
 const PARCHMENT_PANEL_TIPS = [
   'Use Ctrl+/ to switch the keyboard focus between the game and the mapper.',
@@ -15,6 +16,10 @@ interface ParchmentSidebarProps {
   readonly searchInputRef: React.RefObject<HTMLInputElement | null>;
   readonly width: number;
   readonly height: number;
+  readonly minWidth: number;
+  readonly maxWidth: number;
+  readonly minHeight: number;
+  readonly maxHeight: number;
   readonly isGameViewVisible: boolean;
   readonly parchmentSrc: string;
   readonly ifdbSearchQuery: string;
@@ -43,6 +48,10 @@ export function ParchmentSidebar({
   searchInputRef,
   width,
   height,
+  minWidth,
+  maxWidth,
+  minHeight,
+  maxHeight,
   isGameViewVisible,
   parchmentSrc,
   ifdbSearchQuery,
@@ -72,11 +81,21 @@ export function ParchmentSidebar({
       className="app-parchment-panel"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
+      <span id="parchment-panel-height-resize-help" className="sr-only">
+        Use Up and Down Arrow keys to resize the game panel height.
+      </span>
+      <span id="parchment-panel-width-resize-help" className="sr-only">
+        Use Left and Right Arrow keys to resize the game panel width.
+      </span>
       <div
         className="app-parchment-panel__resize-handle app-parchment-panel__resize-handle--height"
         role="separator"
         aria-orientation="horizontal"
         aria-label="Resize game panel height"
+        aria-describedby="parchment-panel-height-resize-help"
+        aria-valuemin={Math.round(minHeight)}
+        aria-valuemax={Math.round(maxHeight)}
+        aria-valuenow={Math.round(height)}
         tabIndex={0}
         onPointerDown={onHeightResizePointerDown}
         onKeyDown={onHeightResizeKeyDown}
@@ -86,6 +105,10 @@ export function ParchmentSidebar({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize game panel width"
+        aria-describedby="parchment-panel-width-resize-help"
+        aria-valuemin={Math.round(minWidth)}
+        aria-valuemax={Math.round(maxWidth)}
+        aria-valuenow={Math.round(width)}
         tabIndex={0}
         onPointerDown={onWidthResizePointerDown}
         onKeyDown={onWidthResizeKeyDown}
@@ -112,6 +135,8 @@ export function ParchmentSidebar({
               <button
                 type="button"
                 className="app-parchment-panel__reset-button"
+                aria-keyshortcuts={UI_SHORTCUTS.resetGamePanel.ariaKeyShortcuts}
+                title={getShortcutTitle('Reset game panel', UI_SHORTCUTS.resetGamePanel)}
                 onClick={onResetParchmentPanel}
               >
                 reset
@@ -151,6 +176,8 @@ export function ParchmentSidebar({
             <button
               type="button"
               className="app-parchment-panel__device-link"
+              aria-keyshortcuts={UI_SHORTCUTS.openStoryFile.ariaKeyShortcuts}
+              title={getShortcutTitle(deviceLinkLabel, UI_SHORTCUTS.openStoryFile)}
               onClick={onOpenParchmentFileChooser}
             >
               {deviceLinkLabel}

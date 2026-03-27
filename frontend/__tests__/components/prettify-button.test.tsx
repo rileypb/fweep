@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from '@jest/globals';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MapCanvas } from '../../src/components/map-canvas';
 import { PrettifyButton } from '../../src/components/prettify-button';
 import { addConnection, addRoom } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
@@ -33,6 +34,22 @@ describe('PrettifyButton', () => {
     render(<PrettifyButton />);
 
     await user.click(screen.getByRole('button', { name: /prettify layout/i }));
+
+    const updatedDoc = useEditorStore.getState().doc!;
+    expect(updatedDoc.rooms[roomB.id].position.x).toBe(updatedDoc.rooms[roomA.id].position.x);
+    expect(updatedDoc.rooms[roomB.id].position.y).toBeLessThan(updatedDoc.rooms[roomA.id].position.y);
+  });
+
+  it('prettifies the loaded map layout from the keyboard shortcut', () => {
+    const roomA = { ...createRoom('A'), position: { x: 320, y: 320 } };
+    const roomB = { ...createRoom('B'), position: { x: 40, y: 40 } };
+    let doc = createEmptyMap('Shortcut Test');
+    doc = addRoom(addRoom(doc, roomA), roomB);
+    doc = addConnection(doc, createConnection(roomA.id, roomB.id, true), 'north', 'south');
+    useEditorStore.getState().loadDocument(doc);
+
+    render(<MapCanvas mapName="Shortcut Test" />);
+    fireEvent.keyDown(window, { key: 'P', altKey: true, shiftKey: true });
 
     const updatedDoc = useEditorStore.getState().doc!;
     expect(updatedDoc.rooms[roomB.id].position.x).toBe(updatedDoc.rooms[roomA.id].position.x);

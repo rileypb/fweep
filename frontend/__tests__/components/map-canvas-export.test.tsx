@@ -39,11 +39,38 @@ describe('MapCanvas export flow', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:map-json');
   });
 
+  it('downloads the current map as JSON from the keyboard shortcut', () => {
+    const room = { ...createRoom('Kitchen'), id: 'room-1', position: { x: 40, y: 60 } };
+    useEditorStore.getState().loadDocument(addRoom(createEmptyMap('Test'), room));
+
+    const createObjectURL = jest.fn<(blob: Blob) => string>().mockReturnValue('blob:map-json');
+    const revokeObjectURL = jest.fn<(url: string) => void>();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, writable: true, value: revokeObjectURL });
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    render(<MapCanvas mapName="Test" />);
+
+    fireEvent.keyDown(window, { key: 'J', altKey: true, shiftKey: true });
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:map-json');
+  });
+
   it('opens the export dialog from the header button', async () => {
     const user = userEvent.setup();
     render(<MapCanvas mapName="Test" />);
 
     await user.click(screen.getByRole('button', { name: 'Export PNG' }));
+
+    expect(screen.getByTestId('export-png-dialog')).toBeInTheDocument();
+  });
+
+  it('opens the export dialog from the keyboard shortcut', () => {
+    render(<MapCanvas mapName="Test" />);
+
+    fireEvent.keyDown(window, { key: 'E', altKey: true, shiftKey: true });
 
     expect(screen.getByTestId('export-png-dialog')).toBeInTheDocument();
   });

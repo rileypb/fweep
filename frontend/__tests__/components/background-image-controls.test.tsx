@@ -93,6 +93,40 @@ describe('BackgroundImageControls', () => {
     expect(screen.queryByTestId('background-image-panel')).not.toBeInTheDocument();
   });
 
+  it('closes the panel on Escape when focus is not in the zoom field', async () => {
+    const user = userEvent.setup();
+    useEditorStore.getState().setBackgroundReferenceImage({
+      id: 'background-image-1',
+      name: 'overlay.png',
+      mimeType: 'image/png',
+      dataUrl: 'data:image/png;base64,AAAA',
+      sourceUrl: null,
+      width: 640,
+      height: 480,
+      zoom: 1,
+      position: { x: 0, y: 0 },
+    });
+
+    render(<BackgroundImageControls />);
+
+    await user.click(screen.getByRole('button', { name: 'Background image' }));
+    expect(screen.getByTestId('background-image-panel')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByTestId('background-image-panel')).not.toBeInTheDocument();
+  });
+
+  it('toggles the panel from the keyboard shortcut', () => {
+    render(<BackgroundImageControls />);
+
+    fireEvent.keyDown(document, { key: 'O', altKey: true, shiftKey: true });
+    expect(screen.getByTestId('background-image-panel')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'O', altKey: true, shiftKey: true });
+    expect(screen.queryByTestId('background-image-panel')).not.toBeInTheDocument();
+  });
+
   it('removes the stored background image', async () => {
     const user = userEvent.setup();
     useEditorStore.getState().setBackgroundReferenceImage({
@@ -215,6 +249,37 @@ describe('BackgroundImageControls', () => {
     });
 
     expect(zoomInput).toHaveValue('125');
+    expect(useEditorStore.getState().doc?.background.referenceImage?.zoom).toBe(1.25);
+  });
+
+  it('keeps Escape in the zoom field from closing the panel and restores the saved zoom', async () => {
+    const user = userEvent.setup();
+    useEditorStore.getState().setBackgroundReferenceImage({
+      id: 'background-image-1',
+      name: 'overlay.png',
+      mimeType: 'image/png',
+      dataUrl: 'data:image/png;base64,AAAA',
+      sourceUrl: null,
+      width: 640,
+      height: 480,
+      zoom: 1.25,
+      position: { x: 0, y: 0 },
+    });
+
+    render(<BackgroundImageControls />);
+
+    await user.click(screen.getByRole('button', { name: 'Background image' }));
+    const zoomInput = screen.getByLabelText('Background image zoom');
+
+    await user.clear(zoomInput);
+    await user.type(zoomInput, '200');
+    zoomInput.focus();
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByTestId('background-image-panel')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(zoomInput).toHaveValue('125');
+    });
     expect(useEditorStore.getState().doc?.background.referenceImage?.zoom).toBe(1.25);
   });
 });

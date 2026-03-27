@@ -1,4 +1,5 @@
 import { useEditorStore } from '../state/editor-store';
+import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
 
 export function SnapToggle(): React.JSX.Element {
   const snapToGridEnabled = useEditorStore((s) => s.snapToGridEnabled);
@@ -9,7 +10,11 @@ export function SnapToggle(): React.JSX.Element {
       className="app-control-button"
       onClick={toggleSnapToGrid}
       aria-label={snapToGridEnabled ? 'Disable grid snapping' : 'Enable grid snapping'}
-      title={snapToGridEnabled ? 'Disable grid snapping' : 'Enable grid snapping'}
+      aria-keyshortcuts={UI_SHORTCUTS.toggleSnapToGrid.ariaKeyShortcuts}
+      title={getShortcutTitle(
+        snapToGridEnabled ? 'Disable grid snapping' : 'Enable grid snapping',
+        UI_SHORTCUTS.toggleSnapToGrid,
+      )}
       type="button"
       aria-pressed={snapToGridEnabled}
     >

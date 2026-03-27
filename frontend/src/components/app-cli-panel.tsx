@@ -208,6 +208,14 @@ export function AppCliPanel({
     }
   }, []);
 
+  React.useEffect(() => {
+    if (outputRef.current === null || isOutputCollapsed) {
+      return;
+    }
+
+    outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  }, [gameOutputLines, isOutputCollapsed]);
+
   React.useLayoutEffect(() => {
     if (onOutputTopChange === undefined) {
       return undefined;
@@ -250,14 +258,14 @@ export function AppCliPanel({
     const stackRect = stackRef.current?.getBoundingClientRect();
     const cliBarRect = cliBarRef.current?.getBoundingClientRect();
     if (!stackRect || !cliBarRect) {
-      return Number.POSITIVE_INFINITY;
+      return Math.max(MIN_EXPANDED_OUTPUT_HEIGHT_PX, outputHeight ?? DEFAULT_EXPANDED_OUTPUT_HEIGHT_PX);
     }
 
     return Math.max(
       MIN_EXPANDED_OUTPUT_HEIGHT_PX,
       stackRect.height - cliBarRect.height - CLI_OUTPUT_BOTTOM_GAP_PX,
     );
-  }, []);
+  }, [outputHeight]);
 
   const getCurrentExpandedOutputHeight = React.useCallback((): number => {
     const measuredHeight = outputRef.current?.getBoundingClientRect().height ?? 0;
@@ -335,11 +343,20 @@ export function AppCliPanel({
     document.body.classList.remove('app-cli-resizing');
   }, []);
 
+  const maxExpandedOutputHeight = getMaxExpandedOutputHeight();
+  const currentExpandedOutputHeight = clampCliOutputHeight(
+    getCurrentExpandedOutputHeight(),
+    maxExpandedOutputHeight,
+  );
+
   return (
     <div
       ref={stackRef}
       className={`app-cli-stack${isOutputCollapsed ? ' app-cli-stack--collapsed' : ''}`}
     >
+      <span id="app-cli-output-resize-help" className="sr-only">
+        Use Up and Down Arrow keys to resize the output log.
+      </span>
       <div className="sr-only" aria-live="polite" aria-atomic="true" role="status">
         {screenReaderAnnouncement}
       </div>
@@ -349,6 +366,10 @@ export function AppCliPanel({
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize output log"
+          aria-describedby="app-cli-output-resize-help"
+          aria-valuemin={MIN_EXPANDED_OUTPUT_HEIGHT_PX}
+          aria-valuemax={Math.round(maxExpandedOutputHeight)}
+          aria-valuenow={Math.round(currentExpandedOutputHeight)}
           tabIndex={0}
           onDoubleClick={() => {
             updateOutputHeight(null);
@@ -360,7 +381,7 @@ export function AppCliPanel({
             }
 
             event.preventDefault();
-            const currentHeight = getCurrentExpandedOutputHeight();
+            const currentHeight = currentExpandedOutputHeight;
             const delta = event.key === 'ArrowUp' ? CLI_OUTPUT_RESIZE_STEP_PX : -CLI_OUTPUT_RESIZE_STEP_PX;
             updateOutputHeight(currentHeight + delta);
           }}
@@ -371,6 +392,9 @@ export function AppCliPanel({
       <div
         ref={outputRef}
         className={`app-game-output${isOutputCollapsed ? ' app-game-output--collapsed' : ''}`}
+        role="region"
+        aria-label="Game output log"
+        tabIndex={0}
         style={!isOutputCollapsed && outputHeight !== null
           ? {
             flex: '0 0 auto',
@@ -385,7 +409,6 @@ export function AppCliPanel({
           aria-live="polite"
           aria-relevant="additions text"
           aria-atomic="false"
-          aria-label="Game output log"
           ref={gameOutputRef}
           onClick={onGameOutputClick}
         >

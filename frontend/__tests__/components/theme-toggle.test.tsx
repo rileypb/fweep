@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeToggle } from '../../src/components/theme-toggle';
 
@@ -36,5 +36,14 @@ describe('ThemeToggle', () => {
     await user.click(btn);
     const stored = localStorage.getItem('fweep-theme');
     expect(['light', 'dark']).toContain(stored);
+  });
+
+  it('toggles data-theme from the keyboard shortcut', () => {
+    render(<ThemeToggle />);
+
+    const initialTheme = document.documentElement.getAttribute('data-theme');
+    fireEvent.keyDown(window, { key: 'D', altKey: true, shiftKey: true });
+
+    expect(document.documentElement.getAttribute('data-theme')).not.toBe(initialTheme);
   });
 });

@@ -70,6 +70,12 @@ import {
 } from './map-background-raster';
 import type { ExportScope } from '../export/export-types';
 import { exportMapJsonToDownload } from '../export/export-json';
+import {
+  getShortcutTitle,
+  isUiShortcutPressed,
+  shouldIgnoreUiShortcut,
+  UI_SHORTCUTS,
+} from './ui-shortcuts';
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
 const J_SOLID_FULL_PATH = 'M448 96C465.7 96 480 110.3 480 128L480 384C480 472.4 408.4 544 320 544C231.6 544 160 472.4 160 384L160 352C160 334.3 174.3 320 192 320C209.7 320 224 334.3 224 352L224 384C224 437 267 480 320 480C373 480 416 437 416 384L416 128C416 110.3 430.3 96 448 96z';
@@ -81,8 +87,6 @@ import {
 } from '../storage/map-store';
 import {
   focusElementWithoutScroll,
-  getMapCanvasPseudoRoomNodeId,
-  getMapCanvasRoomNodeId,
 } from './map-canvas-a11y';
 
 interface StrokeChunkState {
@@ -273,6 +277,7 @@ export function MapCanvas({
   const updateExportRegion = useEditorStore((s) => s.updateExportRegion);
   const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
   const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
+  const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const removeSelectedEntities = useEditorStore((s) => s.removeSelectedEntities);
   const toggleSelectedRoomLocks = useEditorStore((s) => s.toggleSelectedRoomLocks);
   const undo = useEditorStore((s) => s.undo);
@@ -386,12 +391,6 @@ export function MapCanvas({
     persistedZoom,
     setMapZoom,
   });
-
-  const activeDescendantId = selectedRoomIds.length === 1
-    ? getMapCanvasRoomNodeId(selectedRoomIds[0])
-    : selectedPseudoRoomIds.length === 1
-      ? getMapCanvasPseudoRoomNodeId(selectedPseudoRoomIds[0])
-      : undefined;
 
   const selectedEntityDescription = selectedRoomIds.length === 1 && doc
     ? `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`
@@ -1301,13 +1300,46 @@ export function MapCanvas({
     effectiveCanvasInteractionMode === 'map' && isShiftKeyDown && !isPanning ? 'map-canvas--pan-ready' : '',
     isAutoPanning ? 'map-canvas--grid-animated' : '',
   ].filter(Boolean).join(' ');
+
+  useEffect(() => {
+    const handleWindowShortcut = (event: KeyboardEvent): void => {
+      if (shouldIgnoreUiShortcut(event)) {
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.exportJson) && doc !== null) {
+        event.preventDefault();
+        void exportMapJsonToDownload(mapName, doc);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.exportPng)) {
+        event.preventDefault();
+        clearExportRegion();
+        setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+        setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+        setIsExportDialogOpen(true);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.prettifyLayout) && doc !== null) {
+        event.preventDefault();
+        prettifyLayout();
+      }
+    };
+
+    window.addEventListener('keydown', handleWindowShortcut);
+    return () => {
+      window.removeEventListener('keydown', handleWindowShortcut);
+    };
+  }, [clearExportRegion, doc, hasExportSelection, mapName, prettifyLayout]);
+
   return (
     <div
       ref={canvasRef}
       className={classes}
       data-testid="map-canvas"
       aria-label="Map canvas"
-      aria-activedescendant={activeDescendantId}
       aria-describedby="map-canvas-selection-status"
       onMouseDown={(e) => {
         handleCanvasSelectionMouseDown(e);
@@ -1547,7 +1579,8 @@ export function MapCanvas({
             className="app-control-button"
             type="button"
             aria-label="Export JSON"
-            title="Export JSON"
+            aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+            title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
             onClick={() => {
               if (!doc) {
                 return;
@@ -1564,7 +1597,8 @@ export function MapCanvas({
             className="app-control-button"
             type="button"
             aria-label="Export PNG"
-            title="Export PNG"
+            aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+            title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
             onClick={() => {
               clearExportRegion();
               setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');

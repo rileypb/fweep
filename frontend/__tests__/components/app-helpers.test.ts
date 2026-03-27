@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
@@ -91,8 +93,24 @@ describe('app helpers', () => {
     expect(getNextParchmentPanelHeightFromKey('Enter', 300, 700)).toBeNull();
     expect(getNextParchmentPanelWidthFromKey('ArrowLeft', 420, 1000)).toBe(452);
     expect(getNextParchmentPanelWidthFromKey('Enter', 420, 1000)).toBeNull();
-    expect(buildParchmentSrc(null)).toBe('/parchment.html');
-    expect(buildParchmentSrc('https://example.com/story.ulx')).toBe('/parchment.html?story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+    expect(buildParchmentSrc(null)).toBe('/parchment.html?autoplay=1&do_vm_autosave=1');
+    expect(buildParchmentSrc('https://example.com/story.ulx')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+  });
+
+  it('ships an accessibility patch for the generated parchment command input', () => {
+    const parchmentHtml = readFileSync(
+      path.resolve(process.cwd(), 'public/parchment.html'),
+      'utf8',
+    );
+
+    expect(parchmentHtml).toContain("textarea.LineInput");
+    expect(parchmentHtml).toContain("Interactive fiction command input");
+    expect(parchmentHtml).toContain("setAttribute('aria-label', lineInputLabel)");
+    expect(parchmentHtml).toContain("[id^=\"window\"]");
+    expect(parchmentHtml).toContain("target.focus()");
+    expect(parchmentHtml).toContain("scrollOutputWindow");
+    expect(parchmentHtml).toContain("focusPreferredOutputWindow");
+    expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
   });
 
   it('detects the desktop viewport threshold', () => {

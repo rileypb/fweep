@@ -108,13 +108,15 @@ export function getNextParchmentPanelWidthFromKey(
 }
 
 export function buildParchmentSrc(storyUrl: string | null): string {
-  if (storyUrl === null) {
-    return '/parchment.html';
+  const params = new URLSearchParams({
+    autoplay: '1',
+    do_vm_autosave: '1',
+  });
+
+  if (storyUrl !== null) {
+    params.set('story', storyUrl);
   }
 
-  const params = new URLSearchParams({
-    story: storyUrl,
-  });
   return `/parchment.html?${params.toString()}`;
 }
 
