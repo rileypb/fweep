@@ -786,7 +786,7 @@ export function MapCanvasConnections({
     ...Object.entries(rooms).map(([roomId, room]) => [
       roomId,
       getRoomPassThroughBounds(
-        getRoomForVisualStyle(room, visualStyle),
+        getRoomForVisualStyle(applyDragOffset(room, selectionDrag), visualStyle),
         visualStyle,
         PASS_THROUGH_TINY_GAP_PADDING,
       ),

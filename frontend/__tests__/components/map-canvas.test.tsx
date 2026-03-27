@@ -4069,6 +4069,40 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
     });
 
+    it('stops splitting a connection around a room once that room is visually dragged away', () => {
+      const doc = createEmptyMap('Dragged Gap');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      let d = addRoom(doc, northOfHouse);
+      d = addRoom(d, kitchen);
+      d = addRoom(d, westOfHouse);
+      d = addRoom(d, attic);
+      const westNorthConnection = createConnection(westOfHouse.id, northOfHouse.id, true);
+      const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
+      d = addConnection(d, westNorthConnection, 'north', 'west');
+      d = addConnection(d, kitchenAtticConnection, 'up', 'down');
+      loadDocumentAct(d);
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.setState({
+          selectionDrag: {
+            roomIds: [kitchen.id],
+            pseudoRoomIds: [],
+            stickyNoteIds: [],
+            dx: 220,
+            dy: 0,
+          },
+        });
+      });
+
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.queryAllByTestId(new RegExp(`connection-line-segment-${westNorthConnection.id}-`))).toHaveLength(0);
+    });
+
     it('renders a tiny split bezier gap and endpoint dots when it crosses an unrelated room', () => {
       const doc = createEmptyMap('Bezier Gap');
       const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
