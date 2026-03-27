@@ -98,7 +98,16 @@ export function ConnectionEditorOverlay({
       }
 
       if (event.key === 'Enter') {
+        if (event.repeat) {
+          event.preventDefault();
+          return;
+        }
+
         const target = event.target;
+        if (!(target instanceof Node) || !dialogRef.current?.contains(target)) {
+          return;
+        }
+
         if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
           return;
         }
@@ -370,7 +379,16 @@ export function RoomEditorOverlay({
       }
 
       if (event.key === 'Enter') {
+        if (event.repeat) {
+          event.preventDefault();
+          return;
+        }
+
         const target = event.target;
+        if (!(target instanceof Node) || !dialogRef.current?.contains(target)) {
+          return;
+        }
+
         if (target instanceof HTMLButtonElement || target instanceof HTMLSelectElement) {
           return;
         }

@@ -284,6 +284,10 @@ export function MapCanvasRoomNode({
         } else {
           selectRoom(room.id);
         }
+
+        if (canvasElement instanceof HTMLDivElement) {
+          focusElementWithoutScroll(canvasElement);
+        }
       };
 
       document.addEventListener('mousemove', handleMouseMove);

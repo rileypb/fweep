@@ -13,6 +13,7 @@ interface UseMapCanvasWindowControlsParams {
   readonly connectionEndpointDrag: ReturnType<typeof useEditorStore.getState>['connectionEndpointDrag'];
   readonly cancelConnectionEndpointDrag: () => void;
   readonly removeSelectedEntities: () => void;
+  readonly openSelectedRoomEditor: (roomId: string) => void;
   readonly undo: () => void | Promise<void>;
   readonly redo: () => void | Promise<void>;
   readonly setIsRoomPlacementArmed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -30,6 +31,7 @@ export function useMapCanvasWindowControls({
   connectionEndpointDrag,
   cancelConnectionEndpointDrag,
   removeSelectedEntities,
+  openSelectedRoomEditor,
   undo,
   redo,
   setIsRoomPlacementArmed,
@@ -83,6 +85,30 @@ export function useMapCanvasWindowControls({
       if (isUndoShortcut(event)) {
         event.preventDefault();
         void undo();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const {
+          selectedRoomIds,
+          selectedPseudoRoomIds,
+          selectedStickyNoteIds,
+          selectedConnectionIds,
+          selectedStickyNoteLinkIds,
+        } = useEditorStore.getState();
+
+        if (
+          selectedRoomIds.length !== 1
+          || selectedPseudoRoomIds.length > 0
+          || selectedStickyNoteIds.length > 0
+          || selectedConnectionIds.length > 0
+          || selectedStickyNoteLinkIds.length > 0
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        openSelectedRoomEditor(selectedRoomIds[0]);
         return;
       }
 
@@ -148,6 +174,7 @@ export function useMapCanvasWindowControls({
     connectionEndpointDrag,
     drawingInterfaceEnabled,
     isRoomEditorOpen,
+    openSelectedRoomEditor,
     redo,
     removeSelectedEntities,
     setCanvasInteractionMode,

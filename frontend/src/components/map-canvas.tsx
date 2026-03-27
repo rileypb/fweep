@@ -497,23 +497,6 @@ export function MapCanvas({
     }
   }, [selectedStickyNoteIds, stickyNoteEditorId]);
 
-  useMapCanvasWindowControls({
-    drawingInterfaceEnabled,
-    canvasInteractionMode,
-    setCanvasInteractionMode,
-    isRoomEditorOpen,
-    connectionEditorId,
-    connectionDrag,
-    connectionEndpointDrag,
-    cancelConnectionEndpointDrag,
-    removeSelectedEntities,
-    undo,
-    redo,
-    setIsRoomPlacementArmed,
-    setIsNotePlacementArmed,
-    setIsShiftKeyDown,
-  });
-
   useMapCanvasViewportPersistence({
     doc,
     panOffset,
@@ -592,6 +575,24 @@ export function MapCanvas({
     setRoomEditorState(null);
     setConnectionEditorId(connectionId);
   }, []);
+
+  useMapCanvasWindowControls({
+    drawingInterfaceEnabled,
+    canvasInteractionMode,
+    setCanvasInteractionMode,
+    isRoomEditorOpen,
+    connectionEditorId,
+    connectionDrag,
+    connectionEndpointDrag,
+    cancelConnectionEndpointDrag,
+    removeSelectedEntities,
+    openSelectedRoomEditor: openRoomEditor,
+    undo,
+    redo,
+    setIsRoomPlacementArmed,
+    setIsNotePlacementArmed,
+    setIsShiftKeyDown,
+  });
 
   const openStickyNoteEditor = useCallback((stickyNoteId: string) => {
     setRoomEditorState(null);
@@ -1552,6 +1553,11 @@ export function MapCanvas({
             disabled={isRoomEditorOpen || connectionEditorId !== null}
             onPanToMapPoint={centerOnMapPoint}
             onPanBy={panBy}
+            onOpenSelectedRoomEditor={() => {
+              if (selectedRoomIds.length === 1) {
+                openRoomEditor(selectedRoomIds[0]);
+              }
+            }}
           />
         )}
 

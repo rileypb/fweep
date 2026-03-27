@@ -1670,6 +1670,60 @@ describe('MapCanvas', () => {
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
+    it('opens the room editor from the window Enter handler when focus has moved to the minimap', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      screen.getByTestId('map-minimap').focus();
+      fireEvent.keyDown(window, { key: 'Enter' });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('opens the room editor directly from the minimap Enter handler', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('does not immediately close the room editor when it is opened from minimap Enter', async () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
     it('ignores Enter when more than one room is selected', () => {
       const { kitchenNode, hallwayNode } = setupTwoRooms();
       const canvas = screen.getByTestId('map-canvas');
@@ -1729,6 +1783,25 @@ describe('MapCanvas', () => {
     expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
   });
 
+  it('keeps canvas focus after selecting a room so Enter opens the editor', async () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    renderMapCanvas();
+
+    const canvas = screen.getByLabelText('Map canvas');
+    const roomNode = screen.getByRole('button', { name: 'Kitchen' });
+
+    fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+    expect(canvas).toHaveFocus();
+
+    fireEvent.keyDown(canvas, { key: 'Enter' });
+
+    expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+  });
+
   it('keeps room nodes out of tab order while preserving canvas-owned keyboard navigation', async () => {
     const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
@@ -1754,6 +1827,18 @@ describe('MapCanvas', () => {
 
     fireEvent.keyDown(canvas, { key: 'Enter' });
     expect(await screen.findByLabelText('Room name')).toHaveValue('Hallway');
+  });
+
+  it('keeps sticky-note link handles out of the tab order', () => {
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
+    loadDocumentAct({
+      ...createEmptyMap('Test'),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+    });
+
+    renderMapCanvas();
+
+    expect(screen.getByRole('button', { name: 'Create sticky-note link' })).toHaveAttribute('tabindex', '-1');
   });
 
   it('keeps keyboard room navigation anchored on the canvas without horizontal document scroll', () => {
@@ -2013,6 +2098,19 @@ describe('MapCanvas', () => {
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Pantry');
+    });
+
+    it('ignores repeated Enter keydowns in the room editor so it does not immediately close on open', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      fireEvent.keyDown(nameInput, { key: 'Enter', repeat: true });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(nameInput).toHaveFocus();
     });
 
     it('cancels the room editor on Escape', async () => {

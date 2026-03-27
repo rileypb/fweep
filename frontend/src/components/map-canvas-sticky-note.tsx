@@ -77,6 +77,7 @@ export function MapCanvasStickyNote({
           className="sticky-note-link-handle"
           data-testid="sticky-note-link-handle"
           aria-label="Create sticky-note link"
+          tabIndex={-1}
           onMouseDown={(event) => {
             if (event.button !== 0) {
               return;
