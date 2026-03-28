@@ -18,6 +18,13 @@ export function useParchmentFocusToggle({
 }: UseParchmentFocusToggleOptions): void {
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
 
+  const isParchmentFocusToggleShortcut = useCallback((event: KeyboardEvent): boolean => (
+    (event.ctrlKey || event.metaKey)
+    && !event.altKey
+    && !event.shiftKey
+    && event.code === PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY
+  ), []);
+
   const focusFweepMain = useCallback((preferCliInput = false): void => {
     if (preferCliInput) {
       cliInputRef.current?.focus();
@@ -64,13 +71,13 @@ export function useParchmentFocusToggle({
   }, [isParchmentGameViewVisible, parchmentIframeRef, parchmentSearchInputRef]);
 
   const handleParchmentFocusToggle = useCallback((event: KeyboardEvent): void => {
-    if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+    if (!isParchmentFocusToggleShortcut(event)) {
       return;
     }
 
     event.preventDefault();
     focusFweepMain(true);
-  }, [focusFweepMain]);
+  }, [focusFweepMain, isParchmentFocusToggleShortcut]);
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent): void => {
@@ -97,7 +104,7 @@ export function useParchmentFocusToggle({
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+      if (!isParchmentFocusToggleShortcut(event)) {
         return;
       }
 
@@ -119,7 +126,7 @@ export function useParchmentFocusToggle({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [focusFweepMain, focusParchmentPanel, hasOpenMap, parchmentIframeRef]);
+  }, [focusFweepMain, focusParchmentPanel, hasOpenMap, isParchmentFocusToggleShortcut, parchmentIframeRef]);
 
   useEffect(() => {
     if (!hasOpenMap) {

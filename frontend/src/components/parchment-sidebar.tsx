@@ -3,7 +3,7 @@ import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
 import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
 
 const PARCHMENT_PANEL_TIPS = [
-  'Use Ctrl+/ to switch the keyboard focus between the game and the mapper.',
+  'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.',
 ] as const;
 
 function getRandomParchmentPanelTip(): string {

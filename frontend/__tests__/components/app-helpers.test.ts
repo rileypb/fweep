@@ -140,6 +140,7 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("target.focus()");
     expect(parchmentHtml).toContain("scrollOutputWindow");
     expect(parchmentHtml).toContain("focusPreferredOutputWindow");
+    expect(parchmentHtml).toContain("(!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey");
     expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
   });
 

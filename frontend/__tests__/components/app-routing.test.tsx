@@ -199,7 +199,7 @@ describe('URL routing', () => {
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
-    expect(screen.getByText('Use Ctrl+/ to switch the keyboard focus between the game and the mapper.')).toBeInTheDocument();
+    expect(screen.getByText('Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.')).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
   });
@@ -208,7 +208,7 @@ describe('URL routing', () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('IFDB Tip Visibility Map');
 
-    const tipText = 'Use Ctrl+/ to switch the keyboard focus between the game and the mapper.';
+    const tipText = 'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.';
     const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
 
     expect(screen.getByText(tipText)).toBeInTheDocument();
@@ -5096,6 +5096,31 @@ describe('URL routing', () => {
       key: '/',
       code: 'Slash',
       ctrlKey: true,
+    });
+    expect(document.activeElement).toBe(cliInput);
+  });
+
+  it('uses Cmd+/ to toggle focus between fweep and the chooser search input', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('Chooser Focus Toggle Meta Map');
+
+    const cliInput = getCliInput();
+    const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
+
+    await user.click(cliInput);
+    expect(document.activeElement).toBe(cliInput);
+
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      metaKey: true,
+    });
+    expect(document.activeElement).toBe(searchInput);
+
+    fireEvent.keyDown(window, {
+      key: '/',
+      code: 'Slash',
+      metaKey: true,
     });
     expect(document.activeElement).toBe(cliInput);
   });
