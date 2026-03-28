@@ -274,6 +274,28 @@ describe('MapCanvas', () => {
     expect(itemText).toHaveAttribute('text-anchor', 'end');
   });
 
+  it('hides room item labels and uses the low-zoom room-name treatment when zoomed out', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    loadDocumentAct(doc);
+
+    act(() => {
+      useEditorStore.getState().setMapZoom(0.75);
+    });
+
+    renderMapCanvas();
+
+    expect(screen.queryByText('Lantern')).not.toBeInTheDocument();
+    expect(screen.queryByText('Brass Key')).not.toBeInTheDocument();
+    expect(document.querySelector('.room-node-items')).not.toBeInTheDocument();
+
+    const roomName = document.querySelector('.room-node-name');
+    expect(roomName).toHaveClass('room-node-name--low-zoom');
+    expect(roomName).toHaveAttribute('text-rendering', 'geometricPrecision');
+  });
+
   it('renders pseudo-rooms beneath sticky notes and rooms', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };

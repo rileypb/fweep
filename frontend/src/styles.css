@@ -2633,6 +2633,10 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   pointer-events: none;
 }
 
+.room-node-name--low-zoom {
+  letter-spacing: 0.015em;
+}
+
 .room-node-items {
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   font-size: 0.67rem;

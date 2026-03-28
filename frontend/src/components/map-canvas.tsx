@@ -1678,6 +1678,7 @@ export function MapCanvas({
               key={room.id}
               room={room}
               roomItems={itemsByRoomId[room.id] ?? []}
+              zoom={zoom}
               theme={theme}
               isSelected={selectedRoomIds.includes(room.id)}
               isRoomEditorOpen={isRoomEditorOpen}
