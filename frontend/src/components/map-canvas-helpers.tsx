@@ -248,6 +248,7 @@ function doesPolylineIntersectBounds(
 
 export function getConnectionsWithinSelectionBox(
   rooms: Readonly<Record<string, Room>>,
+  pseudoRooms: Readonly<Record<string, PseudoRoom>>,
   connections: Readonly<Record<string, Connection>>,
   panOffset: PanOffset,
   selectionBox: SelectionBox,
@@ -259,15 +260,23 @@ export function getConnectionsWithinSelectionBox(
   return Object.values(connections)
     .filter((connection) => {
       const sourceRoom = rooms[connection.sourceRoomId];
-      const targetRoom = connection.target.kind === 'room' ? rooms[connection.target.id] : null;
+      const targetRoom = connection.target.kind === 'room'
+        ? rooms[connection.target.id]
+        : (pseudoRooms[connection.target.id]
+          ? toPseudoRoomVisualRoom(pseudoRooms[connection.target.id])
+          : null);
       if (!sourceRoom || !targetRoom) {
         return false;
       }
 
       const effectiveSourceRoom = getRoomForVisualStyle(sourceRoom, visualStyle);
-      const effectiveTargetRoom = getRoomForVisualStyle(targetRoom, visualStyle);
+      const effectiveTargetRoom = connection.target.kind === 'room'
+        ? getRoomForVisualStyle(targetRoom, visualStyle)
+        : targetRoom;
       const sourceDimensions = getRoomNodeDimensions(effectiveSourceRoom, visualStyle);
-      const targetDimensions = getRoomNodeDimensions(effectiveTargetRoom, visualStyle);
+      const targetDimensions = connection.target.kind === 'room'
+        ? getRoomNodeDimensions(effectiveTargetRoom, visualStyle)
+        : getPseudoRoomNodeDimensionsForRoom(effectiveTargetRoom, visualStyle);
       const points = computeConnectionPath(
         effectiveSourceRoom,
         effectiveTargetRoom,

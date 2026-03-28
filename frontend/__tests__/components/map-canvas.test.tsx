@@ -1120,6 +1120,27 @@ describe('MapCanvas', () => {
 
       expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id].position).toEqual({ x: 320, y: 160 });
     });
+
+    it('captures pseudo-room connections in marquee selection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 80 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'east');
+      const connectionId = Object.keys(updated.connections)[0];
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 140, clientY: 120, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 170 });
+
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connectionId]);
+
+      fireEvent.mouseUp(document, { clientX: 240, clientY: 170, button: 0 });
+    });
   });
 
   describe('keyboard shortcuts', () => {

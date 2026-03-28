@@ -14,7 +14,7 @@ import {
   renderRoomShape,
   useDocumentTheme,
 } from '../../src/components/map-canvas-helpers';
-import { createConnection, createRoom, createStickyNote } from '../../src/domain/map-types';
+import { createConnection, createPseudoRoom, createRoom, createStickyNote } from '../../src/domain/map-types';
 
 function makeRect(width: number, height: number): DOMRect {
   return {
@@ -67,6 +67,7 @@ describe('map-canvas-helpers', () => {
 
     expect(getConnectionsWithinSelectionBox(
       { [kitchen.id]: kitchen, [hallway.id]: hallway, [cellar.id]: cellar },
+      {},
       { [connection.id]: connection },
       { x: 0, y: 0 },
       { startX: 20, startY: 20, currentX: 260, currentY: 120 },
@@ -74,6 +75,7 @@ describe('map-canvas-helpers', () => {
 
     expect(getConnectionsWithinSelectionBox(
       { [kitchen.id]: kitchen },
+      {},
       { [connection.id]: connection },
       { x: 0, y: 0 },
       { startX: 20, startY: 20, currentX: 260, currentY: 120 },
@@ -141,6 +143,7 @@ describe('map-canvas-helpers', () => {
 
     expect(getConnectionsWithinSelectionBox(
       { [west.id]: westWithDirection, [east.id]: eastWithDirection },
+      {},
       { [connection.id]: connection },
       { x: 0, y: 0 },
       { startX: 140, startY: 85, currentX: 170, currentY: 105 },
@@ -170,6 +173,7 @@ describe('map-canvas-helpers', () => {
 
     expect(getConnectionsWithinSelectionBox(
       { [west.id]: westWithDirection, [east.id]: eastWithDirection },
+      {},
       { [connection.id]: connection },
       { x: 0, y: 0 },
       { startX: 140, startY: 98, currentX: 170, currentY: 120 },
@@ -199,10 +203,36 @@ describe('map-canvas-helpers', () => {
 
     expect(getConnectionsWithinSelectionBox(
       { [north.id]: northWithDirection, [south.id]: southWithDirection },
+      {},
       { [connection.id]: connection },
       { x: 0, y: 0 },
       { startX: 220, startY: 80, currentX: 280, currentY: 140 },
     )).toEqual([]);
+  });
+
+  it('finds pseudo-room-targeted connections within the marquee selection box', () => {
+    const kitchen = {
+      ...createRoom('Kitchen'),
+      position: { x: 40, y: 40 },
+      directions: {},
+    };
+    const unknown = {
+      ...createPseudoRoom('unknown'),
+      position: { x: 220, y: 20 },
+    };
+    const connection = createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false);
+    const kitchenWithDirection = {
+      ...kitchen,
+      directions: { east: connection.id },
+    };
+
+    expect(getConnectionsWithinSelectionBox(
+      { [kitchen.id]: kitchenWithDirection },
+      { [unknown.id]: unknown },
+      { [connection.id]: connection },
+      { x: 0, y: 0 },
+      { startX: 120, startY: 50, currentX: 220, currentY: 100 },
+    )).toEqual([connection.id]);
   });
 
   it('computes pan deltas to reveal clipped rooms', () => {
