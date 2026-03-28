@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { addConnection, addItem, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createItem, createRoom } from '../../src/domain/map-types';
 import { getCliSuggestions } from '../../src/domain/cli-suggestions';
 
 describe('cli suggestions', () => {
@@ -546,8 +546,12 @@ describe('cli suggestions', () => {
 
   it('uses parser-backed room suggestions after put in and take/get from', () => {
     let doc = createEmptyMap('Test');
-    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
-    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    const livingRoom = { ...createRoom('Living Room'), position: { x: 40, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addRoom(doc, livingRoom);
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+    doc = addItem(doc, { ...createItem('Lamp', livingRoom.id), id: 'item-lamp' });
 
     expect(getCliSuggestions('put lantern in c', 'put lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('drop lantern in c', 'drop lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
@@ -555,6 +559,82 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('get lantern from c', 'get lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('take all from l', 'take all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
     expect(getCliSuggestions('get all from l', 'get all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+  });
+
+  it('keeps an open-ended item-name placeholder alive for put/drop commands', () => {
+    expect(getCliSuggestions('put ', 'put '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>']);
+    expect(getCliSuggestions('put brass', 'put brass'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>']);
+    expect(getCliSuggestions('put brass ', 'put brass '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+    expect(getCliSuggestions('put brass i', 'put brass i'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+    expect(getCliSuggestions('drop brass lantern ', 'drop brass lantern '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+  });
+
+  it('suggests existing items and from for take/get commands', () => {
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addItem(doc, { ...createItem('Brass', cellar.id), id: 'item-brass' });
+    doc = addItem(doc, { ...createItem('Brass Key', cellar.id), id: 'item-brass-key' });
+    doc = addItem(doc, { ...createItem('Brass Lantern', cellar.id), id: 'item-brass-lantern' });
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+
+    expect(getCliSuggestions('take ', 'take '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+      'Lantern',
+      'all',
+    ]);
+    expect(getCliSuggestions('take b', 'take b'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+    ]);
+    expect(getCliSuggestions('get a', 'get a'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['all']);
+    expect(getCliSuggestions('take brass ', 'take brass '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+      'from',
+    ]);
+    expect(getCliSuggestions('get brass f', 'get brass f'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['from']);
+    expect(getCliSuggestions('take z', 'take z'.length, doc)).toBeNull();
+  });
+
+  it('inserts put/take prepositions at the caret instead of replacing the item text', () => {
+    const putResult = getCliSuggestions('put foobar ', 'put foobar '.length, createEmptyMap('Test'));
+    const putInSuggestion = putResult?.suggestions.find((suggestion) => suggestion.label === 'in');
+    expect(putInSuggestion).toMatchObject({
+      replaceStart: 'put foobar '.length,
+      replaceEnd: 'put foobar '.length,
+    });
+
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addItem(doc, { ...createItem('Foobar', cellar.id), id: 'item-foobar' });
+
+    const takeResult = getCliSuggestions('take foobar ', 'take foobar '.length, doc);
+    const takeFromSuggestion = takeResult?.suggestions.find((suggestion) => suggestion.label === 'from');
+    expect(takeFromSuggestion).toMatchObject({
+      replaceStart: 'take foobar '.length,
+      replaceEnd: 'take foobar '.length,
+    });
+  });
+
+  it('limits take/get from-room suggestions to rooms that contain matching items', () => {
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    const livingRoom = { ...createRoom('Living Room'), position: { x: 40, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addRoom(doc, livingRoom);
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+    doc = addItem(doc, { ...createItem('Lamp', livingRoom.id), id: 'item-lamp' });
+
+    expect(getCliSuggestions('take lantern from ', 'take lantern from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('get lamp from ', 'get lamp from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+    expect(getCliSuggestions('take l from ', 'take l from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar', 'Living Room']);
+    expect(getCliSuggestions('take lantern from l', 'take lantern from l'.length, doc)).toBeNull();
   });
 
   it('closes suggestions after a completed put/take/get room reference', () => {
