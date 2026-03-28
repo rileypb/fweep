@@ -2213,14 +2213,14 @@ describe('URL routing', () => {
 
     expectGameOutputToContain('zoom 200', 'Zoomed to 200%.');
 
-    await submitCliCommand('zoom 50%');
+    await submitCliCommand('zoom 25%');
 
     await waitFor(() => {
-      expect(content.style.transform).toContain('scale(0.5)');
-      expect(useEditorStore.getState().mapZoom).toBeCloseTo(0.5);
+      expect(content.style.transform).toContain('scale(0.25)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(0.25);
     });
 
-    expectGameOutputToContain('zoom 50%', 'Zoomed to 50%.');
+    expectGameOutputToContain('zoom 25%', 'Zoomed to 25%.');
   });
 
   it('reports invalid CLI zoom percentages without changing the zoom', async () => {
@@ -2238,12 +2238,18 @@ describe('URL routing', () => {
     expect(useEditorStore.getState().mapZoom).toBe(1);
 
     await submitCliCommand('zoom 25');
-    expectGameOutputToContain('zoom 25', 'Zoom must be between 50% and 300%.');
-    expect(useEditorStore.getState().mapZoom).toBe(1);
+    expectGameOutputToContain('zoom 25', 'Zoomed to 25%.');
+    await waitFor(() => {
+      expect(useEditorStore.getState().mapZoom).toBe(0.25);
+    });
+
+    await submitCliCommand('zoom 10');
+    expectGameOutputToContain('zoom 10', 'Zoom must be between 25% and 300%.');
+    expect(useEditorStore.getState().mapZoom).toBe(0.25);
 
     await submitCliCommand('zoom 350%');
-    expectGameOutputToContain('zoom 350%', 'Zoom must be between 50% and 300%.');
-    expect(useEditorStore.getState().mapZoom).toBe(1);
+    expectGameOutputToContain('zoom 350%', 'Zoom must be between 25% and 300%.');
+    expect(useEditorStore.getState().mapZoom).toBe(0.25);
   });
 
   it('shows the hidden easter egg output for the fweep command', async () => {

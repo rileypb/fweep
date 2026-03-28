@@ -56,6 +56,6 @@
 
 - `arrange/arr/prettify`
 - `zoom in/out/reset`
-- `zoom <number>`
-- `zoom <number>%`
+- `zoom <number>` (25-300)
+- `zoom <number>%` (25%-300%)
 - `undo/redo`

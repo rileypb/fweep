@@ -31,7 +31,7 @@ export interface UseMapViewportOptions {
   readonly initialZoom?: number;
 }
 
-export const MIN_MAP_VIEWPORT_ZOOM = 0.5;
+export const MIN_MAP_VIEWPORT_ZOOM = 0.25;
 export const MAX_MAP_VIEWPORT_ZOOM = 3;
 
 function clampZoom(zoom: number): number {

@@ -296,6 +296,20 @@ describe('MapCanvas', () => {
     expect(roomName).toHaveAttribute('text-rendering', 'geometricPrecision');
   });
 
+  it('hides room names entirely below 50% zoom', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    act(() => {
+      useEditorStore.getState().setMapZoom(0.25);
+    });
+
+    renderMapCanvas();
+
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument();
+    expect(document.querySelector('.room-node-name')).not.toBeInTheDocument();
+  });
+
   it('renders pseudo-rooms beneath sticky notes and rooms', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 240, y: 120 } };

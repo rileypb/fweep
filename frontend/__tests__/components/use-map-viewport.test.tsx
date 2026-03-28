@@ -32,7 +32,7 @@ function createViewportHarness() {
 
 describe('useMapViewport', () => {
   it('clamps zoom values to the supported viewport range', () => {
-    expect(clampMapViewportZoom(0.1)).toBe(0.5);
+    expect(clampMapViewportZoom(0.1)).toBe(0.25);
     expect(clampMapViewportZoom(1.5)).toBe(1.5);
     expect(clampMapViewportZoom(10)).toBe(3);
   });

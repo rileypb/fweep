@@ -63,6 +63,8 @@
 - `Tab`: accept the highlighted autocomplete suggestion.
 - `ArrowUp` / `ArrowDown` in the CLI input: move through command history.
 - `help`: show the command reference in the CLI.
+- `zoom in` / `zoom out` / `zoom reset`: step the map zoom in, out, or back to `100%`.
+- `zoom <number>` or `zoom <number>%`: set the map zoom directly from `25%` to `300%`.
 
 ## Editors and Dialogs
 

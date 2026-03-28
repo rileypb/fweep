@@ -22,6 +22,7 @@ const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 const VERTICAL_HANDLE_RADIUS = 4;
 const ROOM_LABEL_FONT_FAMILY = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 const ROOM_ITEM_LABEL_RIGHT_INSET = HANDLE_RADIUS + 2;
+const ROOM_NAME_VISIBILITY_THRESHOLD = 0.5;
 const LOW_ZOOM_ROOM_NAME_THRESHOLD = 0.75;
 const ROOM_ITEM_LABEL_VISIBILITY_THRESHOLD = 0.8;
 const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
@@ -180,7 +181,8 @@ export function MapCanvasRoomNode({
   const itemLabelLines = hiddenItemCount > 0
     ? [...visibleItemNames, `+${hiddenItemCount} more`]
     : visibleItemNames;
-  const useLowZoomRoomNameStyling = zoom <= LOW_ZOOM_ROOM_NAME_THRESHOLD;
+  const showRoomName = zoom > ROOM_NAME_VISIBILITY_THRESHOLD;
+  const useLowZoomRoomNameStyling = showRoomName && zoom <= LOW_ZOOM_ROOM_NAME_THRESHOLD;
   const showItemLabels = zoom > ROOM_ITEM_LABEL_VISIBILITY_THRESHOLD;
 
   const openRoomEditor = useCallback(() => {
@@ -392,37 +394,39 @@ export function MapCanvasRoomNode({
         />
       )}
       {renderRoomShape(room.shape, roomWidth, roomHeight, room, theme, mapVisualStyle)}
-      <text
-        className={`room-node-name${useLowZoomRoomNameStyling ? ' room-node-name--low-zoom' : ''}`}
-        x={labelLayout.textX}
-        y={labelLayout.firstLineY}
-        dominantBaseline="middle"
-        textAnchor="middle"
-        textRendering={useLowZoomRoomNameStyling ? 'geometricPrecision' : undefined}
-        style={{
-          fill: roomLabelColor,
-          fontFamily: ROOM_LABEL_FONT_FAMILY,
-          ...(useLowZoomRoomNameStyling
-            ? {
-              fontWeight: 600,
-              paintOrder: 'stroke fill',
-              stroke: roomFill,
-              strokeWidth: 1.2,
-              strokeLinejoin: 'round',
-            }
-            : {}),
-        }}
-      >
-        {labelLayout.lines.map((line, index) => (
-          <tspan
-            key={`${room.id}-line-${index}`}
-            x={labelLayout.textX}
-            y={labelLayout.firstLineY + (index * labelLayout.lineHeight)}
-          >
-            {line}
-          </tspan>
-        ))}
-      </text>
+      {showRoomName && (
+        <text
+          className={`room-node-name${useLowZoomRoomNameStyling ? ' room-node-name--low-zoom' : ''}`}
+          x={labelLayout.textX}
+          y={labelLayout.firstLineY}
+          dominantBaseline="middle"
+          textAnchor="middle"
+          textRendering={useLowZoomRoomNameStyling ? 'geometricPrecision' : undefined}
+          style={{
+            fill: roomLabelColor,
+            fontFamily: ROOM_LABEL_FONT_FAMILY,
+            ...(useLowZoomRoomNameStyling
+              ? {
+                fontWeight: 600,
+                paintOrder: 'stroke fill',
+                stroke: roomFill,
+                strokeWidth: 1.2,
+                strokeLinejoin: 'round',
+              }
+              : {}),
+          }}
+        >
+          {labelLayout.lines.map((line, index) => (
+            <tspan
+              key={`${room.id}-line-${index}`}
+              x={labelLayout.textX}
+              y={labelLayout.firstLineY + (index * labelLayout.lineHeight)}
+            >
+              {line}
+            </tspan>
+          ))}
+        </text>
+      )}
       {room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null && (
         <g
           data-testid={`room-lock-glyph-${room.id}`}
