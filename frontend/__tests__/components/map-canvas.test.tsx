@@ -4163,7 +4163,7 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
-    it('renders selected connections with layered highlight strokes', () => {
+    it('renders selected connections with a dashed halo and warm underlay', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
@@ -4176,11 +4176,13 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      const outerLine = screen.getByTestId(`connection-line-${conn.id}`);
-      const innerLine = screen.getByTestId(`connection-selection-inner-${conn.id}`);
+      const haloLine = screen.getByTestId(`connection-selection-halo-${conn.id}`);
+      const underlayLine = screen.getByTestId(`connection-selection-underlay-${conn.id}`);
+      const baseLine = screen.getByTestId(`connection-line-${conn.id}`);
 
-      expect(outerLine).toHaveStyle({ strokeWidth: '6' });
-      expect(innerLine).toHaveStyle({ strokeWidth: '2' });
+      expect(haloLine).toHaveStyle({ strokeWidth: '10', strokeDasharray: '7 5' });
+      expect(underlayLine).toHaveStyle({ strokeWidth: '7' });
+      expect(baseLine).toHaveStyle({ strokeWidth: '2' });
     });
 
     it('anchors a north connection to the rendered center of a wide room', () => {
