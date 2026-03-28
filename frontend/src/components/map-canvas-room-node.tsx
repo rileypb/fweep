@@ -5,7 +5,7 @@ import { type Item, type MapVisualStyle, type Room, type RoomShape } from '../do
 import { getHandleOffset } from '../graph/connection-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
-import { renderRoomShape } from './map-canvas-helpers';
+import { renderRoomSelectionOutline, renderRoomShape } from './map-canvas-helpers';
 import {
   getRoomFillColor,
   getRoomLabelColor,
@@ -382,16 +382,7 @@ export function MapCanvasRoomNode({
       }}
     >
       {isSelected && (
-        <rect
-          className="room-selection-outline"
-          data-testid="room-selection-outline"
-          x={-4}
-          y={-4}
-          width={roomWidth + 8}
-          height={roomHeight + 8}
-          rx={12}
-          ry={12}
-        />
+        renderRoomSelectionOutline(room.shape, roomWidth, roomHeight, mapVisualStyle, 4, 'room-selection-outline')
       )}
       {renderRoomShape(room.shape, roomWidth, roomHeight, room, theme, mapVisualStyle)}
       {showRoomName && (

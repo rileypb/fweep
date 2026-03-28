@@ -556,3 +556,81 @@ export function renderRoomShape(
     />
   );
 }
+
+export function renderRoomSelectionOutline(
+  shape: RoomShape,
+  width: number,
+  height: number,
+  visualStyle: MapVisualStyle = 'default',
+  padding = 4,
+  testId?: string,
+): React.JSX.Element {
+  const outlineProps = {
+    className: 'room-selection-outline',
+    'data-testid': testId,
+    fill: 'none',
+    stroke: '#ef4444',
+    strokeWidth: 3,
+    pointerEvents: 'none' as const,
+  };
+
+  if (visualStyle === 'square-classic') {
+    return (
+      <rect
+        {...outlineProps}
+        x={-padding}
+        y={-padding}
+        width={width + (padding * 2)}
+        height={height + (padding * 2)}
+        rx={SQUARE_CLASSIC_CORNER_RADIUS + padding}
+        ry={SQUARE_CLASSIC_CORNER_RADIUS + padding}
+      />
+    );
+  }
+
+  if (shape === 'oval') {
+    return (
+      <ellipse
+        {...outlineProps}
+        cx={width / 2}
+        cy={height / 2}
+        rx={(width / 2) + padding}
+        ry={(height / 2) + padding}
+      />
+    );
+  }
+
+  const expandedWidth = width + (padding * 2);
+  const expandedHeight = height + (padding * 2);
+  const vertices = getRoomShapePolygonVertices(shape, expandedWidth, expandedHeight);
+  if (vertices && shape !== 'box') {
+    return (
+      <polygon
+        {...outlineProps}
+        points={vertices.map((point) => `${point.x - padding},${point.y - padding}`).join(' ')}
+      />
+    );
+  }
+
+  if (shape === 'box') {
+    return (
+      <path
+        {...outlineProps}
+        d={getRoomShapePath(shape, expandedWidth, expandedHeight, ROOM_CORNER_RADIUS + padding)}
+        transform={`translate(${-padding} ${-padding})`}
+      />
+    );
+  }
+
+  return (
+    <rect
+      {...outlineProps}
+      x={-padding}
+      y={-padding}
+      width={expandedWidth}
+      height={expandedHeight}
+      rx={ROOM_CORNER_RADIUS + padding}
+      ry={ROOM_CORNER_RADIUS + padding}
+    />
+  );
+}

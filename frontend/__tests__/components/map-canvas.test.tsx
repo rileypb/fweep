@@ -1834,11 +1834,12 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
     });
 
-    it('draws the selected room outline as a bright red rounded rectangle', () => {
+    it('draws the selected room outline to match the room shape', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       loadDocumentAct(addRoom(doc, room));
       act(() => {
+        useEditorStore.getState().setMapVisualStyle('default');
         useEditorStore.getState().selectRoom(room.id);
       });
 
@@ -1848,6 +1849,22 @@ describe('MapCanvas', () => {
       expect(outline.tagName.toLowerCase()).toBe('rect');
       expect(outline).toHaveAttribute('rx', '12');
       expect(outline).toHaveClass('room-selection-outline');
+    });
+
+    it('matches the square-classic room outline radius to the room shape', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      loadDocumentAct(addRoom(doc, room));
+      act(() => {
+        useEditorStore.getState().setMapVisualStyle('square-classic');
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      renderMapCanvas();
+
+      const outline = screen.getByTestId('room-selection-outline');
+      expect(outline.tagName.toLowerCase()).toBe('rect');
+      expect(outline).toHaveAttribute('rx', '7');
     });
   });
 

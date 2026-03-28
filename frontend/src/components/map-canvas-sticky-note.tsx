@@ -5,6 +5,8 @@ import { STICKY_NOTE_MIN_HEIGHT, STICKY_NOTE_WIDTH, getStickyNoteHeight } from '
 import type { PanOffset } from './use-map-viewport';
 
 const STICKY_NOTE_VERTICAL_CHROME = 34;
+const STICKY_NOTE_FOLD_SIZE = 18;
+const STICKY_NOTE_SELECTION_PADDING = 4;
 
 function autoResizeTextarea(textarea: HTMLTextAreaElement | null, noteHeight: number): void {
   if (!textarea) {
@@ -133,14 +135,15 @@ export function MapCanvasStickyNote({
             zIndex: 2,
           }}
         >
-          <rect
+          <polygon
             className="room-selection-outline"
-            x={0}
-            y={0}
-            width={STICKY_NOTE_WIDTH + 8}
-            height={height + 8}
-            rx={12}
-            ry={12}
+            points={[
+              `${STICKY_NOTE_SELECTION_PADDING},${STICKY_NOTE_SELECTION_PADDING}`,
+              `${STICKY_NOTE_WIDTH + STICKY_NOTE_SELECTION_PADDING},${STICKY_NOTE_SELECTION_PADDING}`,
+              `${STICKY_NOTE_WIDTH + STICKY_NOTE_SELECTION_PADDING},${height - STICKY_NOTE_FOLD_SIZE + STICKY_NOTE_SELECTION_PADDING}`,
+              `${STICKY_NOTE_WIDTH - STICKY_NOTE_FOLD_SIZE + STICKY_NOTE_SELECTION_PADDING},${height + STICKY_NOTE_SELECTION_PADDING}`,
+              `${STICKY_NOTE_SELECTION_PADDING},${height + STICKY_NOTE_SELECTION_PADDING}`,
+            ].join(' ')}
           />
         </svg>
       )}

@@ -12,7 +12,7 @@ import {
   pseudoRoomPathCommandsToSvgPath,
 } from '../domain/pseudo-room-symbols';
 import { useEditorStore } from '../state/editor-store';
-import { renderRoomShape } from './map-canvas-helpers';
+import { renderRoomSelectionOutline, renderRoomShape } from './map-canvas-helpers';
 import type { PanOffset } from './use-map-viewport';
 import { focusElementWithoutScroll, getMapCanvasPseudoRoomNodeId } from './map-canvas-a11y';
 
@@ -201,20 +201,14 @@ export function MapCanvasPseudoRoomNode({
         mapVisualStyle,
       )}
       {isSelected && (
-        <rect
-          className="room-selection-outline"
-          data-testid="pseudo-room-selection-outline"
-          x={-4}
-          y={-4}
-          width={roomDimensions.width + 8}
-          height={roomDimensions.height + 8}
-          rx={10}
-          ry={10}
-          fill="none"
-          stroke="#ef4444"
-          strokeWidth={2}
-          pointerEvents="none"
-        />
+        renderRoomSelectionOutline(
+          visualRoom.shape,
+          roomDimensions.width,
+          roomDimensions.height,
+          mapVisualStyle,
+          4,
+          'pseudo-room-selection-outline',
+        )
       )}
       <g
         transform={`translate(${symbolLayout.x - (symbolLayout.size / 2)} ${symbolLayout.y - (symbolLayout.size / 2)}) scale(${symbolLayout.size / symbolViewBoxSize})`}
