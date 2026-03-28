@@ -55,4 +55,7 @@
 ## misc
 
 - `arrange/arr/prettify`
+- `zoom in/out/reset`
+- `zoom <number>`
+- `zoom <number>%`
 - `undo/redo`

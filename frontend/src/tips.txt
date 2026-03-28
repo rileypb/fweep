@@ -12,6 +12,8 @@ Bare directions like north and south can navigate from the currently selected ro
 Use go to <room name> in the CLI to jump selection and center the map on a known room.
 Type notate <room name> to drop a sticky note linked to a room without leaving the keyboard.
 The CLI accepts arrange and prettify as layout commands to tidy the current map automatically.
+Type zoom in, zoom out, or zoom reset in the CLI to control the map zoom without leaving the keyboard.
+Type zoom 50, zoom 200, or zoom 200% in the CLI to jump straight to a specific zoom level between 50% and 300%.
 You can import a plain-text command script into the CLI and fweep will run it line by line.
 Press Ctrl+/ to switch keyboard focus between the interactive fiction game and the mapper.
 Use Alt+Shift+M to jump back to the map list.
