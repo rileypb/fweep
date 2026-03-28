@@ -292,7 +292,12 @@ export interface MapCanvasProps {
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
-  requestedMapZoomRequest?: { readonly direction: 'in' | 'out' | 'reset'; readonly requestId: number } | null;
+  requestedMapZoomRequest?: {
+    readonly mode: 'relative' | 'reset' | 'absolute';
+    readonly direction?: 'in' | 'out';
+    readonly targetZoom?: number;
+    readonly requestId: number;
+  } | null;
   onRequestedRoomEditorHandled?: (requestId: number) => void;
   onRequestedRoomRevealHandled?: (requestId: number) => void;
   onRequestedViewportFocusHandled?: (requestId: number) => void;
@@ -606,14 +611,17 @@ export function MapCanvas({
 
     const rect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
     if (rect) {
+      const scaleFactor = requestedMapZoomRequest.mode === 'absolute'
+        ? (requestedMapZoomRequest.targetZoom ?? zoomRef.current) / zoomRef.current
+        : requestedMapZoomRequest.mode === 'relative'
+          ? requestedMapZoomRequest.direction === 'in'
+            ? 1.1
+            : 1 / 1.1
+          : 1 / zoomRef.current;
       zoomAtClientPoint(
         rect.left + (rect.width / 2),
         rect.top + (rect.height / 2),
-        requestedMapZoomRequest.direction === 'in'
-          ? 1.1
-          : requestedMapZoomRequest.direction === 'out'
-            ? 1 / 1.1
-            : 1 / zoomRef.current,
+        scaleFactor,
       );
     }
 

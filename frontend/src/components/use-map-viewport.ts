@@ -31,11 +31,11 @@ export interface UseMapViewportOptions {
   readonly initialZoom?: number;
 }
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3;
+export const MIN_MAP_VIEWPORT_ZOOM = 0.5;
+export const MAX_MAP_VIEWPORT_ZOOM = 3;
 
 function clampZoom(zoom: number): number {
-  return Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM);
+  return Math.min(Math.max(zoom, MIN_MAP_VIEWPORT_ZOOM), MAX_MAP_VIEWPORT_ZOOM);
 }
 
 export function useMapViewport(options: UseMapViewportOptions = {}): MapViewportApi {

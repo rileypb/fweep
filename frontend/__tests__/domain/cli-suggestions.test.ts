@@ -536,9 +536,10 @@ describe('cli suggestions', () => {
   });
 
   it('suggests zoom directions after zoom plus a space', () => {
-    expect(getCliSuggestions('zoom ', 'zoom '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['in', 'out', 'reset']);
+    expect(getCliSuggestions('zoom ', 'zoom '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<number>', 'in', 'out', 'reset']);
     expect(getCliSuggestions('zoom i', 'zoom i'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['in']);
     expect(getCliSuggestions('zoom r', 'zoom r'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['reset']);
+    expect(getCliSuggestions('zoom 2', 'zoom 2'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<number>']);
   });
 
   it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {

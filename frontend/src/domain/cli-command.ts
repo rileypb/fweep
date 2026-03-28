@@ -16,7 +16,12 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
-  | { readonly kind: 'zoom'; readonly direction: 'in' | 'out' | 'reset' }
+  | {
+    readonly kind: 'zoom';
+    readonly mode: 'relative' | 'reset' | 'absolute';
+    readonly direction?: 'in' | 'out';
+    readonly zoomPercent?: number;
+  }
   | { readonly kind: 'navigate'; readonly direction: string }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
@@ -69,7 +74,7 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
-  'zoom in/out/reset',
+  'zoom in/out/reset/<percent>',
   'go <direction>',
   '<direction>',
   'create/c <room name>',
@@ -255,6 +260,20 @@ function parseRoomAdjective(token: Token | undefined): CliRoomAdjective | null {
   }
 
   return null;
+}
+
+function parseZoomPercentToken(token: Token | undefined): number | null {
+  if (token === undefined || token.quoted) {
+    return null;
+  }
+
+  const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))%?$/.exec(token.value.trim());
+  if (match === null) {
+    return null;
+  }
+
+  const numericValue = Number.parseFloat(match[1] ?? '');
+  return Number.isFinite(numericValue) ? numericValue : null;
 }
 
 function parseWhichIsAdjectiveClause(
@@ -989,12 +1008,24 @@ export function parseCliCommand(input: string): CliCommand | null {
   ) {
     return {
       kind: 'zoom',
+      mode: isTokenValue(tokens[1], 'reset') ? 'reset' : 'relative',
       direction: isTokenValue(tokens[1], 'in')
         ? 'in'
         : isTokenValue(tokens[1], 'out')
           ? 'out'
-          : 'reset',
+          : undefined,
     };
+  }
+
+  if (tokens.length === 2 && isTokenValue(tokens[0], 'zoom')) {
+    const zoomPercent = parseZoomPercentToken(tokens[1]);
+    if (zoomPercent !== null) {
+      return {
+        kind: 'zoom',
+        mode: 'absolute',
+        zoomPercent,
+      };
+    }
   }
 
   if (tokens.length === 1 && isDirectionToken(tokens[0])) {
@@ -1196,11 +1227,15 @@ function describeCliCommand(command: CliCommand): string {
     case 'arrange':
       return 'rearrange the map layout';
     case 'zoom':
-      return command.direction === 'in'
-        ? 'zoom the map in'
-        : command.direction === 'out'
-          ? 'zoom the map out'
-          : 'reset the map zoom to 1:1';
+      if (command.mode === 'relative') {
+        return command.direction === 'in' ? 'zoom the map in' : 'zoom the map out';
+      }
+
+      if (command.mode === 'reset') {
+        return 'reset the map zoom to 1:1';
+      }
+
+      return `set the map zoom to ${command.zoomPercent}%`;
     case 'navigate':
       return `move in the selected room's ${command.direction} direction`;
     case 'create':

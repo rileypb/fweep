@@ -18,6 +18,8 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('zoom in')).toBe('zoom the map in');
     expect(parseCliCommandDescription('zoom out')).toBe('zoom the map out');
     expect(parseCliCommandDescription('zoom reset')).toBe('reset the map zoom to 1:1');
+    expect(parseCliCommandDescription('zoom 200')).toBe('set the map zoom to 200%');
+    expect(parseCliCommandDescription('zoom 200%')).toBe('set the map zoom to 200%');
   });
 
   it('describes create commands', () => {
@@ -337,9 +339,12 @@ describe('parseCliCommandDescription', () => {
 
 describe('parseCliCommand', () => {
   it('parses zoom commands', () => {
-    expect(parseCliCommand('zoom in')).toEqual({ kind: 'zoom', direction: 'in' });
-    expect(parseCliCommand('zoom out')).toEqual({ kind: 'zoom', direction: 'out' });
-    expect(parseCliCommand('zoom reset')).toEqual({ kind: 'zoom', direction: 'reset' });
+    expect(parseCliCommand('zoom in')).toEqual({ kind: 'zoom', mode: 'relative', direction: 'in' });
+    expect(parseCliCommand('zoom out')).toEqual({ kind: 'zoom', mode: 'relative', direction: 'out' });
+    expect(parseCliCommand('zoom reset')).toEqual({ kind: 'zoom', mode: 'reset', direction: undefined });
+    expect(parseCliCommand('zoom 200')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: 200 });
+    expect(parseCliCommand('zoom 200%')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: 200 });
+    expect(parseCliCommand('zoom -25%')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: -25 });
   });
 
   it('parses the-way pseudo-room terminal commands', () => {

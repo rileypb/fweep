@@ -503,7 +503,12 @@ function getSuggestionsForCommandContext(
   }
 
   if (tokens[0] === 'zoom' && fragment.tokenIndex === 1) {
-    return suggestionResolution(createKeywordSuggestions(prefix, ['in', 'out', 'reset']));
+    const shouldSuggestZoomNumberPlaceholder = fragment.prefix.length === 0
+      || /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)%?$/.test(fragment.prefix);
+    return suggestionResolution([
+      ...(shouldSuggestZoomNumberPlaceholder ? createPlaceholderSuggestion('<number>') : []),
+      ...createKeywordSuggestions(prefix, ['in', 'out', 'reset']),
+    ]);
   }
 
   if (tokens[0] === 'zoom') {

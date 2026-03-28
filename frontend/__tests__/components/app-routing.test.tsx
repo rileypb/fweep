@@ -1298,7 +1298,7 @@ describe('URL routing', () => {
     await openCliSuggestions(user, input);
     await user.type(input, 'zoom ');
 
-    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['in', 'out', 'reset']);
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['<number>', 'in', 'out', 'reset']);
   });
 
   it('shows a room placeholder at the start of a show room slot', async () => {
@@ -2203,6 +2203,47 @@ describe('URL routing', () => {
     });
 
     expectGameOutputToContain('zoom reset', 'Reset zoom.');
+
+    await submitCliCommand('zoom 200');
+
+    await waitFor(() => {
+      expect(content.style.transform).toContain('scale(2)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(2);
+    });
+
+    expectGameOutputToContain('zoom 200', 'Zoomed to 200%.');
+
+    await submitCliCommand('zoom 50%');
+
+    await waitFor(() => {
+      expect(content.style.transform).toContain('scale(0.5)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(0.5);
+    });
+
+    expectGameOutputToContain('zoom 50%', 'Zoomed to 50%.');
+  });
+
+  it('reports invalid CLI zoom percentages without changing the zoom', async () => {
+    await renderAppWithOpenMap('CLI Zoom Validation Map');
+
+    const content = screen.getByTestId('map-canvas-content');
+    expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+
+    await submitCliCommand('zoom 0');
+    expectGameOutputToContain('zoom 0', 'Zoom must be greater than 0%.');
+    expect(useEditorStore.getState().mapZoom).toBe(1);
+
+    await submitCliCommand('zoom -25');
+    expectGameOutputToContain('zoom -25', 'Zoom must be greater than 0%.');
+    expect(useEditorStore.getState().mapZoom).toBe(1);
+
+    await submitCliCommand('zoom 25');
+    expectGameOutputToContain('zoom 25', 'Zoom must be between 50% and 300%.');
+    expect(useEditorStore.getState().mapZoom).toBe(1);
+
+    await submitCliCommand('zoom 350%');
+    expectGameOutputToContain('zoom 350%', 'Zoom must be between 50% and 300%.');
+    expect(useEditorStore.getState().mapZoom).toBe(1);
   });
 
   it('shows the hidden easter egg output for the fweep command', async () => {

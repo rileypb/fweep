@@ -20,6 +20,7 @@ import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference
 import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument, type Room } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
 import { saveMap } from '../storage/map-store';
+import { MAX_MAP_VIEWPORT_ZOOM, MIN_MAP_VIEWPORT_ZOOM } from '../components/use-map-viewport';
 
 export interface RoomUiRequest {
   readonly roomId: string;
@@ -32,7 +33,9 @@ export interface ViewportFocusRequest {
 }
 
 export interface MapZoomRequest {
-  readonly direction: 'in' | 'out' | 'reset';
+  readonly mode: 'relative' | 'reset' | 'absolute';
+  readonly direction?: 'in' | 'out';
+  readonly targetZoom?: number;
   readonly requestId: number;
 }
 
@@ -215,11 +218,15 @@ function describeCliOutcome(command: CliCommand): string {
     case 'arrange':
       return 'Arranged.';
     case 'zoom':
-      return command.direction === 'in'
-        ? 'Zoomed in.'
-        : command.direction === 'out'
-          ? 'Zoomed out.'
-          : 'Reset zoom.';
+      if (command.mode === 'relative') {
+        return command.direction === 'in' ? 'Zoomed in.' : 'Zoomed out.';
+      }
+
+      if (command.mode === 'reset') {
+        return 'Reset zoom.';
+      }
+
+      return `Zoomed to ${command.zoomPercent}%.`;
     case 'navigate':
       return 'Shown.';
     case 'create':
@@ -696,7 +703,33 @@ export function useAppCli({
     }
 
     if (command.kind === 'zoom') {
+      if (command.mode === 'absolute') {
+        const zoomPercent = command.zoomPercent ?? 0;
+        if (zoomPercent <= 0) {
+          appendGameOutput([formatCliEcho(trimmedInput), 'Zoom must be greater than 0%.']);
+          return { ok: false, shouldSelectCliInput };
+        }
+
+        const targetZoom = zoomPercent / 100;
+        if (targetZoom < MIN_MAP_VIEWPORT_ZOOM || targetZoom > MAX_MAP_VIEWPORT_ZOOM) {
+          appendGameOutput([
+            formatCliEcho(trimmedInput),
+            `Zoom must be between ${MIN_MAP_VIEWPORT_ZOOM * 100}% and ${MAX_MAP_VIEWPORT_ZOOM * 100}%.`,
+          ]);
+          return { ok: false, shouldSelectCliInput };
+        }
+
+        setRequestedMapZoomRequest({
+          mode: 'absolute',
+          targetZoom,
+          requestId: issueUiRequestId(),
+        });
+        appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+        return { ok: true, shouldSelectCliInput };
+      }
+
       setRequestedMapZoomRequest({
+        mode: command.mode,
         direction: command.direction,
         requestId: issueUiRequestId(),
       });
