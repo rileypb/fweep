@@ -125,11 +125,15 @@ export function createDefaultSuggestions(doc: MapDocument | null): readonly CliS
       }];
     });
 
+  const missingCommandSuggestions = CLI_COMMAND_SUGGESTION_SPECS
+    .filter((spec) => !hiddenRootKeywords.has(spec.insertText) && !seenRootKeywords.has(spec.insertText))
+    .map((spec) => createCommandSuggestion(spec.id, spec.insertText, spec.descriptionInput));
+
   const directionSuggestions = createPlaceholderSuggestion('<direction>');
 
   const roomSuggestions = doc === null ? [] : createPlaceholderSuggestion('<room>');
 
-  return [...commandSuggestions, ...directionSuggestions, ...roomSuggestions];
+  return [...commandSuggestions, ...missingCommandSuggestions, ...directionSuggestions, ...roomSuggestions];
 }
 
 export function createDirectionSuggestions(prefix: string): readonly CliSuggestion[] {

@@ -31,6 +31,11 @@ export interface ViewportFocusRequest {
   readonly requestId: number;
 }
 
+export interface MapZoomRequest {
+  readonly direction: 'in' | 'out' | 'reset';
+  readonly requestId: number;
+}
+
 interface UseAppCliOptions {
   readonly activeMap: MapDocument | null;
   readonly loadDocument: (doc: MapDocument) => void;
@@ -38,9 +43,11 @@ interface UseAppCliOptions {
   readonly requestedRoomEditorRequest: RoomUiRequest | null;
   readonly requestedRoomRevealRequest: RoomUiRequest | null;
   readonly requestedViewportFocusRequest: ViewportFocusRequest | null;
+  readonly requestedMapZoomRequest: MapZoomRequest | null;
   readonly setRequestedRoomEditorRequest: (request: RoomUiRequest | null) => void;
   readonly setRequestedRoomRevealRequest: (request: RoomUiRequest | null) => void;
   readonly setRequestedViewportFocusRequest: (request: ViewportFocusRequest | null) => void;
+  readonly setRequestedMapZoomRequest: (request: MapZoomRequest | null) => void;
 }
 
 interface UseAppCliResult {
@@ -207,6 +214,12 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Listed available commands.';
     case 'arrange':
       return 'Arranged.';
+    case 'zoom':
+      return command.direction === 'in'
+        ? 'Zoomed in.'
+        : command.direction === 'out'
+          ? 'Zoomed out.'
+          : 'Reset zoom.';
     case 'navigate':
       return 'Shown.';
     case 'create':
@@ -345,9 +358,11 @@ export function useAppCli({
   requestedRoomEditorRequest,
   requestedRoomRevealRequest,
   requestedViewportFocusRequest,
+  requestedMapZoomRequest,
   setRequestedRoomEditorRequest,
   setRequestedRoomRevealRequest,
   setRequestedViewportFocusRequest,
+  setRequestedMapZoomRequest,
 }: UseAppCliOptions): UseAppCliResult {
   const addRoomAtPosition = useEditorStore((s) => s.addRoomAtPosition);
   const addItemsToRoom = useEditorStore((s) => s.addItemsToRoom);
@@ -676,6 +691,15 @@ export function useAppCli({
 
     if (command.kind === 'arrange' && currentDoc !== null) {
       prettifyLayout();
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'zoom') {
+      setRequestedMapZoomRequest({
+        direction: command.direction,
+        requestId: issueUiRequestId(),
+      });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }
@@ -1338,6 +1362,7 @@ export function useAppCli({
         requestedRoomEditorRequest,
         requestedRoomRevealRequest,
         requestedViewportFocusRequest,
+        requestedMapZoomRequest,
         nextUiRequestId: nextUiRequestIdRef.current,
       };
 
@@ -1350,6 +1375,7 @@ export function useAppCli({
           setRequestedRoomEditorRequest(importSnapshot.requestedRoomEditorRequest);
           setRequestedRoomRevealRequest(importSnapshot.requestedRoomRevealRequest);
           setRequestedViewportFocusRequest(importSnapshot.requestedViewportFocusRequest);
+          setRequestedMapZoomRequest(importSnapshot.requestedMapZoomRequest);
           nextUiRequestIdRef.current = importSnapshot.nextUiRequestId;
           appendGameOutput([
             `Import aborted on line ${command.lineNumber}. Rolled back ${successfulCommands} successful command${successfulCommands === 1 ? '' : 's'}.`,

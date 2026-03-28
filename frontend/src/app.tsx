@@ -200,6 +200,7 @@ export function App(): React.JSX.Element {
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
+  const [requestedMapZoomRequest, setRequestedMapZoomRequest] = useState<import('./hooks/use-app-cli').MapZoomRequest | null>(null);
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
@@ -314,9 +315,11 @@ export function App(): React.JSX.Element {
     requestedRoomEditorRequest,
     requestedRoomRevealRequest,
     requestedViewportFocusRequest,
+    requestedMapZoomRequest,
     setRequestedRoomEditorRequest,
     setRequestedRoomRevealRequest,
     setRequestedViewportFocusRequest,
+    setRequestedMapZoomRequest,
   });
 
   useEffect(() => {
@@ -349,6 +352,7 @@ export function App(): React.JSX.Element {
     setRequestedRoomEditorRequest(null);
     setRequestedRoomRevealRequest(null);
     setRequestedViewportFocusRequest(null);
+    setRequestedMapZoomRequest(null);
   }, [activeMap, startupTipIndex]);
 
   useEffect(() => {
@@ -402,6 +406,10 @@ export function App(): React.JSX.Element {
 
   const handleRequestedViewportFocusHandled = useCallback((requestId: number) => {
     setRequestedViewportFocusRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
+
+  const handleRequestedMapZoomHandled = useCallback((requestId: number) => {
+    setRequestedMapZoomRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
 
   useParchmentFocusToggle({
@@ -843,9 +851,11 @@ export function App(): React.JSX.Element {
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}
+          requestedMapZoomRequest={requestedMapZoomRequest}
           onRequestedRoomEditorHandled={handleRequestedRoomEditorHandled}
           onRequestedRoomRevealHandled={handleRequestedRoomRevealHandled}
           onRequestedViewportFocusHandled={handleRequestedViewportFocusHandled}
+          onRequestedMapZoomHandled={handleRequestedMapZoomHandled}
         />
       )}
     </main>

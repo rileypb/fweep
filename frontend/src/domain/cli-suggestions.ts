@@ -502,6 +502,14 @@ function getSuggestionsForCommandContext(
     return getParserBackedDisconnectResolution(input, fragment, doc, roomSlotSuggestionHelpers);
   }
 
+  if (tokens[0] === 'zoom' && fragment.tokenIndex === 1) {
+    return suggestionResolution(createKeywordSuggestions(prefix, ['in', 'out', 'reset']));
+  }
+
+  if (tokens[0] === 'zoom') {
+    return suggestionResolution([]);
+  }
+
   if (
     tokens[0] === 'arrange'
     || tokens[0] === 'arr'

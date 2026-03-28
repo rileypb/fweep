@@ -16,6 +16,7 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
+  | { readonly kind: 'zoom'; readonly direction: 'in' | 'out' | 'reset' }
   | { readonly kind: 'navigate'; readonly direction: string }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
@@ -68,6 +69,7 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
+  'zoom in/out/reset',
   'go <direction>',
   '<direction>',
   'create/c <room name>',
@@ -127,6 +129,7 @@ export interface CliCommandSuggestionSpec {
 export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] = [
   { id: 'help', insertText: 'help', matchTerms: ['help', 'h'], descriptionInput: 'help' },
   { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
+  { id: 'zoom', insertText: 'zoom', matchTerms: ['zoom'], descriptionInput: 'zoom in' },
   { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
   { id: 'show', insertText: 'show', matchTerms: ['show', 's', 'go to'], descriptionInput: 'show Kitchen' },
   { id: 'create', insertText: 'create', matchTerms: ['create', 'c'], descriptionInput: 'create Kitchen' },
@@ -979,6 +982,21 @@ export function parseCliCommand(input: string): CliCommand | null {
     return { kind: 'arrange' };
   }
 
+  if (
+    tokens.length === 2
+    && isTokenValue(tokens[0], 'zoom')
+    && (isTokenValue(tokens[1], 'in') || isTokenValue(tokens[1], 'out') || isTokenValue(tokens[1], 'reset'))
+  ) {
+    return {
+      kind: 'zoom',
+      direction: isTokenValue(tokens[1], 'in')
+        ? 'in'
+        : isTokenValue(tokens[1], 'out')
+          ? 'out'
+          : 'reset',
+    };
+  }
+
   if (tokens.length === 1 && isDirectionToken(tokens[0])) {
     return {
       kind: 'navigate',
@@ -1177,6 +1195,12 @@ function describeCliCommand(command: CliCommand): string {
         : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
+    case 'zoom':
+      return command.direction === 'in'
+        ? 'zoom the map in'
+        : command.direction === 'out'
+          ? 'zoom the map out'
+          : 'reset the map zoom to 1:1';
     case 'navigate':
       return `move in the selected room's ${command.direction} direction`;
     case 'create':

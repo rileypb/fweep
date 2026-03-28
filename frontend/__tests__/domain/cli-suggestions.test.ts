@@ -25,6 +25,7 @@ describe('cli suggestions', () => {
         'help',
         'put',
         'take',
+        'zoom',
         'undo',
         'redo',
         'above',
@@ -357,9 +358,18 @@ describe('cli suggestions', () => {
   });
 
   it('suggests only "of" after a create direction and space', () => {
-    const result = getCliSuggestions('create foobar north ', 'create foobar north '.length, createEmptyMap('Test'));
-
-    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(
+      getCliSuggestions('create foobar north ', 'create foobar north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
+    expect(
+      getCliSuggestions('create foo bar north ', 'create foo bar north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
+    expect(
+      getCliSuggestions('create Gareth\'s office north ', 'create Gareth\'s office north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
   });
 
   it('shows a room placeholder after create above/below plus a space', () => {
@@ -520,6 +530,15 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('undo x', 'undo x'.length, doc)).toBeNull();
     expect(getCliSuggestions('redo ', 'redo '.length, doc)).toBeNull();
     expect(getCliSuggestions('redo x', 'redo x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom in ', 'zoom in '.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom out ', 'zoom out '.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom reset ', 'zoom reset '.length, doc)).toBeNull();
+  });
+
+  it('suggests zoom directions after zoom plus a space', () => {
+    expect(getCliSuggestions('zoom ', 'zoom '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['in', 'out', 'reset']);
+    expect(getCliSuggestions('zoom i', 'zoom i'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['in']);
+    expect(getCliSuggestions('zoom r', 'zoom r'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['reset']);
   });
 
   it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {

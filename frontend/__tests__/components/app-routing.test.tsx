@@ -1223,6 +1223,17 @@ describe('URL routing', () => {
     expect(input).toHaveValue('connect ');
   });
 
+  it('shows zoom in the initial CLI suggestions menu', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Root Suggestions Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toContain('zoom');
+  });
+
   it('shows legal next-word suggestions immediately after typing a space', async () => {
     const user = userEvent.setup();
     const map = addRoom(createEmptyMap('CLI Next Word Map'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
@@ -1276,6 +1287,18 @@ describe('URL routing', () => {
     await user.type(input, 'connect Kitchen north one-way ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['to']);
+  });
+
+  it('suggests zoom directions after zoom plus a space', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Zoom Suggestions Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'zoom ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['in', 'out', 'reset']);
   });
 
   it('shows a room placeholder at the start of a show room slot', async () => {
@@ -1450,6 +1473,16 @@ describe('URL routing', () => {
 
     await openCliSuggestions(user, input);
     await user.type(input, 'create foobar north ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['of']);
+
+    await user.clear(input);
+    await user.type(input, 'create foo bar north ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['of']);
+
+    await user.clear(input);
+    await user.type(input, 'create Gareth\'s office north ');
 
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['of']);
   });
@@ -2128,6 +2161,48 @@ describe('URL routing', () => {
     expectGameOutputToContain('prettify', 'arranged.');
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('zooms the map from the CLI zoom commands', async () => {
+    await renderAppWithOpenMap('CLI Zoom Map');
+
+    const content = screen.getByTestId('map-canvas-content');
+    expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+    expect(useEditorStore.getState().mapZoom).toBe(1);
+
+    await submitCliCommand('zoom in');
+
+    await waitFor(() => {
+      expect(content.style.transform).toContain('scale(1.1)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(1.1);
+    });
+
+    expectGameOutputToContain('zoom in', 'Zoomed in.');
+
+    await submitCliCommand('zoom out');
+
+    await waitFor(() => {
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(1);
+    });
+
+    expectGameOutputToContain('zoom out', 'Zoomed out.');
+
+    await submitCliCommand('zoom in');
+
+    await waitFor(() => {
+      expect(content.style.transform).toContain('scale(1.1)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(1.1);
+    });
+
+    await submitCliCommand('zoom reset');
+
+    await waitFor(() => {
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+      expect(useEditorStore.getState().mapZoom).toBeCloseTo(1);
+    });
+
+    expectGameOutputToContain('zoom reset', 'Reset zoom.');
   });
 
   it('shows the hidden easter egg output for the fweep command', async () => {

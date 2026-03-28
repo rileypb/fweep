@@ -292,9 +292,11 @@ export interface MapCanvasProps {
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
+  requestedMapZoomRequest?: { readonly direction: 'in' | 'out' | 'reset'; readonly requestId: number } | null;
   onRequestedRoomEditorHandled?: (requestId: number) => void;
   onRequestedRoomRevealHandled?: (requestId: number) => void;
   onRequestedViewportFocusHandled?: (requestId: number) => void;
+  onRequestedMapZoomHandled?: (requestId: number) => void;
 }
 
 interface PendingConnectionDrop {
@@ -368,9 +370,11 @@ export function MapCanvas({
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
   requestedViewportFocusRequest = null,
+  requestedMapZoomRequest = null,
   onRequestedRoomEditorHandled,
   onRequestedRoomRevealHandled,
   onRequestedViewportFocusHandled,
+  onRequestedMapZoomHandled,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorState, setRoomEditorState] = useState<MapCanvasRoomEditorState | null>(null);
@@ -594,6 +598,27 @@ export function MapCanvas({
     setIsNotePlacementArmed,
     setIsShiftKeyDown,
   });
+
+  useEffect(() => {
+    if (requestedMapZoomRequest === null) {
+      return;
+    }
+
+    const rect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    if (rect) {
+      zoomAtClientPoint(
+        rect.left + (rect.width / 2),
+        rect.top + (rect.height / 2),
+        requestedMapZoomRequest.direction === 'in'
+          ? 1.1
+          : requestedMapZoomRequest.direction === 'out'
+            ? 1 / 1.1
+            : 1 / zoomRef.current,
+      );
+    }
+
+    onRequestedMapZoomHandled?.(requestedMapZoomRequest.requestId);
+  }, [canvasRect, canvasRef, onRequestedMapZoomHandled, requestedMapZoomRequest, zoomAtClientPoint, zoomRef]);
 
   const openStickyNoteEditor = useCallback((stickyNoteId: string) => {
     setRoomEditorState(null);

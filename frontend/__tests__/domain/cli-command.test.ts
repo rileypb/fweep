@@ -14,6 +14,12 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
   });
 
+  it('describes zoom commands', () => {
+    expect(parseCliCommandDescription('zoom in')).toBe('zoom the map in');
+    expect(parseCliCommandDescription('zoom out')).toBe('zoom the map out');
+    expect(parseCliCommandDescription('zoom reset')).toBe('reset the map zoom to 1:1');
+  });
+
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
     expect(parseCliCommandDescription('c Kitchen')).toBe('create a room called Kitchen');
@@ -330,6 +336,12 @@ describe('parseCliCommandDescription', () => {
 });
 
 describe('parseCliCommand', () => {
+  it('parses zoom commands', () => {
+    expect(parseCliCommand('zoom in')).toEqual({ kind: 'zoom', direction: 'in' });
+    expect(parseCliCommand('zoom out')).toEqual({ kind: 'zoom', direction: 'out' });
+    expect(parseCliCommand('zoom reset')).toEqual({ kind: 'zoom', direction: 'reset' });
+  });
+
   it('parses the-way pseudo-room terminal commands', () => {
     expect(parseCliCommand('the way east of Kitchen lies death')).toEqual({
       kind: 'create-pseudo-room',
