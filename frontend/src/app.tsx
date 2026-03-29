@@ -312,12 +312,12 @@ export function App(): React.JSX.Element {
     : hasOpenMap
       ? parchmentPanelWidth + 16 + 12
       : 16;
-  const mapNameChipLeft = typeof window === 'undefined'
+  const topBarLeft = typeof window === 'undefined'
     ? 16
-    : (getAppCliLeftOffset(window.innerWidth, rootFontSizePx) / 2) + (rootFontSizePx * 1.75);
+    : (getAppCliLeftOffset(window.innerWidth, rootFontSizePx) / 2) - (rootFontSizePx * 1.25);
   const mapNameChipMaxWidth = typeof window === 'undefined'
     ? undefined
-    : Math.max(window.innerWidth - mapNameChipLeft - mapNameChipRightInset - 16, 0);
+    : Math.max(window.innerWidth - topBarLeft - (rootFontSizePx * 3) - mapNameChipRightInset - 16, 0);
   const {
     cliInputRef,
     cliImportInputRef,
@@ -701,24 +701,7 @@ export function App(): React.JSX.Element {
       {hasOpenMap && (
         <>
           <div className="app-left-rail-backdrop" aria-hidden="true" />
-          <div
-            className="app-control-chip app-map-name-chip app-control-chip--plain"
-            aria-label={`Map name: ${activeMap.metadata.name}`}
-            style={{
-              left: `${mapNameChipLeft}px`,
-              maxWidth: mapNameChipMaxWidth === undefined ? undefined : `${mapNameChipMaxWidth}px`,
-            }}
-          >
-            <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
-            {associatedGame?.title ? (
-              <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
-            ) : null}
-          </div>
-        </>
-      )}
-      {hasOpenMap && (
-        <>
-          <div className="app-controls app-controls--settings">
+          <div className="app-top-bar" style={{ left: `${topBarLeft}px` }}>
             <button
               type="button"
               className="app-control-button app-control-button--plain"
@@ -735,6 +718,24 @@ export function App(): React.JSX.Element {
                 <path d="M5.5 8H13" strokeLinecap="round" />
               </svg>
             </button>
+            <div
+              className="app-control-chip app-map-name-chip app-control-chip--plain"
+              aria-label={`Map name: ${activeMap.metadata.name}`}
+              style={{
+                maxWidth: mapNameChipMaxWidth === undefined ? undefined : `${mapNameChipMaxWidth}px`,
+              }}
+            >
+              <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
+              {associatedGame?.title ? (
+                <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
+              ) : null}
+            </div>
+          </div>
+        </>
+      )}
+      {hasOpenMap && (
+        <>
+          <div className="app-controls app-controls--settings">
             <button
               type="button"
               className="app-control-button"

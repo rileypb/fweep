@@ -1034,8 +1034,17 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   z-index: 7;
 }
 
-.app-controls--settings {
+.app-top-bar {
+  position: fixed;
   top: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  z-index: 7;
+}
+
+.app-controls--settings {
+  top: 4rem;
   left: calc(var(--app-cli-stack-left) / 2);
   flex-direction: column;
   align-items: center;
@@ -1044,12 +1053,9 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .app-map-name-chip {
-  position: fixed;
-  top: 1rem;
-  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + var(--app-cli-stack-gutter));
-  z-index: 7;
-  max-width: calc(100vw - var(--app-cli-stack-left) - min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) - 2rem - var(--app-cli-stack-gutter));
-  transition: left 180ms ease, max-width 180ms ease;
+  position: static;
+  z-index: auto;
+  transition: max-width 180ms ease;
 }
 
 .app-control-button {
