@@ -464,6 +464,131 @@ describe('computePrettifiedRoomPositions', () => {
     }
   });
 
+  it('does not walk when prettified repeatedly for a sticky note linked to both a room and a pseudo-room', () => {
+    let doc = createEmptyMap('Sticky Note Multi-Link Stable Repeat');
+    const room = { ...createRoom('Kitchen'), position: { x: 320, y: 200 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 520, y: 200 } };
+    const stickyNote = { ...createStickyNote('Check this exit carefully'), position: { x: 120, y: 120 } };
+    doc = addRoom(doc, room);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(room.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room.id));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id }));
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    let nextDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [room.id]: {
+          ...doc.rooms[room.id],
+          position: firstPass.roomPositions[room.id],
+        },
+      },
+      pseudoRooms: {
+        ...doc.pseudoRooms,
+        [pseudoRoom.id]: {
+          ...doc.pseudoRooms[pseudoRoom.id],
+          position: firstPass.pseudoRoomPositions[pseudoRoom.id],
+        },
+      },
+      stickyNotes: {
+        ...doc.stickyNotes,
+        [stickyNote.id]: {
+          ...doc.stickyNotes[stickyNote.id],
+          position: firstPass.stickyNotePositions[stickyNote.id],
+        },
+      },
+    };
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPass = computePrettifiedLayoutPositions(nextDoc);
+      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
+      expect(nextPass.pseudoRoomPositions).toEqual(firstPass.pseudoRoomPositions);
+      expect(nextPass.stickyNotePositions).toEqual(firstPass.stickyNotePositions);
+      nextDoc = {
+        ...nextDoc,
+        rooms: {
+          ...nextDoc.rooms,
+          [room.id]: {
+            ...nextDoc.rooms[room.id],
+            position: nextPass.roomPositions[room.id],
+          },
+        },
+        pseudoRooms: {
+          ...nextDoc.pseudoRooms,
+          [pseudoRoom.id]: {
+            ...nextDoc.pseudoRooms[pseudoRoom.id],
+            position: nextPass.pseudoRoomPositions[pseudoRoom.id],
+          },
+        },
+        stickyNotes: {
+          ...nextDoc.stickyNotes,
+          [stickyNote.id]: {
+            ...nextDoc.stickyNotes[stickyNote.id],
+            position: nextPass.stickyNotePositions[stickyNote.id],
+          },
+        },
+      };
+    }
+  });
+
+  it('does not let a multi-linked sticky note drag separate room components around on repeated prettify', () => {
+    let doc = createEmptyMap('Sticky Note Bridge Stable Repeat');
+    const roomA = { ...createRoom('Alpha'), id: 'alpha', position: { x: 120, y: 200 } };
+    const roomB = { ...createRoom('Beta'), id: 'beta', position: { x: 620, y: 200 } };
+    const pseudoRoom = { ...createPseudoRoom('unknown'), id: 'unknown-exit', position: { x: 820, y: 200 } };
+    const stickyNote = { ...createStickyNote('Bridge note'), id: 'bridge-note', position: { x: 420, y: 120 } };
+    doc = addRoom(addRoom(doc, roomA), roomB);
+    doc = addPseudoRoom(doc, pseudoRoom);
+    doc = addConnection(doc, createConnection(roomB.id, { kind: 'pseudo-room', id: pseudoRoom.id }, false), 'east');
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, roomA.id));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id }));
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    let nextDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [roomA.id]: { ...doc.rooms[roomA.id], position: firstPass.roomPositions[roomA.id] },
+        [roomB.id]: { ...doc.rooms[roomB.id], position: firstPass.roomPositions[roomB.id] },
+      },
+      pseudoRooms: {
+        ...doc.pseudoRooms,
+        [pseudoRoom.id]: { ...doc.pseudoRooms[pseudoRoom.id], position: firstPass.pseudoRoomPositions[pseudoRoom.id] },
+      },
+      stickyNotes: {
+        ...doc.stickyNotes,
+        [stickyNote.id]: { ...doc.stickyNotes[stickyNote.id], position: firstPass.stickyNotePositions[stickyNote.id] },
+      },
+    };
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPass = computePrettifiedLayoutPositions(nextDoc);
+      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
+      expect(nextPass.pseudoRoomPositions).toEqual(firstPass.pseudoRoomPositions);
+      expect(nextPass.stickyNotePositions).toEqual(firstPass.stickyNotePositions);
+      nextDoc = {
+        ...nextDoc,
+        rooms: {
+          ...nextDoc.rooms,
+          [roomA.id]: { ...nextDoc.rooms[roomA.id], position: nextPass.roomPositions[roomA.id] },
+          [roomB.id]: { ...nextDoc.rooms[roomB.id], position: nextPass.roomPositions[roomB.id] },
+        },
+        pseudoRooms: {
+          ...nextDoc.pseudoRooms,
+          [pseudoRoom.id]: { ...nextDoc.pseudoRooms[pseudoRoom.id], position: nextPass.pseudoRoomPositions[pseudoRoom.id] },
+        },
+        stickyNotes: {
+          ...nextDoc.stickyNotes,
+          [stickyNote.id]: { ...nextDoc.stickyNotes[stickyNote.id], position: nextPass.stickyNotePositions[stickyNote.id] },
+        },
+      };
+    }
+  });
+
   it('moves a linked sticky note near its linked room without overlapping it', () => {
     let doc = createEmptyMap('Linked Note');
     const room = { ...createRoom('Kitchen'), position: { x: 200, y: 200 } };
