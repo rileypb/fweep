@@ -45,6 +45,7 @@ interface UseAppCliOptions {
   readonly activeMap: MapDocument | null;
   readonly loadDocument: (doc: MapDocument) => void;
   readonly unloadDocument: () => void;
+  readonly routeCrossInputCommandToParchment: (command: string) => boolean;
   readonly requestedRoomEditorRequest: RoomUiRequest | null;
   readonly requestedRoomRevealRequest: RoomUiRequest | null;
   readonly requestedViewportFocusRequest: ViewportFocusRequest | null;
@@ -70,6 +71,13 @@ interface UseAppCliResult {
   readonly gameOutputLines: readonly string[];
   readonly isImportingScript: boolean;
   readonly handleCliSubmit: () => void;
+  readonly submitCliCommandText: (
+    submittedInput: string,
+    options?: {
+      readonly clearInputState?: boolean;
+      readonly selectCliInput?: boolean;
+    },
+  ) => { ok: boolean; shouldSelectCliInput: boolean };
   readonly handleCliCommandChange: (value: string) => void;
   readonly handleCliInputFocus: () => void;
   readonly handleCliInputBlur: () => void;
@@ -84,6 +92,28 @@ interface UseAppCliResult {
   readonly handleImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly handleGameOutputClick: () => void;
   readonly flushDocumentSave: () => Promise<void>;
+}
+
+type CrossInputRoutedSubmission =
+  | { readonly kind: 'normal'; readonly localInput: string }
+  | { readonly kind: 'literal'; readonly localInput: string }
+  | { readonly kind: 'route-to-parchment'; readonly parchmentInput: string };
+
+function getCrossInputRoutedSubmission(submittedInput: string): CrossInputRoutedSubmission {
+  if (!submittedInput.startsWith('\\')) {
+    return { kind: 'normal', localInput: submittedInput };
+  }
+
+  if (submittedInput.startsWith('\\\\')) {
+    return { kind: 'literal', localInput: submittedInput.slice(1) };
+  }
+
+  const parchmentInput = submittedInput.slice(1);
+  if (parchmentInput.length === 0) {
+    return { kind: 'normal', localInput: submittedInput };
+  }
+
+  return { kind: 'route-to-parchment', parchmentInput };
 }
 
 function formatCliError(error: CliError): string {
@@ -376,6 +406,7 @@ export function useAppCli({
   activeMap,
   loadDocument,
   unloadDocument,
+  routeCrossInputCommandToParchment,
   requestedRoomEditorRequest,
   requestedRoomRevealRequest,
   requestedViewportFocusRequest,
@@ -1346,27 +1377,68 @@ export function useAppCli({
     return { ok: true, shouldSelectCliInput };
   };
 
-  const handleCliSubmit = () => {
-    const submittedInput = cliCommand;
-    setHasUsedCliInput(true);
+  const submitCliCommandText = (
+    submittedInput: string,
+    options?: {
+      readonly clearInputState?: boolean;
+      readonly selectCliInput?: boolean;
+    },
+  ): { ok: boolean; shouldSelectCliInput: boolean } => {
+    const clearInputState = options?.clearInputState ?? false;
+    const selectCliInput = options?.selectCliInput ?? true;
+
+    if (clearInputState) {
+      setHasUsedCliInput(true);
+      setCliHistoryIndex(null);
+      setCliHistoryDraft('');
+      setCliCommand('');
+      setCliCaretIndex(0);
+      setHighlightedCliSuggestionIndex(0);
+    }
+
     if (submittedInput.trim().length > 0) {
       setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
     }
-    setCliHistoryIndex(null);
-    setCliHistoryDraft('');
-    setCliCommand('');
-    setCliCaretIndex(0);
-    setHighlightedCliSuggestionIndex(0);
 
-    const { ok, shouldSelectCliInput } = runCliCommand(submittedInput);
+    const routedSubmission = getCrossInputRoutedSubmission(submittedInput);
+    if (routedSubmission.kind === 'route-to-parchment') {
+      const routed = routeCrossInputCommandToParchment(routedSubmission.parchmentInput);
+      setAreCliSuggestionsEnabled(false);
+      if (!routed) {
+        appendGameOutput([
+          formatCliEcho(submittedInput),
+          'No interactive fiction game is ready to receive commands.',
+        ]);
+        if (selectCliInput) {
+          cliInputRef.current?.select();
+        }
+        return { ok: false, shouldSelectCliInput: selectCliInput };
+      }
+
+      if (selectCliInput) {
+        cliInputRef.current?.select();
+      }
+      return { ok: true, shouldSelectCliInput: selectCliInput };
+    }
+
+    const { ok, shouldSelectCliInput: shouldSelectCliInputAfterRun } = runCliCommand(routedSubmission.localInput);
     const shouldKeepSuggestionsEnabled = ok && shouldKeepSuggestionsEnabledAfterSubmit(
       areCliSuggestionsEnabled,
       submittedInput,
     );
     setAreCliSuggestionsEnabled(shouldKeepSuggestionsEnabled);
+    const shouldSelectCliInput = selectCliInput && shouldSelectCliInputAfterRun;
     if (shouldSelectCliInput) {
       cliInputRef.current?.select();
     }
+    return { ok, shouldSelectCliInput };
+  };
+
+  const handleCliSubmit = () => {
+    void submitCliCommandText(cliCommand, {
+      clearInputState: true,
+      selectCliInput: true,
+    });
   };
 
   const handleCliCommandChange = (value: string) => {
@@ -1604,6 +1676,7 @@ export function useAppCli({
     gameOutputLines,
     isImportingScript,
     handleCliSubmit,
+    submitCliCommandText,
     handleCliCommandChange,
     handleCliInputFocus,
     handleCliInputBlur,

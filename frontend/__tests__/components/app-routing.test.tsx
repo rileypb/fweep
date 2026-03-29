@@ -5765,6 +5765,217 @@ describe('URL routing', () => {
     });
   });
 
+  it('routes backslash-prefixed CLI submissions into the parchment game input', async () => {
+    const user = userEvent.setup();
+    const baseDoc = createEmptyMap('CLI To Game Routing Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const postMessage = jest.fn<(message: unknown, targetOrigin: string) => void>();
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    const cliInput = getCliInput();
+    await user.click(cliInput);
+    fireEvent.change(cliInput, { target: { value: '\\look' } });
+    fireEvent.submit(cliInput.closest('form') as HTMLFormElement);
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'fweep:submit-game-command', command: 'look', restoreCliFocus: true },
+      window.location.origin,
+    );
+    expect(getGameOutputBox().textContent ?? '').not.toContain('>\\look');
+    expect(document.activeElement).toBe(cliInput);
+  });
+
+  it('routes a backslash-space CLI submission into the parchment game input as a literal space', async () => {
+    const user = userEvent.setup();
+    const baseDoc = createEmptyMap('CLI To Game Space Routing Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const postMessage = jest.fn<(message: unknown, targetOrigin: string) => void>();
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    const cliInput = getCliInput();
+    await user.click(cliInput);
+    fireEvent.change(cliInput, { target: { value: '\\ ' } });
+    fireEvent.submit(cliInput.closest('form') as HTMLFormElement);
+
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: 'fweep:submit-game-command', command: ' ', restoreCliFocus: true },
+      window.location.origin,
+    );
+    expect(getGameOutputBox().textContent ?? '').not.toContain('>\\ ');
+    expect(document.activeElement).toBe(cliInput);
+  });
+
+  it('restores CLI focus after the parchment iframe asks for it', async () => {
+    const user = userEvent.setup();
+    const baseDoc = createEmptyMap('Restore CLI Focus Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const cliInput = getCliInput();
+
+    await user.click(iframe);
+    act(() => {
+      iframe.focus();
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'fweep:restore-cli-focus' },
+        origin: window.location.origin,
+        source: iframe.contentWindow,
+      }));
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cliInput);
+    });
+  });
+
+  it('keeps double-backslash CLI submissions local instead of routing them to the game', async () => {
+    const baseDoc = createEmptyMap('CLI Literal Backslash Map');
+    const linkedDoc: MapDocument = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const postMessage = jest.fn<(message: unknown, targetOrigin: string) => void>();
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    const cliInput = getCliInput();
+    fireEvent.change(cliInput, { target: { value: '\\\\look' } });
+    fireEvent.submit(cliInput.closest('form') as HTMLFormElement);
+
+    expect(postMessage).not.toHaveBeenCalled();
+    expectGameOutputToContain('>\\look');
+  });
+
+  it('routes backslash-prefixed parchment submissions into the fweep CLI without stealing focus', async () => {
+    const user = userEvent.setup();
+    const doc = createEmptyMap('Game To CLI Routing Map');
+    const kitchen = createRoom('Kitchen', { x: 100, y: 100 });
+    doc.rooms[kitchen.id] = kitchen;
+
+    const linkedDoc: MapDocument = {
+      ...doc,
+      metadata: {
+        ...doc.metadata,
+        associatedGame: {
+          sourceType: 'ifdb',
+          tuid: 'abc123',
+          ifid: 'IFID-123',
+          title: 'The Example Game',
+          author: 'Pat Example',
+          storyUrl: 'https://example.com/game.ulx',
+          format: 'glulx',
+        },
+      },
+    };
+
+    await renderAppWithSavedMap(linkedDoc);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
+    const postMessage = jest.fn<(message: unknown, targetOrigin: string) => void>();
+    const iframeWindowMock = { postMessage };
+    Object.defineProperty(iframe, 'contentWindow', {
+      configurable: true,
+      value: iframeWindowMock,
+    });
+
+    await user.click(iframe);
+    act(() => {
+      iframe.focus();
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'fweep:submit-cli-from-parchment', command: 'show Kitchen' },
+        origin: window.location.origin,
+        source: iframeWindowMock as unknown as MessageEventSource,
+      }));
+    });
+
+    await waitFor(() => {
+      expectGameOutputToContain('>show Kitchen', 'Kitchen');
+    });
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith(
+        { type: 'fweep:restore-game-input-focus' },
+        window.location.origin,
+      );
+    });
+    expect(document.activeElement).toBe(iframe);
+  });
+
   it('ignores unrelated parchment toggle messages before handling the matching one', async () => {
     const user = userEvent.setup();
     const baseDoc = createEmptyMap('Parchment Message Guard Map');

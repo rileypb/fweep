@@ -240,6 +240,29 @@ export function App(): React.JSX.Element {
     parchmentIframeRef,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
+  const routeCrossInputCommandToParchment = useCallback((command: string): boolean => {
+    const iframeWindow = parchmentIframeRef.current?.contentWindow;
+    if (iframeWindow === null || iframeWindow === undefined) {
+      return false;
+    }
+
+    iframeWindow.postMessage(
+      { type: 'fweep:submit-game-command', command, restoreCliFocus: true },
+      window.location.origin,
+    );
+    return true;
+  }, [parchmentIframeRef]);
+  const restoreParchmentGameInputFocus = useCallback((): void => {
+    const iframeWindow = parchmentIframeRef.current?.contentWindow;
+    if (iframeWindow === null || iframeWindow === undefined) {
+      return;
+    }
+
+    iframeWindow.postMessage(
+      { type: 'fweep:restore-game-input-focus' },
+      window.location.origin,
+    );
+  }, [parchmentIframeRef]);
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
     : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
@@ -299,6 +322,7 @@ export function App(): React.JSX.Element {
     gameOutputLines,
     isImportingScript,
     handleCliSubmit,
+    submitCliCommandText,
     handleCliCommandChange,
     handleCliInputFocus,
     handleCliInputBlur,
@@ -317,6 +341,7 @@ export function App(): React.JSX.Element {
     activeMap,
     loadDocument,
     unloadDocument,
+    routeCrossInputCommandToParchment,
     requestedRoomEditorRequest,
     requestedRoomRevealRequest,
     requestedViewportFocusRequest,
@@ -424,6 +449,48 @@ export function App(): React.JSX.Element {
     parchmentIframeRef,
     parchmentSearchInputRef,
   });
+
+  useEffect(() => {
+    if (!hasOpenMap) {
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent): void => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.source !== parchmentIframeRef.current?.contentWindow) {
+        return;
+      }
+
+      const data = event.data as { type?: unknown; command?: unknown } | null;
+      if (data?.type === 'fweep:submit-cli-from-parchment' && typeof data.command === 'string') {
+        void submitCliCommandText(data.command, {
+          clearInputState: false,
+          selectCliInput: false,
+        });
+        window.requestAnimationFrame(() => {
+          restoreParchmentGameInputFocus();
+        });
+        return;
+      }
+
+      if (data?.type !== 'fweep:restore-cli-focus') {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        cliInputRef.current?.focus();
+        cliInputRef.current?.select();
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [cliInputRef, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
 
   useEffect(() => {
     if (!isHelpOpen && !isWelcomeOpen && !isTipsOpen) {

@@ -134,6 +134,7 @@ describe('app helpers', () => {
     );
 
     expect(parchmentHtml).toContain("textarea.LineInput");
+    expect(parchmentHtml).toContain("textarea.Input:not(.LineInput)");
     expect(parchmentHtml).toContain("Interactive fiction command input");
     expect(parchmentHtml).toContain("setAttribute('aria-label', lineInputLabel)");
     expect(parchmentHtml).toContain("[id^=\"window\"]");
@@ -141,6 +142,16 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("scrollOutputWindow");
     expect(parchmentHtml).toContain("focusPreferredOutputWindow");
     expect(parchmentHtml).toContain("(!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey");
+    expect(parchmentHtml).toContain("fweep:submit-cli-from-parchment");
+    expect(parchmentHtml).toContain("fweep:submit-game-command");
+    expect(parchmentHtml).toContain("fweep:restore-cli-focus");
+    expect(parchmentHtml).toContain("fweep:restore-game-input-focus");
+    expect(parchmentHtml).toContain("var pendingGameCommand = null;");
+    expect(parchmentHtml).toContain("submitCharacterCommand(charInput, ' ')");
+    expect(parchmentHtml).toContain("typeof parchmentWindow.textinput.submit_char === 'function'");
+    expect(parchmentHtml).toContain("target.dispatchEvent(new KeyboardEvent('keypress'");
+    expect(parchmentHtml).toContain("textarea.getAttribute('aria-hidden') !== 'true'");
+    expect(parchmentHtml).toContain("currentValue.startsWith('\\\\\\\\')");
     expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
   });
 
