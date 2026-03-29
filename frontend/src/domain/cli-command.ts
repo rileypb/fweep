@@ -39,6 +39,11 @@ export type CliCommand =
   | { readonly kind: 'show'; readonly room: CliRoomReference }
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | {
+    readonly kind: 'selected-room-relative-connect';
+    readonly sourceDirection: string;
+    readonly targetRoom: CliRoomReference;
+  }
+  | {
     readonly kind: 'set-connection-annotation';
     readonly sourceRoom: CliRoomReference;
     readonly targetRoom: CliRoomReference;
@@ -102,6 +107,7 @@ export const CLI_COMMAND_FORMS = [
   'edit/e/ed <room name>',
   'describe [<room name>]',
   'show/s/go to <room name>',
+  '<direction>/above/below is <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
   '<room name> to <room name> is clear',
@@ -965,6 +971,38 @@ function parseDisconnectCommand(tokens: readonly Token[]): Extract<CliCommand, {
   };
 }
 
+function parseSelectedRoomRelativeConnectCommand(
+  tokens: readonly Token[],
+): Extract<CliCommand, { kind: 'selected-room-relative-connect' }> | null {
+  if (tokens.length < 3 || !isTokenValue(tokens[1], 'is')) {
+    return null;
+  }
+
+  const directionToken = tokens[0];
+  if (!isDirectionToken(directionToken) && !isTokenValue(directionToken, 'above') && !isTokenValue(directionToken, 'below')) {
+    return null;
+  }
+
+  if (tokens.length === 3 && parseRoomAdjective(tokens[2]) !== null) {
+    return null;
+  }
+
+  const targetRoom = readRoomName(tokens, 2, () => false);
+  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind: 'selected-room-relative-connect',
+    sourceDirection: isTokenValue(directionToken, 'above')
+      ? 'up'
+      : isTokenValue(directionToken, 'below')
+        ? 'down'
+        : normalizeDirection(directionToken!.value),
+    targetRoom: targetRoom.reference,
+  };
+}
+
 export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
@@ -1176,6 +1214,11 @@ export function parseCliCommand(input: string): CliCommand | null {
     return connectionAnnotationCommand;
   }
 
+  const selectedRoomRelativeConnectCommand = parseSelectedRoomRelativeConnectCommand(tokens);
+  if (selectedRoomRelativeConnectCommand !== null) {
+    return selectedRoomRelativeConnectCommand;
+  }
+
   const lightingRoom = readRoomName(tokens, 0, (token) => isTokenValue(token, 'is'));
   if (
     lightingRoom !== null
@@ -1274,6 +1317,8 @@ function describeCliCommand(command: CliCommand): string {
       return `scroll the map to ${command.room.text}`;
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
+    case 'selected-room-relative-connect':
+      return `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
     case 'set-connection-annotation':
       if (command.annotation === 'door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;

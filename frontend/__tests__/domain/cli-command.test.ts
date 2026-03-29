@@ -124,6 +124,15 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('Kitchen is lit')).toBe('mark Kitchen as lit');
   });
 
+  it('describes selected-room relative connect commands', () => {
+    expect(parseCliCommandDescription('north is Kitchen')).toBe(
+      'connect the selected room going north to Kitchen, creating it if needed',
+    );
+    expect(parseCliCommandDescription('above is Attic')).toBe(
+      'connect the selected room going up to Attic, creating it if needed',
+    );
+  });
+
   it('describes connection annotation commands', () => {
     expect(parseCliCommandDescription('Bedroom to Bathroom is a door')).toBe(
       'mark all connections between Bedroom and Bathroom as doors',
@@ -496,6 +505,28 @@ describe('parseCliCommand', () => {
     expect(parseCliCommand('describe Kitchen')).toEqual({
       kind: 'describe',
       room: { text: 'Kitchen', exact: false },
+    });
+  });
+
+  it('parses selected-room relative connect commands', () => {
+    expect(parseCliCommand('north is Kitchen')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceDirection: 'north',
+      targetRoom: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('below is Cellar')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceDirection: 'down',
+      targetRoom: { text: 'Cellar', exact: false },
+    });
+  });
+
+  it('preserves north is dark as a room-lighting phrase', () => {
+    expect(parseCliCommand('north is dark')).toEqual({
+      kind: 'set-room-adjective',
+      room: { text: 'north', exact: false },
+      adjective: { kind: 'lighting', text: 'dark', isDark: true },
     });
   });
 });

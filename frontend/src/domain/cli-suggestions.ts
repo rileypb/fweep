@@ -534,6 +534,9 @@ function getSuggestionsForCommandContext(
 
   if (
     fragment.tokenIndex === 1
+    && canonicalLastDirection === null
+    && tokens[0] !== 'above'
+    && tokens[0] !== 'below'
     && !isPseudoRoomLead(tokens)
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
@@ -572,7 +575,13 @@ function getSuggestionsForCommandContext(
 
   if (
     tokens[0] !== 'the'
-    && !isPseudoRoomLead(tokens)
+    && (
+      !isPseudoRoomLead(tokens)
+      || (
+        (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
+        && (fragment.tokenIndex === 1 || tokens[1] === 'is')
+      )
+    )
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
     && tokens[0] !== 's'

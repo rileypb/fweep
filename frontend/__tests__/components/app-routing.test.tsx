@@ -1327,6 +1327,35 @@ describe('URL routing', () => {
     expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['dark', 'lit']);
   });
 
+  it('suggests is after a direction-led selected-room shorthand and space', async () => {
+    const user = userEvent.setup();
+    await renderAppWithSavedMap(createEmptyMap('CLI Direction Is Suggestions Map'));
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'north ');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(['is']);
+  });
+
+  it('suggests a room placeholder and matching rooms after a direction-led is phrase', async () => {
+    const user = userEvent.setup();
+    let map = createEmptyMap('CLI Direction Is Room Suggestions Map');
+    map = addRoom(map, { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+    map = addRoom(map, { ...createRoom('Kitchen Annex'), position: { x: 120, y: 0 } });
+    await renderAppWithSavedMap(map);
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'north is Ki');
+
+    expect(screen.getAllByRole('option').map((option) => option.textContent ?? '')).toEqual(
+      expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']),
+    );
+  });
+
   it('closes suggestions after a completed room-led adjective phrase', async () => {
     const user = userEvent.setup();
     const map = addRoom(createEmptyMap('CLI Completed Room Lighting Suggestions Map'), {
@@ -3546,7 +3575,8 @@ describe('URL routing', () => {
     });
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.west).toBeUndefined();
-    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(state.selectedRoomIds).toEqual(['hallway']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('connect kitchen east one-way to hallway', 'connected');
   });
 
@@ -3598,6 +3628,8 @@ describe('URL routing', () => {
     expect(connections[0].isBidirectional).toBe(true);
     expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.west).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual(['hallway']);
+    expect(state.selectedConnectionIds).toEqual([]);
   });
 
   it('disconnects a single connection through the CLI', async () => {
@@ -4036,7 +4068,8 @@ describe('URL routing', () => {
       isBidirectional: false,
     });
     expect(state.doc?.rooms.bedroom?.directions.west).toBe(connections[0].id);
-    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(state.selectedRoomIds).toEqual(['bedroom']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('west of bedroom is unknown', 'marked exit as unknown');
   });
 
@@ -4077,6 +4110,8 @@ describe('URL routing', () => {
     expect(pseudoRooms[0]).toMatchObject({ kind: 'unknown' });
     expect(connections).toHaveLength(1);
     expect(state.doc?.rooms.bedroom?.directions.up).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual(['bedroom']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('Above Bedroom is unknown', 'marked exit as unknown');
   });
 
@@ -4117,6 +4152,8 @@ describe('URL routing', () => {
     });
     expect(Object.keys(state.doc?.pseudoRooms ?? {})).toEqual(['unknown-exit']);
     expect(Object.keys(state.doc?.connections ?? {})).toEqual(['placeholder-conn']);
+    expect(state.selectedRoomIds).toEqual(['bedroom']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('west of bedroom goes on forever', 'marked exit as going on forever');
   });
 
@@ -4156,6 +4193,8 @@ describe('URL routing', () => {
       isBidirectional: false,
     });
     expect(state.doc?.rooms.bedroom?.directions.down).toBe('placeholder-conn');
+    expect(state.selectedRoomIds).toEqual(['bedroom']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('Below Bedroom goes on forever', 'marked exit as going on forever');
   });
 
@@ -4192,6 +4231,8 @@ describe('URL routing', () => {
     expect(pseudoRooms[0]).toMatchObject({ kind: 'death' });
     expect(connections).toHaveLength(1);
     expect(state.doc?.rooms.castle?.directions.west).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual(['castle']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('west of castle lies death', 'marked exit as death');
   });
 
@@ -4228,6 +4269,8 @@ describe('URL routing', () => {
     expect(pseudoRooms[0]).toMatchObject({ kind: 'nowhere' });
     expect(connections).toHaveLength(1);
     expect(state.doc?.rooms.castle?.directions.west).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual(['castle']);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('west of castle leads nowhere', 'marked exit as leading nowhere');
   });
 
@@ -4273,8 +4316,8 @@ describe('URL routing', () => {
       target: { kind: 'room', id: 'hallway' },
       isBidirectional: true,
     });
-    expect(state.selectedRoomIds).toEqual(expect.arrayContaining([createdRoom?.id, 'hallway']));
-    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id]);
+    expect(state.selectedConnectionIds).toEqual([]);
     expectGameOutputToContain('create and connect Kitchen east to Hallway', 'created and connected');
 
     await user.clear(input);
@@ -4413,8 +4456,122 @@ describe('URL routing', () => {
     expect(connections).toHaveLength(1);
     expect(state.doc?.rooms[createdRoom!.id]?.directions.west).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.east).toBe(connections[0].id);
-    expect(state.selectedRoomIds).toEqual([createdRoom!.id, 'hallway']);
-    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id]);
+    expect(state.selectedConnectionIds).toEqual([]);
+  });
+
+  it('connects the selected room to an existing room with the direction-is shorthand', async () => {
+    let doc = createEmptyMap('CLI Direction Is Existing Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 80, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli direction is existing map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('hallway');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'west is Kitchen{enter}');
+
+    const state = useEditorStore.getState();
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: 'hallway',
+      target: { kind: 'room', id: 'kitchen' },
+      isBidirectional: true,
+    });
+    expect(state.doc?.rooms.hallway?.directions.west).toBe(connections[0].id);
+    expect(state.doc?.rooms.kitchen?.directions.east).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual(['kitchen']);
+    expect(state.selectedConnectionIds).toEqual([]);
+    expectGameOutputToContain('west is Kitchen', 'connected');
+  });
+
+  it('creates and connects a room from the selected room with the direction-is shorthand', async () => {
+    let doc = createEmptyMap('CLI Direction Is Create Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli direction is create map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('hallway');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'west is Kitchen{enter}');
+
+    const state = useEditorStore.getState();
+    const rooms = Object.values(state.doc?.rooms ?? {});
+    const createdRoom = rooms.find((room) => room.name === 'Kitchen');
+    const connections = Object.values(state.doc?.connections ?? {});
+
+    expect(createdRoom).toBeDefined();
+    expect(connections).toHaveLength(1);
+    expect(connections[0]).toMatchObject({
+      sourceRoomId: createdRoom?.id,
+      target: { kind: 'room', id: 'hallway' },
+      isBidirectional: true,
+    });
+    expect(state.doc?.rooms.hallway?.directions.west).toBe(connections[0].id);
+    expect(state.doc?.rooms[createdRoom!.id]?.directions.east).toBe(connections[0].id);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id]);
+    expect(state.selectedConnectionIds).toEqual([]);
+    expectGameOutputToContain('west is Kitchen', 'created and connected');
   });
 
   it('converts a pseudo-room placeholder into a normal room for relative create commands', async () => {
@@ -4455,8 +4612,8 @@ describe('URL routing', () => {
     });
     expect(state.doc?.rooms.bedroom?.directions.west).toBe('placeholder-conn');
     expect(state.doc?.rooms['unknown-exit']?.directions.east).toBe('placeholder-conn');
-    expect(state.selectedRoomIds).toEqual(['unknown-exit', 'bedroom']);
-    expect(state.selectedConnectionIds).toEqual(['placeholder-conn']);
+    expect(state.selectedRoomIds).toEqual(['unknown-exit']);
+    expect(state.selectedConnectionIds).toEqual([]);
   });
 
   it('supports relative above/below create syntax', async () => {
@@ -4502,8 +4659,8 @@ describe('URL routing', () => {
     });
     expect(state.doc?.rooms[createdRoom!.id]?.directions.down).toBe(connections[0].id);
     expect(state.doc?.rooms.hallway?.directions.up).toBe(connections[0].id);
-    expect(state.selectedRoomIds).toEqual([createdRoom!.id, 'hallway']);
-    expect(state.selectedConnectionIds).toEqual([connections[0].id]);
+    expect(state.selectedRoomIds).toEqual([createdRoom!.id]);
+    expect(state.selectedConnectionIds).toEqual([]);
   });
 
   it('keeps pre-existing rooms fixed during create-and-connect prettification', async () => {

@@ -321,6 +321,24 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['dark', 'lit']);
   });
 
+  it('suggests only is after a direction-led selected-room shorthand and space', () => {
+    const result = getCliSuggestions('north ', 'north '.length, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is']);
+  });
+
+  it('suggests a room placeholder and matching rooms after a direction-led is phrase', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 120, y: 0 } });
+
+    const result = getCliSuggestions('north is Ki', 'north is Ki'.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']),
+    );
+  });
+
   it('closes suggestions after a completed room adjective with a trailing space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 
