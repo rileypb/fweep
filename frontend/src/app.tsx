@@ -252,6 +252,11 @@ export function App(): React.JSX.Element {
       parchmentPanelWidth,
       parchmentPanelHeight,
     });
+  const selectionFocusRightInset = typeof window === 'undefined'
+    ? 0
+    : hasOpenMap
+      ? parchmentPanelWidth + 16 + 12
+      : 0;
   const mapNameChipRightInset = typeof window === 'undefined'
     ? 0
     : getVisibleMapRightInset({
@@ -848,6 +853,7 @@ export function App(): React.JSX.Element {
           }}
           visibleMapLeftInset={visibleMapLeftInset}
           visibleMapRightInset={visibleMapRightInset}
+          selectionFocusRightInset={selectionFocusRightInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}

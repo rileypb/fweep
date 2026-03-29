@@ -30,6 +30,7 @@ interface UseMapCanvasRoomFocusParams {
   readonly mapVisualStyle: MapVisualStyle;
   readonly visibleMapLeftInset: number;
   readonly visibleMapRightInset: number;
+  readonly selectionFocusRightInset: number;
   readonly startAutoPanAnimation: () => void;
   readonly setStickyNoteEditorId: React.Dispatch<React.SetStateAction<string | null>>;
   readonly setConnectionEditorId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -59,6 +60,7 @@ export function useMapCanvasRoomFocus({
   mapVisualStyle,
   visibleMapLeftInset,
   visibleMapRightInset,
+  selectionFocusRightInset,
   startAutoPanAnimation,
   setStickyNoteEditorId,
   setConnectionEditorId,
@@ -70,6 +72,11 @@ export function useMapCanvasRoomFocus({
   onRequestedRoomRevealHandled,
   onRequestedViewportFocusHandled,
 }: UseMapCanvasRoomFocusParams): RoomFocusApi {
+  const getSelectionViewportCenterX = useCallback((canvasWidth: number) => {
+    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - selectionFocusRightInset, 0);
+    return visibleMapLeftInset + (visibleWidth / 2);
+  }, [selectionFocusRightInset, visibleMapLeftInset]);
+
   const panToRoomEditorPositionForRoom = useCallback((room: Room) => {
     const canvasEl = canvasRef.current;
     if (!canvasEl) {
@@ -131,8 +138,7 @@ export function useMapCanvasRoomFocus({
     const canvasHeight = currentCanvasRect?.height ?? canvasRef.current?.clientHeight ?? 0;
     const roomCenterX = roomGeometry.centerX - (currentCanvasRect?.left ?? 0);
     const roomCenterY = (roomGeometry.top - (currentCanvasRect?.top ?? 0)) + (roomGeometry.height / 2);
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - visibleMapRightInset, 0);
-    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
+    const visibleCenterX = getSelectionViewportCenterX(canvasWidth);
 
     if (canvasWidth === 0 && canvasHeight === 0) {
       return;
@@ -146,7 +152,7 @@ export function useMapCanvasRoomFocus({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
+  }, [canvasRect, canvasRef, getSelectionViewportCenterX, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, zoomRef]);
 
   const centerRoomsOnScreen = useCallback((targetRooms: readonly Room[]) => {
     if (targetRooms.length === 0) {
@@ -166,14 +172,13 @@ export function useMapCanvasRoomFocus({
     }
 
     const screenBounds = targetRooms.map((room) => getRoomScreenGeometry(room, panOffsetRef.current, currentCanvasRect, zoomRef.current, mapVisualStyle));
-    const groupLeft = Math.min(...screenBounds.map((room) => room.left - (currentCanvasRect?.left ?? 0)));
-    const groupRight = Math.max(...screenBounds.map((room) => (room.left - (currentCanvasRect?.left ?? 0)) + room.width));
-    const groupTop = Math.min(...screenBounds.map((room) => room.top - (currentCanvasRect?.top ?? 0)));
-    const groupBottom = Math.max(...screenBounds.map((room) => (room.top - (currentCanvasRect?.top ?? 0)) + room.height));
-    const visibleWidth = Math.max(canvasWidth - visibleMapLeftInset - visibleMapRightInset, 0);
-    const visibleCenterX = visibleMapLeftInset + (visibleWidth / 2);
-    const groupCenterX = (groupLeft + groupRight) / 2;
-    const groupCenterY = (groupTop + groupBottom) / 2;
+    const visibleCenterX = getSelectionViewportCenterX(canvasWidth);
+    const roomCenters = screenBounds.map((room) => ({
+      x: (room.left - (currentCanvasRect?.left ?? 0)) + (room.width / 2),
+      y: (room.top - (currentCanvasRect?.top ?? 0)) + (room.height / 2),
+    }));
+    const groupCenterX = roomCenters.reduce((sum, room) => sum + room.x, 0) / roomCenters.length;
+    const groupCenterY = roomCenters.reduce((sum, room) => sum + room.y, 0) / roomCenters.length;
 
     startAutoPanAnimation();
     const nextPanOffset = {
@@ -183,7 +188,7 @@ export function useMapCanvasRoomFocus({
     panOffsetRef.current = nextPanOffset;
     setPanOffset(nextPanOffset);
     setMapPanOffset(nextPanOffset);
-  }, [canvasRect, canvasRef, centerRoomOnScreen, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
+  }, [canvasRect, canvasRef, centerRoomOnScreen, getSelectionViewportCenterX, mapVisualStyle, panOffsetRef, setMapPanOffset, setPanOffset, startAutoPanAnimation, zoomRef]);
 
   useLayoutEffect(() => {
     if (requestedRoomEditorRequest === null) {

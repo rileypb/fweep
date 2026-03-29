@@ -2911,6 +2911,81 @@ describe('URL routing', () => {
     }
   });
 
+  it('centers a shown room between the CLI output and the game panel even when the panel sits below the minimap band', async () => {
+    jest.useFakeTimers();
+    window.localStorage.setItem('fweep-parchment-panel-width', '420');
+    window.localStorage.setItem('fweep-parchment-panel-height', '240');
+
+    let doc = createEmptyMap('CLI Show Low Panel Map');
+    doc = {
+      ...doc,
+      rooms: {
+        'room-1': {
+          id: 'room-1',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 1200, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    try {
+      renderApp();
+      await screen.findByText(/cli show low panel map/i);
+
+      const input = getCliInput();
+      const canvas = screen.getByTestId('map-canvas');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 1200,
+        bottom: 200,
+        width: 1200,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'show kitchen' } });
+        fireEvent.submit(input.closest('form') as HTMLFormElement);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      const rootFontSizePx = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+      const visibleMapLeftInset = (rootFontSizePx + (window.innerWidth * 0.02))
+        + Math.min(
+          Math.min(window.innerWidth * 0.375, rootFontSizePx * 27),
+          Math.max(window.innerWidth - (rootFontSizePx + (window.innerWidth * 0.02)) - rootFontSizePx, 0),
+        );
+      const gamePanelLeftInset = 420 + 16 + 12;
+      const visibleCenterX = visibleMapLeftInset + (Math.max(1200 - visibleMapLeftInset - gamePanelLeftInset, 0) / 2);
+
+      expect(useEditorStore.getState().selectedRoomIds).toEqual(['room-1']);
+      const roomDimensions = getRoomNodeDimensions(doc.rooms['room-1'], 'square-classic');
+      expect(useEditorStore.getState().mapPanOffset).toEqual({
+        x: visibleCenterX - (1200 + (roomDimensions.width / 2)),
+        y: (200 / 2) - (160 + (roomDimensions.height / 2)),
+      });
+    } finally {
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      jest.useRealTimers();
+    }
+  });
+
   it('describes the selected room exits with items and darkness for the object-less describe CLI command', async () => {
     let doc = createEmptyMap('CLI Describe Kitchen Map');
     doc = addRoom(doc, {

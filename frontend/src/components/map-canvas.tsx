@@ -289,6 +289,7 @@ export interface MapCanvasProps {
   onBack?: () => void;
   visibleMapLeftInset?: number;
   visibleMapRightInset?: number;
+  selectionFocusRightInset?: number;
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
@@ -372,6 +373,7 @@ export function MapCanvas({
   showGrid: initialShowGrid = true,
   visibleMapLeftInset = 0,
   visibleMapRightInset = 0,
+  selectionFocusRightInset = 0,
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
   requestedViewportFocusRequest = null,
@@ -567,6 +569,7 @@ export function MapCanvas({
     mapVisualStyle,
     visibleMapLeftInset,
     visibleMapRightInset,
+    selectionFocusRightInset,
     startAutoPanAnimation,
     setStickyNoteEditorId,
     setConnectionEditorId,
