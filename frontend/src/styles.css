@@ -110,6 +110,13 @@ body.app-shell--resizing-side-panel-height {
   pointer-events: none;
 }
 
+.app-parchment-panel--cli-slot {
+  left: var(--app-cli-stack-left);
+  right: auto;
+  top: auto;
+  bottom: 1rem;
+}
+
 .app-parchment-panel__resize-handle {
   pointer-events: auto;
   position: absolute;
@@ -121,6 +128,11 @@ body.app-shell--resizing-side-panel-height {
   outline: none;
   touch-action: none;
   user-select: none;
+}
+
+.app-parchment-panel__resize-handle--right {
+  left: auto;
+  right: -1rem;
 }
 
 .app-parchment-panel__resize-handle--height {
@@ -143,6 +155,11 @@ body.app-shell--resizing-side-panel-height {
   transform: translateY(-50%);
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.app-parchment-panel__resize-handle--right::before {
+  left: auto;
+  right: 0.4rem;
 }
 
 .app-parchment-panel__resize-handle--height::before {

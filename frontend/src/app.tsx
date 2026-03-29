@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppCliPanel } from './components/app-cli-panel';
 import { HelpDialog } from './components/help-dialog';
 import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
@@ -22,10 +21,11 @@ import { useParchmentFocusToggle } from './hooks/use-parchment-focus-toggle';
 import { useParchmentPanel } from './hooks/use-parchment-panel';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
-import { doesRegionOverlapProtectedBand, getVisibleMapRightInset } from './components/app-layout';
+import { getVisibleMapRightInset } from './components/app-layout';
 import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
+  clampParchmentPanelHeightWithinInsets,
   clampParchmentPanelWidth,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
@@ -171,6 +171,7 @@ export function getNextMapVisualStyle(current: 'default' | 'square-classic'): 'd
 }
 
 export function App(): React.JSX.Element {
+  const isMapCliHidden = true;
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
@@ -209,6 +210,9 @@ export function App(): React.JSX.Element {
     ? 16
     : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
   const hasOpenMap = activeMap !== null;
+  const isGamePanelDockedIntoCliSlot = hasOpenMap && isMapCliHidden;
+  const dockedGamePanelTopInsetPx = APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX;
+  const dockedGamePanelBottomInsetPx = 16;
   const {
     parchmentPanelWidth,
     parchmentPanelHeight,
@@ -238,6 +242,8 @@ export function App(): React.JSX.Element {
     setAssociatedGameMetadata,
     parchmentDeviceInputRef,
     parchmentIframeRef,
+    heightTopInsetPx: isGamePanelDockedIntoCliSlot ? dockedGamePanelTopInsetPx : 16,
+    heightBottomInsetPx: isGamePanelDockedIntoCliSlot ? dockedGamePanelBottomInsetPx : 16,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
   const routeCrossInputCommandToParchment = useCallback((command: string): boolean => {
@@ -266,9 +272,15 @@ export function App(): React.JSX.Element {
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
     : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
-      + (cliOutputCollapsedEnabled ? 0 : getAppCliStackWidth(window.innerWidth, rootFontSizePx));
+      + (isGamePanelDockedIntoCliSlot
+        ? parchmentPanelWidth
+        : !cliOutputCollapsedEnabled
+          ? getAppCliStackWidth(window.innerWidth, rootFontSizePx)
+        : 0);
   const visibleMapRightInset = typeof window === 'undefined'
     ? 0
+    : isGamePanelDockedIntoCliSlot
+      ? 0
     : getVisibleMapRightInset({
       hasOpenMap,
       viewportHeight: window.innerHeight,
@@ -277,11 +289,15 @@ export function App(): React.JSX.Element {
     });
   const selectionFocusRightInset = typeof window === 'undefined'
     ? 0
+    : isGamePanelDockedIntoCliSlot
+      ? 0
     : hasOpenMap
       ? parchmentPanelWidth + 16 + 12
       : 0;
   const mapNameChipRightInset = typeof window === 'undefined'
     ? 0
+    : isGamePanelDockedIntoCliSlot
+      ? 0
     : getVisibleMapRightInset({
       hasOpenMap,
       viewportHeight: window.innerHeight,
@@ -291,19 +307,14 @@ export function App(): React.JSX.Element {
     });
   const appTitleRightInset = typeof window === 'undefined'
     ? 16
+    : isGamePanelDockedIntoCliSlot
+      ? 16
     : hasOpenMap
       ? parchmentPanelWidth + 16 + 12
       : 16;
-  const mapNameChipOverlapsOutputBand = doesRegionOverlapProtectedBand(
-    cliOutputTop,
-    APP_TOP_BAND_TOP_PX,
-    APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
-  );
   const mapNameChipLeft = typeof window === 'undefined'
     ? 16
-    : mapNameChipOverlapsOutputBand
-      ? visibleMapLeftInset + rootFontSizePx
-      : getAppCliLeftOffset(window.innerWidth, rootFontSizePx);
+    : (getAppCliLeftOffset(window.innerWidth, rootFontSizePx) / 2) + (rootFontSizePx * 1.75);
   const mapNameChipMaxWidth = typeof window === 'undefined'
     ? undefined
     : Math.max(window.innerWidth - mapNameChipLeft - mapNameChipRightInset - 16, 0);
@@ -690,38 +701,6 @@ export function App(): React.JSX.Element {
       {hasOpenMap && (
         <>
           <div className="app-left-rail-backdrop" aria-hidden="true" />
-          <AppCliPanel
-            gameOutputRef={gameOutputRef}
-            gameOutputLines={gameOutputLines}
-            onGameOutputClick={handleGameOutputClick}
-            cliInputRef={cliInputRef}
-            cliImportInputRef={cliImportInputRef}
-            cliCommand={cliCommand}
-            hasUsedCliInput={hasUsedCliInput}
-            cliHistory={cliHistory}
-            cliHistoryIndex={cliHistoryIndex}
-            cliHistoryDraft={cliHistoryDraft}
-            cliSuggestions={cliSuggestions}
-            highlightedCliSuggestionIndex={highlightedCliSuggestionIndex}
-            isSuggestionMenuOpen={isCliSuggestionMenuOpen}
-            isOutputCollapsed={cliOutputCollapsedEnabled}
-            isImportingScript={isImportingScript}
-            onSubmit={handleCliSubmit}
-            onCliCommandChange={handleCliCommandChange}
-            onCliInputFocus={handleCliInputFocus}
-            onCliInputBlur={handleCliInputBlur}
-            onCliCaretChange={handleCliCaretChange}
-            onToggleSuggestions={toggleCliSuggestions}
-            consumeCliSlashFocusSuppression={consumeCliSlashFocusSuppression}
-            onCliHistoryNavigate={handleCliHistoryNavigate}
-            onCliSuggestionHighlightMove={moveCliSuggestionHighlight}
-            onCliSuggestionHighlightSet={setCliSuggestionHighlight}
-            onAcceptHighlightedSuggestion={applyHighlightedCliSuggestion}
-            onCloseSuggestions={closeCliSuggestions}
-            onToggleOutputCollapsed={toggleCliOutputCollapsed}
-            onImportScriptChange={handleImportScriptChange}
-            onOutputTopChange={setCliOutputTop}
-          />
           <div
             className="app-control-chip app-map-name-chip app-control-chip--plain"
             aria-label={`Map name: ${activeMap.metadata.name}`}
@@ -847,7 +826,15 @@ export function App(): React.JSX.Element {
             minWidth={PARCHMENT_PANEL_MIN_WIDTH_PX}
             maxWidth={clampParchmentPanelWidth(window.innerWidth, window.innerWidth)}
             minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
-            maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
+            maxHeight={isGamePanelDockedIntoCliSlot
+              ? clampParchmentPanelHeightWithinInsets(
+                window.innerHeight,
+                window.innerHeight,
+                dockedGamePanelTopInsetPx,
+                dockedGamePanelBottomInsetPx,
+              )
+              : clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
+            layoutMode={isGamePanelDockedIntoCliSlot ? 'cli-slot' : 'floating-right'}
             isGameViewVisible={isParchmentGameViewVisible}
             parchmentSrc={parchmentSrc}
             ifdbSearchQuery={ifdbSearchQuery}
@@ -881,9 +868,15 @@ export function App(): React.JSX.Element {
             onWidthResizePointerDown={(event) => {
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
-              beginParchmentPanelResize(event.pointerId, event.clientX);
+              beginParchmentPanelResize(
+                event.pointerId,
+                event.clientX,
+                isGamePanelDockedIntoCliSlot ? 'left' : 'right',
+              );
             }}
-            onWidthResizeKeyDown={handleParchmentPanelWidthResizeKeyDown}
+            onWidthResizeKeyDown={(event) => {
+              handleParchmentPanelWidthResizeKeyDown(event, isGamePanelDockedIntoCliSlot ? 'left' : 'right');
+            }}
           />
         </>
       )}

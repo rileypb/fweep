@@ -1798,24 +1798,24 @@ describe('URL routing', () => {
     const widthSeparator = screen.getByRole('separator', { name: /resize game panel width/i });
     const heightSeparator = screen.getByRole('separator', { name: /resize game panel height/i });
     expect(panel).not.toBeNull();
-    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+    expect(panel).toHaveStyle({ width: '420px', height: '680px' });
     expect(widthSeparator).toHaveAttribute('aria-describedby', 'parchment-panel-width-resize-help');
     expect(widthSeparator).toHaveAttribute('aria-valuemin', '300');
     expect(widthSeparator).toHaveAttribute('aria-valuenow', '420');
     expect(heightSeparator).toHaveAttribute('aria-describedby', 'parchment-panel-height-resize-help');
     expect(heightSeparator).toHaveAttribute('aria-valuemin', '240');
-    expect(heightSeparator).toHaveAttribute('aria-valuenow', '736');
+    expect(heightSeparator).toHaveAttribute('aria-valuenow', '680');
     expect(screen.getByText('Use Left and Right Arrow keys to resize the game panel width.')).toHaveAttribute('id', 'parchment-panel-width-resize-help');
     expect(screen.getByText('Use Up and Down Arrow keys to resize the game panel height.')).toHaveAttribute('id', 'parchment-panel-height-resize-help');
 
-    fireEvent.keyDown(widthSeparator, { key: 'ArrowLeft' });
+    fireEvent.keyDown(widthSeparator, { key: 'ArrowRight' });
     fireEvent.keyDown(heightSeparator, { key: 'ArrowDown' });
 
-    expect(panel).toHaveStyle({ width: '452px', height: '704px' });
+    expect(panel).toHaveStyle({ width: '452px', height: '648px' });
     expect(widthSeparator).toHaveAttribute('aria-valuenow', '452');
-    expect(heightSeparator).toHaveAttribute('aria-valuenow', '704');
+    expect(heightSeparator).toHaveAttribute('aria-valuenow', '648');
     expect(window.localStorage.getItem('fweep-parchment-panel-width')).toBe('452');
-    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBe('704');
+    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBe('648');
   });
 
   it('ignores unrelated keys on the parchment panel resize handles', async () => {
@@ -1823,14 +1823,14 @@ describe('URL routing', () => {
 
     const panel = document.querySelector('.app-parchment-panel') as HTMLElement | null;
     expect(panel).not.toBeNull();
-    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+    expect(panel).toHaveStyle({ width: '420px', height: '680px' });
 
     fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel width/i }), { key: 'Enter' });
     fireEvent.keyDown(screen.getByRole('separator', { name: /resize game panel height/i }), { key: 'Enter' });
 
-    expect(panel).toHaveStyle({ width: '420px', height: '736px' });
+    expect(panel).toHaveStyle({ width: '420px', height: '680px' });
     expect(window.localStorage.getItem('fweep-parchment-panel-width')).toBeNull();
-    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBeNull();
+    expect(window.localStorage.getItem('fweep-parchment-panel-height')).toBe('680');
   });
 
   it('opens help, closes it with Escape, and returns to the map chooser from the toolbar', async () => {
