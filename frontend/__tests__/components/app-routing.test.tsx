@@ -1622,6 +1622,20 @@ describe('URL routing', () => {
     expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
+  it('closes suggestions after submitting an invalid command when slash-mode was open', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Syntax Error Suggestion Close Map');
+
+    const input = getCliInput();
+
+    await openCliSuggestions(user, input);
+    await user.type(input, 'create{enter}');
+
+    expectGameOutputToContain('create', "I didn't understand you.");
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
+  });
+
   it('navigates CLI command history with the up and down arrows', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI History Map');
@@ -3448,6 +3462,26 @@ describe('URL routing', () => {
       'annotate with hello',
       'You must select a room to annotate. Use the \'show\' command to select a room.',
     );
+  });
+
+  it('closes suggestions after a command-level CLI error when slash-mode was open', async () => {
+    const doc = createEmptyMap('CLI Annotate Selected Suggestion Close Map');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli annotate selected suggestion close map/i);
+
+    const input = getCliInput();
+    await openCliSuggestions(user, input);
+    await user.type(input, 'annotate with hello{enter}');
+
+    expectGameOutputToContain(
+      'annotate with hello',
+      'You must select a room to annotate. Use the \'show\' command to select a room.',
+    );
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('listbox', { name: /cli suggestions/i })).not.toBeInTheDocument();
   });
 
   it('keeps pre-existing rooms fixed during notate prettification', async () => {

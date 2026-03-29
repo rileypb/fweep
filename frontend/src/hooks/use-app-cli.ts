@@ -1348,10 +1348,6 @@ export function useAppCli({
 
   const handleCliSubmit = () => {
     const submittedInput = cliCommand;
-    const shouldKeepSuggestionsEnabled = shouldKeepSuggestionsEnabledAfterSubmit(
-      areCliSuggestionsEnabled,
-      submittedInput,
-    );
     setHasUsedCliInput(true);
     if (submittedInput.trim().length > 0) {
       setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
@@ -1361,9 +1357,13 @@ export function useAppCli({
     setCliCommand('');
     setCliCaretIndex(0);
     setHighlightedCliSuggestionIndex(0);
-    setAreCliSuggestionsEnabled(shouldKeepSuggestionsEnabled);
 
-    const { shouldSelectCliInput } = runCliCommand(submittedInput);
+    const { ok, shouldSelectCliInput } = runCliCommand(submittedInput);
+    const shouldKeepSuggestionsEnabled = ok && shouldKeepSuggestionsEnabledAfterSubmit(
+      areCliSuggestionsEnabled,
+      submittedInput,
+    );
+    setAreCliSuggestionsEnabled(shouldKeepSuggestionsEnabled);
     if (shouldSelectCliInput) {
       cliInputRef.current?.select();
     }
