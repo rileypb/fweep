@@ -54,6 +54,9 @@ import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
 import { restoreBackgroundChunks, type RasterChunkHistoryEntry } from '../storage/map-store';
 import { commitDocumentChange, pushHistoryEntry } from './editor-store-history';
 import {
+  createSelectionSnapshot,
+  type SelectionSnapshot,
+  filterSelectionSnapshotForDoc,
   filterConnectionSelectionForDoc,
   filterPseudoRoomSelectionForDoc,
   filterSelectionForDoc,
@@ -85,6 +88,61 @@ export function snapPosition(pos: Position): Position {
 
 function maybeSnapPosition(pos: Position, snapToGridEnabled: boolean): Position {
   return snapToGridEnabled ? snapPosition(pos) : pos;
+}
+
+function getSelectionSnapshotFromState(state: Pick<
+  EditorState,
+  'selectedRoomIds'
+  | 'selectedPseudoRoomIds'
+  | 'selectedStickyNoteIds'
+  | 'selectedConnectionIds'
+  | 'selectedStickyNoteLinkIds'
+>): SelectionSnapshot {
+  return createSelectionSnapshot({
+    roomIds: state.selectedRoomIds,
+    pseudoRoomIds: state.selectedPseudoRoomIds,
+    stickyNoteIds: state.selectedStickyNoteIds,
+    connectionIds: state.selectedConnectionIds,
+    stickyNoteLinkIds: state.selectedStickyNoteLinkIds,
+  });
+}
+
+function getSelectionStateForHistoryEntry(
+  doc: MapDocument | null,
+  snapshot: SelectionSnapshot | undefined,
+  fallbackState: Pick<
+    EditorState,
+    'selectedRoomIds'
+    | 'selectedPseudoRoomIds'
+    | 'selectedStickyNoteIds'
+    | 'selectedConnectionIds'
+    | 'selectedStickyNoteLinkIds'
+  >,
+): Pick<
+  EditorState,
+  'selectedRoomIds'
+  | 'selectedPseudoRoomIds'
+  | 'selectedStickyNoteIds'
+  | 'selectedConnectionIds'
+  | 'selectedStickyNoteLinkIds'
+> {
+  const filteredSnapshot = snapshot === undefined
+    ? getSelectionSnapshotFromState({
+      selectedRoomIds: filterSelectionForDoc(doc, fallbackState.selectedRoomIds),
+      selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(doc, fallbackState.selectedPseudoRoomIds),
+      selectedStickyNoteIds: filterStickyNoteSelectionForDoc(doc, fallbackState.selectedStickyNoteIds),
+      selectedConnectionIds: filterConnectionSelectionForDoc(doc, fallbackState.selectedConnectionIds),
+      selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(doc, fallbackState.selectedStickyNoteLinkIds),
+    })
+    : filterSelectionSnapshotForDoc(doc, snapshot);
+
+  return {
+    selectedRoomIds: filteredSnapshot.roomIds,
+    selectedPseudoRoomIds: filteredSnapshot.pseudoRoomIds,
+    selectedStickyNoteIds: filteredSnapshot.stickyNoteIds,
+    selectedConnectionIds: filteredSnapshot.connectionIds,
+    selectedStickyNoteLinkIds: filteredSnapshot.stickyNoteLinkIds,
+  };
 }
 
 function clampBackgroundReferenceImageZoom(zoom: number): number {
@@ -187,6 +245,8 @@ export interface SelectionDrag {
 
 export interface HistoryOptions {
   readonly historyMergeKey?: string;
+  readonly selectionBefore?: SelectionSnapshot;
+  readonly selectionAfter?: SelectionSnapshot;
 }
 
 export type DrawingTool = 'pencil' | 'brush' | 'eraser' | 'bucket' | 'line' | 'rectangle' | 'ellipse';
@@ -221,6 +281,8 @@ export interface DocumentHistoryEntry {
   readonly kind: 'document';
   readonly before: MapDocument;
   readonly after: MapDocument;
+  readonly selectionBefore?: SelectionSnapshot;
+  readonly selectionAfter?: SelectionSnapshot;
 }
 
 export type EditorHistoryEntry = DocumentHistoryEntry | BackgroundStrokeHistoryEntry;
@@ -359,6 +421,7 @@ export interface EditorState {
     sourceRoomId: string,
     sourceDirection: string,
     kind: PseudoRoomKind,
+    options?: HistoryOptions,
   ) => { pseudoRoomId: string; connectionId: string };
 
   /** Convert a pseudo-room into a standard room in place. */
@@ -378,22 +441,23 @@ export interface EditorState {
   addStickyNoteAtPosition: (text: string, position: Position) => string;
 
   /** Create a sticky note linked to a room in a single history step. Returns the note ID. */
-  addStickyNoteForRoom: (roomId: string, text: string) => string;
+  addStickyNoteForRoom: (roomId: string, text: string, options?: HistoryOptions) => string;
 
   /** Create one or more items in a room in a single history step. */
-  addItemsToRoom: (roomId: string, itemNames: readonly string[]) => readonly string[];
+  addItemsToRoom: (roomId: string, itemNames: readonly string[], options?: HistoryOptions) => readonly string[];
 
   /** Remove named items from a room in a single history step. */
   removeItemsFromRoom: (
     roomId: string,
     itemNames: readonly string[],
+    options?: HistoryOptions,
   ) => {
     readonly removedItemIds: readonly string[];
     readonly missingItemNames: readonly string[];
   };
 
   /** Remove every item from a room in a single history step. */
-  removeAllItemsFromRoom: (roomId: string) => readonly string[];
+  removeAllItemsFromRoom: (roomId: string, options?: HistoryOptions) => readonly string[];
 
   /** Create or replace a connection between two rooms and select it. */
   connectRooms: (
@@ -403,11 +467,11 @@ export interface EditorState {
     options: {
       oneWay: boolean;
       targetDirection: string | null;
-    },
+    } & HistoryOptions,
   ) => string;
 
   /** Delete a single connection. */
-  deleteConnection: (connectionId: string) => void;
+  deleteConnection: (connectionId: string, options?: HistoryOptions) => void;
 
   /** Create a room and immediately connect it in a single history entry. */
   createRoomAndConnect: (
@@ -484,7 +548,11 @@ export interface EditorState {
   setConnectionAnnotation: (connectionId: string, annotation: ConnectionAnnotation | null) => void;
 
   /** Update several existing connections' annotations in one history step. */
-  setConnectionAnnotations: (connectionIds: readonly string[], annotation: ConnectionAnnotation | null) => void;
+  setConnectionAnnotations: (
+    connectionIds: readonly string[],
+    annotation: ConnectionAnnotation | null,
+    options?: HistoryOptions,
+  ) => void;
 
   /** Update an existing connection's endpoint labels. */
   setConnectionLabels: (
@@ -496,7 +564,7 @@ export interface EditorState {
   ) => void;
 
   /** Delete an existing room and cascade-remove its connections and items. */
-  removeRoom: (roomId: string) => void;
+  removeRoom: (roomId: string, options?: HistoryOptions) => void;
 
   /** Delete all currently selected rooms. */
   removeSelectedRooms: () => void;
@@ -918,6 +986,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const nextPastEntries = pastEntries.slice(0, -1);
     if (entry.kind === 'document') {
       const nextDoc = patchDocumentView(entry.before, get());
+      const restoredSelection = getSelectionStateForHistoryEntry(nextDoc, entry.selectionBefore, {
+        selectedRoomIds,
+        selectedPseudoRoomIds,
+        selectedStickyNoteIds,
+        selectedConnectionIds,
+        selectedStickyNoteLinkIds,
+      });
       set({
         doc: nextDoc,
         pastEntries: nextPastEntries,
@@ -925,11 +1000,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         canUndo: nextPastEntries.length > 0,
         canRedo: true,
         lastHistoryMergeKey: null,
-        selectedRoomIds: filterSelectionForDoc(nextDoc, selectedRoomIds),
-        selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(nextDoc, selectedPseudoRoomIds),
-        selectedStickyNoteIds: filterStickyNoteSelectionForDoc(nextDoc, selectedStickyNoteIds),
-        selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, selectedConnectionIds),
-        selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, selectedStickyNoteLinkIds),
+        ...restoredSelection,
         connectionDrag: null,
         stickyNoteLinkDrag: null,
         connectionEndpointDrag: null,
@@ -976,6 +1047,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const nextFutureEntries = futureEntries.slice(1);
     if (entry.kind === 'document') {
       const patchedNextDoc = patchDocumentView(entry.after, get());
+      const restoredSelection = getSelectionStateForHistoryEntry(patchedNextDoc, entry.selectionAfter, {
+        selectedRoomIds,
+        selectedPseudoRoomIds,
+        selectedStickyNoteIds,
+        selectedConnectionIds,
+        selectedStickyNoteLinkIds,
+      });
       set({
         doc: patchedNextDoc,
         pastEntries: [...pastEntries, entry],
@@ -983,11 +1061,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         canUndo: true,
         canRedo: nextFutureEntries.length > 0,
         lastHistoryMergeKey: null,
-        selectedRoomIds: filterSelectionForDoc(patchedNextDoc, selectedRoomIds),
-        selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(patchedNextDoc, selectedPseudoRoomIds),
-        selectedStickyNoteIds: filterStickyNoteSelectionForDoc(patchedNextDoc, selectedStickyNoteIds),
-        selectedConnectionIds: filterConnectionSelectionForDoc(patchedNextDoc, selectedConnectionIds),
-        selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(patchedNextDoc, selectedStickyNoteLinkIds),
+        ...restoredSelection,
         connectionDrag: null,
         stickyNoteLinkDrag: null,
         connectionEndpointDrag: null,
@@ -1024,7 +1098,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const room = { ...createRoom(name), position: snapped };
     const updatedDoc = addRoom(doc, room);
-    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
+    const historyOptions = options?.selectionBefore !== undefined && options.selectionAfter === undefined
+      ? { ...options, selectionAfter: createSelectionSnapshot({ roomIds: [room.id], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }) }
+      : options;
+    set((state) => commitDocumentChange(state, doc, updatedDoc, historyOptions));
     return room.id;
   },
 
@@ -1076,7 +1153,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return { pseudoRoomId: pseudoRoom.id, connectionId: connection.id };
   },
 
-  setPseudoRoomExit: (sourceRoomId, sourceDirection, kind) => {
+  setPseudoRoomExit: (sourceRoomId, sourceDirection, kind, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot create or replace a pseudo-room exit: no document is loaded.');
@@ -1089,13 +1166,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const existingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+    const historyOptions = options?.selectionBefore !== undefined && options.selectionAfter === undefined
+      ? { ...options, selectionAfter: createSelectionSnapshot({ roomIds: [sourceRoomId], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }) }
+      : options;
     if (existingConnectionId) {
       const existingConnection = doc.connections[existingConnectionId];
       if (existingConnection?.target.kind === 'pseudo-room') {
         let nextDoc = domainSetPseudoRoomKind(doc, existingConnection.target.id, kind);
         nextDoc = prettifyCliPseudoRoomResult(nextDoc);
         set((state) => ({
-          ...commitDocumentChange(state, doc, nextDoc),
+          ...commitDocumentChange(state, doc, nextDoc, historyOptions),
           selectedRoomIds: [],
           selectedPseudoRoomIds: [],
           selectedStickyNoteIds: [],
@@ -1120,7 +1200,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nextDoc = addConnection(nextDoc, connection, normalizedSourceDirection);
     nextDoc = prettifyCliPseudoRoomResult(nextDoc);
     set((state) => ({
-      ...commitDocumentChange(state, doc, nextDoc),
+      ...commitDocumentChange(state, doc, nextDoc, historyOptions),
       selectedRoomIds: [],
       selectedPseudoRoomIds: [],
       selectedStickyNoteIds: [],
@@ -1175,7 +1255,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return stickyNote.id;
   },
 
-  addStickyNoteForRoom: (roomId, text) => {
+  addStickyNoteForRoom: (roomId, text, options) => {
     const { doc, snapToGridEnabled } = get();
     if (!doc) {
       throw new Error('Cannot add a sticky note: no document is loaded.');
@@ -1191,8 +1271,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let updatedDoc = addStickyNote(doc, stickyNote);
     updatedDoc = addStickyNoteLink(updatedDoc, createStickyNoteLink(stickyNote.id, roomId));
     updatedDoc = prettifyCliStickyNoteResult(updatedDoc);
+    const historyOptions = options?.selectionBefore !== undefined && options.selectionAfter === undefined
+      ? { ...options, selectionAfter: createSelectionSnapshot({ roomIds: [], pseudoRoomIds: [], stickyNoteIds: [stickyNote.id], connectionIds: [], stickyNoteLinkIds: [] }) }
+      : options;
     set((state) => ({
-      ...commitDocumentChange(state, doc, updatedDoc),
+      ...commitDocumentChange(state, doc, updatedDoc, historyOptions),
       selectedRoomIds: [],
       selectedStickyNoteIds: [stickyNote.id],
       selectedConnectionIds: [],
@@ -1201,7 +1284,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return stickyNote.id;
   },
 
-  addItemsToRoom: (roomId, itemNames) => {
+  addItemsToRoom: (roomId, itemNames, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot add items: no document is loaded.');
@@ -1216,11 +1299,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       updatedDoc = domainAddItem(updatedDoc, item);
     }
 
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
     return createdItems.map((item) => item.id);
   },
 
-  removeItemsFromRoom: (roomId, itemNames) => {
+  removeItemsFromRoom: (roomId, itemNames, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot remove items: no document is loaded.');
@@ -1239,11 +1322,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       updatedDoc = domainDeleteItem(updatedDoc, itemId);
     }
 
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
     return { removedItemIds, missingItemNames };
   },
 
-  removeAllItemsFromRoom: (roomId) => {
+  removeAllItemsFromRoom: (roomId, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot remove items: no document is loaded.');
@@ -1265,7 +1348,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       updatedDoc = domainDeleteItem(updatedDoc, itemId);
     }
 
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
     return itemIds;
   },
 
@@ -1278,9 +1361,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const nextDoc = sourceRoomId === targetRoomId
       ? connectionResult.doc
       : prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, targetRoomId]);
+    const historyOptions = options.selectionBefore !== undefined && options.selectionAfter === undefined
+      ? { ...options, selectionAfter: createSelectionSnapshot({ roomIds: [targetRoomId], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }) }
+      : options;
 
     set((state) => ({
-      ...commitDocumentChange(state, doc, nextDoc),
+      ...commitDocumentChange(state, doc, nextDoc, historyOptions),
       selectedRoomIds: [],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [connectionResult.connectionId],
@@ -1290,7 +1376,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return connectionResult.connectionId;
   },
 
-  deleteConnection: (connectionId) => {
+  deleteConnection: (connectionId, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot delete a connection: no document is loaded.');
@@ -1301,7 +1387,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const nextDoc = domainDeleteConnection(doc, connectionId);
     set((state) => ({
-      ...commitDocumentChange(state, doc, nextDoc),
+      ...commitDocumentChange(state, doc, nextDoc, options),
       selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, state.selectedConnectionIds),
       selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(nextDoc, state.selectedPseudoRoomIds),
       selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, state.selectedStickyNoteLinkIds),
@@ -1315,6 +1401,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const normalizedTargetDirection = options.targetDirection === null ? null : normalizeDirection(options.targetDirection);
+    const historyOptions = options.selectionBefore !== undefined && options.selectionAfter === undefined
+      ? { ...options, selectionAfter: createSelectionSnapshot({ roomIds: [], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }) }
+      : options;
     if (!options.oneWay && normalizedTargetDirection !== null) {
       const targetRoom = doc.rooms[targetRoomId];
       const placeholderConnectionId = targetRoom?.directions[normalizedTargetDirection];
@@ -1334,7 +1423,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             : prettifyCliConnectionResult(nextDoc, [room.id]);
 
           set((state) => ({
-            ...commitDocumentChange(state, doc, nextDoc, options),
+            ...commitDocumentChange(state, doc, nextDoc, {
+              ...historyOptions,
+              selectionAfter: createSelectionSnapshot({ roomIds: [room.id], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }),
+            }),
             selectedRoomIds: [room.id, targetRoomId],
             selectedPseudoRoomIds: [],
             selectedStickyNoteIds: [],
@@ -1359,7 +1451,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       : prettifyCliConnectionResult(connectionResult.doc, [room.id]);
 
     set((state) => ({
-      ...commitDocumentChange(state, doc, nextDoc, options),
+      ...commitDocumentChange(state, doc, nextDoc, {
+        ...historyOptions,
+        selectionAfter: createSelectionSnapshot({ roomIds: [room.id], pseudoRoomIds: [], stickyNoteIds: [], connectionIds: [], stickyNoteLinkIds: [] }),
+      }),
       selectedRoomIds: [room.id, targetRoomId],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [connectionResult.connectionId],
@@ -1479,7 +1574,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
-  setConnectionAnnotations: (connectionIds, annotation) => {
+  setConnectionAnnotations: (connectionIds, annotation, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot set connection annotations: no document is loaded.');
@@ -1489,7 +1584,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     for (const connectionId of connectionIds) {
       updatedDoc = domainSetConnectionAnnotation(updatedDoc, connectionId, annotation);
     }
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
   },
 
   setConnectionLabels: (connectionId, labels) => {
@@ -1501,14 +1596,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
-  removeRoom: (roomId) => {
+  removeRoom: (roomId, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot remove a room: no document is loaded.');
     }
     const updatedDoc = domainDeleteRoom(doc, roomId);
     set((state) => ({
-      ...commitDocumentChange(state, doc, updatedDoc),
+      ...commitDocumentChange(state, doc, updatedDoc, options),
       selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
       selectedConnectionIds: filterConnectionSelectionForDoc(updatedDoc, state.selectedConnectionIds),
       selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(updatedDoc, state.selectedStickyNoteLinkIds),

@@ -20,6 +20,7 @@ import { oppositeDirection } from '../domain/directions';
 import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference } from '../domain/cli-execution';
 import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument, type Room } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
+import { createSelectionSnapshot, type SelectionSnapshot } from '../state/editor-store-selection';
 import { saveMap } from '../storage/map-store';
 import { MAX_MAP_VIEWPORT_ZOOM, MIN_MAP_VIEWPORT_ZOOM } from '../components/use-map-viewport';
 
@@ -361,6 +362,16 @@ async function readTextFile(file: File): Promise<string> {
   });
 }
 
+function getSelectionSnapshotFromEditorState(state: ReturnType<typeof useEditorStore.getState>): SelectionSnapshot {
+  return createSelectionSnapshot({
+    roomIds: state.selectedRoomIds,
+    pseudoRoomIds: state.selectedPseudoRoomIds,
+    stickyNoteIds: state.selectedStickyNoteIds,
+    connectionIds: state.selectedConnectionIds,
+    stickyNoteLinkIds: state.selectedStickyNoteLinkIds,
+  });
+}
+
 export function useAppCli({
   activeMap,
   loadDocument,
@@ -630,14 +641,36 @@ export function useAppCli({
   const applyCliRoomAdjective = (
     roomId: string,
     adjective: CliRoomAdjective,
-    historyMergeKey?: string,
+    historyOptions?: {
+      historyMergeKey?: string;
+      selectionBefore?: SelectionSnapshot;
+      selectionAfter?: SelectionSnapshot;
+    },
   ): void => {
     switch (adjective.kind) {
       case 'lighting':
-        setRoomDark(roomId, adjective.isDark, historyMergeKey === undefined ? undefined : { historyMergeKey });
+        setRoomDark(roomId, adjective.isDark, historyOptions);
         return;
     }
   };
+
+  const getCliHistoryOptions = (
+    liveEditorState: ReturnType<typeof useEditorStore.getState>,
+    selectionAfter?: SelectionSnapshot,
+    historyMergeKey?: string,
+  ) => ({
+    ...(historyMergeKey === undefined ? {} : { historyMergeKey }),
+    selectionBefore: getSelectionSnapshotFromEditorState(liveEditorState),
+    ...(selectionAfter === undefined ? {} : { selectionAfter }),
+  });
+
+  const createRoomOnlySelectionSnapshot = (roomId: string): SelectionSnapshot => createSelectionSnapshot({
+    roomIds: [roomId],
+    pseudoRoomIds: [],
+    stickyNoteIds: [],
+    connectionIds: [],
+    stickyNoteLinkIds: [],
+  });
 
   const reportRoomReferenceError = (
     submittedInput: string,
@@ -776,9 +809,13 @@ export function useAppCli({
         { width: window.innerWidth, height: window.innerHeight },
         currentMapPanOffset,
       );
-      const roomId = addRoomAtPosition(plan.roomName, plan.position, { historyMergeKey });
+      const historyOptions = getCliHistoryOptions(liveEditorState, undefined, historyMergeKey);
+      const roomId = addRoomAtPosition(plan.roomName, plan.position, historyOptions);
       if (command.adjective !== null) {
-        applyCliRoomAdjective(roomId, command.adjective, historyMergeKey);
+        applyCliRoomAdjective(roomId, command.adjective, {
+          ...historyOptions,
+          selectionAfter: createRoomOnlySelectionSnapshot(roomId),
+        });
       }
       setCliPronounRoomReference(roomId);
       selectRoom(roomId);
@@ -799,7 +836,11 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      addItemsToRoom(roomMatch.room.id, command.itemNames);
+      addItemsToRoom(
+        roomMatch.room.id,
+        command.itemNames,
+        getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(roomMatch.room.id)),
+      );
       setCliPronounRoomReference(roomMatch.room.id);
       selectRoom(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
@@ -815,7 +856,11 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      const removal = removeItemsFromRoom(roomMatch.room.id, command.itemNames);
+      const removal = removeItemsFromRoom(
+        roomMatch.room.id,
+        command.itemNames,
+        getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(roomMatch.room.id)),
+      );
       if (removal.missingItemNames.length > 0) {
         appendGameOutput([
           formatCliEcho(trimmedInput),
@@ -839,7 +884,10 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      removeAllItemsFromRoom(roomMatch.room.id);
+      removeAllItemsFromRoom(
+        roomMatch.room.id,
+        getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(roomMatch.room.id)),
+      );
       setCliPronounRoomReference(roomMatch.room.id);
       selectRoom(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
@@ -860,7 +908,12 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      setPseudoRoomExit(sourceRoomMatch.room.id, command.sourceDirection, command.pseudoKind);
+      setPseudoRoomExit(
+        sourceRoomMatch.room.id,
+        command.sourceDirection,
+        command.pseudoKind,
+        getCliHistoryOptions(liveEditorState),
+      );
       selectRoom(sourceRoomMatch.room.id);
       setCliPronounRoomReference(sourceRoomMatch.room.id);
       setRequestedRoomRevealRequest({
@@ -879,7 +932,7 @@ export function useAppCli({
       if (roomMatch.kind !== 'one') {
         return { ok: false, shouldSelectCliInput };
       }
-      removeRoom(roomMatch.room.id);
+      removeRoom(roomMatch.room.id, getCliHistoryOptions(liveEditorState));
       setCliPronounRoomReference(currentPronounRoomId === roomMatch.room.id ? null : currentPronounRoomId);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
@@ -980,7 +1033,7 @@ export function useAppCli({
       if (roomMatch.kind !== 'one') {
         return { ok: false, shouldSelectCliInput };
       }
-      applyCliRoomAdjective(roomMatch.room.id, command.adjective);
+      applyCliRoomAdjective(roomMatch.room.id, command.adjective, getCliHistoryOptions(liveEditorState));
       setCliPronounRoomReference(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
@@ -1012,6 +1065,7 @@ export function useAppCli({
           {
             oneWay: false,
             targetDirection: oppositeDirection(command.sourceDirection) ?? command.sourceDirection,
+            ...getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(targetRoomMatch.room.id)),
           },
         );
         selectRoom(targetRoomMatch.room.id);
@@ -1037,7 +1091,7 @@ export function useAppCli({
           sourceDirection: oppositeDirection(command.sourceDirection) ?? command.sourceDirection,
           oneWay: false,
           targetDirection: command.sourceDirection,
-          historyMergeKey,
+          ...getCliHistoryOptions(liveEditorState, undefined, historyMergeKey),
         },
       );
       selectRoom(result.roomId);
@@ -1075,6 +1129,7 @@ export function useAppCli({
       setConnectionAnnotations(
         connectionIds,
         command.annotation === null ? null : { kind: command.annotation },
+        getCliHistoryOptions(liveEditorState),
       );
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(sourceRoomMatch.room.id);
@@ -1091,7 +1146,7 @@ export function useAppCli({
       if (roomMatch.kind !== 'one') {
         return { ok: false, shouldSelectCliInput };
       }
-      addStickyNoteForRoom(roomMatch.room.id, command.noteText);
+      addStickyNoteForRoom(roomMatch.room.id, command.noteText, getCliHistoryOptions(liveEditorState));
       setCliPronounRoomReference(roomMatch.room.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
@@ -1121,6 +1176,7 @@ export function useAppCli({
         {
           oneWay: command.oneWay,
           targetDirection: command.targetDirection,
+          ...getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(targetRoomMatch.room.id)),
         },
       );
       selectRoom(targetRoomMatch.room.id);
@@ -1175,7 +1231,10 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
 
-      deleteConnection(connectionIds[0]);
+      deleteConnection(
+        connectionIds[0],
+        getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(sourceRoomMatch.room.id)),
+      );
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(sourceRoomMatch.room.id);
       }
@@ -1208,12 +1267,14 @@ export function useAppCli({
           sourceDirection: command.sourceDirection,
           oneWay: command.oneWay,
           targetDirection: command.targetDirection,
-          historyMergeKey,
+          ...getCliHistoryOptions(liveEditorState, undefined, historyMergeKey),
         },
       );
       selectRoom(result.roomId);
       if (command.adjective !== null) {
-        applyCliRoomAdjective(result.roomId, command.adjective, historyMergeKey);
+        applyCliRoomAdjective(result.roomId, command.adjective, {
+          ...getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(result.roomId), historyMergeKey),
+        });
       }
       if (!isCliPronounReference(command.targetRoom.text)) {
         setCliPronounRoomReference(result.roomId);

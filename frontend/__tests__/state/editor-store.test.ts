@@ -5,6 +5,7 @@ import { addConnection, addPseudoRoom, addRoom, addStickyNote, addStickyNoteLink
 import { createConnection } from '../../src/domain/map-types';
 import { createDefaultMapView } from '../../src/domain/map-defaults';
 import { useEditorStore } from '../../src/state/editor-store';
+import { createSelectionSnapshot } from '../../src/state/editor-store-selection';
 import { getBackgroundChunkKey, loadBackgroundChunk, saveBackgroundChunks } from '../../src/storage/map-store';
 
 function resetStore(): void {
@@ -887,6 +888,62 @@ describe('useEditorStore', () => {
       expect(useEditorStore.getState().doc!.rooms[roomId]).toBeUndefined();
       expect(useEditorStore.getState().canRedo).toBe(true);
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+    });
+
+    it('undo restores the stored pre-action selection snapshot and redo restores the stored post-action snapshot', () => {
+      const hallway = { ...createRoom('Hallway'), id: 'hallway', position: { x: 0, y: 0 } };
+      useEditorStore.getState().loadDocument(addRoom(testDoc, hallway));
+      useEditorStore.getState().selectRoom(hallway.id);
+
+      const roomId = useEditorStore.getState().addRoomAtPosition(
+        'Kitchen',
+        { x: 80, y: 0 },
+        {
+          selectionBefore: createSelectionSnapshot({
+            roomIds: [hallway.id],
+            pseudoRoomIds: [],
+            stickyNoteIds: [],
+            connectionIds: [],
+            stickyNoteLinkIds: [],
+          }),
+          selectionAfter: createSelectionSnapshot({
+            roomIds: ['future-room'],
+            pseudoRoomIds: [],
+            stickyNoteIds: [],
+            connectionIds: [],
+            stickyNoteLinkIds: [],
+          }),
+        },
+      );
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
+
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+      expect(useEditorStore.getState().doc?.rooms[roomId]).toBeDefined();
+    });
+
+    it('create history defaults can restore a created room selection on redo', () => {
+      const hallway = { ...createRoom('Hallway'), id: 'hallway', position: { x: 0, y: 0 } };
+      useEditorStore.getState().loadDocument(addRoom(testDoc, hallway));
+      useEditorStore.getState().selectRoom(hallway.id);
+
+      const roomId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 0 }, {
+        selectionBefore: createSelectionSnapshot({
+          roomIds: [hallway.id],
+          pseudoRoomIds: [],
+          stickyNoteIds: [],
+          connectionIds: [],
+          stickyNoteLinkIds: [],
+        }),
+      });
+
+      useEditorStore.getState().undo();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
+
+      useEditorStore.getState().redo();
+      expect(useEditorStore.getState().selectedRoomIds).toEqual([roomId]);
     });
 
     it('resets history when a new document is loaded', () => {

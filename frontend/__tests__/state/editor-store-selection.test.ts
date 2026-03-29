@@ -2,9 +2,11 @@ import { describe, expect, it } from '@jest/globals';
 import { addConnection, addPseudoRoom, addRoom, addStickyNote } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createPseudoRoom, createRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import {
+  createSelectionSnapshot,
   filterConnectionSelectionForDoc,
   filterPseudoRoomSelectionForDoc,
   filterSelectionForDoc,
+  filterSelectionSnapshotForDoc,
   filterStickyNoteLinkSelectionForDoc,
   filterStickyNoteSelectionForDoc,
 } from '../../src/state/editor-store-selection';
@@ -79,5 +81,25 @@ describe('editor store selection helpers', () => {
     const { doc, noteLink } = createPopulatedMap();
 
     expect(filterStickyNoteLinkSelectionForDoc(doc, ['missing-link', noteLink.id])).toEqual([noteLink.id]);
+  });
+
+  it('filters full selection snapshots against the document', () => {
+    const { doc, hallway, tunnel, note, noteLink, connection } = createPopulatedMap();
+
+    const filtered = filterSelectionSnapshotForDoc(doc, createSelectionSnapshot({
+      roomIds: ['missing-room', hallway.id],
+      pseudoRoomIds: ['missing-pseudo', tunnel.id],
+      stickyNoteIds: ['missing-note', note.id],
+      connectionIds: ['missing-connection', connection.id],
+      stickyNoteLinkIds: ['missing-link', noteLink.id],
+    }));
+
+    expect(filtered).toEqual({
+      roomIds: [hallway.id],
+      pseudoRoomIds: [tunnel.id],
+      stickyNoteIds: [note.id],
+      connectionIds: [connection.id],
+      stickyNoteLinkIds: [noteLink.id],
+    });
   });
 });

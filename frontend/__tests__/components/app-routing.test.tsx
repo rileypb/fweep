@@ -2361,6 +2361,50 @@ describe('URL routing', () => {
     }
   });
 
+  it('undoes and redoes create with selection restoration', async () => {
+    let doc = createEmptyMap('CLI Create Undo Selection Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli create undo selection map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('hallway');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'create Kitchen{enter}');
+    const kitchenId = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Kitchen')!.id;
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchenId]);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['hallway']);
+
+    await user.clear(input);
+    await user.type(input, 'redo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchenId]);
+  });
+
   it('centers a created room correctly after zooming out', async () => {
     const doc = createEmptyMap('CLI Zoomed Create Map');
     await openSavedMap(doc);
@@ -2686,6 +2730,45 @@ describe('URL routing', () => {
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(2);
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+  });
+
+  it('undoes delete with selection restoration when the deleted room was previously selected', async () => {
+    let doc = createEmptyMap('CLI Delete Undo Selection Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli delete undo selection map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('kitchen');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'delete Kitchen{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
   });
 
   it('opens the room editor for the edit CLI command', async () => {
@@ -4115,6 +4198,49 @@ describe('URL routing', () => {
     expectGameOutputToContain('Above Bedroom is unknown', 'marked exit as unknown');
   });
 
+  it('undoes and redoes pseudo-room creation with selection restoration', async () => {
+    let doc = createEmptyMap('CLI Pseudo Undo Selection Map');
+    doc = {
+      ...doc,
+      rooms: {
+        parlor: {
+          id: 'parlor',
+          name: 'Parlor',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli pseudo undo selection map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('parlor');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'west of parlor is unknown{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['parlor']);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['parlor']);
+
+    await user.clear(input);
+    await user.type(input, 'redo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['parlor']);
+  });
+
   it('replaces an unknown pseudo-room exit with an infinite one in place', async () => {
     const bedroom = {
       id: 'bedroom',
@@ -4522,6 +4648,62 @@ describe('URL routing', () => {
     expectGameOutputToContain('west is Kitchen', 'connected');
   });
 
+  it('undoes and redoes connect with selection restoration', async () => {
+    let doc = createEmptyMap('CLI Connect Undo Selection Map');
+    doc = {
+      ...doc,
+      rooms: {
+        hallway: {
+          id: 'hallway',
+          name: 'Hallway',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 80, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli connect undo selection map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('hallway');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'connect Hallway west to Kitchen{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['hallway']);
+
+    await user.clear(input);
+    await user.type(input, 'redo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['kitchen']);
+  });
+
   it('creates and connects a room from the selected room with the direction-is shorthand', async () => {
     let doc = createEmptyMap('CLI Direction Is Create Map');
     doc = {
@@ -4574,6 +4756,53 @@ describe('URL routing', () => {
     expectGameOutputToContain('west is Kitchen', 'created and connected');
   });
 
+  it('undoes and redoes selected-room-relative room creation with selection restoration', async () => {
+    let doc = createEmptyMap('CLI Direction Is Undo Map');
+    doc = {
+      ...doc,
+      rooms: {
+        parlor: {
+          id: 'parlor',
+          name: 'Parlor',
+          description: '',
+          position: { x: 240, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli direction is undo map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('parlor');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'west is Closet{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([
+      Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Closet')!.id,
+    ]);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['parlor']);
+
+    await user.clear(input);
+    await user.type(input, 'redo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([
+      Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Closet')!.id,
+    ]);
+  });
+
   it('converts a pseudo-room placeholder into a normal room for relative create commands', async () => {
     const bedroom = {
       id: 'bedroom',
@@ -4614,6 +4843,48 @@ describe('URL routing', () => {
     expect(state.doc?.rooms['unknown-exit']?.directions.east).toBe('placeholder-conn');
     expect(state.selectedRoomIds).toEqual(['unknown-exit']);
     expect(state.selectedConnectionIds).toEqual([]);
+  });
+
+  it('undoes and redoes pseudo-room placeholder conversion with selection restoration', async () => {
+    const bedroom = {
+      id: 'bedroom',
+      name: 'Bedroom',
+      description: '',
+      position: { x: 240, y: 160 },
+      directions: {},
+      isDark: false,
+      locked: false,
+      shape: 'rectangle' as const,
+      fillColorIndex: 0,
+      strokeColorIndex: 0,
+      strokeStyle: 'solid' as const,
+    };
+    const unknown = { ...createPseudoRoom('unknown'), id: 'unknown-exit', position: { x: 80, y: 160 } };
+    const placeholderConnection = { ...createConnection(bedroom.id, { kind: 'pseudo-room', id: unknown.id }, false), id: 'placeholder-conn' };
+    let doc = addRoom(createEmptyMap('CLI Convert Placeholder Undo Map'), bedroom);
+    doc = addPseudoRoom(doc, unknown);
+    doc = addConnection(doc, placeholderConnection, 'west');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli convert placeholder undo map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('bedroom');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'create Pantry west of Bedroom{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['unknown-exit']);
+
+    await user.clear(input);
+    await user.type(input, 'undo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['bedroom']);
+
+    await user.clear(input);
+    await user.type(input, 'redo{enter}');
+    expect(useEditorStore.getState().selectedRoomIds).toEqual(['unknown-exit']);
   });
 
   it('supports relative above/below create syntax', async () => {
