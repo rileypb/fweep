@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createPseudoRoom, createRoom, type MapDocument, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
@@ -285,6 +286,7 @@ function getNewStickyNoteTopLeftPosition(position: Position, text: string): Posi
 
 export interface MapCanvasProps {
   mapName: string;
+  actionsContainer?: Element | null;
   showGrid?: boolean;
   onBack?: () => void;
   visibleMapLeftInset?: number;
@@ -370,6 +372,7 @@ function PseudoRoomMenuButton({ kind, label, onSelect }: PseudoRoomMenuButtonPro
 
 export function MapCanvas({
   mapName,
+  actionsContainer = null,
   showGrid: initialShowGrid = true,
   visibleMapLeftInset = 0,
   visibleMapRightInset = 0,
@@ -1749,60 +1752,118 @@ export function MapCanvas({
             })()}
           />
         )}
-        <div
-          className="map-canvas-actions"
-          onMouseDown={(event) => {
-            event.stopPropagation();
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          <UndoButton />
-          <RedoButton />
-          <PrettifyButton />
-          <BackgroundImageControls />
-          <button
-            className="app-control-button"
-            type="button"
-            aria-label="Export JSON"
-            aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
-            data-shortcut={UI_SHORTCUTS.exportJson.display}
-            title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
-            onClick={() => {
-              if (!doc) {
-                return;
-              }
+        {(actionsContainer ? createPortal(
+          <div
+            className="map-canvas-actions map-canvas-actions--top-bar"
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <UndoButton />
+            <RedoButton />
+            <PrettifyButton />
+            <BackgroundImageControls />
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export JSON"
+              aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportJson.display}
+              title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
+              onClick={() => {
+                if (!doc) {
+                  return;
+                }
 
-              void exportMapJsonToDownload(mapName, doc);
+                void exportMapJsonToDownload(mapName, doc);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={J_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export PNG"
+              aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportPng.display}
+              title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
+              onClick={() => {
+                clearExportRegion();
+                setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setIsExportDialogOpen(true);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={DOWNLOAD_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+          </div>,
+          actionsContainer,
+        ) : (
+          <div
+            className="map-canvas-actions"
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
-              <path d={J_SOLID_FULL_PATH} />
-            </svg>
-          </button>
-          <button
-            className="app-control-button"
-            type="button"
-            aria-label="Export PNG"
-            aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
-            data-shortcut={UI_SHORTCUTS.exportPng.display}
-            title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
-            onClick={() => {
-              clearExportRegion();
-              setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
-              setExportScope(hasExportSelection ? 'selection' : 'entire-map');
-              setIsExportDialogOpen(true);
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
-              <path d={DOWNLOAD_SOLID_FULL_PATH} />
-            </svg>
-          </button>
-        </div>
+            <UndoButton />
+            <RedoButton />
+            <PrettifyButton />
+            <BackgroundImageControls />
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export JSON"
+              aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportJson.display}
+              title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
+              onClick={() => {
+                if (!doc) {
+                  return;
+                }
+
+                void exportMapJsonToDownload(mapName, doc);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={J_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export PNG"
+              aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportPng.display}
+              title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
+              onClick={() => {
+                clearExportRegion();
+                setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setIsExportDialogOpen(true);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={DOWNLOAD_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+          </div>
+        ))}
       </div>
 
       <ExportPngDialog

@@ -76,6 +76,7 @@ interface UseAppCliResult {
     options?: {
       readonly clearInputState?: boolean;
       readonly selectCliInput?: boolean;
+      readonly onOutputAppended?: (lines: readonly string[]) => void;
     },
   ) => { ok: boolean; shouldSelectCliInput: boolean };
   readonly handleCliCommandChange: (value: string) => void;
@@ -457,6 +458,7 @@ export function useAppCli({
   const latestStoreDocRef = useRef<MapDocument | null>(null);
   const latestActiveMapRef = useRef<MapDocument | null>(activeMap);
   const latestAreCliSuggestionsEnabledRef = useRef(areCliSuggestionsEnabled);
+  const outputAppendListenerRef = useRef<((lines: readonly string[]) => void) | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSelectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   latestGameOutputLinesRef.current = gameOutputLines;
@@ -641,6 +643,7 @@ export function useAppCli({
   }, [gameOutputLines, hasOpenMap]);
 
   const appendGameOutput = (lines: readonly string[]) => {
+    outputAppendListenerRef.current?.(lines);
     let nextLines: readonly string[] = [];
     setGameOutputLines((previousLines) => {
       nextLines = [...previousLines, ...lines, ''];
@@ -1382,10 +1385,12 @@ export function useAppCli({
     options?: {
       readonly clearInputState?: boolean;
       readonly selectCliInput?: boolean;
+      readonly onOutputAppended?: (lines: readonly string[]) => void;
     },
   ): { ok: boolean; shouldSelectCliInput: boolean } => {
     const clearInputState = options?.clearInputState ?? false;
     const selectCliInput = options?.selectCliInput ?? true;
+    const onOutputAppended = options?.onOutputAppended;
 
     if (clearInputState) {
       setHasUsedCliInput(true);
@@ -1421,7 +1426,18 @@ export function useAppCli({
       return { ok: true, shouldSelectCliInput: selectCliInput };
     }
 
+    const mirroredOutputBatches: string[][] = [];
+    outputAppendListenerRef.current = (lines) => {
+      mirroredOutputBatches.push([...lines]);
+    };
     const { ok, shouldSelectCliInput: shouldSelectCliInputAfterRun } = runCliCommand(routedSubmission.localInput);
+    outputAppendListenerRef.current = null;
+    if (onOutputAppended) {
+      const flattenedLines = mirroredOutputBatches.flat();
+      if (flattenedLines.length > 0) {
+        onOutputAppended(flattenedLines);
+      }
+    }
     const shouldKeepSuggestionsEnabled = ok && shouldKeepSuggestionsEnabledAfterSubmit(
       areCliSuggestionsEnabled,
       submittedInput,

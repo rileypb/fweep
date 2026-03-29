@@ -5958,14 +5958,17 @@ describe('URL routing', () => {
 
     act(() => {
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'fweep:submit-cli-from-parchment', command: 'show Kitchen' },
+        data: { type: 'fweep:submit-cli-from-parchment', command: 'show Kitchen', rawInput: '\\show Kitchen' },
         origin: window.location.origin,
         source: iframeWindowMock as unknown as MessageEventSource,
       }));
     });
 
     await waitFor(() => {
-      expectGameOutputToContain('>show Kitchen', 'Kitchen');
+      expect(postMessage).toHaveBeenCalledWith(
+        { type: 'fweep:append-cli-output', lines: ['>\\show Kitchen', '**Kitchen**'] },
+        window.location.origin,
+      );
     });
     await waitFor(() => {
       expect(postMessage).toHaveBeenCalledWith(

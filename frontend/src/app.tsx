@@ -170,6 +170,103 @@ export function getNextMapVisualStyle(current: 'default' | 'square-classic'): 'd
   return current === 'default' ? 'square-classic' : 'default';
 }
 
+function appendCliOutputToParchmentTranscript(
+  iframe: HTMLIFrameElement | null,
+  lines: readonly string[],
+): boolean {
+  if (iframe === null || lines.length === 0) {
+    return false;
+  }
+
+  const doc = iframe.contentDocument;
+  if (doc === null) {
+    return false;
+  }
+
+  const lineInput = doc.querySelector('textarea.LineInput');
+  let target: HTMLElement | null = null;
+
+  if (lineInput instanceof HTMLElement) {
+    const lineInputContainer = lineInput.closest('.BufferWindowInner');
+    if (lineInputContainer instanceof HTMLElement) {
+      target = lineInputContainer;
+    }
+  }
+
+  if (target === null) {
+    const visibleBufferWindows = Array.from(doc.querySelectorAll<HTMLElement>('.BufferWindow')).filter((bufferWindow) => (
+      !bufferWindow.classList.contains('hidden')
+      && bufferWindow.getAttribute('aria-hidden') !== 'true'
+      && bufferWindow.getClientRects().length > 0
+    ));
+
+    visibleBufferWindows.sort((left, right) => (
+      (right.clientWidth * right.clientHeight) - (left.clientWidth * left.clientHeight)
+    ));
+
+    const preferredBufferWindow = visibleBufferWindows[0] ?? null;
+    if (preferredBufferWindow !== null) {
+      target = preferredBufferWindow.querySelector<HTMLElement>('.BufferWindowInner') ?? preferredBufferWindow;
+    }
+  }
+
+  if (target === null) {
+    return false;
+  }
+
+  const promptLine = Array.from(target.querySelectorAll<HTMLElement>(':scope > .BufferLine')).at(-1) ?? null;
+  const insertionBefore = promptLine
+    ?? (lineInput instanceof HTMLElement && target.contains(lineInput)
+      ? (lineInput.closest('.BufferLine') as HTMLElement | null) ?? lineInput
+      : null);
+  const fragment = doc.createDocumentFragment();
+
+  for (const line of lines) {
+    const bufferLine = doc.createElement('div');
+    bufferLine.className = 'BufferLine fweep-cli-output-line';
+    if (line.length === 0) {
+      const emptyRun = doc.createElement('span');
+      emptyRun.className = 'fweep-cli-output-text';
+      emptyRun.textContent = '\u00A0';
+      bufferLine.appendChild(emptyRun);
+    } else {
+      const parts = line.split(/(\*\*.+?\*\*)/g).filter((part) => part.length > 0);
+      for (const part of parts) {
+        const isBold = part.startsWith('**') && part.endsWith('**') && part.length >= 4;
+        const run = doc.createElement('span');
+        run.className = 'fweep-cli-output-text';
+        run.textContent = isBold ? part.slice(2, -2) : part;
+        if (isBold) {
+          run.classList.add('fweep-cli-output-text--strong');
+        }
+        bufferLine.appendChild(run);
+      }
+    }
+    fragment.appendChild(bufferLine);
+  }
+
+  const spacerLine = doc.createElement('div');
+  spacerLine.className = 'BufferLine fweep-cli-output-line';
+  const spacerText = doc.createElement('span');
+  spacerText.className = 'fweep-cli-output-text';
+  spacerText.textContent = '\u00A0';
+  spacerLine.appendChild(spacerText);
+  fragment.appendChild(spacerLine);
+
+  if (insertionBefore !== null) {
+    target.insertBefore(fragment, insertionBefore);
+  } else {
+    target.appendChild(fragment);
+  }
+
+  const scrollContainer = target.closest<HTMLElement>('.BufferWindow');
+  if (scrollContainer !== null) {
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+  }
+
+  return true;
+}
+
 export function App(): React.JSX.Element {
   const isMapCliHidden = true;
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
@@ -205,6 +302,7 @@ export function App(): React.JSX.Element {
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
+  const mapActionsContainerRef = useRef<HTMLDivElement | null>(null);
   const previousTipsMapIdRef = useRef<string | null>(null);
   const rootFontSizePx = typeof window === 'undefined'
     ? 16
@@ -475,11 +573,25 @@ export function App(): React.JSX.Element {
         return;
       }
 
-      const data = event.data as { type?: unknown; command?: unknown } | null;
+      const data = event.data as { type?: unknown; command?: unknown; rawInput?: unknown } | null;
       if (data?.type === 'fweep:submit-cli-from-parchment' && typeof data.command === 'string') {
-        void submitCliCommandText(data.command, {
+        const rawInput = typeof data.rawInput === 'string' ? data.rawInput : null;
+        submitCliCommandText(data.command, {
           clearInputState: false,
           selectCliInput: false,
+          onOutputAppended: (lines) => {
+            const mirroredLines = [...lines];
+            if (rawInput !== null && mirroredLines.length > 0 && mirroredLines[0].startsWith('>')) {
+              mirroredLines[0] = `>${rawInput}`;
+            }
+
+            if (!appendCliOutputToParchmentTranscript(parchmentIframeRef.current, mirroredLines)) {
+              parchmentIframeRef.current?.contentWindow?.postMessage(
+                { type: 'fweep:append-cli-output', lines: mirroredLines },
+                window.location.origin,
+              );
+            }
+          },
         });
         window.requestAnimationFrame(() => {
           restoreParchmentGameInputFocus();
@@ -730,6 +842,7 @@ export function App(): React.JSX.Element {
                 <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
               ) : null}
             </div>
+            <div ref={mapActionsContainerRef} className="app-top-bar__actions" />
           </div>
         </>
       )}
@@ -909,6 +1022,7 @@ export function App(): React.JSX.Element {
       ) : (
         <MapCanvas
           mapName={activeMap.metadata.name}
+          actionsContainer={mapActionsContainerRef.current}
           onBack={() => {
             void handleCloseMap();
           }}

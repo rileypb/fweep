@@ -1043,6 +1043,12 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   z-index: 7;
 }
 
+.app-top-bar__actions {
+  display: flex;
+  align-items: flex-start;
+  min-height: 2.5rem;
+}
+
 .app-controls--settings {
   top: 4rem;
   left: calc(var(--app-cli-stack-left) / 2);
@@ -2022,6 +2028,13 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   gap: 0.5rem;
   align-items: flex-end;
   z-index: 12;
+}
+
+.map-canvas-actions--top-bar {
+  position: static;
+  left: auto;
+  bottom: auto;
+  align-items: flex-start;
 }
 
 .background-image-controls {
