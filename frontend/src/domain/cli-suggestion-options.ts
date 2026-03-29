@@ -138,8 +138,24 @@ export function createDefaultSuggestions(doc: MapDocument | null): readonly CliS
 
 export function createDirectionSuggestions(prefix: string): readonly CliSuggestion[] {
   const normalizedPrefix = prefix.toLowerCase();
+  const abbreviations: Readonly<Record<string, string>> = {
+    north: 'n',
+    south: 's',
+    east: 'e',
+    west: 'w',
+    northeast: 'ne',
+    northwest: 'nw',
+    southeast: 'se',
+    southwest: 'sw',
+    up: 'u',
+    down: 'd',
+  };
   return CLI_DIRECTIONS
-    .filter((direction) => startsWithNormalized(direction, normalizedPrefix) || startsWithNormalized(direction[0] ?? '', normalizedPrefix))
+    .filter((direction) => {
+      const abbreviation = abbreviations[direction] ?? '';
+      return startsWithNormalized(direction, normalizedPrefix)
+        || startsWithNormalized(abbreviation, normalizedPrefix);
+    })
     .sort((left, right) => left.localeCompare(right))
     .map((direction) => ({
       id: `cli-suggestion-direction-${direction}`,

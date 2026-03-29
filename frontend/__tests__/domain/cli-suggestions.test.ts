@@ -505,6 +505,13 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('keeps diagonal direction abbreviations available until a space is entered', () => {
+    expect(getCliSuggestions('nw', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['northwest']);
+    expect(getCliSuggestions('ne', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['northeast']);
+    expect(getCliSuggestions('sw', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['southwest']);
+    expect(getCliSuggestions('se', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['southeast']);
+  });
+
   it('keeps above and below available while typing their first token prefixes', () => {
     expect(getCliSuggestions('a', 1, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label))
       .toContain('above');
