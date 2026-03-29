@@ -1139,15 +1139,43 @@ export function useAppCli({
     }
 
     if (command.kind === 'notate' && currentDoc !== null) {
-      const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
-      if (reportRoomReferenceError(trimmedInput, roomMatch, 'notate', command.room.text)) {
+      const targetRoom = (() => {
+        if (command.room === null) {
+          if (liveEditorState.selectedRoomIds.length === 0) {
+            appendGameOutput([
+              formatCliEcho(trimmedInput),
+              "You must select a room to annotate. Use the 'show' command to select a room.",
+            ]);
+            return null;
+          }
+
+          if (liveEditorState.selectedRoomIds.length > 1) {
+            appendGameOutput([
+              formatCliEcho(trimmedInput),
+              "You must select only one room at a time. Use the 'show' command to select a room.",
+            ]);
+            return null;
+          }
+
+          return currentDoc.rooms[liveEditorState.selectedRoomIds[0]] ?? null;
+        }
+
+        const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
+        if (reportRoomReferenceError(trimmedInput, roomMatch, 'notate', command.room.text)) {
+          return null;
+        }
+        if (roomMatch.kind !== 'one') {
+          return null;
+        }
+        return roomMatch.room;
+      })();
+
+      if (targetRoom === null) {
         return { ok: false, shouldSelectCliInput };
       }
-      if (roomMatch.kind !== 'one') {
-        return { ok: false, shouldSelectCliInput };
-      }
-      addStickyNoteForRoom(roomMatch.room.id, command.noteText, getCliHistoryOptions(liveEditorState));
-      setCliPronounRoomReference(roomMatch.room.id);
+
+      addStickyNoteForRoom(targetRoom.id, command.noteText, getCliHistoryOptions(liveEditorState));
+      setCliPronounRoomReference(targetRoom.id);
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }

@@ -572,6 +572,7 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('annotate ', 'annotate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
   });
 
   it('closes suggestions after notate and annotate enter free-text note mode', () => {
@@ -580,6 +581,7 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('notate cellar with ', 'notate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('annotate cellar with ', 'annotate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('ann cellar with ', 'ann cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('annotate with ', 'annotate with '.length, doc)).toBeNull();
   });
 
   it('uses parser-backed room suggestions after put in and take/get from', () => {

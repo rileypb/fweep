@@ -164,6 +164,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('ann Kitchen with this room has nice wallpaper')).toBe(
       'create a sticky note on Kitchen saying this room has nice wallpaper',
     );
+    expect(parseCliCommandDescription('annotate with this room has nice wallpaper')).toBe(
+      'create a sticky note on the selected room saying this room has nice wallpaper',
+    );
   });
 
   it('describes put-item commands', () => {
@@ -527,6 +530,29 @@ describe('parseCliCommand', () => {
       kind: 'set-room-adjective',
       room: { text: 'north', exact: false },
       adjective: { kind: 'lighting', text: 'dark', isDark: true },
+    });
+  });
+
+  it('parses notate commands with and without an explicit room', () => {
+    expect(parseCliCommand('notate Kitchen with hello')).toEqual({
+      kind: 'notate',
+      room: { text: 'Kitchen', exact: false },
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('ann "Kitchen" with hello')).toEqual({
+      kind: 'notate',
+      room: { text: 'Kitchen', exact: true },
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('annotate with hello')).toEqual({
+      kind: 'notate',
+      room: null,
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('ann with hello there')).toEqual({
+      kind: 'notate',
+      room: null,
+      noteText: 'hello there',
     });
   });
 });

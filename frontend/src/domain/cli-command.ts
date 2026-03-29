@@ -49,7 +49,7 @@ export type CliCommand =
     readonly targetRoom: CliRoomReference;
     readonly annotation: 'door' | 'locked door' | null;
   }
-  | { readonly kind: 'notate'; readonly room: CliRoomReference; readonly noteText: string }
+  | { readonly kind: 'notate'; readonly room: CliRoomReference | null; readonly noteText: string }
   | {
     readonly kind: 'connect';
     readonly sourceRoom: CliRoomReference;
@@ -121,6 +121,7 @@ export const CLI_COMMAND_FORMS = [
   'take/get <item> from <room name>',
   'take/get <item>, <item>, and <item> from <room name>',
   'take/get all from <room name>',
+  'notate/annotate/ann with <note text>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'disconnect <room name> [<direction>] from <room name>',
@@ -1241,8 +1242,10 @@ export function parseCliCommand(input: string): CliCommand | null {
       return null;
     }
 
-    const roomName = readRoomName(tokens, 1, (token) => token === tokens[withIndex]);
-    if (roomName === null || roomName.nextIndex !== withIndex) {
+    const roomName = withIndex === 1
+      ? null
+      : readRoomName(tokens, 1, (token) => token === tokens[withIndex]);
+    if (withIndex > 1 && (roomName === null || roomName.nextIndex !== withIndex)) {
       return null;
     }
 
@@ -1253,7 +1256,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'notate',
-      room: roomName.reference,
+      room: roomName?.reference ?? null,
       noteText: noteText.reference.text,
     };
   }
@@ -1328,7 +1331,9 @@ function describeCliCommand(command: CliCommand): string {
       }
       return `clear all connection annotations between ${command.sourceRoom.text} and ${command.targetRoom.text}`;
     case 'notate':
-      return `create a sticky note on ${command.room.text} saying ${command.noteText}`;
+      return command.room === null
+        ? `create a sticky note on the selected room saying ${command.noteText}`
+        : `create a sticky note on ${command.room.text} saying ${command.noteText}`;
     case 'undo':
       return 'undo the previous command';
     case 'redo':

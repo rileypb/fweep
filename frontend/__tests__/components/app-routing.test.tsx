@@ -3392,6 +3392,64 @@ describe('URL routing', () => {
     expectGameOutputToContain('annotate kitchen with remember the wallpaper', 'notated.');
   });
 
+  it('annotates the single selected room with annotate with', async () => {
+    let doc = createEmptyMap('CLI Annotate Selected Map');
+    doc = {
+      ...doc,
+      rooms: {
+        kitchen: {
+          id: 'kitchen',
+          name: 'Kitchen',
+          description: '',
+          position: { x: 120, y: 160 },
+          directions: {},
+          isDark: false,
+          locked: false,
+          shape: 'rectangle' as const,
+          fillColorIndex: 0,
+          strokeColorIndex: 0,
+          strokeStyle: 'solid' as const,
+        },
+      },
+    };
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli annotate selected map/i);
+
+    act(() => {
+      useEditorStore.getState().selectRoom('kitchen');
+    });
+
+    const input = getCliInput();
+    await user.type(input, 'annotate with remember the wallpaper{enter}');
+
+    const state = useEditorStore.getState();
+    const stickyNotes = Object.values(state.doc?.stickyNotes ?? {});
+    expect(stickyNotes).toHaveLength(1);
+    expect(stickyNotes[0]?.text).toBe('remember the wallpaper');
+    expect(state.selectedStickyNoteIds).toEqual([stickyNotes[0]!.id]);
+    expectGameOutputToContain('annotate with remember the wallpaper', 'notated.');
+  });
+
+  it('reports an error for roomless annotate when no room is selected', async () => {
+    const doc = createEmptyMap('CLI Annotate Selected Error Map');
+    await openSavedMap(doc);
+
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText(/cli annotate selected error map/i);
+
+    const input = getCliInput();
+    await user.type(input, 'annotate with hello{enter}');
+
+    expectGameOutputToContain(
+      'annotate with hello',
+      'You must select a room to annotate. Use the \'show\' command to select a room.',
+    );
+  });
+
   it('keeps pre-existing rooms fixed during notate prettification', async () => {
     let doc = createEmptyMap('CLI Notate Prettify Map');
     doc = {

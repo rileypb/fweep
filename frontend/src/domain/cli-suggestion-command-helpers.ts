@@ -81,6 +81,17 @@ export function getParserBackedNotateResolution(
   doc: MapDocument | null,
   roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution {
+  if (fragment.tokenIndex === 1) {
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      1,
+      createKeywordSuggestions(fragment.prefix, ['with']),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
   if (fragment.precedingTokens.some((token) => token.value.toLowerCase() === 'with')) {
     return suggestionResolution([]);
   }
