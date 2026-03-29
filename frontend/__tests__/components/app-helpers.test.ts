@@ -144,11 +144,16 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("(!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey");
     expect(parchmentHtml).toContain("fweep:submit-cli-from-parchment");
     expect(parchmentHtml).toContain("fweep:submit-game-command");
+    expect(parchmentHtml).toContain("fweep:request-cli-suggestions");
+    expect(parchmentHtml).toContain("fweep:render-cli-suggestions");
     expect(parchmentHtml).toContain("fweep:append-cli-output");
     expect(parchmentHtml).toContain("fweep:restore-cli-focus");
     expect(parchmentHtml).toContain("fweep:restore-game-input-focus");
     expect(parchmentHtml).toContain("rawInput: currentValue");
     expect(parchmentHtml).toContain("var pendingGameCommand = null;");
+    expect(parchmentHtml).toContain("cliSuggestionsEnabled = true");
+    expect(parchmentHtml).toContain("event.key === ' '");
+    expect(parchmentHtml).toContain("event.code === 'Space'");
     expect(parchmentHtml).toContain("submitCharacterCommand(charInput, ' ')");
     expect(parchmentHtml).toContain("typeof parchmentWindow.textinput.submit_char === 'function'");
     expect(parchmentHtml).toContain("target.dispatchEvent(new KeyboardEvent('keypress'");

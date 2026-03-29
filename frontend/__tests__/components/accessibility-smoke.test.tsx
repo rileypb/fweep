@@ -56,7 +56,9 @@ describe('accessibility smoke tests', () => {
   it('has no obvious violations on the tips dialog', async () => {
     const { container } = render(
       <TipsDialog
+        initialTipIndex={0}
         isOpen
+        onTipIndexChange={() => undefined}
         showTipsOnStartup
         onClose={() => undefined}
         onShowTipsOnStartupChange={() => undefined}

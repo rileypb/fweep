@@ -16,6 +16,7 @@ import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
 import { pingIfdbProxy } from './domain/ifdb-client';
 import { startIfdbProxyHeartbeat } from './domain/ifdb-proxy-heartbeat';
+import { getCliSuggestions } from './domain/cli-suggestions';
 import { useMapRouter } from './hooks/use-map-router';
 import { useParchmentFocusToggle } from './hooks/use-parchment-focus-toggle';
 import { useParchmentPanel } from './hooks/use-parchment-panel';
@@ -573,7 +574,36 @@ export function App(): React.JSX.Element {
         return;
       }
 
-      const data = event.data as { type?: unknown; command?: unknown; rawInput?: unknown } | null;
+      const data = event.data as {
+        type?: unknown;
+        command?: unknown;
+        rawInput?: unknown;
+        caretPosition?: unknown;
+        requestId?: unknown;
+      } | null;
+      if (
+        data?.type === 'fweep:request-cli-suggestions'
+        && typeof data.command === 'string'
+        && typeof data.caretPosition === 'number'
+      ) {
+        const suggestionResult = getCliSuggestions(
+          data.command,
+          data.caretPosition,
+          useEditorStore.getState().doc ?? activeMap,
+        );
+        parchmentIframeRef.current?.contentWindow?.postMessage(
+          {
+            type: 'fweep:render-cli-suggestions',
+            requestId: typeof data.requestId === 'number' ? data.requestId : null,
+            command: data.command,
+            caretPosition: data.caretPosition,
+            suggestionResult,
+          },
+          window.location.origin,
+        );
+        return;
+      }
+
       if (data?.type === 'fweep:submit-cli-from-parchment' && typeof data.command === 'string') {
         const rawInput = typeof data.rawInput === 'string' ? data.rawInput : null;
         submitCliCommandText(data.command, {
@@ -613,7 +643,7 @@ export function App(): React.JSX.Element {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [cliInputRef, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
+  }, [activeMap, cliInputRef, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
 
   useEffect(() => {
     if (!isHelpOpen && !isWelcomeOpen && !isTipsOpen) {
