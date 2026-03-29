@@ -82,6 +82,15 @@ export function getParserBackedNotateResolution(
   roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution {
   if (fragment.tokenIndex === 1) {
+    if (fragment.prefix.length === 0) {
+      return suggestionResolution(
+        roomSlotSuggestionHelpers.mergeSuggestions(
+          roomSlotSuggestionHelpers.createPlaceholderSuggestion('<room>'),
+          createKeywordSuggestions(fragment.prefix, ['with']),
+        ),
+      );
+    }
+
     return getRoomReferenceResolutionWithFallback(
       input,
       fragment,

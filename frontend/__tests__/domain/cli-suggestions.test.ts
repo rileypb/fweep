@@ -572,7 +572,9 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
-    expect(getCliSuggestions('annotate ', 'annotate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+    expect(getCliSuggestions('notate ', 'notate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
+    expect(getCliSuggestions('annotate ', 'annotate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
+    expect(getCliSuggestions('ann ', 'ann '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
   });
 
   it('closes suggestions after notate and annotate enter free-text note mode', () => {
