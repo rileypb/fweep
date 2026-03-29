@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { HelpDialog } from './components/help-dialog';
 import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
@@ -14,6 +15,7 @@ import {
 } from './components/ui-shortcuts';
 import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
+import type { MapZoomRequest, RoomUiRequest, ViewportFocusRequest } from './hooks/use-app-cli';
 import { pingIfdbProxy } from './domain/ifdb-client';
 import { startIfdbProxyHeartbeat } from './domain/ifdb-proxy-heartbeat';
 import { getCliSuggestions } from './domain/cli-suggestions';
@@ -22,11 +24,9 @@ import { useParchmentFocusToggle } from './hooks/use-parchment-focus-toggle';
 import { useParchmentPanel } from './hooks/use-parchment-panel';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
-import { getVisibleMapRightInset } from './components/app-layout';
 import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
-  clampParchmentPanelHeightWithinInsets,
   clampParchmentPanelWidth,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
@@ -51,8 +51,6 @@ const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 12
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
 const STARTUP_TIPS_ENABLED_STORAGE_KEY = 'fweep-startup-tips-enabled';
 const STARTUP_TIP_INDEX_STORAGE_KEY = 'fweep-startup-tip-index';
-const APP_TOP_BAND_TOP_PX = 16;
-const APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX = 72;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 export {
@@ -73,18 +71,6 @@ export {
 
 export function isDesktopViewport(): boolean {
   return typeof window === 'undefined' || window.innerWidth >= DESKTOP_ONLY_MIN_WIDTH_PX;
-}
-
-export function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
-  return rootFontSizePx + (viewportWidth * 0.02);
-}
-
-export function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): number {
-  const leftOffset = getAppCliLeftOffset(viewportWidth, rootFontSizePx);
-  const preferredStackWidth = viewportWidth <= 720
-    ? Math.min(viewportWidth * 0.52, rootFontSizePx * 18)
-    : Math.min(viewportWidth * 0.375, rootFontSizePx * 27);
-  return Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
 }
 
 export function hasSeenWelcomeDialog(): boolean {
@@ -269,18 +255,15 @@ function appendCliOutputToParchmentTranscript(
 }
 
 export function App(): React.JSX.Element {
-  const isMapCliHidden = true;
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
-  const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
-  const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
   const toggleSnapToGrid = useEditorStore((s) => s.toggleSnapToGrid);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
@@ -295,23 +278,16 @@ export function App(): React.JSX.Element {
   const [startupTipIndex, setStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [nextStartupTipIndex, setNextStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
-  const [cliOutputTop, setCliOutputTop] = useState<number | null>(null);
-  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
-  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
-  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
-  const [requestedMapZoomRequest, setRequestedMapZoomRequest] = useState<import('./hooks/use-app-cli').MapZoomRequest | null>(null);
+  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<RoomUiRequest | null>(null);
+  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<RoomUiRequest | null>(null);
+  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
+  const [requestedMapZoomRequest, setRequestedMapZoomRequest] = useState<MapZoomRequest | null>(null);
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
   const mapActionsContainerRef = useRef<HTMLDivElement | null>(null);
   const previousTipsMapIdRef = useRef<string | null>(null);
-  const rootFontSizePx = typeof window === 'undefined'
-    ? 16
-    : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
   const hasOpenMap = activeMap !== null;
-  const isGamePanelDockedIntoCliSlot = hasOpenMap && isMapCliHidden;
-  const dockedGamePanelTopInsetPx = APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX;
-  const dockedGamePanelBottomInsetPx = 16;
   const {
     parchmentPanelWidth,
     parchmentPanelHeight,
@@ -341,8 +317,8 @@ export function App(): React.JSX.Element {
     setAssociatedGameMetadata,
     parchmentDeviceInputRef,
     parchmentIframeRef,
-    heightTopInsetPx: isGamePanelDockedIntoCliSlot ? dockedGamePanelTopInsetPx : 16,
-    heightBottomInsetPx: isGamePanelDockedIntoCliSlot ? dockedGamePanelBottomInsetPx : 16,
+    heightTopInsetPx: 16,
+    heightBottomInsetPx: 16,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
   const routeCrossInputCommandToParchment = useCallback((command: string): boolean => {
@@ -368,84 +344,29 @@ export function App(): React.JSX.Element {
       window.location.origin,
     );
   }, [parchmentIframeRef]);
+  const panelColumnLeft = hasOpenMap ? 68 : 16;
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
-    : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
-      + (isGamePanelDockedIntoCliSlot
-        ? parchmentPanelWidth
-        : !cliOutputCollapsedEnabled
-          ? getAppCliStackWidth(window.innerWidth, rootFontSizePx)
-        : 0);
+    : hasOpenMap
+      ? panelColumnLeft + parchmentPanelWidth + 12
+      : 0;
   const visibleMapRightInset = typeof window === 'undefined'
     ? 0
-    : isGamePanelDockedIntoCliSlot
-      ? 0
-    : getVisibleMapRightInset({
-      hasOpenMap,
-      viewportHeight: window.innerHeight,
-      parchmentPanelWidth,
-      parchmentPanelHeight,
-    });
-  const selectionFocusRightInset = typeof window === 'undefined'
-    ? 0
-    : isGamePanelDockedIntoCliSlot
-      ? 0
-    : hasOpenMap
-      ? parchmentPanelWidth + 16 + 12
-      : 0;
-  const mapNameChipRightInset = typeof window === 'undefined'
-    ? 0
-    : isGamePanelDockedIntoCliSlot
-      ? 0
-    : getVisibleMapRightInset({
-      hasOpenMap,
-      viewportHeight: window.innerHeight,
-      parchmentPanelWidth,
-      parchmentPanelHeight,
-      protectedBandBottom: APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
-    });
-  const appTitleRightInset = typeof window === 'undefined'
-    ? 16
-    : isGamePanelDockedIntoCliSlot
-      ? 16
-    : hasOpenMap
-      ? parchmentPanelWidth + 16 + 12
-      : 16;
+    : 0;
+  const selectionFocusRightInset = 0;
+  const mapNameChipRightInset = 0;
+  const appTitleRightInset = 16;
   const topBarLeft = typeof window === 'undefined'
     ? 16
-    : (getAppCliLeftOffset(window.innerWidth, rootFontSizePx) / 2) - (rootFontSizePx * 1.25);
+    : panelColumnLeft;
   const mapNameChipMaxWidth = typeof window === 'undefined'
     ? undefined
-    : Math.max(window.innerWidth - topBarLeft - (rootFontSizePx * 3) - mapNameChipRightInset - 16, 0);
+    : Math.max(window.innerWidth - topBarLeft - 48 - mapNameChipRightInset - 16, 0);
+  const appShellStyle: CSSProperties = {
+    '--app-left-panel-offset': `${panelColumnLeft}px`,
+  } as CSSProperties;
   const {
-    cliInputRef,
-    cliImportInputRef,
-    gameOutputRef,
-    cliCommand,
-    hasUsedCliInput,
-    cliHistory,
-    cliHistoryIndex,
-    cliHistoryDraft,
-    cliSuggestions,
-    highlightedCliSuggestionIndex,
-    isCliSuggestionMenuOpen,
-    gameOutputLines,
-    isImportingScript,
-    handleCliSubmit,
     submitCliCommandText,
-    handleCliCommandChange,
-    handleCliInputFocus,
-    handleCliInputBlur,
-    handleCliCaretChange,
-    toggleCliSuggestions,
-    consumeCliSlashFocusSuppression,
-    handleCliHistoryNavigate,
-    moveCliSuggestionHighlight,
-    setCliSuggestionHighlight,
-    applyHighlightedCliSuggestion,
-    closeCliSuggestions,
-    handleImportScriptChange,
-    handleGameOutputClick,
     flushDocumentSave,
   } = useAppCli({
     activeMap,
@@ -553,7 +474,6 @@ export function App(): React.JSX.Element {
   }, []);
 
   useParchmentFocusToggle({
-    cliInputRef,
     hasOpenMap,
     isParchmentGameViewVisible,
     parchmentIframeRef,
@@ -634,8 +554,10 @@ export function App(): React.JSX.Element {
       }
 
       window.requestAnimationFrame(() => {
-        cliInputRef.current?.focus();
-        cliInputRef.current?.select();
+        const mapCanvasElement = document.querySelector('[data-testid="map-canvas"]');
+        if (mapCanvasElement instanceof HTMLElement) {
+          mapCanvasElement.focus();
+        }
       });
     };
 
@@ -643,7 +565,7 @@ export function App(): React.JSX.Element {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [activeMap, cliInputRef, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
+  }, [activeMap, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
 
   useEffect(() => {
     if (!isHelpOpen && !isWelcomeOpen && !isTipsOpen) {
@@ -839,11 +761,10 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <main className="app-shell" data-canvas-theme={hasOpenMap ? mapCanvasTheme : undefined}>
+    <main className="app-shell" data-canvas-theme={hasOpenMap ? mapCanvasTheme : undefined} style={appShellStyle}>
       {hasOpenMap && (
         <>
-          <div className="app-left-rail-backdrop" aria-hidden="true" />
-          <div className="app-top-bar" style={{ left: `${topBarLeft}px` }}>
+          <div className="app-top-bar app-top-bar--left">
             <button
               type="button"
               className="app-control-button app-control-button--plain"
@@ -860,6 +781,8 @@ export function App(): React.JSX.Element {
                 <path d="M5.5 8H13" strokeLinecap="round" />
               </svg>
             </button>
+          </div>
+          <div className="app-top-bar app-top-bar--panel" style={{ left: `${topBarLeft}px` }}>
             <div
               className="app-control-chip app-map-name-chip app-control-chip--plain"
               aria-label={`Map name: ${activeMap.metadata.name}`}
@@ -970,15 +893,7 @@ export function App(): React.JSX.Element {
             minWidth={PARCHMENT_PANEL_MIN_WIDTH_PX}
             maxWidth={clampParchmentPanelWidth(window.innerWidth, window.innerWidth)}
             minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
-            maxHeight={isGamePanelDockedIntoCliSlot
-              ? clampParchmentPanelHeightWithinInsets(
-                window.innerHeight,
-                window.innerHeight,
-                dockedGamePanelTopInsetPx,
-                dockedGamePanelBottomInsetPx,
-              )
-              : clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
-            layoutMode={isGamePanelDockedIntoCliSlot ? 'cli-slot' : 'floating-right'}
+            maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
             isGameViewVisible={isParchmentGameViewVisible}
             parchmentSrc={parchmentSrc}
             ifdbSearchQuery={ifdbSearchQuery}
@@ -1015,11 +930,11 @@ export function App(): React.JSX.Element {
               beginParchmentPanelResize(
                 event.pointerId,
                 event.clientX,
-                isGamePanelDockedIntoCliSlot ? 'left' : 'right',
+                'left',
               );
             }}
             onWidthResizeKeyDown={(event) => {
-              handleParchmentPanelWidthResizeKeyDown(event, isGamePanelDockedIntoCliSlot ? 'left' : 'right');
+              handleParchmentPanelWidthResizeKeyDown(event, 'left');
             }}
           />
         </>

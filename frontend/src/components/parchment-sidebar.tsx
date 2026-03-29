@@ -40,7 +40,6 @@ interface ParchmentSidebarProps {
   readonly onHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
   readonly onWidthResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
   readonly onWidthResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
-  readonly layoutMode?: 'floating-right' | 'cli-slot';
 }
 
 export function ParchmentSidebar({
@@ -73,15 +72,13 @@ export function ParchmentSidebar({
   onHeightResizeKeyDown,
   onWidthResizePointerDown,
   onWidthResizeKeyDown,
-  layoutMode = 'floating-right',
 }: ParchmentSidebarProps): React.JSX.Element {
   const [emptyStateTip] = useState(getRandomParchmentPanelTip);
   const shouldShowEmptyStateTip = !isGameViewVisible && ifdbSearchResults.length === 0;
-  const widthResizeHandleClassName = `app-parchment-panel__resize-handle${layoutMode === 'cli-slot' ? ' app-parchment-panel__resize-handle--right' : ''}`;
 
   return (
     <div
-      className={`app-parchment-panel${layoutMode === 'cli-slot' ? ' app-parchment-panel--cli-slot' : ''}`}
+      className="app-parchment-panel"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
       <span id="parchment-panel-height-resize-help" className="sr-only">
@@ -104,7 +101,7 @@ export function ParchmentSidebar({
         onKeyDown={onHeightResizeKeyDown}
       />
       <div
-        className={widthResizeHandleClassName}
+        className="app-parchment-panel__resize-handle app-parchment-panel__resize-handle--right"
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize game panel width"

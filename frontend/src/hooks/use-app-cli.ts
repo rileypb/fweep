@@ -1086,7 +1086,7 @@ export function useAppCli({
       }
 
       const targetRoomMatch = resolveRoomByCliReference(currentDoc, command.targetRoom.text, command.targetRoom.exact, currentPronounRoomId);
-      if (targetRoomMatch.kind === 'many') {
+      if (targetRoomMatch.kind === 'multiple') {
         reportRoomReferenceError(trimmedInput, targetRoomMatch, 'selected-room-relative-connect', command.targetRoom.text);
         return { ok: false, shouldSelectCliInput };
       }

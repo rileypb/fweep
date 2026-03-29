@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY } from '../components/parchment-panel-helpers';
 
 interface UseParchmentFocusToggleOptions {
-  readonly cliInputRef: React.RefObject<HTMLInputElement | null>;
   readonly hasOpenMap: boolean;
   readonly isParchmentGameViewVisible: boolean;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -10,7 +9,6 @@ interface UseParchmentFocusToggleOptions {
 }
 
 export function useParchmentFocusToggle({
-  cliInputRef,
   hasOpenMap,
   isParchmentGameViewVisible,
   parchmentIframeRef,
@@ -25,12 +23,7 @@ export function useParchmentFocusToggle({
     && event.code === PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY
   ), []);
 
-  const focusFweepMain = useCallback((preferCliInput = false): void => {
-    if (preferCliInput) {
-      cliInputRef.current?.focus();
-      return;
-    }
-
+  const focusFweepMain = useCallback((): void => {
     const lastFocusedElement = lastFocusedFweepElementRef.current;
     if (
       lastFocusedElement !== null
@@ -47,9 +40,7 @@ export function useParchmentFocusToggle({
       mapCanvasElement.focus();
       return;
     }
-
-    cliInputRef.current?.focus();
-  }, [cliInputRef, parchmentIframeRef]);
+  }, [parchmentIframeRef]);
 
   const focusParchmentPanel = useCallback((): void => {
     const activeElement = document.activeElement;
@@ -76,7 +67,7 @@ export function useParchmentFocusToggle({
     }
 
     event.preventDefault();
-    focusFweepMain(true);
+    focusFweepMain();
   }, [focusFweepMain, isParchmentFocusToggleShortcut]);
 
   useEffect(() => {
@@ -115,7 +106,7 @@ export function useParchmentFocusToggle({
         && activeElement.closest('.app-parchment-panel') !== null;
 
       if (activeElement === parchmentIframeRef.current || isFocusInsideParchmentPanel) {
-        focusFweepMain(true);
+        focusFweepMain();
         return;
       }
 
@@ -198,7 +189,7 @@ export function useParchmentFocusToggle({
         return;
       }
 
-      focusFweepMain(true);
+      focusFweepMain();
     };
 
     window.addEventListener('message', handleMessage);

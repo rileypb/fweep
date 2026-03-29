@@ -6,8 +6,6 @@ import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
-  getAppCliLeftOffset,
-  getAppCliStackWidth,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
   getNextCanvasTheme,
@@ -43,12 +41,6 @@ describe('app helpers', () => {
       value: 900,
     });
     (globalThis as { __FWEEP_TEST_DEV__?: boolean }).__FWEEP_TEST_DEV__ = false;
-  });
-
-  it('computes CLI chrome offsets within the viewport', () => {
-    expect(getAppCliLeftOffset(1000, 16)).toBe(36);
-    expect(getAppCliStackWidth(640, 16)).toBeLessThanOrEqual(640 - getAppCliLeftOffset(640, 16) - 16);
-    expect(getAppCliStackWidth(1440, 16)).toBe(432);
   });
 
   it('tracks whether the welcome dialog has been seen', () => {
