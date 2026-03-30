@@ -119,9 +119,10 @@ describe('editor-store-history', () => {
     const currentState = {
       ...useEditorStore.getInitialState(),
       pastEntries: [{
-        kind: 'background-reference-image' as const,
-        before: null,
-        after: null,
+        kind: 'background-stroke' as const,
+        mapId: 'map-1',
+        layerId: 'layer-1',
+        chunks: [],
       }],
       lastHistoryMergeKey: 'same-key',
     };
@@ -160,14 +161,14 @@ describe('editor-store-history', () => {
     currentDoc = addRoom(currentDoc, room);
     currentDoc = addPseudoRoom(currentDoc, removedPseudo);
     currentDoc = addPseudoRoom(currentDoc, keptPseudo);
-    currentDoc = addStickyNote(currentDoc, { ...createStickyNote(room.id, 'note'), id: 'note-1' });
+    currentDoc = addStickyNote(currentDoc, { ...createStickyNote('note'), id: 'note-1' });
     currentDoc = addConnection(currentDoc, { ...createConnection(room.id, { kind: 'pseudo-room', id: keptPseudo.id }, false), id: 'conn-1' }, 'north');
     currentDoc = addStickyNoteLink(currentDoc, { ...createStickyNoteLink('note-1', { kind: 'room', id: room.id }), id: 'link-1' });
 
     let updatedDoc = createEmptyMap('Updated');
     updatedDoc = addRoom(updatedDoc, room);
     updatedDoc = addPseudoRoom(updatedDoc, keptPseudo);
-    updatedDoc = addStickyNote(updatedDoc, { ...createStickyNote(room.id, 'note'), id: 'note-1' });
+    updatedDoc = addStickyNote(updatedDoc, { ...createStickyNote('note'), id: 'note-1' });
     updatedDoc = addConnection(updatedDoc, { ...createConnection(room.id, { kind: 'pseudo-room', id: keptPseudo.id }, false), id: 'conn-1' }, 'north');
 
     const selectionBefore = createSelectionSnapshot({

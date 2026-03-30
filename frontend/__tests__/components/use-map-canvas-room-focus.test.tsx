@@ -57,7 +57,7 @@ function createHookOptions(overrides?: Partial<{
     zoomRef,
     setPanOffset: jest.fn<(value: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void>(),
     setMapPanOffset: jest.fn<(position: Position) => void>(),
-    mapVisualStyle: 'classic' as const,
+    mapVisualStyle: 'square-classic' as const,
     visibleMapLeftInset: 40,
     visibleMapRightInset: 20,
     selectionFocusRightInset: 100,
@@ -100,9 +100,6 @@ describe('useMapCanvasRoomFocus', () => {
       width: 80,
       height: 40,
       centerX: 160,
-      centerY: 110,
-      right: 200,
-      bottom: 130,
     });
 
     const options = createHookOptions();
@@ -152,9 +149,6 @@ describe('useMapCanvasRoomFocus', () => {
       width: 80,
       height: 40,
       centerX: 160,
-      centerY: 110,
-      right: 200,
-      bottom: 130,
     });
 
     const options = createHookOptions();
@@ -178,9 +172,6 @@ describe('useMapCanvasRoomFocus', () => {
       width: 80,
       height: 40,
       centerX: 40,
-      centerY: 20,
-      right: 80,
-      bottom: 40,
     });
 
     const zeroRect = {
@@ -226,9 +217,6 @@ describe('useMapCanvasRoomFocus', () => {
       width: 80,
       height: 40,
       centerX: 160,
-      centerY: 110,
-      right: 200,
-      bottom: 130,
     });
 
     const { rerender } = renderHook(
@@ -279,9 +267,6 @@ describe('useMapCanvasRoomFocus', () => {
         width: 80,
         height: 40,
         centerX: 160,
-        centerY: 110,
-        right: 200,
-        bottom: 130,
       })
       .mockReturnValueOnce({
         left: 120,
@@ -289,9 +274,6 @@ describe('useMapCanvasRoomFocus', () => {
         width: 80,
         height: 40,
         centerX: 160,
-        centerY: 110,
-        right: 200,
-        bottom: 130,
       })
       .mockReturnValueOnce({
         left: 280,
@@ -299,9 +281,6 @@ describe('useMapCanvasRoomFocus', () => {
         width: 80,
         height: 40,
         centerX: 320,
-        centerY: 210,
-        right: 360,
-        bottom: 230,
       });
 
     const { rerender } = renderHook(

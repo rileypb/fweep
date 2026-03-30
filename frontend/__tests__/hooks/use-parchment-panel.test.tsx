@@ -85,9 +85,12 @@ describe('useParchmentPanel', () => {
         tuid: 'abc123',
         title: 'The Example Game',
         author: 'Pat Example',
-        link: null,
-        coverArtLink: null,
+        ifdbLink: null,
+        coverArtUrl: null,
         published: null,
+        publishedDisplay: null,
+        publishedYear: null,
+        averageRating: null,
       },
     ];
     const secondResults: readonly NormalizedIfdbSearchResult[] = [
@@ -95,9 +98,12 @@ describe('useParchmentPanel', () => {
         tuid: 'def456',
         title: 'Another Example Game',
         author: 'Pat Example',
-        link: null,
-        coverArtLink: null,
+        ifdbLink: null,
+        coverArtUrl: null,
         published: null,
+        publishedDisplay: null,
+        publishedYear: null,
+        averageRating: null,
       },
     ];
     mockSearchIfdbGames

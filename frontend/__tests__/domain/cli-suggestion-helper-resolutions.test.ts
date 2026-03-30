@@ -36,6 +36,7 @@ function createToken(value: string): Token {
 
 function createFragment(options: Partial<ActiveFragment> & Pick<ActiveFragment, 'prefix' | 'tokenIndex' | 'precedingTokens'>): ActiveFragment {
   return {
+    ...options,
     start: 0,
     end: options.prefix.length,
     caret: options.prefix.length,
@@ -45,7 +46,6 @@ function createFragment(options: Partial<ActiveFragment> & Pick<ActiveFragment, 
     precedingTokens: options.precedingTokens,
     quoted: false,
     quoteClosed: true,
-    ...options,
   };
 }
 

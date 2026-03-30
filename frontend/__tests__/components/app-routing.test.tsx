@@ -398,7 +398,7 @@ describe('URL routing', () => {
 
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
 
-    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await waitFor(() => {
       expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
@@ -517,7 +517,7 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: /^search$/i }));
     await user.click(await screen.findByRole('button', { name: /play the example game via cover art/i }));
 
-    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await waitFor(() => {
       expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
@@ -745,7 +745,7 @@ describe('URL routing', () => {
 
     await renderAppWithSavedMap(linkedDoc);
 
-    const iframe = await screen.findByTitle(/interactive fiction player/i);
+    const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await loadParchmentIframe(iframe);
 
     expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();

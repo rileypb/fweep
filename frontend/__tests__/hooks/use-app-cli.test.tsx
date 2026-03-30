@@ -4,34 +4,36 @@ import { addConnection, addItem, addRoom } from '../../src/domain/map-operations
 import { createConnection, createEmptyMap, createItem, createRoom } from '../../src/domain/map-types';
 import { useAppCli } from '../../src/hooks/use-app-cli';
 import { useEditorStore } from '../../src/state/editor-store';
+import type { MapDocument } from '../../src/domain/map-types';
+import type { MapZoomRequest, RoomUiRequest, ViewportFocusRequest } from '../../src/hooks/use-app-cli';
 
-function createOptions(activeMap = createEmptyMap('CLI Map')) {
+function createOptions(activeMap: MapDocument | null = createEmptyMap('CLI Map')) {
   return {
     activeMap,
-    loadDocument: jest.fn<(doc: typeof activeMap) => void>(),
+    loadDocument: jest.fn<(doc: MapDocument) => void>(),
     unloadDocument: jest.fn<() => void>(),
     routeCrossInputCommandToParchment: jest.fn<(command: string) => boolean>().mockReturnValue(false),
     requestedRoomEditorRequest: null,
     requestedRoomRevealRequest: null,
     requestedViewportFocusRequest: null,
     requestedMapZoomRequest: null,
-    setRequestedRoomEditorRequest: jest.fn<(request: null) => void>(),
-    setRequestedRoomRevealRequest: jest.fn<(request: null) => void>(),
-    setRequestedViewportFocusRequest: jest.fn<(request: null) => void>(),
-    setRequestedMapZoomRequest: jest.fn<(request: null) => void>(),
-  } as const;
+    setRequestedRoomEditorRequest: jest.fn<(request: RoomUiRequest | null) => void>(),
+    setRequestedRoomRevealRequest: jest.fn<(request: RoomUiRequest | null) => void>(),
+    setRequestedViewportFocusRequest: jest.fn<(request: ViewportFocusRequest | null) => void>(),
+    setRequestedMapZoomRequest: jest.fn<(request: MapZoomRequest | null) => void>(),
+  };
 }
 
-function createStoreBackedOptions(activeMap = createEmptyMap('CLI Map')) {
+function createStoreBackedOptions(activeMap: MapDocument | null = createEmptyMap('CLI Map')) {
   return {
     ...createOptions(activeMap),
-    loadDocument: (doc: NonNullable<typeof activeMap>) => {
+    loadDocument: (doc: MapDocument) => {
       useEditorStore.getState().loadDocument(doc);
     },
     unloadDocument: () => {
       useEditorStore.getState().unloadDocument();
     },
-  } as const;
+  };
 }
 
 beforeEach(() => {
@@ -391,11 +393,11 @@ describe('useAppCli', () => {
         clearInputState: false,
       });
     });
-    expect(options.setRequestedMapZoomRequest).toHaveBeenCalledWith({
+    expect(options.setRequestedMapZoomRequest).toHaveBeenCalledWith(expect.objectContaining({
       mode: 'absolute',
       targetZoom: 1.5,
       requestId: expect.any(Number),
-    });
+    }));
     expect(result.current.gameOutputLines).toContain('Zoomed to 150%.');
   });
 
@@ -417,21 +419,20 @@ describe('useAppCli', () => {
 
     expect(result.current.gameOutputLines).toContain('help rooms');
     expect(result.current.gameOutputLines).toContain('help connect');
-    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(1, {
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
       mode: 'relative',
       direction: 'in',
       requestId: expect.any(Number),
-    });
-    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(2, {
+    }));
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(2, expect.objectContaining({
       mode: 'relative',
       direction: 'out',
       requestId: expect.any(Number),
-    });
-    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(3, {
+    }));
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(3, expect.objectContaining({
       mode: 'reset',
-      direction: undefined,
       requestId: expect.any(Number),
-    });
+    }));
   });
 
   it('reports when an imported script contains no commands', async () => {

@@ -1,34 +1,14 @@
 import { act, renderHook } from '@testing-library/react';
 import { useMapCanvasViewportPersistence } from '../../src/components/use-map-canvas-viewport-persistence';
 import { jest } from '@jest/globals';
+import { createEmptyMap } from '../../src/domain/map-types';
 
 describe('useMapCanvasViewportPersistence', () => {
   it('flushes a pending pan persistence update when the hook unmounts', () => {
     jest.useFakeTimers();
     const setMapPanOffset = jest.fn<(position: { x: number; y: number }) => void>();
     const setMapZoom = jest.fn<(zoom: number) => void>();
-    const doc = {
-      metadata: { id: 'map-1', name: 'Test', createdAt: '', updatedAt: '' },
-      rooms: {},
-      pseudoRooms: {},
-      connections: {},
-      items: {},
-      stickyNotes: {},
-      stickyNoteLinks: {},
-      background: { layers: {}, activeLayerId: null, referenceImage: null },
-      cliOutputLines: [],
-      view: {
-        pan: { x: 0, y: 0 },
-        zoom: 1,
-        visualStyle: 'default',
-        canvasTheme: 'default',
-        textureSeed: 1,
-        showGrid: true,
-        snapToGrid: true,
-        useBezierConnections: false,
-        cliOutputCollapsed: false,
-      },
-    };
+    const doc = createEmptyMap('Test');
 
     const { unmount } = renderHook(() => useMapCanvasViewportPersistence({
       doc,
@@ -51,28 +31,7 @@ describe('useMapCanvasViewportPersistence', () => {
     jest.useFakeTimers();
     const setMapPanOffset = jest.fn<(position: { x: number; y: number }) => void>();
     const setMapZoom = jest.fn<(zoom: number) => void>();
-    const doc = {
-      metadata: { id: 'map-1', name: 'Test', createdAt: '', updatedAt: '' },
-      rooms: {},
-      pseudoRooms: {},
-      connections: {},
-      items: {},
-      stickyNotes: {},
-      stickyNoteLinks: {},
-      background: { layers: {}, activeLayerId: null, referenceImage: null },
-      cliOutputLines: [],
-      view: {
-        pan: { x: 0, y: 0 },
-        zoom: 1,
-        visualStyle: 'default',
-        canvasTheme: 'default',
-        textureSeed: 1,
-        showGrid: true,
-        snapToGrid: true,
-        useBezierConnections: false,
-        cliOutputCollapsed: false,
-      },
-    };
+    const doc = createEmptyMap('Test');
 
     renderHook(() => useMapCanvasViewportPersistence({
       doc,

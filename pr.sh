@@ -1,40 +1,41 @@
 gh pr create \
   --base main \
-  --head v6 \
-  --title "Release v6" \
+  --head v7 \
+  --title "Release v7" \
   --body "$(cat <<'EOF'
-This PR releases `fweep v6` from `v6` to `main`.
+This PR releases `fweep v7` from `v7` to `main`.
 
-`v6` reshapes the keyboard-driven mapping flow around the embedded game panel, adds richer command discovery, and improves map interaction polish across selection, zoom, layout, and accessibility.
+`v7` tightens the embedded-command workflow with restored shared history in Parchment, better parser-command suggestions, and more reliable viewport/session restoration when moving between maps.
 
 ## What’s included
 
-- Moved the embedded game panel to the left side of the app and removed the old standalone CLI shell panel.
-- Routed mapper commands through the game-side input flow, with command echo and mapper output mirrored into the game transcript.
-- Added in-context command suggestions in the game window, including broader direction/item coverage and zoom help.
-- Added a startup tips dialog plus expanded keyboard-shortcut and help coverage.
-- Polished map interaction behavior around selection styling, low-zoom labels, item-list expansion, pseudo-room connection selection, and prettify/layout behavior.
-- Added focused regression coverage for tips, shortcuts, suggestions, prettify stability, accessibility, and related shell behavior.
-- Fixed branch-local TypeScript issues that were blocking the production build during release prep.
+- Restored `ArrowUp` / `ArrowDown` history navigation inside the embedded Parchment command input.
+- Unified command recall so interactive-fiction commands and `\`-prefixed mapper commands share one interleaved history.
+- Added parser and suggestion improvements for `select`, selected-room pseudo-room exits, and notate follow-up keywords.
+- Improved map-view session restoration so pan and zoom state are reapplied more reliably while moving between maps.
+- Added focused regression coverage for Parchment shell/history behavior, CLI hooks, viewport persistence, room focus, and suggestion-helper flows.
+- Fixed branch-local TypeScript drift in tests so the production build passes again during release prep.
 
 ## Compatibility / persistence
 
-`v6` does not change the persisted map schema.
+`v7` does not change the persisted map schema.
 
-- schema version remains unchanged from `v5`
+- schema version remains unchanged from `v6`
 - no migration or schema-version bump is required for this release
 - existing saved maps continue to load and save under the existing schema-4 behavior
+- pan/zoom session restoration is cached per map within the active browser session only; it does not rewrite saved documents
 
 ## Validation
 
 - `npm run build` passes
-- automated test suite passes: `74` suites, `1350` tests
-- manual smoke checklist is recorded in `smoke-tests/smoke-v6.md`
-- manual branch smoke pass recorded in `smoke-tests/smoke-v6.md` passed
+- automated test suite passes: `83` suites, `1447` tests
+- manual smoke checklist is recorded in `smoke-tests/smoke-v7.md`
+- manual branch smoke checklist for `v7` is recorded in `smoke-tests/smoke-v7.md`
+- manual branch smoke pass is still pending before merge
 
 ## Notes
 
 - Long-form release notes are recorded in `release-notes.md`.
-- Smoke-test results are recorded in `smoke-tests/smoke-v6.md`.
+- Smoke-test results are recorded in `smoke-tests/smoke-v7.md`.
 EOF
 )"
