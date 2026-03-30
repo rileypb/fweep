@@ -73,6 +73,7 @@ describe('computePrettifiedRoomPositions', () => {
           'room-b': { x: 240, y: 0 },
         },
         pseudoRoomPositions: {},
+        stickyNotePositions: {},
       },
       {
         roomPositions: {
@@ -80,6 +81,7 @@ describe('computePrettifiedRoomPositions', () => {
           'room-b': { x: 220, y: 0 },
         },
         pseudoRoomPositions: {},
+        stickyNotePositions: {},
       },
     ] as const;
 

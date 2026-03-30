@@ -178,3 +178,59 @@
 - Production build passes.
 - Automated test suite passes: `73` suites, `1435` tests.
 - Manual smoke-test confirmation passed.
+
+## v6
+
+`v6` reshapes the keyboard-driven mapping flow around the embedded game panel, adds richer command discovery, and improves map interaction polish across selection, zoom, layout, and accessibility.
+
+### Highlights
+- Moved the embedded game panel to the left and folded mapper command flow more directly into the game transcript.
+- Added in-context command suggestions and command echoing inside the game window.
+- Added a startup tips dialog plus broader keyboard-shortcut help and discoverability.
+- Expanded keyboard control coverage for focus switching, zoom, layout, and map interaction polish.
+
+### User-visible changes
+- The embedded Parchment panel now sits on the left side of the app, and the old standalone CLI panel is hidden from the main shell layout.
+- Mapper commands can now be driven from the game-side input flow:
+  - map commands can be invoked from game input
+  - mapper output is echoed into the game transcript
+  - command suggestions can appear inside the game window
+- CLI/game command discovery is broader and more forgiving:
+  - added suggestions for items
+  - added suggestions for diagonal directions such as `nw`, `ne`, `sw`, and `se`
+  - help and tips now document zoom commands and other keyboard workflows more clearly
+- Added a startup tips dialog with rotating keyboard-and-workflow tips.
+- Added or refined keyboard shortcuts for:
+  - focus switching between the game and mapper with `Ctrl+/` or `Cmd+/`
+  - zoom commands, including direct numeric zoom targets such as `zoom 25` and `zoom 200%`
+  - broader app shortcuts surfaced through help and tips
+- Map interaction polish includes:
+  - better selection styling for rooms and connections
+  - improved low-zoom room-name rendering
+  - support for expanding long room item lists with `+N more`
+  - selectable pseudo-room connections by dragging
+  - updated centering and layout behavior for notes and connection results
+
+### Compatibility and persistence
+- `v6` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- The explicit schema-`4` migration path introduced in `v3` remains unchanged.
+- Saved maps continue to load, save, and export under the existing schema and validation rules.
+
+### Quality and internal improvements
+- Added and updated regression coverage for:
+  - startup tips and keyboard-shortcut UI
+  - command suggestions and command parsing behavior
+  - prettify/layout stability
+  - map canvas interaction and export behavior
+  - accessibility smoke coverage for the updated UI shell
+- Release prep also fixed branch-local TypeScript issues that were blocking the production build:
+  - aligned test typings with the current tips-dialog callback contract
+  - updated prettify-layout test fixtures for sticky-note positions
+  - corrected heartbeat timer test typing under DOM+Node overloads
+  - removed an invalid HTML attribute from the room item panel markup
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `74` suites, `1350` tests.
+- Manual smoke-test confirmation is still pending before release.

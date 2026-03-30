@@ -5,8 +5,19 @@ import { startIfdbProxyHeartbeat } from '../../src/domain/ifdb-proxy-heartbeat';
 describe('startIfdbProxyHeartbeat', () => {
   it('sends a ping immediately and then every 15 minutes', () => {
     const ping = jest.fn<() => Promise<void>>().mockResolvedValue();
-    const setIntervalMock = jest.fn<typeof globalThis.setInterval>().mockReturnValue(123 as ReturnType<typeof setInterval>);
-    const clearIntervalMock = jest.fn<typeof globalThis.clearInterval>();
+    const intervalId = 123 as unknown as ReturnType<typeof setInterval>;
+    const scheduledIntervals: Array<{ handler: TimerHandler; timeout: number | undefined }> = [];
+    const clearedIntervals: Array<Parameters<typeof globalThis.clearInterval>[0]> = [];
+    const setIntervalMock = ((
+      handler: TimerHandler,
+      timeout?: number,
+    ) => {
+      scheduledIntervals.push({ handler, timeout });
+      return intervalId;
+    }) as unknown as typeof globalThis.setInterval;
+    const clearIntervalMock: typeof globalThis.clearInterval = (nextIntervalId) => {
+      clearedIntervals.push(nextIntervalId);
+    };
 
     const stopHeartbeat = startIfdbProxyHeartbeat(ping, {
       setInterval: setIntervalMock,
@@ -14,23 +25,23 @@ describe('startIfdbProxyHeartbeat', () => {
     });
 
     expect(ping).toHaveBeenCalledTimes(1);
-    expect(setIntervalMock).toHaveBeenCalledTimes(1);
-    expect(setIntervalMock.mock.calls[0]?.[1]).toBe(IFDB_PROXY_PING_INTERVAL_MS);
+    expect(scheduledIntervals).toHaveLength(1);
+    expect(scheduledIntervals[0]?.timeout).toBe(IFDB_PROXY_PING_INTERVAL_MS);
 
-    const scheduledPing = setIntervalMock.mock.calls[0]?.[0];
+    const scheduledPing = scheduledIntervals[0]?.handler;
     expect(typeof scheduledPing).toBe('function');
 
     (scheduledPing as () => void)();
     expect(ping).toHaveBeenCalledTimes(2);
 
     stopHeartbeat();
-    expect(clearIntervalMock).toHaveBeenCalledWith(123);
+    expect(clearedIntervals).toEqual([intervalId]);
   });
 
   it('silently swallows ping failures', async () => {
     const ping = jest.fn<() => Promise<void>>().mockRejectedValue(new Error('Proxy unavailable'));
-    const setIntervalMock = jest.fn<typeof globalThis.setInterval>().mockReturnValue(123 as ReturnType<typeof setInterval>);
-    const clearIntervalMock = jest.fn<typeof globalThis.clearInterval>();
+    const setIntervalMock = (() => 123 as unknown as ReturnType<typeof setInterval>) as unknown as typeof globalThis.setInterval;
+    const clearIntervalMock: typeof globalThis.clearInterval = () => undefined;
 
     startIfdbProxyHeartbeat(ping, {
       setInterval: setIntervalMock,

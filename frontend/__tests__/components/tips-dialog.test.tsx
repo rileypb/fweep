@@ -6,7 +6,7 @@ import { TipsDialog } from '../../src/components/tips-dialog';
 describe('TipsDialog', () => {
   it('renders the first tip and advances through tips', async () => {
     const user = userEvent.setup();
-    const onClose = jest.fn<() => void>();
+    const onClose = jest.fn<(nextTipIndex: number) => void>();
 
     render(
       <TipsDialog
@@ -74,7 +74,7 @@ describe('TipsDialog', () => {
 
   it('reports checkbox changes and closes from cancel', async () => {
     const user = userEvent.setup();
-    const onClose = jest.fn<() => void>();
+    const onClose = jest.fn<(nextTipIndex: number) => void>();
     const onShowTipsOnStartupChange = jest.fn<(showTipsOnStartup: boolean) => void>();
 
     render(

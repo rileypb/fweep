@@ -481,7 +481,6 @@ export function MapCanvasRoomNode({
           <div
             ref={itemPanelRef}
             className={`room-node-items${areItemsExpanded ? ' room-node-items--expanded' : ''}`}
-            xmlns="http://www.w3.org/1999/xhtml"
             style={{ color: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
             onMouseDown={(event) => {
               event.preventDefault();
