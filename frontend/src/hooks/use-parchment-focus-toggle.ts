@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY } from '../components/parchment-panel-helpers';
 
 interface UseParchmentFocusToggleOptions {
-  readonly cliInputRef: React.RefObject<HTMLInputElement | null>;
   readonly hasOpenMap: boolean;
   readonly isParchmentGameViewVisible: boolean;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -10,7 +9,6 @@ interface UseParchmentFocusToggleOptions {
 }
 
 export function useParchmentFocusToggle({
-  cliInputRef,
   hasOpenMap,
   isParchmentGameViewVisible,
   parchmentIframeRef,
@@ -18,12 +16,14 @@ export function useParchmentFocusToggle({
 }: UseParchmentFocusToggleOptions): void {
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
 
-  const focusFweepMain = useCallback((preferCliInput = false): void => {
-    if (preferCliInput) {
-      cliInputRef.current?.focus();
-      return;
-    }
+  const isParchmentFocusToggleShortcut = useCallback((event: KeyboardEvent): boolean => (
+    (event.ctrlKey || event.metaKey)
+    && !event.altKey
+    && !event.shiftKey
+    && event.code === PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY
+  ), []);
 
+  const focusFweepMain = useCallback((): void => {
     const lastFocusedElement = lastFocusedFweepElementRef.current;
     if (
       lastFocusedElement !== null
@@ -40,9 +40,7 @@ export function useParchmentFocusToggle({
       mapCanvasElement.focus();
       return;
     }
-
-    cliInputRef.current?.focus();
-  }, [cliInputRef, parchmentIframeRef]);
+  }, [parchmentIframeRef]);
 
   const focusParchmentPanel = useCallback((): void => {
     const activeElement = document.activeElement;
@@ -64,13 +62,13 @@ export function useParchmentFocusToggle({
   }, [isParchmentGameViewVisible, parchmentIframeRef, parchmentSearchInputRef]);
 
   const handleParchmentFocusToggle = useCallback((event: KeyboardEvent): void => {
-    if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+    if (!isParchmentFocusToggleShortcut(event)) {
       return;
     }
 
     event.preventDefault();
-    focusFweepMain(true);
-  }, [focusFweepMain]);
+    focusFweepMain();
+  }, [focusFweepMain, isParchmentFocusToggleShortcut]);
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent): void => {
@@ -97,7 +95,7 @@ export function useParchmentFocusToggle({
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.code !== PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY) {
+      if (!isParchmentFocusToggleShortcut(event)) {
         return;
       }
 
@@ -108,7 +106,7 @@ export function useParchmentFocusToggle({
         && activeElement.closest('.app-parchment-panel') !== null;
 
       if (activeElement === parchmentIframeRef.current || isFocusInsideParchmentPanel) {
-        focusFweepMain(true);
+        focusFweepMain();
         return;
       }
 
@@ -119,7 +117,7 @@ export function useParchmentFocusToggle({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [focusFweepMain, focusParchmentPanel, hasOpenMap, parchmentIframeRef]);
+  }, [focusFweepMain, focusParchmentPanel, hasOpenMap, isParchmentFocusToggleShortcut, parchmentIframeRef]);
 
   useEffect(() => {
     if (!hasOpenMap) {
@@ -191,7 +189,7 @@ export function useParchmentFocusToggle({
         return;
       }
 
-      focusFweepMain(true);
+      focusFweepMain();
     };
 
     window.addEventListener('message', handleMessage);

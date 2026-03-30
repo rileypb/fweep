@@ -1,12 +1,15 @@
 import {
+  getCanonicalDirectionToken,
   hasMalformedPseudoRoomContinuation,
   isPseudoRoomLead,
+  mergeSuggestions,
   suggestionResolution,
 } from './cli-suggestion-grammar-helpers';
 import { getParserNextSymbolsForFragment } from './cli-suggestion-parser-helpers';
 import {
   createConnectionAnnotationSuggestions,
   createKeywordSuggestions,
+  createPlaceholderSuggestion,
   createTerminalKeywordSuggestions,
 } from './cli-suggestion-options';
 import {
@@ -16,6 +19,16 @@ import {
 } from './cli-suggestion-room-slots';
 import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
+
+function isSelectedRoomRelativeDirectionLead(tokens: readonly string[]): boolean {
+  const firstToken = tokens[0] ?? null;
+  return getCanonicalDirectionToken(firstToken) !== null || firstToken === 'above' || firstToken === 'below';
+}
+
+function shouldOfferSelectedRoomRelativeIs(prefix: string): boolean {
+  const normalizedPrefix = prefix.trim().toLowerCase();
+  return normalizedPrefix.length === 0 || 'is'.startsWith(normalizedPrefix);
+}
 
 function getParserBackedRoomLeadResolution(
   input: string,
@@ -126,6 +139,22 @@ export function getRoomLeadResolution(
     return suggestionResolution(createConnectionAnnotationSuggestions(fragment.prefix));
   }
 
+  if (lastToken === 'is' && isSelectedRoomRelativeDirectionLead(tokens)) {
+    const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
+    return {
+      ...roomResolution,
+      suggestions: mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+    };
+  }
+
+  if (tokens[1] === 'is' && fragment.tokenIndex >= 2 && isSelectedRoomRelativeDirectionLead(tokens)) {
+    const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
+    return {
+      ...roomResolution,
+      suggestions: mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+    };
+  }
+
   if (lastToken === 'is' && hasMalformedPseudoRoomContinuation(tokens)) {
     return suggestionResolution([]);
   }
@@ -144,6 +173,13 @@ export function getRoomLeadResolution(
     }
 
     return getRoomReferenceResolution(input, fragment, doc, fragment.tokenIndex, roomSlotSuggestionHelpers);
+  }
+
+  if (fragment.tokenIndex === 1 && isSelectedRoomRelativeDirectionLead(tokens)) {
+    if (!shouldOfferSelectedRoomRelativeIs(fragment.prefix)) {
+      return null;
+    }
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['is']));
   }
 
   if (fragment.tokenIndex >= 1) {

@@ -47,13 +47,24 @@
 ## Keyboard
 
 - `/`: focus the CLI input.
+- `Ctrl+/` or `Cmd+/`: switch keyboard focus between the interactive fiction game and the mapper.
 - `Delete` / `Backspace`: delete the current mixed selection.
 - `Enter`: open the room editor when exactly one room is selected.
+- `Enter`: open the connection editor when exactly one connection is selected.
 - `L`: lock or unlock the selected room's position.
 - `Arrow keys`: move selection to the nearest room in that direction.
 - `Ctrl/Cmd+Z`: undo.
 - `Ctrl/Cmd+Y`: redo.
 - `Ctrl/Cmd+Shift+Z`: redo.
+
+## CLI
+
+- `/`: focus the CLI input from most places in the app.
+- `Tab`: accept the highlighted autocomplete suggestion.
+- `ArrowUp` / `ArrowDown` in the CLI input: move through command history.
+- `help`: show the command reference in the CLI.
+- `zoom in` / `zoom out` / `zoom reset`: step the map zoom in, out, or back to `100%`.
+- `zoom <number>` or `zoom <number>%`: set the map zoom directly from `25%` to `300%`.
 
 ## Editors and Dialogs
 
@@ -73,3 +84,4 @@
 - The theme button toggles light and dark mode.
 - The prettify button rearranges the room layout.
 - Undo and redo buttons mirror the keyboard shortcuts.
+- Focus a splitter and use the arrow keys to resize the game panel, game output, or linked game width.

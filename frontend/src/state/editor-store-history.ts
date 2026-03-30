@@ -15,6 +15,8 @@ export function pushHistoryEntry(
           kind: 'document' as const,
           before: previousEntry.before,
           after: entry.after,
+          selectionBefore: previousEntry.selectionBefore ?? entry.selectionBefore,
+          selectionAfter: entry.selectionAfter,
         };
       }
       return entry;
@@ -45,7 +47,23 @@ export function commitDocumentChange(
     doc: updatedDoc,
     ...pushHistoryEntry(
       currentState,
-      { kind: 'document', before: currentDoc, after: updatedDoc },
+      {
+        kind: 'document',
+        before: currentDoc,
+        after: updatedDoc,
+        selectionBefore: options?.selectionBefore,
+        selectionAfter: options?.selectionAfter ?? (
+          options?.selectionBefore === undefined
+            ? undefined
+            : {
+              roomIds: options.selectionBefore.roomIds.filter((roomId) => roomId in updatedDoc.rooms),
+              pseudoRoomIds: options.selectionBefore.pseudoRoomIds.filter((pseudoRoomId) => pseudoRoomId in updatedDoc.pseudoRooms),
+              stickyNoteIds: options.selectionBefore.stickyNoteIds.filter((stickyNoteId) => stickyNoteId in updatedDoc.stickyNotes),
+              connectionIds: options.selectionBefore.connectionIds.filter((connectionId) => connectionId in updatedDoc.connections),
+              stickyNoteLinkIds: options.selectionBefore.stickyNoteLinkIds.filter((stickyNoteLinkId) => stickyNoteLinkId in updatedDoc.stickyNoteLinks),
+            }
+        ),
+      },
       mergeKey,
     ),
   };

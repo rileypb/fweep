@@ -13,6 +13,7 @@ export type CliErrorCommandKind =
   | 'connect'
   | 'disconnect'
   | 'create-and-connect'
+  | 'selected-room-relative-connect'
   | 'set-room-adjective'
   | 'set-connection-annotation'
   | 'put-items'

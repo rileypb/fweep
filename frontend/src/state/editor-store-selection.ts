@@ -1,5 +1,29 @@
 import type { MapDocument } from '../domain/map-types';
 
+export interface SelectionSnapshot {
+  readonly roomIds: readonly string[];
+  readonly pseudoRoomIds: readonly string[];
+  readonly stickyNoteIds: readonly string[];
+  readonly connectionIds: readonly string[];
+  readonly stickyNoteLinkIds: readonly string[];
+}
+
+export function createSelectionSnapshot(selection: {
+  readonly roomIds: readonly string[];
+  readonly pseudoRoomIds: readonly string[];
+  readonly stickyNoteIds: readonly string[];
+  readonly connectionIds: readonly string[];
+  readonly stickyNoteLinkIds: readonly string[];
+}): SelectionSnapshot {
+  return {
+    roomIds: [...selection.roomIds],
+    pseudoRoomIds: [...selection.pseudoRoomIds],
+    stickyNoteIds: [...selection.stickyNoteIds],
+    connectionIds: [...selection.connectionIds],
+    stickyNoteLinkIds: [...selection.stickyNoteLinkIds],
+  };
+}
+
 export function filterSelectionForDoc(doc: MapDocument | null, selectedRoomIds: readonly string[]): readonly string[] {
   if (!doc) {
     return [];
@@ -41,4 +65,17 @@ export function filterStickyNoteLinkSelectionForDoc(
   }
 
   return selectedStickyNoteLinkIds.filter((stickyNoteLinkId) => stickyNoteLinkId in doc.stickyNoteLinks);
+}
+
+export function filterSelectionSnapshotForDoc(
+  doc: MapDocument | null,
+  snapshot: SelectionSnapshot,
+): SelectionSnapshot {
+  return {
+    roomIds: filterSelectionForDoc(doc, snapshot.roomIds),
+    pseudoRoomIds: filterPseudoRoomSelectionForDoc(doc, snapshot.pseudoRoomIds),
+    stickyNoteIds: filterStickyNoteSelectionForDoc(doc, snapshot.stickyNoteIds),
+    connectionIds: filterConnectionSelectionForDoc(doc, snapshot.connectionIds),
+    stickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(doc, snapshot.stickyNoteLinkIds),
+  };
 }

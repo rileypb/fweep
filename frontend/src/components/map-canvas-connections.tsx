@@ -461,6 +461,8 @@ export function MapCanvasConnections({
     );
     const usesGapRendering = !(conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)
       && visiblePolylineResult.hasGap;
+    const selectionHaloStroke = theme === 'dark' ? 'rgba(248, 113, 113, 0.55)' : 'rgba(239, 68, 68, 0.5)';
+    const selectionUnderlayStroke = theme === 'dark' ? 'rgba(251, 146, 60, 0.82)' : 'rgba(234, 88, 12, 0.8)';
 
     return (
       <>
@@ -491,6 +493,41 @@ export function MapCanvasConnections({
             />
             {usesGapRendering ? (
               <>
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-halo-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-halo-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-halo"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: selectionHaloStroke,
+                      strokeWidth: 10,
+                      strokeDasharray: '7 5',
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-underlay-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-underlay-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-underlay"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: selectionUnderlayStroke,
+                      strokeWidth: 7,
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
                 {visiblePolylineResult.segments.map((segment, index) => (
                   <line
                     key={`connection-line-segment-${conn.id}-${index}`}
@@ -502,24 +539,9 @@ export function MapCanvasConnections({
                     y2={segment.end.y}
                     style={{
                       stroke: connectionStroke,
-                      strokeWidth: isSelected ? 6 : 2,
-                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-                      pointerEvents: 'none',
-                    }}
-                  />
-                ))}
-                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
-                  <line
-                    key={`connection-selection-inner-segment-${conn.id}-${index}`}
-                    data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
-                    className="connection-line connection-line--selected-inner"
-                    x1={segment.start.x}
-                    y1={segment.start.y}
-                    x2={segment.end.x}
-                    y2={segment.end.y}
-                    style={{
-                      stroke: '#f59e0b',
                       strokeWidth: 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      strokeLinecap: 'round',
                       pointerEvents: 'none',
                     }}
                   />
@@ -527,6 +549,35 @@ export function MapCanvasConnections({
               </>
             ) : (
               <>
+                {isSelected && (
+                  <polyline
+                    data-testid={`connection-selection-halo-${conn.id}`}
+                    className="connection-line connection-line--selected-halo"
+                    points={pointsToSvgString(points)}
+                    fill="none"
+                    style={{
+                      stroke: selectionHaloStroke,
+                      strokeWidth: 10,
+                      strokeDasharray: '7 5',
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                {isSelected && (
+                  <polyline
+                    data-testid={`connection-selection-underlay-${conn.id}`}
+                    className="connection-line connection-line--selected-underlay"
+                    points={pointsToSvgString(points)}
+                    fill="none"
+                    style={{
+                      stroke: selectionUnderlayStroke,
+                      strokeWidth: 7,
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
                 <polyline
                   data-testid={`connection-line-${conn.id}`}
                   className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
@@ -534,24 +585,12 @@ export function MapCanvasConnections({
                   fill="none"
                   style={{
                     stroke: connectionStroke,
-                    strokeWidth: isSelected ? 6 : 2,
+                    strokeWidth: 2,
                     strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                    strokeLinecap: 'round',
                     pointerEvents: 'none',
                   }}
                 />
-                {isSelected && (
-                  <polyline
-                    data-testid={`connection-selection-inner-${conn.id}`}
-                    className="connection-line connection-line--selected-inner"
-                    points={pointsToSvgString(points)}
-                    fill="none"
-                    style={{
-                      stroke: '#f59e0b',
-                      strokeWidth: 2,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
               </>
             )}
           </>
@@ -582,6 +621,41 @@ export function MapCanvasConnections({
             />
             {usesGapRendering ? (
               <>
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-halo-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-halo-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-halo"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: selectionHaloStroke,
+                      strokeWidth: 10,
+                      strokeDasharray: '7 5',
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
+                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
+                  <line
+                    key={`connection-selection-underlay-segment-${conn.id}-${index}`}
+                    data-testid={`connection-selection-underlay-segment-${conn.id}-${index}`}
+                    className="connection-line connection-line--selected-underlay"
+                    x1={segment.start.x}
+                    y1={segment.start.y}
+                    x2={segment.end.x}
+                    y2={segment.end.y}
+                    style={{
+                      stroke: selectionUnderlayStroke,
+                      strokeWidth: 7,
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                ))}
                 {visiblePolylineResult.segments.map((segment, index) => (
                   <line
                     key={`connection-line-segment-${conn.id}-${index}`}
@@ -593,24 +667,9 @@ export function MapCanvasConnections({
                     y2={segment.end.y}
                     style={{
                       stroke: connectionStroke,
-                      strokeWidth: isSelected ? 6 : 2,
-                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
-                      pointerEvents: 'none',
-                    }}
-                  />
-                ))}
-                {isSelected && visiblePolylineResult.segments.map((segment, index) => (
-                  <line
-                    key={`connection-selection-inner-segment-${conn.id}-${index}`}
-                    data-testid={`connection-selection-inner-segment-${conn.id}-${index}`}
-                    className="connection-line connection-line--selected-inner"
-                    x1={segment.start.x}
-                    y1={segment.start.y}
-                    x2={segment.end.x}
-                    y2={segment.end.y}
-                    style={{
-                      stroke: '#f59e0b',
                       strokeWidth: 2,
+                      strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                      strokeLinecap: 'round',
                       pointerEvents: 'none',
                     }}
                   />
@@ -618,6 +677,35 @@ export function MapCanvasConnections({
               </>
             ) : (
               <>
+                {isSelected && (
+                  <path
+                    data-testid={`connection-selection-halo-${conn.id}`}
+                    className="connection-line connection-line--selected-halo"
+                    d={pathData ?? ''}
+                    fill="none"
+                    style={{
+                      stroke: selectionHaloStroke,
+                      strokeWidth: 10,
+                      strokeDasharray: '7 5',
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                {isSelected && (
+                  <path
+                    data-testid={`connection-selection-underlay-${conn.id}`}
+                    className="connection-line connection-line--selected-underlay"
+                    d={pathData ?? ''}
+                    fill="none"
+                    style={{
+                      stroke: selectionUnderlayStroke,
+                      strokeWidth: 7,
+                      strokeLinecap: 'round',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
                 <path
                   data-testid={`connection-line-${conn.id}`}
                   className={`${baseClassName}${isSelected ? ' connection-line--selected' : ''}`}
@@ -625,24 +713,12 @@ export function MapCanvasConnections({
                   fill="none"
                   style={{
                     stroke: connectionStroke,
-                    strokeWidth: isSelected ? 6 : 2,
+                    strokeWidth: 2,
                     strokeDasharray: getRoomStrokeDasharray(conn.strokeStyle),
+                    strokeLinecap: 'round',
                     pointerEvents: 'none',
                   }}
                 />
-                {isSelected && (
-                  <path
-                    data-testid={`connection-selection-inner-${conn.id}`}
-                    className="connection-line connection-line--selected-inner"
-                    d={pathData ?? ''}
-                    fill="none"
-                    style={{
-                      stroke: '#f59e0b',
-                      strokeWidth: 2,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
               </>
             )}
           </>
@@ -786,7 +862,7 @@ export function MapCanvasConnections({
     ...Object.entries(rooms).map(([roomId, room]) => [
       roomId,
       getRoomPassThroughBounds(
-        getRoomForVisualStyle(room, visualStyle),
+        getRoomForVisualStyle(applyDragOffset(room, selectionDrag), visualStyle),
         visualStyle,
         PASS_THROUGH_TINY_GAP_PADDING,
       ),

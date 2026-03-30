@@ -39,6 +39,7 @@ interface PrettifiedLayoutPositions {
 interface PrettifiedRoomLayout {
   readonly roomPositions: Readonly<Record<string, Position>>;
   readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
+  readonly stickyNotePositions: Readonly<Record<string, Position>>;
 }
 
 const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
@@ -77,13 +78,22 @@ function getLayoutRoom(doc: MapDocument, roomId: string): Room | null {
   return pseudoRoom ? toPseudoRoomVisualRoom(pseudoRoom) : null;
 }
 
+function isStickyNoteLayoutId(doc: MapDocument, layoutId: string): boolean {
+  return layoutId in doc.stickyNotes;
+}
+
 function getLayoutPosition(doc: MapDocument, roomId: string): Position | null {
   const room = doc.rooms[roomId];
   if (room) {
     return room.position;
   }
 
-  return doc.pseudoRooms[roomId]?.position ?? null;
+  const pseudoRoomPosition = doc.pseudoRooms[roomId]?.position;
+  if (pseudoRoomPosition) {
+    return pseudoRoomPosition;
+  }
+
+  return doc.stickyNotes[roomId]?.position ?? null;
 }
 
 function toRoomCenter(room: Room, position: Position, visualStyle: MapVisualStyle): Vector {
@@ -100,6 +110,54 @@ function toRoomTopLeft(room: Room, center: Vector, visualStyle: MapVisualStyle):
     x: center.x - (dimensions.width / 2),
     y: center.y - (dimensions.height / 2),
   };
+}
+
+function getLayoutNodeDimensions(
+  doc: MapDocument,
+  layoutId: string,
+  visualStyle: MapVisualStyle,
+): { readonly width: number; readonly height: number } {
+  const stickyNote = doc.stickyNotes[layoutId];
+  if (stickyNote) {
+    return getStickyNoteDimensions(stickyNote);
+  }
+
+  const room = getLayoutRoom(doc, layoutId);
+  if (!room) {
+    return { width: 0, height: 0 };
+  }
+
+  return getRoomDimensions(room, visualStyle);
+}
+
+function toLayoutNodeCenter(
+  doc: MapDocument,
+  layoutId: string,
+  position: Position,
+  visualStyle: MapVisualStyle,
+): Vector {
+  const stickyNote = doc.stickyNotes[layoutId];
+  if (stickyNote) {
+    return toStickyNoteCenter(stickyNote, position);
+  }
+
+  const room = getLayoutRoom(doc, layoutId)!;
+  return toRoomCenter(room, position, visualStyle);
+}
+
+function toLayoutNodeTopLeft(
+  doc: MapDocument,
+  layoutId: string,
+  center: Vector,
+  visualStyle: MapVisualStyle,
+): Position {
+  const stickyNote = doc.stickyNotes[layoutId];
+  if (stickyNote) {
+    return toStickyNoteTopLeft(stickyNote, center);
+  }
+
+  const room = getLayoutRoom(doc, layoutId)!;
+  return toRoomTopLeft(room, center, visualStyle);
 }
 
 function getConstraintDelta(direction: string): Vector | undefined {
@@ -146,6 +204,67 @@ function deriveDirectionConstraints(doc: MapDocument): DirectionConstraint[] {
   return constraints;
 }
 
+function deriveStickyNoteConstraints(doc: MapDocument): DirectionConstraint[] {
+  const layoutPositions = {
+    ...Object.fromEntries(Object.entries(doc.rooms).map(([roomId, room]) => [roomId, room.position])),
+    ...Object.fromEntries(Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [pseudoRoomId, pseudoRoom.position])),
+  } as Readonly<Record<string, Position>>;
+
+  return Object.values(doc.stickyNotes).flatMap((stickyNote) => {
+    const preferredCenter = toStickyNoteCenter(
+      stickyNote,
+      getPreferredStickyNotePosition(stickyNote.id, layoutPositions, doc),
+    );
+    const noteCenter = toStickyNoteCenter(stickyNote, stickyNote.position);
+    const linkedTargets = Object.values(doc.stickyNoteLinks)
+      .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNote.id)
+      .map((stickyNoteLink) => {
+        const targetPosition = layoutPositions[stickyNoteLink.target.id];
+        const targetRoom = getLayoutRoom(doc, stickyNoteLink.target.id);
+        if (!targetPosition || !targetRoom) {
+          return null;
+        }
+
+        const targetCenter = toRoomCenter(targetRoom, targetPosition, doc.view.visualStyle);
+        return {
+          id: stickyNoteLink.target.id,
+          center: targetCenter,
+          distanceToCurrentNote: ((noteCenter.x - targetCenter.x) ** 2) + ((noteCenter.y - targetCenter.y) ** 2),
+          isRealRoom: stickyNoteLink.target.kind === 'room',
+        };
+      })
+      .filter((target): target is {
+        readonly id: string;
+        readonly center: Vector;
+        readonly distanceToCurrentNote: number;
+        readonly isRealRoom: boolean;
+      } => target !== null)
+      .sort((left, right) => {
+        if (left.distanceToCurrentNote !== right.distanceToCurrentNote) {
+          return left.distanceToCurrentNote - right.distanceToCurrentNote;
+        }
+        if (left.isRealRoom !== right.isRealRoom) {
+          return left.isRealRoom ? -1 : 1;
+        }
+        return left.id.localeCompare(right.id);
+      });
+
+    const primaryTarget = linkedTargets[0];
+    if (!primaryTarget) {
+      return [];
+    }
+
+    return [{
+      fromRoomId: stickyNote.id,
+      toRoomId: primaryTarget.id,
+      delta: {
+        x: primaryTarget.center.x - preferredCenter.x,
+        y: primaryTarget.center.y - preferredCenter.y,
+      },
+    } satisfies DirectionConstraint];
+  });
+}
+
 function positionsEqual(
   left: Readonly<Record<string, Position>>,
   right: Readonly<Record<string, Position>>,
@@ -181,13 +300,14 @@ function getPositionsSignature(positions: Readonly<Record<string, Position>>): s
 }
 
 function getLayoutSignature(layout: PrettifiedRoomLayout): string {
-  return `${getPositionsSignature(layout.roomPositions)}::${getPositionsSignature(layout.pseudoRoomPositions)}`;
+  return `${getPositionsSignature(layout.roomPositions)}::${getPositionsSignature(layout.pseudoRoomPositions)}::${getPositionsSignature(layout.stickyNotePositions ?? {})}`;
 }
 
 function getLayoutMovementScore(
   layout: PrettifiedRoomLayout,
   currentRoomPositions: Readonly<Record<string, Position>>,
   currentPseudoRoomPositions: Readonly<Record<string, Position>>,
+  currentStickyNotePositions: Readonly<Record<string, Position>>,
 ): number {
   const roomScore = Object.entries(layout.roomPositions).reduce((total, [roomId, position]) => {
     const currentPosition = currentRoomPositions[roomId];
@@ -205,25 +325,35 @@ function getLayoutMovementScore(
 
     return total + ((position.x - currentPosition.x) ** 2) + ((position.y - currentPosition.y) ** 2);
   }, 0);
+  const stickyNoteScore = Object.entries(layout.stickyNotePositions ?? {}).reduce((total, [stickyNoteId, position]) => {
+    const currentPosition = currentStickyNotePositions[stickyNoteId];
+    if (!currentPosition) {
+      return total;
+    }
 
-  return roomScore + pseudoRoomScore;
+    return total + ((position.x - currentPosition.x) ** 2) + ((position.y - currentPosition.y) ** 2);
+  }, 0);
+
+  return roomScore + pseudoRoomScore + stickyNoteScore;
 }
 
 export function pickMostStablePrettifiedLayout(
   candidates: readonly PrettifiedRoomLayout[],
   currentRoomPositions: Readonly<Record<string, Position>>,
   currentPseudoRoomPositions: Readonly<Record<string, Position>>,
+  currentStickyNotePositions: Readonly<Record<string, Position>> = {},
 ): PrettifiedRoomLayout {
   if (candidates.length === 0) {
     return {
       roomPositions: currentRoomPositions,
       pseudoRoomPositions: currentPseudoRoomPositions,
+      stickyNotePositions: currentStickyNotePositions,
     };
   }
 
   return candidates.reduce((bestLayout, candidateLayout) => {
-    const bestScore = getLayoutMovementScore(bestLayout, currentRoomPositions, currentPseudoRoomPositions);
-    const candidateScore = getLayoutMovementScore(candidateLayout, currentRoomPositions, currentPseudoRoomPositions);
+    const bestScore = getLayoutMovementScore(bestLayout, currentRoomPositions, currentPseudoRoomPositions, currentStickyNotePositions);
+    const candidateScore = getLayoutMovementScore(candidateLayout, currentRoomPositions, currentPseudoRoomPositions, currentStickyNotePositions);
     return candidateScore < bestScore ? candidateLayout : bestLayout;
   });
 }
@@ -247,6 +377,18 @@ function withPseudoRoomPositions(doc: MapDocument, positions: Readonly<Record<st
       Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [
         pseudoRoomId,
         positions[pseudoRoomId] ? { ...pseudoRoom, position: positions[pseudoRoomId] } : pseudoRoom,
+      ]),
+    ),
+  };
+}
+
+function withStickyNotePositions(doc: MapDocument, positions: Readonly<Record<string, Position>>): MapDocument {
+  return {
+    ...doc,
+    stickyNotes: Object.fromEntries(
+      Object.entries(doc.stickyNotes).map(([stickyNoteId, stickyNote]) => [
+        stickyNoteId,
+        positions[stickyNoteId] ? { ...stickyNote, position: positions[stickyNoteId] } : stickyNote,
       ]),
     ),
   };
@@ -360,7 +502,12 @@ function computeSeedCentroid(roomIds: readonly string[], seedPositions: Readonly
 
 function getCentroidAnchorRoomIds(componentRoomIds: readonly string[], doc: MapDocument): readonly string[] {
   const realRoomIds = componentRoomIds.filter((roomId) => roomId in doc.rooms);
-  return realRoomIds.length > 0 ? realRoomIds : componentRoomIds;
+  if (realRoomIds.length > 0) {
+    return realRoomIds;
+  }
+
+  const nonStickyNoteIds = componentRoomIds.filter((roomId) => !isStickyNoteLayoutId(doc, roomId));
+  return nonStickyNoteIds.length > 0 ? nonStickyNoteIds : componentRoomIds;
 }
 
 function computeComponentSeedOffset(
@@ -377,7 +524,7 @@ function computeComponentSeedOffset(
       (acc, roomId) => {
         const room = getLayoutRoom(doc, roomId)!;
         const position = getLayoutPosition(doc, roomId)!;
-        const actualCenter = toRoomCenter(room, position, visualStyle);
+        const actualCenter = toLayoutNodeCenter(doc, roomId, position, visualStyle);
         const seedCenter = seedPositions.get(roomId)!;
         return {
           x: acc.x + (actualCenter.x - seedCenter.x),
@@ -507,10 +654,9 @@ function relaxComponent(
 function computeOriginalCentroid(roomIds: readonly string[], doc: MapDocument): Vector {
   const visualStyle = doc.view.visualStyle;
   const total = roomIds.reduce(
-      (acc, roomId) => {
-      const room = getLayoutRoom(doc, roomId)!;
+    (acc, roomId) => {
       const position = getLayoutPosition(doc, roomId)!;
-      const center = toRoomCenter(room, position, visualStyle);
+      const center = toLayoutNodeCenter(doc, roomId, position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -534,8 +680,7 @@ function computePlacedCentroid(
       if (!position) {
         return acc;
       }
-      const room = getLayoutRoom(doc, roomId)!;
-      const center = toRoomCenter(room, position, visualStyle);
+      const center = toLayoutNodeCenter(doc, roomId, position, visualStyle);
       return { x: acc.x + center.x, y: acc.y + center.y };
     },
     { x: 0, y: 0 },
@@ -547,34 +692,46 @@ function computePlacedCentroid(
   };
 }
 
+function getLayoutNodeHorizontalGap(doc: MapDocument, leftId: string, rightId: string): number {
+  return isStickyNoteLayoutId(doc, leftId) || isStickyNoteLayoutId(doc, rightId)
+    ? STICKY_NOTE_GAP
+    : ROOM_HORIZONTAL_GAP;
+}
+
+function getLayoutNodeVerticalGap(doc: MapDocument, topId: string, bottomId: string): number {
+  return isStickyNoteLayoutId(doc, topId) || isStickyNoteLayoutId(doc, bottomId)
+    ? STICKY_NOTE_GAP
+    : ROOM_VERTICAL_GAP;
+}
+
 function overlapsPlacedRooms(
   roomId: string,
   candidatePosition: Position,
   placedPositions: ReadonlyMap<string, Position>,
   doc: MapDocument,
 ): boolean {
-  const room = getLayoutRoom(doc, roomId)!;
   const visualStyle = doc.view.visualStyle;
-  const candidateDimensions = getRoomDimensions(room, visualStyle);
+  const candidateDimensions = getLayoutNodeDimensions(doc, roomId, visualStyle);
   const candidateLeft = candidatePosition.x;
-  const candidateRight = candidateLeft + candidateDimensions.width + ROOM_HORIZONTAL_GAP;
+  const candidateRight = candidateLeft + candidateDimensions.width;
   const candidateTop = candidatePosition.y;
-  const candidateBottom = candidateTop + candidateDimensions.height + ROOM_VERTICAL_GAP;
+  const candidateBottom = candidateTop + candidateDimensions.height;
 
   for (const [placedRoomId, placedPosition] of placedPositions) {
     if (placedRoomId === roomId) {
       continue;
     }
 
-    const placedRoom = getLayoutRoom(doc, placedRoomId)!;
-    const placedDimensions = getRoomDimensions(placedRoom, visualStyle);
+    const placedDimensions = getLayoutNodeDimensions(doc, placedRoomId, visualStyle);
     const placedLeft = placedPosition.x;
-    const placedRight = placedLeft + placedDimensions.width + ROOM_HORIZONTAL_GAP;
+    const placedRight = placedLeft + placedDimensions.width;
     const placedTop = placedPosition.y;
-    const placedBottom = placedTop + placedDimensions.height + ROOM_VERTICAL_GAP;
+    const placedBottom = placedTop + placedDimensions.height;
+    const horizontalGap = getLayoutNodeHorizontalGap(doc, roomId, placedRoomId);
+    const verticalGap = getLayoutNodeVerticalGap(doc, roomId, placedRoomId);
 
-    const intersectsHorizontally = candidateLeft < placedRight && candidateRight > placedLeft;
-    const intersectsVertically = candidateTop < placedBottom && candidateBottom > placedTop;
+    const intersectsHorizontally = candidateLeft < (placedRight + horizontalGap) && (candidateRight + horizontalGap) > placedLeft;
+    const intersectsVertically = candidateTop < (placedBottom + verticalGap) && (candidateBottom + verticalGap) > placedTop;
     if (intersectsHorizontally && intersectsVertically) {
       return true;
     }
@@ -663,21 +820,21 @@ function canTranslateComponent(
         continue;
       }
 
-      const room = doc.rooms[roomId];
-      const otherRoom = getLayoutRoom(doc, otherRoomId)!;
-      const roomDimensions = getRoomDimensions(room, visualStyle);
-      const otherRoomDimensions = getRoomDimensions(otherRoom, visualStyle);
+      const roomDimensions = getLayoutNodeDimensions(doc, roomId, visualStyle);
+      const otherRoomDimensions = getLayoutNodeDimensions(doc, otherRoomId, visualStyle);
       const candidateLeft = shiftedPosition.x;
-      const candidateRight = candidateLeft + roomDimensions.width + ROOM_HORIZONTAL_GAP;
+      const candidateRight = candidateLeft + roomDimensions.width;
       const candidateTop = shiftedPosition.y;
-      const candidateBottom = candidateTop + roomDimensions.height + ROOM_VERTICAL_GAP;
+      const candidateBottom = candidateTop + roomDimensions.height;
       const otherLeft = otherPosition.x;
-      const otherRight = otherLeft + otherRoomDimensions.width + ROOM_HORIZONTAL_GAP;
+      const otherRight = otherLeft + otherRoomDimensions.width;
       const otherTop = otherPosition.y;
-      const otherBottom = otherTop + otherRoomDimensions.height + ROOM_VERTICAL_GAP;
+      const otherBottom = otherTop + otherRoomDimensions.height;
+      const horizontalGap = getLayoutNodeHorizontalGap(doc, roomId, otherRoomId);
+      const verticalGap = getLayoutNodeVerticalGap(doc, roomId, otherRoomId);
 
-      const intersectsHorizontally = candidateLeft < otherRight && candidateRight > otherLeft;
-      const intersectsVertically = candidateTop < otherBottom && candidateBottom > otherTop;
+      const intersectsHorizontally = candidateLeft < (otherRight + horizontalGap) && (candidateRight + horizontalGap) > otherLeft;
+      const intersectsVertically = candidateTop < (otherBottom + verticalGap) && (candidateBottom + verticalGap) > otherTop;
       if (intersectsHorizontally && intersectsVertically) {
         return false;
       }
@@ -693,6 +850,29 @@ function getStickyNoteBounds(stickyNote: StickyNote, position: Position) {
     top: position.y,
     right: position.x + STICKY_NOTE_WIDTH,
     bottom: position.y + getStickyNoteHeight(stickyNote.text),
+  };
+}
+
+function getStickyNoteDimensions(stickyNote: StickyNote): { readonly width: number; readonly height: number } {
+  return {
+    width: STICKY_NOTE_WIDTH,
+    height: getStickyNoteHeight(stickyNote.text),
+  };
+}
+
+function toStickyNoteCenter(stickyNote: StickyNote, position: Position): Vector {
+  const dimensions = getStickyNoteDimensions(stickyNote);
+  return {
+    x: position.x + (dimensions.width / 2),
+    y: position.y + (dimensions.height / 2),
+  };
+}
+
+function toStickyNoteTopLeft(stickyNote: StickyNote, center: Vector): Position {
+  const dimensions = getStickyNoteDimensions(stickyNote);
+  return {
+    x: center.x - (dimensions.width / 2),
+    y: center.y - (dimensions.height / 2),
   };
 }
 
@@ -808,53 +988,226 @@ function getPreferredStickyNotePosition(
 ): Position {
   const stickyNote = doc.stickyNotes[stickyNoteId];
   const visualStyle = doc.view.visualStyle;
-  const linkedRoomIds = Object.values(doc.stickyNoteLinks)
+  const linkedTargets = Object.values(doc.stickyNoteLinks)
     .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && layoutPositions[stickyNoteLink.target.id] !== undefined)
-    .map((stickyNoteLink) => stickyNoteLink.target.id)
-    .sort();
+    .map((stickyNoteLink) => {
+      const linkedRoom = getLayoutRoom(doc, stickyNoteLink.target.id);
+      const linkedRoomPosition = layoutPositions[stickyNoteLink.target.id];
+      if (!linkedRoom) {
+        return null;
+      }
 
-  if (linkedRoomIds.length === 0) {
+      const roomDimensions = getRoomDimensions(linkedRoom, visualStyle);
+      const roomCenter = toRoomCenter(linkedRoom, linkedRoomPosition, visualStyle);
+      return {
+        id: stickyNoteLink.target.id,
+        position: linkedRoomPosition,
+        dimensions: roomDimensions,
+        center: roomCenter,
+      };
+    })
+    .filter((target): target is {
+      readonly id: string;
+      readonly position: Position;
+      readonly dimensions: { readonly width: number; readonly height: number };
+      readonly center: Vector;
+    } => target !== null)
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  if (linkedTargets.length === 0) {
     return {
       x: snapCoordinate(stickyNote.position.x),
       y: snapCoordinate(stickyNote.position.y),
     };
   }
-
-  const linkedRoom = getLayoutRoom(doc, linkedRoomIds[0]);
-  const linkedRoomPosition = layoutPositions[linkedRoomIds[0]];
-  if (!linkedRoom) {
-    return {
-      x: snapCoordinate(stickyNote.position.x),
-      y: snapCoordinate(stickyNote.position.y),
-    };
-  }
-  const roomDimensions = getRoomDimensions(linkedRoom, visualStyle);
   const noteHeight = getStickyNoteHeight(stickyNote.text);
 
-  const candidatePositions = [
+  const candidatePositions = linkedTargets.flatMap(({ position, dimensions }) => ([
     {
-      x: snapCoordinate(linkedRoomPosition.x + roomDimensions.width + STICKY_NOTE_GAP),
-      y: snapCoordinate(linkedRoomPosition.y + ((roomDimensions.height - noteHeight) / 2)),
+      x: snapCoordinate(position.x + dimensions.width + STICKY_NOTE_GAP),
+      y: snapCoordinate(position.y + ((dimensions.height - noteHeight) / 2)),
     },
     {
-      x: snapCoordinate(linkedRoomPosition.x - STICKY_NOTE_WIDTH - STICKY_NOTE_GAP),
-      y: snapCoordinate(linkedRoomPosition.y + ((roomDimensions.height - noteHeight) / 2)),
+      x: snapCoordinate(position.x - STICKY_NOTE_WIDTH - STICKY_NOTE_GAP),
+      y: snapCoordinate(position.y + ((dimensions.height - noteHeight) / 2)),
     },
     {
-      x: snapCoordinate(linkedRoomPosition.x + ((roomDimensions.width - STICKY_NOTE_WIDTH) / 2)),
-      y: snapCoordinate(linkedRoomPosition.y + roomDimensions.height + STICKY_NOTE_GAP),
+      x: snapCoordinate(position.x + ((dimensions.width - STICKY_NOTE_WIDTH) / 2)),
+      y: snapCoordinate(position.y + dimensions.height + STICKY_NOTE_GAP),
     },
     {
-      x: snapCoordinate(linkedRoomPosition.x + ((roomDimensions.width - STICKY_NOTE_WIDTH) / 2)),
-      y: snapCoordinate(linkedRoomPosition.y - noteHeight - STICKY_NOTE_GAP),
+      x: snapCoordinate(position.x + ((dimensions.width - STICKY_NOTE_WIDTH) / 2)),
+      y: snapCoordinate(position.y - noteHeight - STICKY_NOTE_GAP),
     },
-  ];
+  ]));
 
   return candidatePositions.sort((left, right) => {
+    const leftCenter = {
+      x: left.x + (STICKY_NOTE_WIDTH / 2),
+      y: left.y + (noteHeight / 2),
+    };
+    const rightCenter = {
+      x: right.x + (STICKY_NOTE_WIDTH / 2),
+      y: right.y + (noteHeight / 2),
+    };
+    const leftLinkedDistance = linkedTargets.reduce(
+      (total, target) => total + ((leftCenter.x - target.center.x) ** 2) + ((leftCenter.y - target.center.y) ** 2),
+      0,
+    );
+    const rightLinkedDistance = linkedTargets.reduce(
+      (total, target) => total + ((rightCenter.x - target.center.x) ** 2) + ((rightCenter.y - target.center.y) ** 2),
+      0,
+    );
+    if (leftLinkedDistance !== rightLinkedDistance) {
+      return leftLinkedDistance - rightLinkedDistance;
+    }
+
     const leftDistance = ((left.x - stickyNote.position.x) ** 2) + ((left.y - stickyNote.position.y) ** 2);
     const rightDistance = ((right.x - stickyNote.position.x) ** 2) + ((right.y - stickyNote.position.y) ** 2);
     return leftDistance - rightDistance;
   })[0];
+}
+
+interface StickyNoteLayoutConstraint {
+  readonly stickyNoteId: string;
+  readonly targetLayoutId: string;
+  readonly delta: Vector;
+}
+
+function buildStickyNoteLayoutConstraints(
+  doc: MapDocument,
+  layoutPositions: Readonly<Record<string, Position>>,
+  stickyNoteIds: readonly string[],
+): readonly StickyNoteLayoutConstraint[] {
+  return stickyNoteIds.flatMap((stickyNoteId) => {
+    const stickyNote = doc.stickyNotes[stickyNoteId];
+    const preferredCenter = toStickyNoteCenter(
+      stickyNote,
+      getPreferredStickyNotePosition(stickyNoteId, layoutPositions, doc),
+    );
+
+    return Object.values(doc.stickyNoteLinks)
+      .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNoteId && layoutPositions[stickyNoteLink.target.id] !== undefined)
+      .map((stickyNoteLink) => {
+        const targetRoom = getLayoutRoom(doc, stickyNoteLink.target.id);
+        const targetPosition = layoutPositions[stickyNoteLink.target.id];
+        if (!targetRoom) {
+          return null;
+        }
+
+        const targetCenter = toRoomCenter(targetRoom, targetPosition, doc.view.visualStyle);
+        return {
+          stickyNoteId,
+          targetLayoutId: stickyNoteLink.target.id,
+          delta: {
+            x: preferredCenter.x - targetCenter.x,
+            y: preferredCenter.y - targetCenter.y,
+          },
+        } satisfies StickyNoteLayoutConstraint;
+      })
+      .filter((constraint): constraint is StickyNoteLayoutConstraint => constraint !== null);
+  });
+}
+
+function relaxStickyNotePositions(
+  doc: MapDocument,
+  layoutPositions: Readonly<Record<string, Position>>,
+  stickyNoteIds: readonly string[],
+): ReadonlyMap<string, Vector> {
+  const seedPositions = new Map<string, Vector>();
+  for (const stickyNoteId of stickyNoteIds) {
+    const stickyNote = doc.stickyNotes[stickyNoteId];
+    seedPositions.set(
+      stickyNoteId,
+      toStickyNoteCenter(stickyNote, getPreferredStickyNotePosition(stickyNoteId, layoutPositions, doc)),
+    );
+  }
+
+  const positions = new Map<string, Vector>(
+    stickyNoteIds.map((stickyNoteId) => {
+      const seed = seedPositions.get(stickyNoteId)!;
+      return [stickyNoteId, { x: seed.x, y: seed.y }] as const;
+    }),
+  );
+  const constraints = buildStickyNoteLayoutConstraints(doc, layoutPositions, stickyNoteIds);
+
+  const layoutObstacles = Object.entries(layoutPositions)
+    .map(([layoutId, position]) => {
+      const room = getLayoutRoom(doc, layoutId);
+      if (!room) {
+        return null;
+      }
+
+      return {
+        id: layoutId,
+        center: toRoomCenter(room, position, doc.view.visualStyle),
+      };
+    })
+    .filter((obstacle): obstacle is { readonly id: string; readonly center: Vector } => obstacle !== null);
+
+  for (let iteration = 0; iteration < RELAXATION_ITERATIONS; iteration += 1) {
+    const forces = new Map<string, Vector>(
+      stickyNoteIds.map((stickyNoteId) => [stickyNoteId, { x: 0, y: 0 }] as const),
+    );
+
+    for (const constraint of constraints) {
+      const stickyNotePosition = positions.get(constraint.stickyNoteId);
+      const targetObstacle = layoutObstacles.find((obstacle) => obstacle.id === constraint.targetLayoutId);
+      if (!stickyNotePosition || !targetObstacle) {
+        continue;
+      }
+
+      const errorX = (stickyNotePosition.x - targetObstacle.center.x) - constraint.delta.x;
+      const errorY = (stickyNotePosition.y - targetObstacle.center.y) - constraint.delta.y;
+      forces.get(constraint.stickyNoteId)!.x -= errorX * SPRING_STRENGTH;
+      forces.get(constraint.stickyNoteId)!.y -= errorY * SPRING_STRENGTH;
+    }
+
+    for (let index = 0; index < stickyNoteIds.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < stickyNoteIds.length; otherIndex += 1) {
+        const stickyNoteId = stickyNoteIds[index];
+        const otherStickyNoteId = stickyNoteIds[otherIndex];
+        const position = positions.get(stickyNoteId)!;
+        const otherPosition = positions.get(otherStickyNoteId)!;
+        const dx = otherPosition.x - position.x;
+        const dy = otherPosition.y - position.y;
+        const distanceSquared = Math.max((dx * dx) + (dy * dy), 1);
+        const distance = Math.sqrt(distanceSquared);
+        const repulsion = (REPULSION_STRENGTH * PSEUDO_ROOM_REPULSION_MULTIPLIER) / distanceSquared;
+        const forceX = (dx / distance) * repulsion;
+        const forceY = (dy / distance) * repulsion;
+
+        forces.get(stickyNoteId)!.x -= forceX;
+        forces.get(stickyNoteId)!.y -= forceY;
+        forces.get(otherStickyNoteId)!.x += forceX;
+        forces.get(otherStickyNoteId)!.y += forceY;
+      }
+    }
+
+    for (const stickyNoteId of stickyNoteIds) {
+      const position = positions.get(stickyNoteId)!;
+      const force = forces.get(stickyNoteId)!;
+
+      for (const obstacle of layoutObstacles) {
+        const dx = obstacle.center.x - position.x;
+        const dy = obstacle.center.y - position.y;
+        const distanceSquared = Math.max((dx * dx) + (dy * dy), 1);
+        const distance = Math.sqrt(distanceSquared);
+        const repulsion = (REPULSION_STRENGTH * PSEUDO_ROOM_REPULSION_MULTIPLIER) / distanceSquared;
+        force.x -= (dx / distance) * repulsion;
+        force.y -= (dy / distance) * repulsion;
+      }
+
+      const seed = seedPositions.get(stickyNoteId)!;
+      force.x += (seed.x - position.x) * PSEUDO_ROOM_ANCHOR_STRENGTH;
+      force.y += (seed.y - position.y) * PSEUDO_ROOM_ANCHOR_STRENGTH;
+
+      position.x += limitStep(force.x);
+      position.y += limitStep(force.y);
+    }
+  }
+
+  return positions;
 }
 
 function computePrettifiedStickyNotePositions(
@@ -876,10 +1229,21 @@ function computePrettifiedStickyNotePositions(
     return leftId.localeCompare(rightId);
   });
 
+  const relaxedCenters = relaxStickyNotePositions(doc, layoutPositions, stickyNoteIds);
   const placedStickyNotes = new Map<string, Position>();
-  for (const stickyNoteId of stickyNoteIds) {
+  const orderedStickyNoteIds = stickyNoteIds.slice().sort((leftId, rightId) => {
+    const leftCenter = relaxedCenters.get(leftId)!;
+    const rightCenter = relaxedCenters.get(rightId)!;
+    return (leftCenter.y - rightCenter.y) || (leftCenter.x - rightCenter.x) || leftId.localeCompare(rightId);
+  });
+
+  for (const stickyNoteId of orderedStickyNoteIds) {
     const stickyNote = doc.stickyNotes[stickyNoteId];
-    const preferredPosition = getPreferredStickyNotePosition(stickyNoteId, layoutPositions, doc);
+    const relaxedCenter = relaxedCenters.get(stickyNoteId)!;
+    const preferredPosition = toStickyNoteTopLeft(stickyNote, {
+      x: snapCoordinate(relaxedCenter.x),
+      y: snapCoordinate(relaxedCenter.y),
+    });
     placedStickyNotes.set(
       stickyNoteId,
       findNearestOpenStickyNotePosition(
@@ -938,16 +1302,18 @@ function recenterUnlockedComponents(
 function computePrettifiedRoomPositionsSinglePass(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
-): { readonly roomPositions: Readonly<Record<string, Position>>; readonly pseudoRoomPositions: Readonly<Record<string, Position>> } {
-  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms)].sort();
+): PrettifiedRoomLayout {
+  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms), ...Object.keys(doc.stickyNotes)].sort();
   if (roomIds.length === 0) {
-    return { roomPositions: {}, pseudoRoomPositions: {} };
+    return { roomPositions: {}, pseudoRoomPositions: {}, stickyNotePositions: {} };
   }
   const lockedRoomIds = new Set(roomIds.filter((roomId) => (doc.rooms[roomId]?.locked ?? false) || extraLockedRoomIds.has(roomId)));
   const pseudoRoomIds = new Set(Object.keys(doc.pseudoRooms));
+  const stickyNoteIds = new Set(Object.keys(doc.stickyNotes));
+  const pseudoLikeIds = new Set([...pseudoRoomIds, ...stickyNoteIds]);
   const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
-  const constraints = deriveDirectionConstraints(doc);
+  const constraints = [...deriveDirectionConstraints(doc), ...deriveStickyNoteConstraints(doc)];
   const components = getConnectedComponents(roomIds, constraints);
   const normalizedPositions = new Map<string, Vector>();
   const componentTargetCentroids = new Map<string, Vector>();
@@ -972,7 +1338,7 @@ function computePrettifiedRoomPositionsSinglePass(
       });
     }
 
-    const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds, pseudoRoomIds);
+    const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds, pseudoLikeIds);
     const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
     componentTargetCentroids.set(
       componentRoomIds.join('\0'),
@@ -986,7 +1352,7 @@ function computePrettifiedRoomPositionsSinglePass(
 
   const placedPositions = new Map<string, Position>();
   for (const roomId of lockedRoomIds) {
-    placedPositions.set(roomId, doc.rooms[roomId].position);
+    placedPositions.set(roomId, getLayoutPosition(doc, roomId)!);
   }
 
   const orderedRoomIds = unlockedRoomIds.sort((leftRoomId, rightRoomId) => {
@@ -1001,9 +1367,8 @@ function computePrettifiedRoomPositionsSinglePass(
       x: snapCoordinate(center.x),
       y: snapCoordinate(center.y),
     };
-    const room = getLayoutRoom(doc, roomId)!;
     const currentPosition = getLayoutPosition(doc, roomId)!;
-    const topLeft = toRoomTopLeft(room, snappedCenter, doc.view.visualStyle);
+    const topLeft = toLayoutNodeTopLeft(doc, roomId, snappedCenter, doc.view.visualStyle);
     const snappedPosition = {
       x: topLeft.x,
       y: topLeft.y,
@@ -1023,8 +1388,11 @@ function computePrettifiedRoomPositionsSinglePass(
   const pseudoRoomPositions = Object.fromEntries(
     [...placedPositions.entries()].filter(([roomId]) => roomId in doc.pseudoRooms),
   );
+  const stickyNotePositions = Object.fromEntries(
+    [...placedPositions.entries()].filter(([roomId]) => roomId in doc.stickyNotes),
+  );
 
-  return { roomPositions, pseudoRoomPositions };
+  return { roomPositions, pseudoRoomPositions, stickyNotePositions };
 }
 
 function computeStablePrettifiedPositions(
@@ -1036,6 +1404,9 @@ function computeStablePrettifiedPositions(
   ) as Record<string, Position>;
   const currentPseudoRoomPositions = Object.fromEntries(
     Object.entries(doc.pseudoRooms).map(([pseudoRoomId, pseudoRoom]) => [pseudoRoomId, pseudoRoom.position]),
+  ) as Record<string, Position>;
+  const currentStickyNotePositions = Object.fromEntries(
+    Object.entries(doc.stickyNotes).map(([stickyNoteId, stickyNote]) => [stickyNoteId, stickyNote.position]),
   ) as Record<string, Position>;
   const seenLayouts = new Map<string, number>();
   const candidateLayouts: PrettifiedRoomLayout[] = [];
@@ -1051,17 +1422,22 @@ function computeStablePrettifiedPositions(
         candidateLayouts.slice(seenIndex),
         currentRoomPositions,
         currentPseudoRoomPositions,
+        currentStickyNotePositions,
       );
     }
 
     seenLayouts.set(nextSignature, candidateLayouts.length);
     candidateLayouts.push(nextLayout);
-    workingDoc = withPseudoRoomPositions(withRoomPositions(workingDoc, nextLayout.roomPositions), nextLayout.pseudoRoomPositions);
+    workingDoc = withStickyNotePositions(
+      withPseudoRoomPositions(withRoomPositions(workingDoc, nextLayout.roomPositions), nextLayout.pseudoRoomPositions),
+      nextLayout.stickyNotePositions,
+    );
   }
 
   return candidateLayouts[0] ?? {
     roomPositions: currentRoomPositions,
     pseudoRoomPositions: currentPseudoRoomPositions,
+    stickyNotePositions: currentStickyNotePositions,
   };
 }
 
@@ -1076,10 +1452,5 @@ export function computePrettifiedLayoutPositions(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
 ): PrettifiedLayoutPositions {
-  const { roomPositions, pseudoRoomPositions } = computeStablePrettifiedPositions(doc, extraLockedRoomIds);
-  return {
-    roomPositions,
-    pseudoRoomPositions,
-    stickyNotePositions: computePrettifiedStickyNotePositions(doc, roomPositions, pseudoRoomPositions),
-  };
+  return computeStablePrettifiedPositions(doc, extraLockedRoomIds);
 }

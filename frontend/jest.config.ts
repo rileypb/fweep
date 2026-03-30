@@ -17,6 +17,8 @@ export default {
     'cli-help\\.md$': '<rootDir>/__tests__/__mocks__/cli-help-markdown.ts',
     'welcome\\.txt\\?raw$': '<rootDir>/__tests__/__mocks__/welcome-text.ts',
     'welcome\\.txt$': '<rootDir>/__tests__/__mocks__/welcome-text.ts',
+    'tips\\.txt\\?raw$': '<rootDir>/__tests__/__mocks__/tips-text.ts',
+    'tips\\.txt$': '<rootDir>/__tests__/__mocks__/tips-text.ts',
     '\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
     '\\.md$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
   },

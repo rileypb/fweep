@@ -81,6 +81,26 @@ export function getParserBackedNotateResolution(
   doc: MapDocument | null,
   roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution {
+  if (fragment.tokenIndex === 1) {
+    if (fragment.prefix.length === 0) {
+      return suggestionResolution(
+        roomSlotSuggestionHelpers.mergeSuggestions(
+          roomSlotSuggestionHelpers.createPlaceholderSuggestion('<room>'),
+          createKeywordSuggestions(fragment.prefix, ['with']),
+        ),
+      );
+    }
+
+    return getRoomReferenceResolutionWithFallback(
+      input,
+      fragment,
+      doc,
+      1,
+      createKeywordSuggestions(fragment.prefix, ['with']),
+      roomSlotSuggestionHelpers,
+    );
+  }
+
   if (fragment.precedingTokens.some((token) => token.value.toLowerCase() === 'with')) {
     return suggestionResolution([]);
   }

@@ -2,7 +2,6 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MapCanvas } from '../../src/components/map-canvas';
-import { getMapCanvasRoomNodeId } from '../../src/components/map-canvas-a11y';
 import { useEditorStore } from '../../src/state/editor-store';
 import { createEmptyMap, createItem, createPseudoRoom, createStickyNote, createStickyNoteLink } from '../../src/domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../../src/domain/pseudo-room-helpers';
@@ -56,6 +55,91 @@ describe('MapCanvas', () => {
     render(<MapCanvas mapName="Test Map" />);
 
     expect(screen.getByLabelText('Map canvas')).toHaveAttribute('tabindex', '0');
+  });
+
+  it('announces selection changes through the canvas status region', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    renderMapCanvas();
+
+    const status = document.getElementById('map-canvas-selection-status');
+
+    expect(status).toHaveTextContent('Selection cleared');
+
+    act(() => {
+      useEditorStore.setState({ selectedRoomIds: [room.id] });
+    });
+
+    expect(status).toHaveTextContent('Selected room: Kitchen');
+
+    act(() => {
+      useEditorStore.getState().clearSelection();
+    });
+
+    expect(status).toHaveTextContent('Selection cleared');
+  });
+
+  it('announces selected connections with their endpoints', () => {
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+    const [connectionId] = Object.keys(doc.connections);
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({ selectedConnectionIds: [connectionId] });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected connection: Kitchen to Hallway',
+    );
+  });
+
+  it('announces mixed multi-selection counts', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const stickyNote = { ...createStickyNote('Remember the lantern on the table.'), position: { x: 220, y: 140 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addStickyNote(doc, stickyNote);
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({
+        selectedRoomIds: [room.id],
+        selectedStickyNoteIds: [stickyNote.id],
+      });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected 1 room and 1 sticky note',
+    );
+  });
+
+  it('announces selected sticky-note links with their destination', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    const stickyNote = { ...createStickyNote('Check under the rug for a key before leaving.'), position: { x: 260, y: 120 } };
+    const stickyNoteLink = createStickyNoteLink(stickyNote.id, room.id);
+    loadDocumentAct({
+      ...addRoom(createEmptyMap('Test'), room),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+      stickyNoteLinks: { [stickyNoteLink.id]: stickyNoteLink },
+    });
+
+    renderMapCanvas();
+
+    act(() => {
+      useEditorStore.setState({ selectedStickyNoteLinkIds: [stickyNoteLink.id] });
+    });
+
+    expect(document.getElementById('map-canvas-selection-status')).toHaveTextContent(
+      'Selected sticky-note link: Check under the rug for a key before leaving. to Kitchen',
+    );
   });
 
   it('shows a placeholder minimap when the document has no rooms', () => {
@@ -186,8 +270,89 @@ describe('MapCanvas', () => {
 
     expect(screen.getByText('Lantern')).toBeInTheDocument();
     expect(screen.getByText('Brass Key')).toBeInTheDocument();
-    const itemText = document.querySelector('.room-node-items');
-    expect(itemText).toHaveAttribute('text-anchor', 'end');
+    expect(document.querySelector('.room-node-items')).toBeInTheDocument();
+  });
+
+  it('expands hidden room items inline and collapses them again', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    doc = addItem(doc, createItem('Rope', room.id));
+    doc = addItem(doc, createItem('Apple', room.id));
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    expect(screen.queryByText('Apple')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '+1 more' }));
+
+    expect(screen.getByText('Apple')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show fewer' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Show fewer' }));
+
+    expect(screen.queryByText('Apple')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+1 more' })).toBeInTheDocument();
+  });
+
+  it('collapses expanded room items when clicking elsewhere', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    doc = addItem(doc, createItem('Rope', room.id));
+    doc = addItem(doc, createItem('Apple', room.id));
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    await user.click(screen.getByRole('button', { name: '+1 more' }));
+    expect(screen.getByText('Apple')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('map-canvas'));
+
+    expect(screen.queryByText('Apple')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+1 more' })).toBeInTheDocument();
+  });
+
+  it('hides room item labels and uses the low-zoom room-name treatment when zoomed out', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    loadDocumentAct(doc);
+
+    act(() => {
+      useEditorStore.getState().setMapZoom(0.75);
+    });
+
+    renderMapCanvas();
+
+    expect(screen.queryByText('Lantern')).not.toBeInTheDocument();
+    expect(screen.queryByText('Brass Key')).not.toBeInTheDocument();
+    expect(document.querySelector('.room-node-items')).not.toBeInTheDocument();
+
+    const roomName = document.querySelector('.room-node-name');
+    expect(roomName).toHaveClass('room-node-name--low-zoom');
+    expect(roomName).toHaveAttribute('text-rendering', 'geometricPrecision');
+  });
+
+  it('hides room names entirely below 50% zoom', () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    act(() => {
+      useEditorStore.getState().setMapZoom(0.25);
+    });
+
+    renderMapCanvas();
+
+    expect(screen.queryByText('Kitchen')).not.toBeInTheDocument();
+    expect(document.querySelector('.room-node-name')).not.toBeInTheDocument();
   });
 
   it('renders pseudo-rooms beneath sticky notes and rooms', () => {
@@ -1000,6 +1165,27 @@ describe('MapCanvas', () => {
 
       expect(useEditorStore.getState().doc!.pseudoRooms[unknown.id].position).toEqual({ x: 320, y: 160 });
     });
+
+    it('captures pseudo-room connections in marquee selection', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 240, y: 80 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addPseudoRoom(updated, unknown);
+      updated = addConnection(updated, createConnection(kitchen.id, { kind: 'pseudo-room', id: unknown.id }, false), 'east');
+      const connectionId = Object.keys(updated.connections)[0];
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      const canvas = screen.getByTestId('map-canvas');
+      fireEvent.mouseDown(canvas, { clientX: 140, clientY: 120, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 240, clientY: 170 });
+
+      expect(useEditorStore.getState().selectedConnectionIds).toEqual([connectionId]);
+
+      fireEvent.mouseUp(document, { clientX: 240, clientY: 170, button: 0 });
+    });
   });
 
   describe('keyboard shortcuts', () => {
@@ -1586,6 +1772,106 @@ describe('MapCanvas', () => {
       expect(content).toHaveClass('map-canvas-content--animated');
     });
 
+    it('opens the room editor from the window Enter handler when focus has moved to the minimap', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      screen.getByTestId('map-minimap').focus();
+      fireEvent.keyDown(window, { key: 'Enter' });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('opens the room editor directly from the minimap Enter handler', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('opens the connection editor for a single selected connection when Enter is pressed', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      const canvas = screen.getByTestId('map-canvas');
+
+      act(() => {
+        useEditorStore.getState().selectConnection(connection.id);
+      });
+
+      fireEvent.keyDown(canvas, { key: 'Enter' });
+
+      expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('opens the connection editor from the minimap Enter handler', () => {
+      const doc = createEmptyMap('Test');
+      const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
+      let updated = addRoom(doc, kitchen);
+      updated = addRoom(updated, hallway);
+      const connection = createConnection(kitchen.id, hallway.id, true);
+      updated = addConnection(updated, connection, 'east', 'west');
+      loadDocumentAct(updated);
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectConnection(connection.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(screen.getByTestId('connection-editor-overlay')).toBeInTheDocument();
+    });
+
+    it('does not immediately close the room editor when it is opened from minimap Enter', async () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
+      loadDocumentAct(addRoom(doc, room));
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      const minimap = screen.getByTestId('map-minimap');
+      minimap.focus();
+      fireEvent.keyDown(minimap, { key: 'Enter' });
+
+      expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+    });
+
     it('ignores Enter when more than one room is selected', () => {
       const { kitchenNode, hallwayNode } = setupTwoRooms();
       const canvas = screen.getByTestId('map-canvas');
@@ -1614,11 +1900,12 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedRoomIds).toEqual([]);
     });
 
-    it('draws the selected room outline as a bright red rounded rectangle', () => {
+    it('draws the selected room outline to match the room shape', () => {
       const doc = createEmptyMap('Test');
       const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       loadDocumentAct(addRoom(doc, room));
       act(() => {
+        useEditorStore.getState().setMapVisualStyle('default');
         useEditorStore.getState().selectRoom(room.id);
       });
 
@@ -1628,6 +1915,22 @@ describe('MapCanvas', () => {
       expect(outline.tagName.toLowerCase()).toBe('rect');
       expect(outline).toHaveAttribute('rx', '12');
       expect(outline).toHaveClass('room-selection-outline');
+    });
+
+    it('matches the square-classic room outline radius to the room shape', () => {
+      const doc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      loadDocumentAct(addRoom(doc, room));
+      act(() => {
+        useEditorStore.getState().setMapVisualStyle('square-classic');
+        useEditorStore.getState().selectRoom(room.id);
+      });
+
+      renderMapCanvas();
+
+      const outline = screen.getByTestId('room-selection-outline');
+      expect(outline.tagName.toLowerCase()).toBe('rect');
+      expect(outline).toHaveAttribute('rx', '7');
     });
   });
 
@@ -1640,6 +1943,25 @@ describe('MapCanvas', () => {
 
     const canvas = screen.getByLabelText('Map canvas');
     canvas.focus();
+    fireEvent.keyDown(canvas, { key: 'Enter' });
+
+    expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
+  });
+
+  it('keeps canvas focus after selecting a room so Enter opens the editor', async () => {
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+    renderMapCanvas();
+
+    const canvas = screen.getByLabelText('Map canvas');
+    const roomNode = screen.getByRole('button', { name: 'Kitchen' });
+
+    fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+    fireEvent.mouseUp(document, { clientX: 100, clientY: 140, button: 0 });
+
+    expect(canvas).toHaveFocus();
+
     fireEvent.keyDown(canvas, { key: 'Enter' });
 
     expect(await screen.findByLabelText('Room name')).toHaveValue('Kitchen');
@@ -1666,10 +1988,22 @@ describe('MapCanvas', () => {
 
     expect(canvas).toHaveFocus();
     expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
-    expect(canvas).toHaveAttribute('aria-activedescendant', getMapCanvasRoomNodeId(hallway.id));
+    expect(canvas).not.toHaveAttribute('aria-activedescendant');
 
     fireEvent.keyDown(canvas, { key: 'Enter' });
     expect(await screen.findByLabelText('Room name')).toHaveValue('Hallway');
+  });
+
+  it('keeps sticky-note link handles out of the tab order', () => {
+    const stickyNote = { ...createStickyNote('Check desk'), position: { x: 240, y: 120 } };
+    loadDocumentAct({
+      ...createEmptyMap('Test'),
+      stickyNotes: { [stickyNote.id]: stickyNote },
+    });
+
+    renderMapCanvas();
+
+    expect(screen.getByRole('button', { name: 'Create sticky-note link' })).toHaveAttribute('tabindex', '-1');
   });
 
   it('keeps keyboard room navigation anchored on the canvas without horizontal document scroll', () => {
@@ -1929,6 +2263,19 @@ describe('MapCanvas', () => {
 
       expect(screen.queryByTestId('room-editor-overlay')).not.toBeInTheDocument();
       expect(Object.values(useEditorStore.getState().doc!.rooms)[0].name).toBe('Pantry');
+    });
+
+    it('ignores repeated Enter keydowns in the room editor so it does not immediately close on open', async () => {
+      const user = userEvent.setup();
+      const roomNode = setupRoom();
+
+      await user.dblClick(roomNode);
+
+      const nameInput = screen.getByTestId('room-editor-name-input');
+      fireEvent.keyDown(nameInput, { key: 'Enter', repeat: true });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(nameInput).toHaveFocus();
     });
 
     it('cancels the room editor on Escape', async () => {
@@ -3882,7 +4229,7 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
-    it('renders selected connections with layered highlight strokes', () => {
+    it('renders selected connections with a dashed halo and warm underlay', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 200, y: 120 } };
@@ -3895,11 +4242,13 @@ describe('MapCanvas', () => {
 
       renderMapCanvas();
 
-      const outerLine = screen.getByTestId(`connection-line-${conn.id}`);
-      const innerLine = screen.getByTestId(`connection-selection-inner-${conn.id}`);
+      const haloLine = screen.getByTestId(`connection-selection-halo-${conn.id}`);
+      const underlayLine = screen.getByTestId(`connection-selection-underlay-${conn.id}`);
+      const baseLine = screen.getByTestId(`connection-line-${conn.id}`);
 
-      expect(outerLine).toHaveStyle({ strokeWidth: '6' });
-      expect(innerLine).toHaveStyle({ strokeWidth: '2' });
+      expect(haloLine).toHaveStyle({ strokeWidth: '10', strokeDasharray: '7 5' });
+      expect(underlayLine).toHaveStyle({ strokeWidth: '7' });
+      expect(baseLine).toHaveStyle({ strokeWidth: '2' });
     });
 
     it('anchors a north connection to the rendered center of a wide room', () => {
@@ -3983,6 +4332,40 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).not.toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-start`)).toBeInTheDocument();
       expect(screen.getByTestId(`connection-endpoint-dot-${westNorthConnection.id}-end`)).toBeInTheDocument();
+    });
+
+    it('stops splitting a connection around a room once that room is visually dragged away', () => {
+      const doc = createEmptyMap('Dragged Gap');
+      const northOfHouse = { ...createRoom('North of House'), id: 'north', position: { x: 120, y: 20 } };
+      const kitchen = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 80, y: 120 } };
+      const westOfHouse = { ...createRoom('West of House'), id: 'west', position: { x: 80, y: 220 } };
+      const attic = { ...createRoom('Attic'), id: 'attic', position: { x: 80, y: -80 } };
+      let d = addRoom(doc, northOfHouse);
+      d = addRoom(d, kitchen);
+      d = addRoom(d, westOfHouse);
+      d = addRoom(d, attic);
+      const westNorthConnection = createConnection(westOfHouse.id, northOfHouse.id, true);
+      const kitchenAtticConnection = createConnection(kitchen.id, attic.id, true);
+      d = addConnection(d, westNorthConnection, 'north', 'west');
+      d = addConnection(d, kitchenAtticConnection, 'up', 'down');
+      loadDocumentAct(d);
+
+      renderMapCanvas();
+
+      act(() => {
+        useEditorStore.setState({
+          selectionDrag: {
+            roomIds: [kitchen.id],
+            pseudoRoomIds: [],
+            stickyNoteIds: [],
+            dx: 220,
+            dy: 0,
+          },
+        });
+      });
+
+      expect(screen.queryByTestId(`connection-line-${westNorthConnection.id}`)).toBeInTheDocument();
+      expect(screen.queryAllByTestId(new RegExp(`connection-line-segment-${westNorthConnection.id}-`))).toHaveLength(0);
     });
 
     it('renders a tiny split bezier gap and endpoint dots when it crosses an unrelated room', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
-import { addConnection, addRoom } from '../../src/domain/map-operations';
-import { createConnection, createEmptyMap, createRoom } from '../../src/domain/map-types';
+import { addConnection, addItem, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createItem, createRoom } from '../../src/domain/map-types';
 import { getCliSuggestions } from '../../src/domain/cli-suggestions';
 
 describe('cli suggestions', () => {
@@ -25,6 +25,7 @@ describe('cli suggestions', () => {
         'help',
         'put',
         'take',
+        'zoom',
         'undo',
         'redo',
         'above',
@@ -320,6 +321,24 @@ describe('cli suggestions', () => {
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['dark', 'lit']);
   });
 
+  it('suggests only is after a direction-led selected-room shorthand and space', () => {
+    const result = getCliSuggestions('north ', 'north '.length, createEmptyMap('Test'));
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['is']);
+  });
+
+  it('suggests a room placeholder and matching rooms after a direction-led is phrase', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 120, y: 0 } });
+
+    const result = getCliSuggestions('north is Ki', 'north is Ki'.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']),
+    );
+  });
+
   it('closes suggestions after a completed room adjective with a trailing space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 
@@ -357,9 +376,18 @@ describe('cli suggestions', () => {
   });
 
   it('suggests only "of" after a create direction and space', () => {
-    const result = getCliSuggestions('create foobar north ', 'create foobar north '.length, createEmptyMap('Test'));
-
-    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['of']);
+    expect(
+      getCliSuggestions('create foobar north ', 'create foobar north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
+    expect(
+      getCliSuggestions('create foo bar north ', 'create foo bar north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
+    expect(
+      getCliSuggestions('create Gareth\'s office north ', 'create Gareth\'s office north '.length, createEmptyMap('Test'))
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['of']);
   });
 
   it('shows a room placeholder after create above/below plus a space', () => {
@@ -477,6 +505,21 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('keeps diagonal direction abbreviations available until a space is entered', () => {
+    expect(getCliSuggestions('nw', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['northwest']);
+    expect(getCliSuggestions('ne', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['northeast']);
+    expect(getCliSuggestions('sw', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['southwest']);
+    expect(getCliSuggestions('se', 2, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['southeast']);
+  });
+
+  it('keeps above and below available while typing their first token prefixes', () => {
+    expect(getCliSuggestions('a', 1, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label))
+      .toContain('above');
+
+    expect(getCliSuggestions('b', 1, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label))
+      .toContain('below');
+  });
+
   it('allows edit alongside east and show alongside south at the first token', () => {
     const eastResult = getCliSuggestions('e', 1, createEmptyMap('Test'));
     const southResult = getCliSuggestions('s', 1, createEmptyMap('Test'));
@@ -512,6 +555,16 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('undo x', 'undo x'.length, doc)).toBeNull();
     expect(getCliSuggestions('redo ', 'redo '.length, doc)).toBeNull();
     expect(getCliSuggestions('redo x', 'redo x'.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom in ', 'zoom in '.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom out ', 'zoom out '.length, doc)).toBeNull();
+    expect(getCliSuggestions('zoom reset ', 'zoom reset '.length, doc)).toBeNull();
+  });
+
+  it('suggests zoom directions after zoom plus a space', () => {
+    expect(getCliSuggestions('zoom ', 'zoom '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<number>', 'in', 'out', 'reset']);
+    expect(getCliSuggestions('zoom i', 'zoom i'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['in']);
+    expect(getCliSuggestions('zoom r', 'zoom r'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['reset']);
+    expect(getCliSuggestions('zoom 2', 'zoom 2'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<number>']);
   });
 
   it('uses parser-backed room and with suggestions for notate, annotate, and ann', () => {
@@ -526,6 +579,9 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('notate ', 'notate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
+    expect(getCliSuggestions('annotate ', 'annotate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
+    expect(getCliSuggestions('ann ', 'ann '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
   });
 
   it('closes suggestions after notate and annotate enter free-text note mode', () => {
@@ -534,12 +590,17 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('notate cellar with ', 'notate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('annotate cellar with ', 'annotate cellar with '.length, doc)).toBeNull();
     expect(getCliSuggestions('ann cellar with ', 'ann cellar with '.length, doc)).toBeNull();
+    expect(getCliSuggestions('annotate with ', 'annotate with '.length, doc)).toBeNull();
   });
 
   it('uses parser-backed room suggestions after put in and take/get from', () => {
     let doc = createEmptyMap('Test');
-    doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
-    doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    const livingRoom = { ...createRoom('Living Room'), position: { x: 40, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addRoom(doc, livingRoom);
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+    doc = addItem(doc, { ...createItem('Lamp', livingRoom.id), id: 'item-lamp' });
 
     expect(getCliSuggestions('put lantern in c', 'put lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('drop lantern in c', 'drop lantern in c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
@@ -547,6 +608,82 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('get lantern from c', 'get lantern from c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('take all from l', 'take all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
     expect(getCliSuggestions('get all from l', 'get all from l'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+  });
+
+  it('keeps an open-ended item-name placeholder alive for put/drop commands', () => {
+    expect(getCliSuggestions('put ', 'put '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>']);
+    expect(getCliSuggestions('put brass', 'put brass'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>']);
+    expect(getCliSuggestions('put brass ', 'put brass '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+    expect(getCliSuggestions('put brass i', 'put brass i'.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+    expect(getCliSuggestions('drop brass lantern ', 'drop brass lantern '.length, createEmptyMap('Test'))?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<item name>', 'in']);
+  });
+
+  it('suggests existing items and from for take/get commands', () => {
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addItem(doc, { ...createItem('Brass', cellar.id), id: 'item-brass' });
+    doc = addItem(doc, { ...createItem('Brass Key', cellar.id), id: 'item-brass-key' });
+    doc = addItem(doc, { ...createItem('Brass Lantern', cellar.id), id: 'item-brass-lantern' });
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+
+    expect(getCliSuggestions('take ', 'take '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+      'Lantern',
+      'all',
+    ]);
+    expect(getCliSuggestions('take b', 'take b'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+    ]);
+    expect(getCliSuggestions('get a', 'get a'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['all']);
+    expect(getCliSuggestions('take brass ', 'take brass '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual([
+      'Brass',
+      'Brass Key',
+      'Brass Lantern',
+      'from',
+    ]);
+    expect(getCliSuggestions('get brass f', 'get brass f'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['from']);
+    expect(getCliSuggestions('take z', 'take z'.length, doc)).toBeNull();
+  });
+
+  it('inserts put/take prepositions at the caret instead of replacing the item text', () => {
+    const putResult = getCliSuggestions('put foobar ', 'put foobar '.length, createEmptyMap('Test'));
+    const putInSuggestion = putResult?.suggestions.find((suggestion) => suggestion.label === 'in');
+    expect(putInSuggestion).toMatchObject({
+      replaceStart: 'put foobar '.length,
+      replaceEnd: 'put foobar '.length,
+    });
+
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addItem(doc, { ...createItem('Foobar', cellar.id), id: 'item-foobar' });
+
+    const takeResult = getCliSuggestions('take foobar ', 'take foobar '.length, doc);
+    const takeFromSuggestion = takeResult?.suggestions.find((suggestion) => suggestion.label === 'from');
+    expect(takeFromSuggestion).toMatchObject({
+      replaceStart: 'take foobar '.length,
+      replaceEnd: 'take foobar '.length,
+    });
+  });
+
+  it('limits take/get from-room suggestions to rooms that contain matching items', () => {
+    let doc = createEmptyMap('Test');
+    const cellar = { ...createRoom('Cellar'), position: { x: 0, y: 0 } };
+    const livingRoom = { ...createRoom('Living Room'), position: { x: 40, y: 0 } };
+    doc = addRoom(doc, cellar);
+    doc = addRoom(doc, livingRoom);
+    doc = addItem(doc, { ...createItem('Lantern', cellar.id), id: 'item-lantern' });
+    doc = addItem(doc, { ...createItem('Lamp', livingRoom.id), id: 'item-lamp' });
+
+    expect(getCliSuggestions('take lantern from ', 'take lantern from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
+    expect(getCliSuggestions('get lamp from ', 'get lamp from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Living Room']);
+    expect(getCliSuggestions('take l from ', 'take l from '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar', 'Living Room']);
+    expect(getCliSuggestions('take lantern from l', 'take lantern from l'.length, doc)).toBeNull();
   });
 
   it('closes suggestions after a completed put/take/get room reference', () => {

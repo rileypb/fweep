@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import helpMarkdown from '../../../help.md?raw';
+import { HELP_SHORTCUT_ITEMS } from './ui-shortcuts';
 import { useModalFocusTrap } from './use-modal-focus-trap';
 
 interface HelpParagraphBlock {
@@ -221,6 +222,16 @@ export function HelpDialog({ isOpen, onClose }: HelpDialogProps): React.JSX.Elem
               })}
             </section>
           ))}
+          <section className="help-section">
+            <h3 className="help-section-heading">Keyboard Shortcuts</h3>
+            <ul className="help-list">
+              {HELP_SHORTCUT_ITEMS.map((item, index) => (
+                <li key={`shortcut-${index}`} className="help-list-item">
+                  {renderInlineMarkdown(item)}
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </div>
     </div>

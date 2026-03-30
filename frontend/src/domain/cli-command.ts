@@ -16,6 +16,12 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
+  | {
+    readonly kind: 'zoom';
+    readonly mode: 'relative' | 'reset' | 'absolute';
+    readonly direction?: 'in' | 'out';
+    readonly zoomPercent?: number;
+  }
   | { readonly kind: 'navigate'; readonly direction: string }
   | { readonly kind: 'create'; readonly roomName: string; readonly adjective: CliRoomAdjective | null }
   | { readonly kind: 'put-items'; readonly itemNames: readonly string[]; readonly room: CliRoomReference }
@@ -33,12 +39,17 @@ export type CliCommand =
   | { readonly kind: 'show'; readonly room: CliRoomReference }
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | {
+    readonly kind: 'selected-room-relative-connect';
+    readonly sourceDirection: string;
+    readonly targetRoom: CliRoomReference;
+  }
+  | {
     readonly kind: 'set-connection-annotation';
     readonly sourceRoom: CliRoomReference;
     readonly targetRoom: CliRoomReference;
     readonly annotation: 'door' | 'locked door' | null;
   }
-  | { readonly kind: 'notate'; readonly room: CliRoomReference; readonly noteText: string }
+  | { readonly kind: 'notate'; readonly room: CliRoomReference | null; readonly noteText: string }
   | {
     readonly kind: 'connect';
     readonly sourceRoom: CliRoomReference;
@@ -68,6 +79,7 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
+  'zoom in/out/reset/<percent>',
   'go <direction>',
   '<direction>',
   'create/c <room name>',
@@ -95,6 +107,7 @@ export const CLI_COMMAND_FORMS = [
   'edit/e/ed <room name>',
   'describe [<room name>]',
   'show/s/go to <room name>',
+  '<direction>/above/below is <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
   '<room name> to <room name> is clear',
@@ -108,6 +121,7 @@ export const CLI_COMMAND_FORMS = [
   'take/get <item> from <room name>',
   'take/get <item>, <item>, and <item> from <room name>',
   'take/get all from <room name>',
+  'notate/annotate/ann with <note text>',
   'notate/annotate/ann <room name> with <note text>',
   'connect/con <room name> <direction> [one-way] to <room name> [<direction>]',
   'disconnect <room name> [<direction>] from <room name>',
@@ -127,6 +141,7 @@ export interface CliCommandSuggestionSpec {
 export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] = [
   { id: 'help', insertText: 'help', matchTerms: ['help', 'h'], descriptionInput: 'help' },
   { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
+  { id: 'zoom', insertText: 'zoom', matchTerms: ['zoom'], descriptionInput: 'zoom in' },
   { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
   { id: 'show', insertText: 'show', matchTerms: ['show', 's', 'go to'], descriptionInput: 'show Kitchen' },
   { id: 'create', insertText: 'create', matchTerms: ['create', 'c'], descriptionInput: 'create Kitchen' },
@@ -252,6 +267,20 @@ function parseRoomAdjective(token: Token | undefined): CliRoomAdjective | null {
   }
 
   return null;
+}
+
+function parseZoomPercentToken(token: Token | undefined): number | null {
+  if (token === undefined || token.quoted) {
+    return null;
+  }
+
+  const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))%?$/.exec(token.value.trim());
+  if (match === null) {
+    return null;
+  }
+
+  const numericValue = Number.parseFloat(match[1] ?? '');
+  return Number.isFinite(numericValue) ? numericValue : null;
 }
 
 function parseWhichIsAdjectiveClause(
@@ -943,6 +972,38 @@ function parseDisconnectCommand(tokens: readonly Token[]): Extract<CliCommand, {
   };
 }
 
+function parseSelectedRoomRelativeConnectCommand(
+  tokens: readonly Token[],
+): Extract<CliCommand, { kind: 'selected-room-relative-connect' }> | null {
+  if (tokens.length < 3 || !isTokenValue(tokens[1], 'is')) {
+    return null;
+  }
+
+  const directionToken = tokens[0];
+  if (!isDirectionToken(directionToken) && !isTokenValue(directionToken, 'above') && !isTokenValue(directionToken, 'below')) {
+    return null;
+  }
+
+  if (tokens.length === 3 && parseRoomAdjective(tokens[2]) !== null) {
+    return null;
+  }
+
+  const targetRoom = readRoomName(tokens, 2, () => false);
+  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+    return null;
+  }
+
+  return {
+    kind: 'selected-room-relative-connect',
+    sourceDirection: isTokenValue(directionToken, 'above')
+      ? 'up'
+      : isTokenValue(directionToken, 'below')
+        ? 'down'
+        : normalizeDirection(directionToken!.value),
+    targetRoom: targetRoom.reference,
+  };
+}
+
 export function parseCliCommand(input: string): CliCommand | null {
   const normalized = normalizeCliWhitespace(input);
   if (normalized.length === 0) {
@@ -977,6 +1038,33 @@ export function parseCliCommand(input: string): CliCommand | null {
 
   if (tokens.length === 1 && (isFirstWordAlias(tokens[0], 'arrange', 'arr') || isTokenValue(tokens[0], 'prettify'))) {
     return { kind: 'arrange' };
+  }
+
+  if (
+    tokens.length === 2
+    && isTokenValue(tokens[0], 'zoom')
+    && (isTokenValue(tokens[1], 'in') || isTokenValue(tokens[1], 'out') || isTokenValue(tokens[1], 'reset'))
+  ) {
+    return {
+      kind: 'zoom',
+      mode: isTokenValue(tokens[1], 'reset') ? 'reset' : 'relative',
+      direction: isTokenValue(tokens[1], 'in')
+        ? 'in'
+        : isTokenValue(tokens[1], 'out')
+          ? 'out'
+          : undefined,
+    };
+  }
+
+  if (tokens.length === 2 && isTokenValue(tokens[0], 'zoom')) {
+    const zoomPercent = parseZoomPercentToken(tokens[1]);
+    if (zoomPercent !== null) {
+      return {
+        kind: 'zoom',
+        mode: 'absolute',
+        zoomPercent,
+      };
+    }
   }
 
   if (tokens.length === 1 && isDirectionToken(tokens[0])) {
@@ -1127,6 +1215,11 @@ export function parseCliCommand(input: string): CliCommand | null {
     return connectionAnnotationCommand;
   }
 
+  const selectedRoomRelativeConnectCommand = parseSelectedRoomRelativeConnectCommand(tokens);
+  if (selectedRoomRelativeConnectCommand !== null) {
+    return selectedRoomRelativeConnectCommand;
+  }
+
   const lightingRoom = readRoomName(tokens, 0, (token) => isTokenValue(token, 'is'));
   if (
     lightingRoom !== null
@@ -1149,8 +1242,10 @@ export function parseCliCommand(input: string): CliCommand | null {
       return null;
     }
 
-    const roomName = readRoomName(tokens, 1, (token) => token === tokens[withIndex]);
-    if (roomName === null || roomName.nextIndex !== withIndex) {
+    const roomName = withIndex === 1
+      ? null
+      : readRoomName(tokens, 1, (token) => token === tokens[withIndex]);
+    if (withIndex > 1 && (roomName === null || roomName.nextIndex !== withIndex)) {
       return null;
     }
 
@@ -1161,7 +1256,7 @@ export function parseCliCommand(input: string): CliCommand | null {
 
     return {
       kind: 'notate',
-      room: roomName.reference,
+      room: roomName?.reference ?? null,
       noteText: noteText.reference.text,
     };
   }
@@ -1177,6 +1272,16 @@ function describeCliCommand(command: CliCommand): string {
         : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
+    case 'zoom':
+      if (command.mode === 'relative') {
+        return command.direction === 'in' ? 'zoom the map in' : 'zoom the map out';
+      }
+
+      if (command.mode === 'reset') {
+        return 'reset the map zoom to 1:1';
+      }
+
+      return `set the map zoom to ${command.zoomPercent}%`;
     case 'navigate':
       return `move in the selected room's ${command.direction} direction`;
     case 'create':
@@ -1215,6 +1320,8 @@ function describeCliCommand(command: CliCommand): string {
       return `scroll the map to ${command.room.text}`;
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
+    case 'selected-room-relative-connect':
+      return `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
     case 'set-connection-annotation':
       if (command.annotation === 'door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;
@@ -1224,7 +1331,9 @@ function describeCliCommand(command: CliCommand): string {
       }
       return `clear all connection annotations between ${command.sourceRoom.text} and ${command.targetRoom.text}`;
     case 'notate':
-      return `create a sticky note on ${command.room.text} saying ${command.noteText}`;
+      return command.room === null
+        ? `create a sticky note on the selected room saying ${command.noteText}`
+        : `create a sticky note on ${command.room.text} saying ${command.noteText}`;
     case 'undo':
       return 'undo the previous command';
     case 'redo':

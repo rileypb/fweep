@@ -1,11 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import { normalizeDirection } from '../domain/directions';
 import { type Item, type MapVisualStyle, type Room, type RoomShape } from '../domain/map-types';
 import { getHandleOffset } from '../graph/connection-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
-import { renderRoomShape } from './map-canvas-helpers';
+import { renderRoomSelectionOutline, renderRoomShape } from './map-canvas-helpers';
 import {
   getRoomFillColor,
   getRoomLabelColor,
@@ -22,6 +22,10 @@ const DIRECTION_HANDLES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const;
 const VERTICAL_HANDLE_RADIUS = 4;
 const ROOM_LABEL_FONT_FAMILY = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 const ROOM_ITEM_LABEL_RIGHT_INSET = HANDLE_RADIUS + 2;
+const ROOM_ITEM_LABEL_PANEL_WIDTH = 132;
+const ROOM_NAME_VISIBILITY_THRESHOLD = 0.5;
+const LOW_ZOOM_ROOM_NAME_THRESHOLD = 0.75;
+const ROOM_ITEM_LABEL_VISIBILITY_THRESHOLD = 0.8;
 const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
   '[data-room-id]',
   '[data-sticky-note-id]',
@@ -126,6 +130,7 @@ function DirectionHandles({
 export interface MapCanvasRoomNodeProps {
   room: Room;
   roomItems: readonly Item[];
+  zoom: number;
   theme: ThemeMode;
   isSelected: boolean;
   isRoomEditorOpen: boolean;
@@ -137,6 +142,7 @@ export interface MapCanvasRoomNodeProps {
 export function MapCanvasRoomNode({
   room,
   roomItems,
+  zoom,
   theme,
   isSelected,
   isRoomEditorOpen,
@@ -145,6 +151,8 @@ export function MapCanvasRoomNode({
   toMapPoint,
 }: MapCanvasRoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
+  const [areItemsExpanded, setAreItemsExpanded] = useState(false);
+  const itemPanelRef = useRef<HTMLDivElement | null>(null);
   const moveSelection = useEditorStore((s) => s.moveSelection);
   const startConnectionDrag = useEditorStore((s) => s.startConnectionDrag);
   const updateConnectionDrag = useEditorStore((s) => s.updateConnectionDrag);
@@ -173,9 +181,37 @@ export function MapCanvasRoomNode({
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
   const visibleItemNames = roomItems.slice(0, 3).map((item) => item.name);
   const hiddenItemCount = Math.max(0, roomItems.length - visibleItemNames.length);
-  const itemLabelLines = hiddenItemCount > 0
-    ? [...visibleItemNames, `+${hiddenItemCount} more`]
-    : visibleItemNames;
+  const shownItemNames = areItemsExpanded ? roomItems.map((item) => item.name) : visibleItemNames;
+  const showRoomName = zoom > ROOM_NAME_VISIBILITY_THRESHOLD;
+  const useLowZoomRoomNameStyling = showRoomName && zoom <= LOW_ZOOM_ROOM_NAME_THRESHOLD;
+  const showItemLabels = zoom > ROOM_ITEM_LABEL_VISIBILITY_THRESHOLD;
+  const showItemToggle = hiddenItemCount > 0 || areItemsExpanded;
+
+  useEffect(() => {
+    if (!showItemLabels || roomItems.length <= 3) {
+      setAreItemsExpanded(false);
+    }
+  }, [roomItems.length, showItemLabels]);
+
+  useEffect(() => {
+    if (!areItemsExpanded) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && itemPanelRef.current?.contains(target)) {
+        return;
+      }
+
+      setAreItemsExpanded(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [areItemsExpanded]);
 
   const openRoomEditor = useCallback(() => {
     onOpenRoomEditor(room.id);
@@ -284,6 +320,10 @@ export function MapCanvasRoomNode({
         } else {
           selectRoom(room.id);
         }
+
+        if (canvasElement instanceof HTMLDivElement) {
+          focusElementWithoutScroll(canvasElement);
+        }
       };
 
       document.addEventListener('mousemove', handleMouseMove);
@@ -370,36 +410,42 @@ export function MapCanvasRoomNode({
       }}
     >
       {isSelected && (
-        <rect
-          className="room-selection-outline"
-          data-testid="room-selection-outline"
-          x={-4}
-          y={-4}
-          width={roomWidth + 8}
-          height={roomHeight + 8}
-          rx={12}
-          ry={12}
-        />
+        renderRoomSelectionOutline(room.shape, roomWidth, roomHeight, mapVisualStyle, 4, 'room-selection-outline')
       )}
       {renderRoomShape(room.shape, roomWidth, roomHeight, room, theme, mapVisualStyle)}
-      <text
-        className="room-node-name"
-        x={labelLayout.textX}
-        y={labelLayout.firstLineY}
-        dominantBaseline="middle"
-        textAnchor="middle"
-        style={{ fill: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
-      >
-        {labelLayout.lines.map((line, index) => (
-          <tspan
-            key={`${room.id}-line-${index}`}
-            x={labelLayout.textX}
-            y={labelLayout.firstLineY + (index * labelLayout.lineHeight)}
-          >
-            {line}
-          </tspan>
-        ))}
-      </text>
+      {showRoomName && (
+        <text
+          className={`room-node-name${useLowZoomRoomNameStyling ? ' room-node-name--low-zoom' : ''}`}
+          x={labelLayout.textX}
+          y={labelLayout.firstLineY}
+          dominantBaseline="middle"
+          textAnchor="middle"
+          textRendering={useLowZoomRoomNameStyling ? 'geometricPrecision' : undefined}
+          style={{
+            fill: roomLabelColor,
+            fontFamily: ROOM_LABEL_FONT_FAMILY,
+            ...(useLowZoomRoomNameStyling
+              ? {
+                fontWeight: 600,
+                paintOrder: 'stroke fill',
+                stroke: roomFill,
+                strokeWidth: 1.2,
+                strokeLinejoin: 'round',
+              }
+              : {}),
+          }}
+        >
+          {labelLayout.lines.map((line, index) => (
+            <tspan
+              key={`${room.id}-line-${index}`}
+              x={labelLayout.textX}
+              y={labelLayout.firstLineY + (index * labelLayout.lineHeight)}
+            >
+              {line}
+            </tspan>
+          ))}
+        </text>
+      )}
       {room.locked && labelLayout.lockX !== null && labelLayout.lockY !== null && (
         <g
           data-testid={`room-lock-glyph-${room.id}`}
@@ -424,25 +470,46 @@ export function MapCanvasRoomNode({
           />
         </g>
       )}
-      {itemLabelLines.length > 0 && (
-        <text
-          className="room-node-items"
-          x={(roomWidth / 2) - ROOM_ITEM_LABEL_RIGHT_INSET}
-          y={roomHeight + 14}
-          dominantBaseline="hanging"
-          textAnchor="end"
-          style={{ fill: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
+      {showItemLabels && shownItemNames.length > 0 && (
+        <foreignObject
+          x={(roomWidth / 2) - ROOM_ITEM_LABEL_PANEL_WIDTH - ROOM_ITEM_LABEL_RIGHT_INSET}
+          y={roomHeight + 10}
+          width={ROOM_ITEM_LABEL_PANEL_WIDTH}
+          height={areItemsExpanded ? 150 : 68}
+          requiredExtensions="http://www.w3.org/1999/xhtml"
         >
-          {itemLabelLines.map((line, index) => (
-            <tspan
-              key={`${room.id}-item-${index}`}
-              x={(roomWidth / 2) - ROOM_ITEM_LABEL_RIGHT_INSET}
-              y={roomHeight + 14 + (index * 12)}
-            >
-              {line}
-            </tspan>
-          ))}
-        </text>
+          <div
+            ref={itemPanelRef}
+            className={`room-node-items${areItemsExpanded ? ' room-node-items--expanded' : ''}`}
+            style={{ color: roomLabelColor, fontFamily: ROOM_LABEL_FONT_FAMILY }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            <div className="room-node-items__content">
+              {shownItemNames.map((itemName, index) => (
+                <div key={`${room.id}-${index}`} className="room-node-items__line">
+                  {itemName}
+                </div>
+              ))}
+              {showItemToggle && (
+                <button
+                  type="button"
+                  className="room-node-items__toggle"
+                  aria-expanded={areItemsExpanded}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setAreItemsExpanded((expanded) => !expanded);
+                  }}
+                >
+                  {areItemsExpanded ? 'Show fewer' : `+${hiddenItemCount} more`}
+                </button>
+              )}
+            </div>
+          </div>
+        </foreignObject>
       )}
       {hovered && !isDragging && !isRoomEditorOpen && !interactionsDisabled && (
         <DirectionHandles

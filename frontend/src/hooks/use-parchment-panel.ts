@@ -6,12 +6,15 @@ import type { AssociatedGameMetadata } from '../domain/map-types';
 import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
+  clampParchmentPanelHeightWithinInsets,
   clampParchmentPanelWidth,
   getDefaultParchmentPanelHeight,
   getNextParchmentPanelHeightFromKey,
+  getNextParchmentPanelHeightFromKeyWithinInsets,
   getNextParchmentPanelWidthFromKey,
   getParchmentInstance,
   loadStoredParchmentPanelHeight,
+  loadStoredParchmentPanelHeightWithinInsets,
   loadStoredParchmentPanelWidth,
   PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS,
   PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS,
@@ -26,6 +29,8 @@ interface UseParchmentPanelOptions {
   readonly setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
   readonly parchmentDeviceInputRef: React.RefObject<HTMLInputElement | null>;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
+  readonly heightTopInsetPx?: number;
+  readonly heightBottomInsetPx?: number;
 }
 
 interface UseParchmentPanelResult {
@@ -40,9 +45,12 @@ interface UseParchmentPanelResult {
   readonly isParchmentGameViewVisible: boolean;
   readonly deviceLinkLabel: string;
   readonly setIfdbSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  readonly beginParchmentPanelResize: (pointerId: number, pointerStartX: number) => void;
+  readonly beginParchmentPanelResize: (pointerId: number, pointerStartX: number, dockEdge?: 'left' | 'right') => void;
   readonly beginParchmentPanelHeightResize: (pointerId: number, pointerStartY: number) => void;
-  readonly handleParchmentPanelWidthResizeKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
+  readonly handleParchmentPanelWidthResizeKeyDown: (
+    event: React.KeyboardEvent<HTMLElement>,
+    dockEdge?: 'left' | 'right',
+  ) => void;
   readonly handleParchmentPanelHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
   readonly handleIfdbSearchSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   readonly handleIfdbAuthorSearch: (author: string) => Promise<void>;
@@ -59,6 +67,8 @@ export function useParchmentPanel({
   setAssociatedGameMetadata,
   parchmentDeviceInputRef,
   parchmentIframeRef,
+  heightTopInsetPx = 16,
+  heightBottomInsetPx = 16,
 }: UseParchmentPanelOptions): UseParchmentPanelResult {
   const [parchmentPanelWidth, setParchmentPanelWidth] = useState(() => (
     typeof window === 'undefined'
@@ -68,7 +78,7 @@ export function useParchmentPanel({
   const [parchmentPanelHeight, setParchmentPanelHeight] = useState(() => (
     typeof window === 'undefined'
       ? 600
-      : loadStoredParchmentPanelHeight(window.innerHeight)
+      : loadStoredParchmentPanelHeightWithinInsets(window.innerHeight, heightTopInsetPx, heightBottomInsetPx)
   ));
   const [ifdbSearchQuery, setIfdbSearchQuery] = useState('');
   const [ifdbSearchResults, setIfdbSearchResults] = useState<readonly NormalizedIfdbSearchResult[]>([]);
@@ -104,7 +114,12 @@ export function useParchmentPanel({
         return nextWidth;
       });
       setParchmentPanelHeight((current) => {
-        const nextHeight = clampParchmentPanelHeight(current, window.innerHeight);
+        const nextHeight = clampParchmentPanelHeightWithinInsets(
+          current,
+          window.innerHeight,
+          heightTopInsetPx,
+          heightBottomInsetPx,
+        );
         if (nextHeight !== current) {
           persistParchmentPanelHeight(nextHeight);
         }
@@ -117,17 +132,21 @@ export function useParchmentPanel({
     return () => {
       window.removeEventListener('resize', updateViewportAvailability);
     };
-  }, []);
+  }, [heightBottomInsetPx, heightTopInsetPx]);
 
-  const beginParchmentPanelResize = useCallback((pointerId: number, pointerStartX: number) => {
+  const beginParchmentPanelResize = useCallback((pointerId: number, pointerStartX: number, dockEdge: 'left' | 'right' = 'right') => {
     const startWidth = parchmentPanelWidth;
+    const directionMultiplier = dockEdge === 'left' ? -1 : 1;
 
     const handlePointerMove = (event: PointerEvent): void => {
       if (event.pointerId !== pointerId) {
         return;
       }
 
-      const nextWidth = clampParchmentPanelWidth(startWidth + (pointerStartX - event.clientX), window.innerWidth);
+      const nextWidth = clampParchmentPanelWidth(
+        startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
+        window.innerWidth,
+      );
       setParchmentPanelWidth(nextWidth);
     };
 
@@ -136,7 +155,10 @@ export function useParchmentPanel({
         return;
       }
 
-      const nextWidth = clampParchmentPanelWidth(startWidth + (pointerStartX - event.clientX), window.innerWidth);
+      const nextWidth = clampParchmentPanelWidth(
+        startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
+        window.innerWidth,
+      );
       setParchmentPanelWidth(nextWidth);
       persistParchmentPanelWidth(nextWidth);
       window.removeEventListener('pointermove', handlePointerMove);
@@ -159,7 +181,12 @@ export function useParchmentPanel({
         return;
       }
 
-      const nextHeight = clampParchmentPanelHeight(startHeight + (pointerStartY - event.clientY), window.innerHeight);
+      const nextHeight = clampParchmentPanelHeightWithinInsets(
+        startHeight + (pointerStartY - event.clientY),
+        window.innerHeight,
+        heightTopInsetPx,
+        heightBottomInsetPx,
+      );
       setParchmentPanelHeight(nextHeight);
     };
 
@@ -168,7 +195,12 @@ export function useParchmentPanel({
         return;
       }
 
-      const nextHeight = clampParchmentPanelHeight(startHeight + (pointerStartY - event.clientY), window.innerHeight);
+      const nextHeight = clampParchmentPanelHeightWithinInsets(
+        startHeight + (pointerStartY - event.clientY),
+        window.innerHeight,
+        heightTopInsetPx,
+        heightBottomInsetPx,
+      );
       setParchmentPanelHeight(nextHeight);
       persistParchmentPanelHeight(nextHeight);
       window.removeEventListener('pointermove', handlePointerMove);
@@ -181,7 +213,7 @@ export function useParchmentPanel({
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', finishResize);
     window.addEventListener('pointercancel', finishResize);
-  }, [parchmentPanelHeight]);
+  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight]);
 
   useEffect(() => () => {
     document.body.classList.remove('app-shell--resizing-side-panel');
@@ -376,7 +408,13 @@ export function useParchmentPanel({
   }, [pendingLocalFile, retryPendingParchmentLocalFileLoad]);
 
   const handleParchmentPanelHeightResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>): void => {
-    const nextHeight = getNextParchmentPanelHeightFromKey(event.key, parchmentPanelHeight, window.innerHeight);
+    const nextHeight = getNextParchmentPanelHeightFromKeyWithinInsets(
+      event.key,
+      parchmentPanelHeight,
+      window.innerHeight,
+      heightTopInsetPx,
+      heightBottomInsetPx,
+    );
     if (nextHeight === null) {
       return;
     }
@@ -384,10 +422,20 @@ export function useParchmentPanel({
     event.preventDefault();
     setParchmentPanelHeight(nextHeight);
     persistParchmentPanelHeight(nextHeight);
-  }, [parchmentPanelHeight]);
+  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight]);
 
-  const handleParchmentPanelWidthResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>): void => {
-    const nextWidth = getNextParchmentPanelWidthFromKey(event.key, parchmentPanelWidth, window.innerWidth);
+  const handleParchmentPanelWidthResizeKeyDown = useCallback((
+    event: React.KeyboardEvent<HTMLElement>,
+    dockEdge: 'left' | 'right' = 'right',
+  ): void => {
+    const effectiveKey = dockEdge === 'left'
+      ? event.key === 'ArrowLeft'
+        ? 'ArrowRight'
+        : event.key === 'ArrowRight'
+          ? 'ArrowLeft'
+          : event.key
+      : event.key;
+    const nextWidth = getNextParchmentPanelWidthFromKey(effectiveKey, parchmentPanelWidth, window.innerWidth);
     if (nextWidth === null) {
       return;
     }

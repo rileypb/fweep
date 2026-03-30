@@ -1,4 +1,10 @@
 import { useState, useEffect } from 'react';
+import {
+  getShortcutTitle,
+  isUiShortcutPressed,
+  shouldIgnoreUiShortcut,
+  UI_SHORTCUTS,
+} from './ui-shortcuts';
 
 type Theme = 'light' | 'dark';
 
@@ -25,12 +31,32 @@ export function ThemeToggle(): React.JSX.Element {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!isUiShortcutPressed(event, UI_SHORTCUTS.toggleThemeMode) || shouldIgnoreUiShortcut(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const nextThemeLabel = `Switch to ${theme === 'light' ? 'dark' : 'light'} mode`;
+
   return (
     <button
       className="app-control-button"
       onClick={toggle}
-      aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-      title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+      aria-label={nextThemeLabel}
+      aria-keyshortcuts={UI_SHORTCUTS.toggleThemeMode.ariaKeyShortcuts}
+      data-shortcut={UI_SHORTCUTS.toggleThemeMode.display}
+      title={getShortcutTitle(nextThemeLabel, UI_SHORTCUTS.toggleThemeMode)}
       type="button"
     >
       {theme === 'light' ? (

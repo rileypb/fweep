@@ -14,6 +14,14 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
   });
 
+  it('describes zoom commands', () => {
+    expect(parseCliCommandDescription('zoom in')).toBe('zoom the map in');
+    expect(parseCliCommandDescription('zoom out')).toBe('zoom the map out');
+    expect(parseCliCommandDescription('zoom reset')).toBe('reset the map zoom to 1:1');
+    expect(parseCliCommandDescription('zoom 200')).toBe('set the map zoom to 200%');
+    expect(parseCliCommandDescription('zoom 200%')).toBe('set the map zoom to 200%');
+  });
+
   it('describes create commands', () => {
     expect(parseCliCommandDescription('create Kitchen')).toBe('create a room called Kitchen');
     expect(parseCliCommandDescription('c Kitchen')).toBe('create a room called Kitchen');
@@ -116,6 +124,15 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('Kitchen is lit')).toBe('mark Kitchen as lit');
   });
 
+  it('describes selected-room relative connect commands', () => {
+    expect(parseCliCommandDescription('north is Kitchen')).toBe(
+      'connect the selected room going north to Kitchen, creating it if needed',
+    );
+    expect(parseCliCommandDescription('above is Attic')).toBe(
+      'connect the selected room going up to Attic, creating it if needed',
+    );
+  });
+
   it('describes connection annotation commands', () => {
     expect(parseCliCommandDescription('Bedroom to Bathroom is a door')).toBe(
       'mark all connections between Bedroom and Bathroom as doors',
@@ -146,6 +163,9 @@ describe('parseCliCommandDescription', () => {
     );
     expect(parseCliCommandDescription('ann Kitchen with this room has nice wallpaper')).toBe(
       'create a sticky note on Kitchen saying this room has nice wallpaper',
+    );
+    expect(parseCliCommandDescription('annotate with this room has nice wallpaper')).toBe(
+      'create a sticky note on the selected room saying this room has nice wallpaper',
     );
   });
 
@@ -330,6 +350,15 @@ describe('parseCliCommandDescription', () => {
 });
 
 describe('parseCliCommand', () => {
+  it('parses zoom commands', () => {
+    expect(parseCliCommand('zoom in')).toEqual({ kind: 'zoom', mode: 'relative', direction: 'in' });
+    expect(parseCliCommand('zoom out')).toEqual({ kind: 'zoom', mode: 'relative', direction: 'out' });
+    expect(parseCliCommand('zoom reset')).toEqual({ kind: 'zoom', mode: 'reset', direction: undefined });
+    expect(parseCliCommand('zoom 200')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: 200 });
+    expect(parseCliCommand('zoom 200%')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: 200 });
+    expect(parseCliCommand('zoom -25%')).toEqual({ kind: 'zoom', mode: 'absolute', zoomPercent: -25 });
+  });
+
   it('parses the-way pseudo-room terminal commands', () => {
     expect(parseCliCommand('the way east of Kitchen lies death')).toEqual({
       kind: 'create-pseudo-room',
@@ -479,6 +508,51 @@ describe('parseCliCommand', () => {
     expect(parseCliCommand('describe Kitchen')).toEqual({
       kind: 'describe',
       room: { text: 'Kitchen', exact: false },
+    });
+  });
+
+  it('parses selected-room relative connect commands', () => {
+    expect(parseCliCommand('north is Kitchen')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceDirection: 'north',
+      targetRoom: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('below is Cellar')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceDirection: 'down',
+      targetRoom: { text: 'Cellar', exact: false },
+    });
+  });
+
+  it('preserves north is dark as a room-lighting phrase', () => {
+    expect(parseCliCommand('north is dark')).toEqual({
+      kind: 'set-room-adjective',
+      room: { text: 'north', exact: false },
+      adjective: { kind: 'lighting', text: 'dark', isDark: true },
+    });
+  });
+
+  it('parses notate commands with and without an explicit room', () => {
+    expect(parseCliCommand('notate Kitchen with hello')).toEqual({
+      kind: 'notate',
+      room: { text: 'Kitchen', exact: false },
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('ann "Kitchen" with hello')).toEqual({
+      kind: 'notate',
+      room: { text: 'Kitchen', exact: true },
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('annotate with hello')).toEqual({
+      kind: 'notate',
+      room: null,
+      noteText: 'hello',
+    });
+    expect(parseCliCommand('ann with hello there')).toEqual({
+      kind: 'notate',
+      room: null,
+      noteText: 'hello there',
     });
   });
 });

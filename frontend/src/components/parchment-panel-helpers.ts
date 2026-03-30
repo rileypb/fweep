@@ -29,6 +29,16 @@ export function clampParchmentPanelHeight(height: number, viewportHeight: number
   return Math.min(Math.max(height, PARCHMENT_PANEL_MIN_HEIGHT_PX), maxHeight);
 }
 
+export function clampParchmentPanelHeightWithinInsets(
+  height: number,
+  viewportHeight: number,
+  topInsetPx: number,
+  bottomInsetPx: number,
+): number {
+  const maxHeight = Math.max(PARCHMENT_PANEL_MIN_HEIGHT_PX, viewportHeight - topInsetPx - bottomInsetPx);
+  return Math.min(Math.max(height, PARCHMENT_PANEL_MIN_HEIGHT_PX), maxHeight);
+}
+
 export function loadStoredParchmentPanelWidth(viewportWidth: number): number {
   if (typeof window === 'undefined') {
     return getDefaultParchmentPanelWidth(viewportWidth);
@@ -65,6 +75,28 @@ export function loadStoredParchmentPanelHeight(viewportHeight: number): number {
   return clampParchmentPanelHeight(parsedValue, viewportHeight);
 }
 
+export function loadStoredParchmentPanelHeightWithinInsets(
+  viewportHeight: number,
+  topInsetPx: number,
+  bottomInsetPx: number,
+): number {
+  if (typeof window === 'undefined') {
+    return clampParchmentPanelHeightWithinInsets(viewportHeight - topInsetPx - bottomInsetPx, viewportHeight, topInsetPx, bottomInsetPx);
+  }
+
+  const rawValue = window.localStorage.getItem(PARCHMENT_PANEL_HEIGHT_STORAGE_KEY);
+  if (rawValue === null) {
+    return clampParchmentPanelHeightWithinInsets(viewportHeight - topInsetPx - bottomInsetPx, viewportHeight, topInsetPx, bottomInsetPx);
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue)) {
+    return clampParchmentPanelHeightWithinInsets(viewportHeight - topInsetPx - bottomInsetPx, viewportHeight, topInsetPx, bottomInsetPx);
+  }
+
+  return clampParchmentPanelHeightWithinInsets(parsedValue, viewportHeight, topInsetPx, bottomInsetPx);
+}
+
 export function persistParchmentPanelWidth(width: number): void {
   if (typeof window === 'undefined') {
     return;
@@ -94,6 +126,21 @@ export function getNextParchmentPanelHeightFromKey(
   return clampParchmentPanelHeight(currentHeight + delta, viewportHeight);
 }
 
+export function getNextParchmentPanelHeightFromKeyWithinInsets(
+  key: string,
+  currentHeight: number,
+  viewportHeight: number,
+  topInsetPx: number,
+  bottomInsetPx: number,
+): number | null {
+  if (key !== 'ArrowUp' && key !== 'ArrowDown') {
+    return null;
+  }
+
+  const delta = key === 'ArrowUp' ? 32 : -32;
+  return clampParchmentPanelHeightWithinInsets(currentHeight + delta, viewportHeight, topInsetPx, bottomInsetPx);
+}
+
 export function getNextParchmentPanelWidthFromKey(
   key: string,
   currentWidth: number,
@@ -108,13 +155,15 @@ export function getNextParchmentPanelWidthFromKey(
 }
 
 export function buildParchmentSrc(storyUrl: string | null): string {
-  if (storyUrl === null) {
-    return '/parchment.html';
+  const params = new URLSearchParams({
+    autoplay: '1',
+    do_vm_autosave: '1',
+  });
+
+  if (storyUrl !== null) {
+    params.set('story', storyUrl);
   }
 
-  const params = new URLSearchParams({
-    story: storyUrl,
-  });
   return `/parchment.html?${params.toString()}`;
 }
 

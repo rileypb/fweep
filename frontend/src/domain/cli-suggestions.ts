@@ -163,6 +163,306 @@ function getParserBackedCreateContinuationSuggestions(
   ];
 }
 
+function normalizeItemReferenceText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function tokenizeItemReferenceWords(value: string): readonly string[] {
+  return normalizeItemReferenceText(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function itemMatchesReferencePrefix(itemName: string, typedItemText: string, exact: boolean): boolean {
+  if (exact) {
+    return normalizeItemReferenceText(itemName).startsWith(normalizeItemReferenceText(typedItemText));
+  }
+
+  const typedWords = tokenizeItemReferenceWords(typedItemText);
+  if (typedWords.length === 0) {
+    return false;
+  }
+
+  const itemWords = tokenizeItemReferenceWords(itemName);
+  return typedWords.every((typedWord) => itemWords.some((itemWord) => itemWord.startsWith(typedWord)));
+}
+
+function quoteCliSuggestionValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function createItemSuggestion(itemId: string, itemName: string, quoted = false): CliSuggestion {
+  return {
+    id: `cli-suggestion-item-${itemId}`,
+    kind: 'command',
+    label: itemName,
+    insertText: quoted ? quoteCliSuggestionValue(itemName) : itemName,
+    detail: 'Item',
+  };
+}
+
+function getItemSlotTextInfo(input: string, fragment: ActiveFragment, slotStart: number): {
+  readonly text: string;
+  readonly exact: boolean;
+  readonly quoteClosed: boolean;
+} {
+  const rawText = input.slice(slotStart, fragment.caret);
+  if (!rawText.startsWith('"')) {
+    return {
+      text: rawText,
+      exact: false,
+      quoteClosed: true,
+    };
+  }
+
+  let text = '';
+  let index = 1;
+  while (index < rawText.length) {
+    const current = rawText[index];
+    if (current === '\\') {
+      const next = rawText[index + 1];
+      if (next === '"' || next === '\\') {
+        text += next;
+        index += 2;
+        continue;
+      }
+
+      return {
+        text,
+        exact: true,
+        quoteClosed: false,
+      };
+    }
+
+    if (current === '"') {
+      return {
+        text,
+        exact: true,
+        quoteClosed: true,
+      };
+    }
+
+    text += current;
+    index += 1;
+  }
+
+  return {
+    text,
+    exact: true,
+    quoteClosed: false,
+  };
+}
+
+function getExistingItemSuggestions(doc: MapDocument | null, prefix: string): readonly CliSuggestion[] {
+  if (!doc) {
+    return [];
+  }
+
+  const normalizedPrefix = prefix.toLowerCase();
+  return Object.values(doc.items)
+    .filter((item) => item.name.toLowerCase().split(/\s+/).some((part) => part.startsWith(normalizedPrefix)))
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((item) => createItemSuggestion(item.id, item.name));
+}
+
+function getItemReferenceResolution(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+): SuggestionResolution {
+  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
+  const itemSlotText = getItemSlotTextInfo(input, fragment, slotStart);
+  const normalizedTypedItemText = normalizeItemReferenceText(itemSlotText.text);
+
+  if (normalizedTypedItemText.length === 0) {
+    return {
+      suggestions: getExistingItemSuggestions(doc, ''),
+      replaceStart: slotStart,
+      replaceEnd: fragment.end,
+      prefix: '',
+    };
+  }
+
+  if (!doc) {
+    return {
+      suggestions: [],
+      replaceStart: slotStart,
+      replaceEnd: fragment.end,
+      prefix: normalizedTypedItemText,
+    };
+  }
+
+  const matchingItems = Object.values(doc.items)
+    .filter((item) => itemMatchesReferencePrefix(item.name, itemSlotText.text, itemSlotText.exact))
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((item) => createItemSuggestion(item.id, item.name, itemSlotText.exact));
+
+  if (fragment.prefix.length === 0 && itemSlotText.quoteClosed) {
+    const hasLongerMatch = matchingItems.some(
+      (suggestion) => normalizeItemReferenceText(suggestion.label) !== normalizedTypedItemText,
+    );
+    if (!hasLongerMatch) {
+      return {
+        suggestions: [],
+        replaceStart: slotStart,
+        replaceEnd: fragment.end,
+        prefix: normalizedTypedItemText,
+      };
+    }
+  }
+
+  return {
+    suggestions: matchingItems,
+    replaceStart: slotStart,
+    replaceEnd: fragment.end,
+    prefix: normalizedTypedItemText,
+  };
+}
+
+function hasCompletedItemReferenceBeforeFragment(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  slotStartTokenIndex: number,
+): boolean {
+  if (doc === null) {
+    return false;
+  }
+
+  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
+  const itemSlotText = getItemSlotTextInfo(input, { ...fragment, caret: fragment.start }, slotStart);
+  const normalizedTypedItemText = normalizeItemReferenceText(itemSlotText.text);
+  if (normalizedTypedItemText.length === 0) {
+    return false;
+  }
+
+  return Object.values(doc.items).some(
+    (item) => normalizeItemReferenceText(item.name) === normalizedTypedItemText,
+  );
+}
+
+function normalizeRoomReferenceText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function tokenizeRoomReferenceWords(value: string): readonly string[] {
+  return normalizeRoomReferenceText(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function roomMatchesReferencePrefix(roomName: string, typedRoomText: string, exact: boolean): boolean {
+  if (exact) {
+    return normalizeRoomReferenceText(roomName).startsWith(normalizeRoomReferenceText(typedRoomText));
+  }
+
+  const typedWords = tokenizeRoomReferenceWords(typedRoomText);
+  if (typedWords.length === 0) {
+    return false;
+  }
+
+  const roomWords = tokenizeRoomReferenceWords(roomName);
+  return typedWords.every((typedWord) => roomWords.some((roomWord) => roomWord.startsWith(typedWord)));
+}
+
+function getRoomsContainingMatchingItems(
+  input: string,
+  fragment: ActiveFragment,
+  doc: MapDocument | null,
+  itemSlotStartTokenIndex: number,
+  keywordTokenIndex: number,
+) {
+  if (doc === null) {
+    return [];
+  }
+
+  const slotStart = fragment.precedingTokens[itemSlotStartTokenIndex]?.start ?? fragment.start;
+  const slotCaret = fragment.precedingTokens[keywordTokenIndex]?.start ?? fragment.start;
+  const itemSlotText = getItemSlotTextInfo(input, { ...fragment, caret: slotCaret }, slotStart);
+
+  return Object.values(doc.items)
+    .filter((item) => itemMatchesReferencePrefix(item.name, itemSlotText.text, itemSlotText.exact))
+    .map((item) => doc.rooms[item.roomId] ?? null)
+    .filter((room, index, rooms): room is NonNullable<typeof room> => (
+      room !== null
+      && rooms.findIndex((candidate) => candidate?.id === room.id) === index
+    ))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function getScopedRoomReferenceResolution(
+  input: string,
+  fragment: ActiveFragment,
+  rooms: readonly NonNullable<MapDocument['rooms'][string]>[],
+  slotStartTokenIndex: number,
+): SuggestionResolution {
+  const slotStart = fragment.precedingTokens[slotStartTokenIndex]?.start ?? fragment.start;
+  const roomSlotText = getItemSlotTextInfo(input, fragment, slotStart);
+  const normalizedTypedRoomText = normalizeRoomReferenceText(roomSlotText.text);
+
+  if (normalizedTypedRoomText.length === 0) {
+    return {
+      suggestions: rooms.map((room) => ({
+        id: `cli-suggestion-room-${room.id}`,
+        kind: 'room' as const,
+        label: room.name,
+        insertText: roomSlotText.exact ? quoteCliSuggestionValue(room.name) : room.name,
+        detail: 'Room',
+      })),
+      replaceStart: slotStart,
+      replaceEnd: fragment.end,
+      prefix: '',
+    };
+  }
+
+  const matchingRooms = rooms
+    .filter((room) => roomMatchesReferencePrefix(room.name, roomSlotText.text, roomSlotText.exact))
+    .map((room) => ({
+      id: `cli-suggestion-room-${room.id}`,
+      kind: 'room' as const,
+      label: room.name,
+      insertText: roomSlotText.exact ? quoteCliSuggestionValue(room.name) : room.name,
+      detail: 'Room',
+    }));
+
+  if (fragment.prefix.length === 0 && roomSlotText.quoteClosed) {
+    const hasLongerMatch = matchingRooms.some(
+      (suggestion) => normalizeRoomReferenceText(suggestion.label) !== normalizedTypedRoomText,
+    );
+    if (!hasLongerMatch) {
+      return {
+        suggestions: [],
+        replaceStart: slotStart,
+        replaceEnd: fragment.end,
+        prefix: normalizedTypedRoomText,
+      };
+    }
+  }
+
+  return {
+    suggestions: matchingRooms,
+    replaceStart: slotStart,
+    replaceEnd: fragment.end,
+    prefix: normalizedTypedRoomText,
+  };
+}
+
+function createCaretKeywordSuggestions(
+  fragment: ActiveFragment,
+  values: readonly string[],
+): readonly CliSuggestion[] {
+  return createKeywordSuggestions(fragment.prefix, values).map((suggestion) => ({
+    ...suggestion,
+    replaceStart: fragment.caret,
+    replaceEnd: fragment.caret,
+  }));
+}
+
 
 function getSuggestionsForCommandContext(
   input: string,
@@ -179,6 +479,7 @@ function getSuggestionsForCommandContext(
     return suggestionResolution([
       ...createCommandSuggestions(prefix),
       ...createDirectionSuggestions(prefix),
+      ...createKeywordSuggestions(prefix, ['above', 'below']),
       ...createKeywordSuggestions(prefix, ['the']),
       ...createRoomSuggestions(doc, prefix),
     ]);
@@ -201,6 +502,19 @@ function getSuggestionsForCommandContext(
     return getParserBackedDisconnectResolution(input, fragment, doc, roomSlotSuggestionHelpers);
   }
 
+  if (tokens[0] === 'zoom' && fragment.tokenIndex === 1) {
+    const shouldSuggestZoomNumberPlaceholder = fragment.prefix.length === 0
+      || /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)%?$/.test(fragment.prefix);
+    return suggestionResolution([
+      ...(shouldSuggestZoomNumberPlaceholder ? createPlaceholderSuggestion('<number>') : []),
+      ...createKeywordSuggestions(prefix, ['in', 'out', 'reset']),
+    ]);
+  }
+
+  if (tokens[0] === 'zoom') {
+    return suggestionResolution([]);
+  }
+
   if (
     tokens[0] === 'arrange'
     || tokens[0] === 'arr'
@@ -220,6 +534,9 @@ function getSuggestionsForCommandContext(
 
   if (
     fragment.tokenIndex === 1
+    && canonicalLastDirection === null
+    && tokens[0] !== 'above'
+    && tokens[0] !== 'below'
     && !isPseudoRoomLead(tokens)
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
@@ -258,7 +575,13 @@ function getSuggestionsForCommandContext(
 
   if (
     tokens[0] !== 'the'
-    && !isPseudoRoomLead(tokens)
+    && (
+      !isPseudoRoomLead(tokens)
+      || (
+        (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
+        && (fragment.tokenIndex === 1 || tokens[1] === 'is')
+      )
+    )
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
     && tokens[0] !== 's'
@@ -341,10 +664,11 @@ function getSuggestionsForCommandContext(
       return suggestionResolution([]);
     }
 
+    const placeholderSuggestions = createPlaceholderSuggestion('<item name>');
     return suggestionResolution(
-      fragment.tokenIndex > 1 && prefix.length === 0
-        ? createKeywordSuggestions(prefix, ['in'])
-        : [],
+      fragment.tokenIndex > 1
+        ? mergeSuggestions(placeholderSuggestions, createCaretKeywordSuggestions(fragment, ['in']))
+        : placeholderSuggestions,
     );
   }
 
@@ -356,16 +680,37 @@ function getSuggestionsForCommandContext(
     if (tokens.includes('from')) {
       const fromIndex = tokens.indexOf('from');
       if (fragment.tokenIndex > fromIndex) {
-        return getParserBackedRoomSlotAfterKeywordResolution(input, fragment, doc, fromIndex + 1, roomSlotSuggestionHelpers);
+        if (tokens[1] === 'all') {
+          return getParserBackedRoomSlotAfterKeywordResolution(input, fragment, doc, fromIndex + 1, roomSlotSuggestionHelpers);
+        }
+        const matchingItemRooms = getRoomsContainingMatchingItems(input, fragment, doc, 1, fromIndex);
+        if (matchingItemRooms.length === 0) {
+          return suggestionResolution([]);
+        }
+        return getScopedRoomReferenceResolution(input, fragment, matchingItemRooms, fromIndex + 1);
       }
       return suggestionResolution([]);
     }
 
-    return suggestionResolution(
-      fragment.tokenIndex > 1 && prefix.length === 0
-        ? createKeywordSuggestions(prefix, ['from'])
-        : [],
+    const itemResolution = getItemReferenceResolution(input, fragment, doc, 1);
+    if (fragment.tokenIndex === 1) {
+      return {
+        ...itemResolution,
+        suggestions: mergeSuggestions(itemResolution.suggestions, createKeywordSuggestions(prefix, ['all'])),
+      };
+    }
+
+    const shouldSuggestFrom = (
+      fragment.tokenIndex > 1
+      && hasCompletedItemReferenceBeforeFragment(input, fragment, doc, 1)
     );
+
+    return {
+      ...itemResolution,
+      suggestions: shouldSuggestFrom
+        ? mergeSuggestions(itemResolution.suggestions, createCaretKeywordSuggestions(fragment, ['from']))
+        : itemResolution.suggestions,
+    };
   }
 
   const isConnectCommand = tokens[0] === 'connect'

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPseudoRoom, createRoom, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
+import { createPortal } from 'react-dom';
+import { createPseudoRoom, createRoom, type MapDocument, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
@@ -70,6 +71,12 @@ import {
 } from './map-background-raster';
 import type { ExportScope } from '../export/export-types';
 import { exportMapJsonToDownload } from '../export/export-json';
+import {
+  getShortcutTitle,
+  isUiShortcutPressed,
+  shouldIgnoreUiShortcut,
+  UI_SHORTCUTS,
+} from './ui-shortcuts';
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
 const J_SOLID_FULL_PATH = 'M448 96C465.7 96 480 110.3 480 128L480 384C480 472.4 408.4 544 320 544C231.6 544 160 472.4 160 384L160 352C160 334.3 174.3 320 192 320C209.7 320 224 334.3 224 352L224 384C224 437 267 480 320 480C373 480 416 437 416 384L416 128C416 110.3 430.3 96 448 96z';
@@ -81,8 +88,6 @@ import {
 } from '../storage/map-store';
 import {
   focusElementWithoutScroll,
-  getMapCanvasPseudoRoomNodeId,
-  getMapCanvasRoomNodeId,
 } from './map-canvas-a11y';
 
 interface StrokeChunkState {
@@ -126,6 +131,138 @@ function isCanvasChromeTarget(target: Element | null): boolean {
   ));
 }
 
+function truncateSelectionLabel(value: string, maxLength = 48): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function getPseudoRoomSelectionLabel(kind: PseudoRoomKind | undefined): string {
+  return `${kind ?? 'unknown'} pseudo-room`;
+}
+
+function getConnectionSelectionLabel(doc: MapDocument, connectionId: string): string {
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    return 'Selected connection';
+  }
+
+  const sourceName = doc.rooms[connection.sourceRoomId]?.name ?? 'Unknown room';
+  const targetName = connection.target.kind === 'room'
+    ? (doc.rooms[connection.target.id]?.name ?? 'Unknown room')
+    : getPseudoRoomSelectionLabel(doc.pseudoRooms[connection.target.id]?.kind);
+
+  return `Selected connection: ${sourceName} to ${targetName}`;
+}
+
+function getStickyNoteSelectionLabel(doc: MapDocument, stickyNoteId: string): string {
+  const stickyNote = doc.stickyNotes[stickyNoteId];
+  if (!stickyNote) {
+    return 'Selected sticky note';
+  }
+
+  const preview = truncateSelectionLabel(stickyNote.text);
+  return preview.length > 0
+    ? `Selected sticky note: ${preview}`
+    : 'Selected sticky note';
+}
+
+function getStickyNoteLinkSelectionLabel(doc: MapDocument, stickyNoteLinkId: string): string {
+  const stickyNoteLink = doc.stickyNoteLinks[stickyNoteLinkId];
+  if (!stickyNoteLink) {
+    return 'Selected sticky-note link';
+  }
+
+  const notePreview = truncateSelectionLabel(doc.stickyNotes[stickyNoteLink.stickyNoteId]?.text ?? '');
+  const targetLabel = stickyNoteLink.target.kind === 'room'
+    ? (doc.rooms[stickyNoteLink.target.id]?.name ?? 'Unknown room')
+    : getPseudoRoomSelectionLabel(doc.pseudoRooms[stickyNoteLink.target.id]?.kind);
+
+  if (notePreview.length === 0) {
+    return `Selected sticky-note link to ${targetLabel}`;
+  }
+
+  return `Selected sticky-note link: ${notePreview} to ${targetLabel}`;
+}
+
+function describeSelectionCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function joinSelectionParts(parts: readonly string[]): string {
+  if (parts.length === 0) {
+    return '';
+  }
+
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
+function getSelectedEntityDescription(
+  doc: MapDocument | null,
+  selectedRoomIds: readonly string[],
+  selectedPseudoRoomIds: readonly string[],
+  selectedConnectionIds: readonly string[],
+  selectedStickyNoteIds: readonly string[],
+  selectedStickyNoteLinkIds: readonly string[],
+): string {
+  if (!doc) {
+    return 'Selection cleared';
+  }
+
+  const totalSelectionCount = selectedRoomIds.length
+    + selectedPseudoRoomIds.length
+    + selectedConnectionIds.length
+    + selectedStickyNoteIds.length
+    + selectedStickyNoteLinkIds.length;
+
+  if (totalSelectionCount === 0) {
+    return 'Selection cleared';
+  }
+
+  if (totalSelectionCount === 1) {
+    if (selectedRoomIds.length === 1) {
+      return `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`;
+    }
+
+    if (selectedPseudoRoomIds.length === 1) {
+      return `Selected ${getPseudoRoomSelectionLabel(doc.pseudoRooms[selectedPseudoRoomIds[0]]?.kind)}`;
+    }
+
+    if (selectedConnectionIds.length === 1) {
+      return getConnectionSelectionLabel(doc, selectedConnectionIds[0]);
+    }
+
+    if (selectedStickyNoteIds.length === 1) {
+      return getStickyNoteSelectionLabel(doc, selectedStickyNoteIds[0]);
+    }
+
+    if (selectedStickyNoteLinkIds.length === 1) {
+      return getStickyNoteLinkSelectionLabel(doc, selectedStickyNoteLinkIds[0]);
+    }
+  }
+
+  const selectionParts = [
+    selectedRoomIds.length > 0 ? describeSelectionCount(selectedRoomIds.length, 'room') : null,
+    selectedPseudoRoomIds.length > 0 ? describeSelectionCount(selectedPseudoRoomIds.length, 'pseudo-room') : null,
+    selectedConnectionIds.length > 0 ? describeSelectionCount(selectedConnectionIds.length, 'connection') : null,
+    selectedStickyNoteIds.length > 0 ? describeSelectionCount(selectedStickyNoteIds.length, 'sticky note') : null,
+    selectedStickyNoteLinkIds.length > 0 ? describeSelectionCount(selectedStickyNoteLinkIds.length, 'sticky-note link') : null,
+  ].filter((value): value is string => value !== null);
+
+  return `Selected ${joinSelectionParts(selectionParts)}`;
+}
+
 function centerToTopLeft(position: Position, width: number, height: number): Position {
   return {
     x: position.x - (width / 2),
@@ -149,16 +286,25 @@ function getNewStickyNoteTopLeftPosition(position: Position, text: string): Posi
 
 export interface MapCanvasProps {
   mapName: string;
+  actionsContainer?: Element | null;
   showGrid?: boolean;
   onBack?: () => void;
   visibleMapLeftInset?: number;
   visibleMapRightInset?: number;
+  selectionFocusRightInset?: number;
   requestedRoomEditorRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedRoomRevealRequest?: { readonly roomId: string; readonly requestId: number } | null;
   requestedViewportFocusRequest?: { readonly roomIds: readonly string[]; readonly requestId: number } | null;
+  requestedMapZoomRequest?: {
+    readonly mode: 'relative' | 'reset' | 'absolute';
+    readonly direction?: 'in' | 'out';
+    readonly targetZoom?: number;
+    readonly requestId: number;
+  } | null;
   onRequestedRoomEditorHandled?: (requestId: number) => void;
   onRequestedRoomRevealHandled?: (requestId: number) => void;
   onRequestedViewportFocusHandled?: (requestId: number) => void;
+  onRequestedMapZoomHandled?: (requestId: number) => void;
 }
 
 interface PendingConnectionDrop {
@@ -226,15 +372,19 @@ function PseudoRoomMenuButton({ kind, label, onSelect }: PseudoRoomMenuButtonPro
 
 export function MapCanvas({
   mapName,
+  actionsContainer = null,
   showGrid: initialShowGrid = true,
   visibleMapLeftInset = 0,
   visibleMapRightInset = 0,
+  selectionFocusRightInset = 0,
   requestedRoomEditorRequest = null,
   requestedRoomRevealRequest = null,
   requestedViewportFocusRequest = null,
+  requestedMapZoomRequest = null,
   onRequestedRoomEditorHandled,
   onRequestedRoomRevealHandled,
   onRequestedViewportFocusHandled,
+  onRequestedMapZoomHandled,
 }: MapCanvasProps): React.JSX.Element {
   const drawingInterfaceEnabled = isDrawingInterfaceEnabled();
   const [roomEditorState, setRoomEditorState] = useState<MapCanvasRoomEditorState | null>(null);
@@ -273,6 +423,7 @@ export function MapCanvas({
   const updateExportRegion = useEditorStore((s) => s.updateExportRegion);
   const commitExportRegion = useEditorStore((s) => s.commitExportRegion);
   const clearExportRegion = useEditorStore((s) => s.clearExportRegion);
+  const prettifyLayout = useEditorStore((s) => s.prettifyLayout);
   const removeSelectedEntities = useEditorStore((s) => s.removeSelectedEntities);
   const toggleSelectedRoomLocks = useEditorStore((s) => s.toggleSelectedRoomLocks);
   const undo = useEditorStore((s) => s.undo);
@@ -360,23 +511,6 @@ export function MapCanvas({
     }
   }, [selectedStickyNoteIds, stickyNoteEditorId]);
 
-  useMapCanvasWindowControls({
-    drawingInterfaceEnabled,
-    canvasInteractionMode,
-    setCanvasInteractionMode,
-    isRoomEditorOpen,
-    connectionEditorId,
-    connectionDrag,
-    connectionEndpointDrag,
-    cancelConnectionEndpointDrag,
-    removeSelectedEntities,
-    undo,
-    redo,
-    setIsRoomPlacementArmed,
-    setIsNotePlacementArmed,
-    setIsShiftKeyDown,
-  });
-
   useMapCanvasViewportPersistence({
     doc,
     panOffset,
@@ -387,17 +521,14 @@ export function MapCanvas({
     setMapZoom,
   });
 
-  const activeDescendantId = selectedRoomIds.length === 1
-    ? getMapCanvasRoomNodeId(selectedRoomIds[0])
-    : selectedPseudoRoomIds.length === 1
-      ? getMapCanvasPseudoRoomNodeId(selectedPseudoRoomIds[0])
-      : undefined;
-
-  const selectedEntityDescription = selectedRoomIds.length === 1 && doc
-    ? `Selected room: ${doc.rooms[selectedRoomIds[0]]?.name ?? 'Unknown room'}`
-    : selectedPseudoRoomIds.length === 1 && doc
-      ? `Selected ${doc.pseudoRooms[selectedPseudoRoomIds[0]]?.kind ?? 'pseudo-room'} pseudo-room`
-      : 'No room selected';
+  const selectedEntityDescription = getSelectedEntityDescription(
+    doc,
+    selectedRoomIds,
+    selectedPseudoRoomIds,
+    selectedConnectionIds,
+    selectedStickyNoteIds,
+    selectedStickyNoteLinkIds,
+  );
 
   const closeRoomEditor = useCallback(() => {
     setRoomEditorState(null);
@@ -441,6 +572,7 @@ export function MapCanvas({
     mapVisualStyle,
     visibleMapLeftInset,
     visibleMapRightInset,
+    selectionFocusRightInset,
     startAutoPanAnimation,
     setStickyNoteEditorId,
     setConnectionEditorId,
@@ -458,6 +590,49 @@ export function MapCanvas({
     setRoomEditorState(null);
     setConnectionEditorId(connectionId);
   }, []);
+
+  useMapCanvasWindowControls({
+    drawingInterfaceEnabled,
+    canvasInteractionMode,
+    setCanvasInteractionMode,
+    isRoomEditorOpen,
+    connectionEditorId,
+    connectionDrag,
+    connectionEndpointDrag,
+    cancelConnectionEndpointDrag,
+    removeSelectedEntities,
+    openSelectedRoomEditor: openRoomEditor,
+    openSelectedConnectionEditor: openConnectionEditor,
+    undo,
+    redo,
+    setIsRoomPlacementArmed,
+    setIsNotePlacementArmed,
+    setIsShiftKeyDown,
+  });
+
+  useEffect(() => {
+    if (requestedMapZoomRequest === null) {
+      return;
+    }
+
+    const rect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    if (rect) {
+      const scaleFactor = requestedMapZoomRequest.mode === 'absolute'
+        ? (requestedMapZoomRequest.targetZoom ?? zoomRef.current) / zoomRef.current
+        : requestedMapZoomRequest.mode === 'relative'
+          ? requestedMapZoomRequest.direction === 'in'
+            ? 1.1
+            : 1 / 1.1
+          : 1 / zoomRef.current;
+      zoomAtClientPoint(
+        rect.left + (rect.width / 2),
+        rect.top + (rect.height / 2),
+        scaleFactor,
+      );
+    }
+
+    onRequestedMapZoomHandled?.(requestedMapZoomRequest.requestId);
+  }, [canvasRect, canvasRef, onRequestedMapZoomHandled, requestedMapZoomRequest, zoomAtClientPoint, zoomRef]);
 
   const openStickyNoteEditor = useCallback((stickyNoteId: string) => {
     setRoomEditorState(null);
@@ -948,7 +1123,7 @@ export function MapCanvas({
         setSelection(
           getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle),
           getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
-          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
           doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
         );
         pseudoRooms
@@ -1241,12 +1416,18 @@ export function MapCanvas({
     }
 
     if (e.key === 'Enter') {
-      if (selectedRoomIds.length !== 1) {
+      if (selectedRoomIds.length === 1) {
+        e.preventDefault();
+        openRoomEditor(selectedRoomIds[0]);
+        return;
+      }
+
+      if (selectedConnectionIds.length !== 1) {
         return;
       }
 
       e.preventDefault();
-      openRoomEditor(selectedRoomIds[0]);
+      openConnectionEditor(selectedConnectionIds[0]);
       return;
     }
 
@@ -1301,13 +1482,46 @@ export function MapCanvas({
     effectiveCanvasInteractionMode === 'map' && isShiftKeyDown && !isPanning ? 'map-canvas--pan-ready' : '',
     isAutoPanning ? 'map-canvas--grid-animated' : '',
   ].filter(Boolean).join(' ');
+
+  useEffect(() => {
+    const handleWindowShortcut = (event: KeyboardEvent): void => {
+      if (shouldIgnoreUiShortcut(event)) {
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.exportJson) && doc !== null) {
+        event.preventDefault();
+        void exportMapJsonToDownload(mapName, doc);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.exportPng)) {
+        event.preventDefault();
+        clearExportRegion();
+        setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+        setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+        setIsExportDialogOpen(true);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.prettifyLayout) && doc !== null) {
+        event.preventDefault();
+        prettifyLayout();
+      }
+    };
+
+    window.addEventListener('keydown', handleWindowShortcut);
+    return () => {
+      window.removeEventListener('keydown', handleWindowShortcut);
+    };
+  }, [clearExportRegion, doc, hasExportSelection, mapName, prettifyLayout]);
+
   return (
     <div
       ref={canvasRef}
       className={classes}
       data-testid="map-canvas"
       aria-label="Map canvas"
-      aria-activedescendant={activeDescendantId}
       aria-describedby="map-canvas-selection-status"
       onMouseDown={(e) => {
         handleCanvasSelectionMouseDown(e);
@@ -1385,6 +1599,16 @@ export function MapCanvas({
             disabled={isRoomEditorOpen || connectionEditorId !== null}
             onPanToMapPoint={centerOnMapPoint}
             onPanBy={panBy}
+            onOpenSelectedRoomEditor={() => {
+              if (selectedRoomIds.length === 1) {
+                openRoomEditor(selectedRoomIds[0]);
+              }
+            }}
+            onOpenSelectedConnectionEditor={() => {
+              if (selectedConnectionIds.length === 1) {
+                openConnectionEditor(selectedConnectionIds[0]);
+              }
+            }}
           />
         )}
 
@@ -1460,6 +1684,7 @@ export function MapCanvas({
               key={room.id}
               room={room}
               roomItems={itemsByRoomId[room.id] ?? []}
+              zoom={zoom}
               theme={theme}
               isSelected={selectedRoomIds.includes(room.id)}
               isRoomEditorOpen={isRoomEditorOpen}
@@ -1527,56 +1752,118 @@ export function MapCanvas({
             })()}
           />
         )}
-        <div
-          className="map-canvas-actions"
-          onMouseDown={(event) => {
-            event.stopPropagation();
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          <UndoButton />
-          <RedoButton />
-          <PrettifyButton />
-          <BackgroundImageControls />
-          <button
-            className="app-control-button"
-            type="button"
-            aria-label="Export JSON"
-            title="Export JSON"
-            onClick={() => {
-              if (!doc) {
-                return;
-              }
+        {(actionsContainer ? createPortal(
+          <div
+            className="map-canvas-actions map-canvas-actions--top-bar"
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <UndoButton />
+            <RedoButton />
+            <PrettifyButton />
+            <BackgroundImageControls />
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export JSON"
+              aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportJson.display}
+              title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
+              onClick={() => {
+                if (!doc) {
+                  return;
+                }
 
-              void exportMapJsonToDownload(mapName, doc);
+                void exportMapJsonToDownload(mapName, doc);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={J_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export PNG"
+              aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportPng.display}
+              title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
+              onClick={() => {
+                clearExportRegion();
+                setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setIsExportDialogOpen(true);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={DOWNLOAD_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+          </div>,
+          actionsContainer,
+        ) : (
+          <div
+            className="map-canvas-actions"
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
-              <path d={J_SOLID_FULL_PATH} />
-            </svg>
-          </button>
-          <button
-            className="app-control-button"
-            type="button"
-            aria-label="Export PNG"
-            title="Export PNG"
-            onClick={() => {
-              clearExportRegion();
-              setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
-              setExportScope(hasExportSelection ? 'selection' : 'entire-map');
-              setIsExportDialogOpen(true);
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
-              <path d={DOWNLOAD_SOLID_FULL_PATH} />
-            </svg>
-          </button>
-        </div>
+            <UndoButton />
+            <RedoButton />
+            <PrettifyButton />
+            <BackgroundImageControls />
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export JSON"
+              aria-keyshortcuts={UI_SHORTCUTS.exportJson.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportJson.display}
+              title={getShortcutTitle('Export JSON', UI_SHORTCUTS.exportJson)}
+              onClick={() => {
+                if (!doc) {
+                  return;
+                }
+
+                void exportMapJsonToDownload(mapName, doc);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={J_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+            <button
+              className="app-control-button"
+              type="button"
+              aria-label="Export PNG"
+              aria-keyshortcuts={UI_SHORTCUTS.exportPng.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.exportPng.display}
+              title={getShortcutTitle('Export PNG', UI_SHORTCUTS.exportPng)}
+              onClick={() => {
+                clearExportRegion();
+                setPreferredExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setExportScope(hasExportSelection ? 'selection' : 'entire-map');
+                setIsExportDialogOpen(true);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
+                <path d={DOWNLOAD_SOLID_FULL_PATH} />
+              </svg>
+            </button>
+          </div>
+        ))}
       </div>
 
       <ExportPngDialog

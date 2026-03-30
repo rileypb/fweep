@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppCliPanel } from './components/app-cli-panel';
+import type { CSSProperties } from 'react';
 import { HelpDialog } from './components/help-dialog';
 import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { ParchmentSidebar } from './components/parchment-sidebar';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
+import { STARTUP_TIPS, TipsDialog } from './components/tips-dialog';
+import {
+  getShortcutTitle,
+  isUiShortcutPressed,
+  shouldIgnoreUiShortcut,
+  UI_SHORTCUTS,
+} from './components/ui-shortcuts';
 import { WelcomeDialog } from './components/welcome-dialog';
 import { useAppCli } from './hooks/use-app-cli';
+import type { MapZoomRequest, RoomUiRequest, ViewportFocusRequest } from './hooks/use-app-cli';
 import { pingIfdbProxy } from './domain/ifdb-client';
 import { startIfdbProxyHeartbeat } from './domain/ifdb-proxy-heartbeat';
+import { getCliSuggestions } from './domain/cli-suggestions';
 import { useMapRouter } from './hooks/use-map-router';
 import { useParchmentFocusToggle } from './hooks/use-parchment-focus-toggle';
 import { useParchmentPanel } from './hooks/use-parchment-panel';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
-import { doesRegionOverlapProtectedBand, getVisibleMapRightInset } from './components/app-layout';
 import {
   buildParchmentSrc,
   clampParchmentPanelHeight,
@@ -27,6 +35,8 @@ import {
   getParchmentInstance,
   loadStoredParchmentPanelHeight,
   loadStoredParchmentPanelWidth,
+  PARCHMENT_PANEL_MIN_HEIGHT_PX,
+  PARCHMENT_PANEL_MIN_WIDTH_PX,
   persistParchmentPanelHeight,
   persistParchmentPanelWidth,
   shouldWarnAboutLeavingParchmentGame,
@@ -39,8 +49,8 @@ const QUESTION_SOLID_FULL_PATH = 'M224 224C224 171 267 128 320 128C373 128 416 1
 const BEZIER_CURVE_SOLID_FULL_PATH = 'M296 200L296 152L344 152L344 200L296 200zM288 96C261.5 96 240 117.5 240 144L240 148L121.6 148C111.2 126.7 89.3 112 64 112C28.7 112 0 140.7 0 176C0 211.3 28.7 240 64 240C89.3 240 111.2 225.3 121.6 204L188.5 204C129.6 243.6 89.6 309 84.5 384L80 384C53.5 384 32 405.5 32 432L32 496C32 522.5 53.5 544 80 544L144 544C170.5 544 192 522.5 192 496L192 432C192 405.5 170.5 384 144 384L140.7 384C146.6 317 189.2 260.6 248.2 234.9C256.8 247.6 271.4 256 288 256L352 256C368.6 256 383.1 247.6 391.8 234.9C450.8 260.6 493.4 317 499.3 384L496 384C469.5 384 448 405.5 448 432L448 496C448 522.5 469.5 544 496 544L560 544C586.5 544 608 522.5 608 496L608 432C608 405.5 586.5 384 560 384L555.5 384C550.5 309 510.4 243.6 451.5 204L518.4 204C528.8 225.3 550.7 240 576 240C611.3 240 640 211.3 640 176C640 140.7 611.3 112 576 112C550.7 112 528.8 126.7 518.4 148L400 148L400 144C400 117.5 378.5 96 352 96L288 96zM88 440L136 440L136 488L88 488L88 440zM504 488L504 440L552 440L552 488L504 488z';
 const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
-const APP_TOP_BAND_TOP_PX = 16;
-const APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX = 72;
+const STARTUP_TIPS_ENABLED_STORAGE_KEY = 'fweep-startup-tips-enabled';
+const STARTUP_TIP_INDEX_STORAGE_KEY = 'fweep-startup-tip-index';
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 export {
@@ -63,18 +73,6 @@ export function isDesktopViewport(): boolean {
   return typeof window === 'undefined' || window.innerWidth >= DESKTOP_ONLY_MIN_WIDTH_PX;
 }
 
-export function getAppCliLeftOffset(viewportWidth: number, rootFontSizePx: number): number {
-  return rootFontSizePx + (viewportWidth * 0.02);
-}
-
-export function getAppCliStackWidth(viewportWidth: number, rootFontSizePx: number): number {
-  const leftOffset = getAppCliLeftOffset(viewportWidth, rootFontSizePx);
-  const preferredStackWidth = viewportWidth <= 720
-    ? Math.min(viewportWidth * 0.52, rootFontSizePx * 18)
-    : Math.min(viewportWidth * 0.375, rootFontSizePx * 27);
-  return Math.min(preferredStackWidth, Math.max(viewportWidth - leftOffset - rootFontSizePx, 0));
-}
-
 export function hasSeenWelcomeDialog(): boolean {
   if (typeof window === 'undefined') {
     return false;
@@ -89,6 +87,57 @@ export function markWelcomeDialogSeen(): void {
   }
 
   window.localStorage.setItem(WELCOME_DIALOG_SEEN_STORAGE_KEY, 'true');
+}
+
+export function areStartupTipsEnabled(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return window.localStorage.getItem(STARTUP_TIPS_ENABLED_STORAGE_KEY) !== 'false';
+}
+
+export function setStartupTipsEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(STARTUP_TIPS_ENABLED_STORAGE_KEY, enabled ? 'true' : 'false');
+}
+
+export function loadStartupTipIndex(tipCount: number): number {
+  if (typeof window === 'undefined' || tipCount <= 0) {
+    return 0;
+  }
+
+  const rawValue = window.localStorage.getItem(STARTUP_TIP_INDEX_STORAGE_KEY);
+  if (rawValue === null) {
+    return 0;
+  }
+
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsedValue)) {
+    return 0;
+  }
+
+  return ((parsedValue % tipCount) + tipCount) % tipCount;
+}
+
+export function persistStartupTipIndex(index: number, tipCount: number): void {
+  if (typeof window === 'undefined' || tipCount <= 0) {
+    return;
+  }
+
+  const normalizedIndex = ((Math.trunc(index) % tipCount) + tipCount) % tipCount;
+  window.localStorage.setItem(STARTUP_TIP_INDEX_STORAGE_KEY, String(normalizedIndex));
+}
+
+function getWrappedStartupTipIndex(index: number, tipCount: number): number {
+  if (tipCount <= 0) {
+    return 0;
+  }
+
+  return ((Math.trunc(index) % tipCount) + tipCount) % tipCount;
 }
 
 export function isWelcomeHotkeyEnabled(): boolean {
@@ -108,36 +157,136 @@ export function getNextMapVisualStyle(current: 'default' | 'square-classic'): 'd
   return current === 'default' ? 'square-classic' : 'default';
 }
 
+function appendCliOutputToParchmentTranscript(
+  iframe: HTMLIFrameElement | null,
+  lines: readonly string[],
+): boolean {
+  if (iframe === null || lines.length === 0) {
+    return false;
+  }
+
+  const doc = iframe.contentDocument;
+  if (doc === null) {
+    return false;
+  }
+
+  const lineInput = doc.querySelector('textarea.LineInput');
+  let target: HTMLElement | null = null;
+
+  if (lineInput instanceof HTMLElement) {
+    const lineInputContainer = lineInput.closest('.BufferWindowInner');
+    if (lineInputContainer instanceof HTMLElement) {
+      target = lineInputContainer;
+    }
+  }
+
+  if (target === null) {
+    const visibleBufferWindows = Array.from(doc.querySelectorAll<HTMLElement>('.BufferWindow')).filter((bufferWindow) => (
+      !bufferWindow.classList.contains('hidden')
+      && bufferWindow.getAttribute('aria-hidden') !== 'true'
+      && bufferWindow.getClientRects().length > 0
+    ));
+
+    visibleBufferWindows.sort((left, right) => (
+      (right.clientWidth * right.clientHeight) - (left.clientWidth * left.clientHeight)
+    ));
+
+    const preferredBufferWindow = visibleBufferWindows[0] ?? null;
+    if (preferredBufferWindow !== null) {
+      target = preferredBufferWindow.querySelector<HTMLElement>('.BufferWindowInner') ?? preferredBufferWindow;
+    }
+  }
+
+  if (target === null) {
+    return false;
+  }
+
+  const promptLine = Array.from(target.querySelectorAll<HTMLElement>(':scope > .BufferLine')).at(-1) ?? null;
+  const insertionBefore = promptLine
+    ?? (lineInput instanceof HTMLElement && target.contains(lineInput)
+      ? (lineInput.closest('.BufferLine') as HTMLElement | null) ?? lineInput
+      : null);
+  const fragment = doc.createDocumentFragment();
+
+  for (const line of lines) {
+    const bufferLine = doc.createElement('div');
+    bufferLine.className = 'BufferLine fweep-cli-output-line';
+    if (line.length === 0) {
+      const emptyRun = doc.createElement('span');
+      emptyRun.className = 'fweep-cli-output-text';
+      emptyRun.textContent = '\u00A0';
+      bufferLine.appendChild(emptyRun);
+    } else {
+      const parts = line.split(/(\*\*.+?\*\*)/g).filter((part) => part.length > 0);
+      for (const part of parts) {
+        const isBold = part.startsWith('**') && part.endsWith('**') && part.length >= 4;
+        const run = doc.createElement('span');
+        run.className = 'fweep-cli-output-text';
+        run.textContent = isBold ? part.slice(2, -2) : part;
+        if (isBold) {
+          run.classList.add('fweep-cli-output-text--strong');
+        }
+        bufferLine.appendChild(run);
+      }
+    }
+    fragment.appendChild(bufferLine);
+  }
+
+  const spacerLine = doc.createElement('div');
+  spacerLine.className = 'BufferLine fweep-cli-output-line';
+  const spacerText = doc.createElement('span');
+  spacerText.className = 'fweep-cli-output-text';
+  spacerText.textContent = '\u00A0';
+  spacerLine.appendChild(spacerText);
+  fragment.appendChild(spacerLine);
+
+  if (insertionBefore !== null) {
+    target.insertBefore(fragment, insertionBefore);
+  } else {
+    target.appendChild(fragment);
+  }
+
+  const scrollContainer = target.closest<HTMLElement>('.BufferWindow');
+  if (scrollContainer !== null) {
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+  }
+
+  return true;
+}
+
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
   const useBezierConnectionsEnabled = useEditorStore((s) => s.useBezierConnectionsEnabled);
-  const cliOutputCollapsedEnabled = useEditorStore((s) => s.cliOutputCollapsedEnabled);
   const mapVisualStyle = useEditorStore((s) => s.mapVisualStyle);
   const mapCanvasTheme = useEditorStore((s) => s.mapCanvasTheme);
   const toggleShowGrid = useEditorStore((s) => s.toggleShowGrid);
   const toggleUseBezierConnections = useEditorStore((s) => s.toggleUseBezierConnections);
-  const toggleCliOutputCollapsed = useEditorStore((s) => s.toggleCliOutputCollapsed);
+  const toggleSnapToGrid = useEditorStore((s) => s.toggleSnapToGrid);
   const setMapVisualStyle = useEditorStore((s) => s.setMapVisualStyle);
   const setMapCanvasTheme = useEditorStore((s) => s.setMapCanvasTheme);
   const associatedGame = useEditorStore((s) => s.doc?.metadata.associatedGame ?? null);
   const setAssociatedGameMetadata = useEditorStore((s) => s.setAssociatedGameMetadata);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [isTipsOpen, setIsTipsOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
+  const [pendingTipsMapId, setPendingTipsMapId] = useState<string | null>(null);
+  const [showTipsOnStartup, setShowTipsOnStartup] = useState(areStartupTipsEnabled);
+  const [startupTipIndex, setStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
+  const [nextStartupTipIndex, setNextStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
-  const [cliOutputTop, setCliOutputTop] = useState<number | null>(null);
-  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
-  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<import('./hooks/use-app-cli').RoomUiRequest | null>(null);
-  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<import('./hooks/use-app-cli').ViewportFocusRequest | null>(null);
+  const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<RoomUiRequest | null>(null);
+  const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<RoomUiRequest | null>(null);
+  const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
+  const [requestedMapZoomRequest, setRequestedMapZoomRequest] = useState<MapZoomRequest | null>(null);
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
-  const rootFontSizePx = typeof window === 'undefined'
-    ? 16
-    : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+  const mapActionsContainerRef = useRef<HTMLDivElement | null>(null);
+  const previousTipsMapIdRef = useRef<string | null>(null);
   const hasOpenMap = activeMap !== null;
   const {
     parchmentPanelWidth,
@@ -168,81 +317,70 @@ export function App(): React.JSX.Element {
     setAssociatedGameMetadata,
     parchmentDeviceInputRef,
     parchmentIframeRef,
+    heightTopInsetPx: 16,
+    heightBottomInsetPx: 16,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
+  const routeCrossInputCommandToParchment = useCallback((command: string): boolean => {
+    const iframeWindow = parchmentIframeRef.current?.contentWindow;
+    if (iframeWindow === null || iframeWindow === undefined) {
+      return false;
+    }
+
+    iframeWindow.postMessage(
+      { type: 'fweep:submit-game-command', command, restoreCliFocus: true },
+      window.location.origin,
+    );
+    return true;
+  }, [parchmentIframeRef]);
+  const restoreParchmentGameInputFocus = useCallback((): void => {
+    const iframeWindow = parchmentIframeRef.current?.contentWindow;
+    if (iframeWindow === null || iframeWindow === undefined) {
+      return;
+    }
+
+    iframeWindow.postMessage(
+      { type: 'fweep:restore-game-input-focus' },
+      window.location.origin,
+    );
+  }, [parchmentIframeRef]);
+  const panelColumnLeft = hasOpenMap ? 68 : 16;
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
-    : getAppCliLeftOffset(window.innerWidth, rootFontSizePx)
-      + (cliOutputCollapsedEnabled ? 0 : getAppCliStackWidth(window.innerWidth, rootFontSizePx));
+    : hasOpenMap
+      ? panelColumnLeft + parchmentPanelWidth + 12
+      : 0;
   const visibleMapRightInset = typeof window === 'undefined'
     ? 0
-    : getVisibleMapRightInset({
-      hasOpenMap,
-      viewportHeight: window.innerHeight,
-      parchmentPanelWidth,
-      parchmentPanelHeight,
-    });
-  const mapNameChipRightInset = typeof window === 'undefined'
-    ? 0
-    : getVisibleMapRightInset({
-      hasOpenMap,
-      viewportHeight: window.innerHeight,
-      parchmentPanelWidth,
-      parchmentPanelHeight,
-      protectedBandBottom: APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
-    });
-  const mapNameChipOverlapsOutputBand = doesRegionOverlapProtectedBand(
-    cliOutputTop,
-    APP_TOP_BAND_TOP_PX,
-    APP_MAP_NAME_CHIP_PROTECTED_BAND_BOTTOM_PX,
-  );
-  const mapNameChipLeft = typeof window === 'undefined'
+    : 0;
+  const selectionFocusRightInset = 0;
+  const mapNameChipRightInset = 0;
+  const appTitleRightInset = 16;
+  const topBarLeft = typeof window === 'undefined'
     ? 16
-    : mapNameChipOverlapsOutputBand
-      ? visibleMapLeftInset + rootFontSizePx
-      : getAppCliLeftOffset(window.innerWidth, rootFontSizePx);
+    : panelColumnLeft;
   const mapNameChipMaxWidth = typeof window === 'undefined'
     ? undefined
-    : Math.max(window.innerWidth - mapNameChipLeft - mapNameChipRightInset - 16, 0);
+    : Math.max(window.innerWidth - topBarLeft - 48 - mapNameChipRightInset - 16, 0);
+  const appShellStyle: CSSProperties = {
+    '--app-left-panel-offset': `${panelColumnLeft}px`,
+  } as CSSProperties;
   const {
-    cliInputRef,
-    cliImportInputRef,
-    gameOutputRef,
-    cliCommand,
-    hasUsedCliInput,
-    cliHistory,
-    cliHistoryIndex,
-    cliHistoryDraft,
-    cliSuggestions,
-    highlightedCliSuggestionIndex,
-    isCliSuggestionMenuOpen,
-    gameOutputLines,
-    isImportingScript,
-    handleCliSubmit,
-    handleCliCommandChange,
-    handleCliInputFocus,
-    handleCliInputBlur,
-    handleCliCaretChange,
-    toggleCliSuggestions,
-    consumeCliSlashFocusSuppression,
-    handleCliHistoryNavigate,
-    moveCliSuggestionHighlight,
-    setCliSuggestionHighlight,
-    applyHighlightedCliSuggestion,
-    closeCliSuggestions,
-    handleImportScriptChange,
-    handleGameOutputClick,
+    submitCliCommandText,
     flushDocumentSave,
   } = useAppCli({
     activeMap,
     loadDocument,
     unloadDocument,
+    routeCrossInputCommandToParchment,
     requestedRoomEditorRequest,
     requestedRoomRevealRequest,
     requestedViewportFocusRequest,
+    requestedMapZoomRequest,
     setRequestedRoomEditorRequest,
     setRequestedRoomRevealRequest,
     setRequestedViewportFocusRequest,
+    setRequestedMapZoomRequest,
   });
 
   useEffect(() => {
@@ -267,11 +405,31 @@ export function App(): React.JSX.Element {
     }
 
     setIsWelcomeOpen(false);
+    setIsTipsOpen(false);
     setPendingWelcomeMapId(null);
+    setPendingTipsMapId(null);
+    previousTipsMapIdRef.current = null;
+    setNextStartupTipIndex(startupTipIndex);
     setRequestedRoomEditorRequest(null);
     setRequestedRoomRevealRequest(null);
     setRequestedViewportFocusRequest(null);
-  }, [activeMap]);
+    setRequestedMapZoomRequest(null);
+  }, [activeMap, startupTipIndex]);
+
+  useEffect(() => {
+    const activeMapId = activeMap?.metadata.id ?? null;
+    if (activeMapId === null) {
+      return;
+    }
+
+    if (previousTipsMapIdRef.current === activeMapId) {
+      return;
+    }
+
+    previousTipsMapIdRef.current = activeMapId;
+    setIsTipsOpen(false);
+    setPendingTipsMapId(showTipsOnStartup ? activeMapId : null);
+  }, [activeMap, showTipsOnStartup]);
 
   useEffect(() => {
     if (activeMap === null || pendingWelcomeMapId === null || activeMap.metadata.id !== pendingWelcomeMapId) {
@@ -282,6 +440,22 @@ export function App(): React.JSX.Element {
     setPendingWelcomeMapId(null);
     setIsWelcomeOpen(true);
   }, [activeMap, pendingWelcomeMapId]);
+
+  useEffect(() => {
+    if (
+      activeMap === null
+      || pendingTipsMapId === null
+      || activeMap.metadata.id !== pendingTipsMapId
+      || isWelcomeOpen
+      || isHelpOpen
+    ) {
+      return;
+    }
+
+    setPendingTipsMapId(null);
+    setNextStartupTipIndex(getWrappedStartupTipIndex(startupTipIndex + 1, STARTUP_TIPS.length));
+    setIsTipsOpen(true);
+  }, [activeMap, isHelpOpen, isWelcomeOpen, pendingTipsMapId, startupTipIndex]);
 
   const handleRequestedRoomEditorHandled = useCallback((requestId: number) => {
     setRequestedRoomEditorRequest((current) => current?.requestId === requestId ? null : current);
@@ -295,8 +469,11 @@ export function App(): React.JSX.Element {
     setRequestedViewportFocusRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
 
+  const handleRequestedMapZoomHandled = useCallback((requestId: number) => {
+    setRequestedMapZoomRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
+
   useParchmentFocusToggle({
-    cliInputRef,
     hasOpenMap,
     isParchmentGameViewVisible,
     parchmentIframeRef,
@@ -304,7 +481,94 @@ export function App(): React.JSX.Element {
   });
 
   useEffect(() => {
-    if (!isHelpOpen && !isWelcomeOpen) {
+    if (!hasOpenMap) {
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent): void => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.source !== parchmentIframeRef.current?.contentWindow) {
+        return;
+      }
+
+      const data = event.data as {
+        type?: unknown;
+        command?: unknown;
+        rawInput?: unknown;
+        caretPosition?: unknown;
+        requestId?: unknown;
+      } | null;
+      if (
+        data?.type === 'fweep:request-cli-suggestions'
+        && typeof data.command === 'string'
+        && typeof data.caretPosition === 'number'
+      ) {
+        const suggestionResult = getCliSuggestions(
+          data.command,
+          data.caretPosition,
+          useEditorStore.getState().doc ?? activeMap,
+        );
+        parchmentIframeRef.current?.contentWindow?.postMessage(
+          {
+            type: 'fweep:render-cli-suggestions',
+            requestId: typeof data.requestId === 'number' ? data.requestId : null,
+            command: data.command,
+            caretPosition: data.caretPosition,
+            suggestionResult,
+          },
+          window.location.origin,
+        );
+        return;
+      }
+
+      if (data?.type === 'fweep:submit-cli-from-parchment' && typeof data.command === 'string') {
+        const rawInput = typeof data.rawInput === 'string' ? data.rawInput : null;
+        submitCliCommandText(data.command, {
+          clearInputState: false,
+          selectCliInput: false,
+          onOutputAppended: (lines) => {
+            const mirroredLines = [...lines];
+            if (rawInput !== null && mirroredLines.length > 0 && mirroredLines[0].startsWith('>')) {
+              mirroredLines[0] = `>${rawInput}`;
+            }
+
+            if (!appendCliOutputToParchmentTranscript(parchmentIframeRef.current, mirroredLines)) {
+              parchmentIframeRef.current?.contentWindow?.postMessage(
+                { type: 'fweep:append-cli-output', lines: mirroredLines },
+                window.location.origin,
+              );
+            }
+          },
+        });
+        window.requestAnimationFrame(() => {
+          restoreParchmentGameInputFocus();
+        });
+        return;
+      }
+
+      if (data?.type !== 'fweep:restore-cli-focus') {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        const mapCanvasElement = document.querySelector('[data-testid="map-canvas"]');
+        if (mapCanvasElement instanceof HTMLElement) {
+          mapCanvasElement.focus();
+        }
+      });
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [activeMap, hasOpenMap, parchmentIframeRef, restoreParchmentGameInputFocus, submitCliCommandText]);
+
+  useEffect(() => {
+    if (!isHelpOpen && !isWelcomeOpen && !isTipsOpen) {
       return;
     }
 
@@ -316,6 +580,13 @@ export function App(): React.JSX.Element {
           return;
         }
 
+        if (isTipsOpen) {
+          setIsTipsOpen(false);
+          setStartupTipIndex(nextStartupTipIndex);
+          persistStartupTipIndex(nextStartupTipIndex, STARTUP_TIPS.length);
+          return;
+        }
+
         setIsHelpOpen(false);
       }
     };
@@ -324,7 +595,7 @@ export function App(): React.JSX.Element {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isHelpOpen, isWelcomeOpen]);
+  }, [isHelpOpen, isTipsOpen, isWelcomeOpen, nextStartupTipIndex]);
 
   useEffect(() => {
     if (!shouldWarnAboutLeavingActiveGame) {
@@ -384,6 +655,92 @@ export function App(): React.JSX.Element {
     closeMap();
   }, [closeMap, flushDocumentSave, shouldWarnAboutLeavingActiveGame]);
 
+  useEffect(() => {
+    if (!hasOpenMap || isHelpOpen || isWelcomeOpen || isTipsOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (shouldIgnoreUiShortcut(event)) {
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.backToMaps)) {
+        event.preventDefault();
+        void handleCloseMap();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleGrid)) {
+        event.preventDefault();
+        toggleShowGrid();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleConnectionStyle)) {
+        event.preventDefault();
+        toggleUseBezierConnections();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleSnapToGrid)) {
+        event.preventDefault();
+        toggleSnapToGrid();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.toggleMapVisualStyle)) {
+        event.preventDefault();
+        setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle));
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.cycleCanvasTheme)) {
+        event.preventDefault();
+        setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme));
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.openHelp)) {
+        event.preventDefault();
+        setIsHelpOpen(true);
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.resetGamePanel) && isParchmentGameViewVisible) {
+        event.preventDefault();
+        handleResetParchmentPanel();
+        return;
+      }
+
+      if (isUiShortcutPressed(event, UI_SHORTCUTS.openStoryFile) && !isParchmentGameViewVisible) {
+        event.preventDefault();
+        handleOpenParchmentFileChooser();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    handleCloseMap,
+    handleOpenParchmentFileChooser,
+    handleResetParchmentPanel,
+    hasOpenMap,
+    isHelpOpen,
+    isParchmentGameViewVisible,
+    isTipsOpen,
+    isWelcomeOpen,
+    mapCanvasTheme,
+    mapVisualStyle,
+    setMapCanvasTheme,
+    setMapVisualStyle,
+    toggleShowGrid,
+    toggleSnapToGrid,
+    toggleUseBezierConnections,
+  ]);
+
   if (!hasDesktopViewport) {
     return (
       <main className="app-shell app-shell--desktop-only">
@@ -404,65 +761,17 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <main className="app-shell" data-canvas-theme={hasOpenMap ? mapCanvasTheme : undefined}>
+    <main className="app-shell" data-canvas-theme={hasOpenMap ? mapCanvasTheme : undefined} style={appShellStyle}>
       {hasOpenMap && (
         <>
-          <div className="app-left-rail-backdrop" aria-hidden="true" />
-          <AppCliPanel
-            gameOutputRef={gameOutputRef}
-            gameOutputLines={gameOutputLines}
-            onGameOutputClick={handleGameOutputClick}
-            cliInputRef={cliInputRef}
-            cliImportInputRef={cliImportInputRef}
-            cliCommand={cliCommand}
-            hasUsedCliInput={hasUsedCliInput}
-            cliHistory={cliHistory}
-            cliHistoryIndex={cliHistoryIndex}
-            cliHistoryDraft={cliHistoryDraft}
-            cliSuggestions={cliSuggestions}
-            highlightedCliSuggestionIndex={highlightedCliSuggestionIndex}
-            isSuggestionMenuOpen={isCliSuggestionMenuOpen}
-            isOutputCollapsed={cliOutputCollapsedEnabled}
-            isImportingScript={isImportingScript}
-            onSubmit={handleCliSubmit}
-            onCliCommandChange={handleCliCommandChange}
-            onCliInputFocus={handleCliInputFocus}
-            onCliInputBlur={handleCliInputBlur}
-            onCliCaretChange={handleCliCaretChange}
-            onToggleSuggestions={toggleCliSuggestions}
-            consumeCliSlashFocusSuppression={consumeCliSlashFocusSuppression}
-            onCliHistoryNavigate={handleCliHistoryNavigate}
-            onCliSuggestionHighlightMove={moveCliSuggestionHighlight}
-            onCliSuggestionHighlightSet={setCliSuggestionHighlight}
-            onAcceptHighlightedSuggestion={applyHighlightedCliSuggestion}
-            onCloseSuggestions={closeCliSuggestions}
-            onToggleOutputCollapsed={toggleCliOutputCollapsed}
-            onImportScriptChange={handleImportScriptChange}
-            onOutputTopChange={setCliOutputTop}
-          />
-          <div
-            className="app-control-chip app-map-name-chip app-control-chip--plain"
-            aria-label={`Map name: ${activeMap.metadata.name}`}
-            style={{
-              left: `${mapNameChipLeft}px`,
-              maxWidth: mapNameChipMaxWidth === undefined ? undefined : `${mapNameChipMaxWidth}px`,
-            }}
-          >
-            <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
-            {associatedGame?.title ? (
-              <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
-            ) : null}
-          </div>
-        </>
-      )}
-      {hasOpenMap && (
-        <>
-          <div className="app-controls app-controls--settings">
+          <div className="app-top-bar app-top-bar--left">
             <button
               type="button"
               className="app-control-button app-control-button--plain"
               aria-label="Back to maps"
-              title="Back to maps"
+              aria-keyshortcuts={UI_SHORTCUTS.backToMaps.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.backToMaps.display}
+              title={getShortcutTitle('Back to maps', UI_SHORTCUTS.backToMaps)}
               onClick={() => {
                 void handleCloseMap();
               }}
@@ -472,11 +781,34 @@ export function App(): React.JSX.Element {
                 <path d="M5.5 8H13" strokeLinecap="round" />
               </svg>
             </button>
+          </div>
+          <div className="app-top-bar app-top-bar--panel" style={{ left: `${topBarLeft}px` }}>
+            <div
+              className="app-control-chip app-map-name-chip app-control-chip--plain"
+              aria-label={`Map name: ${activeMap.metadata.name}`}
+              style={{
+                maxWidth: mapNameChipMaxWidth === undefined ? undefined : `${mapNameChipMaxWidth}px`,
+              }}
+            >
+              <span className="app-map-name-chip__map-title">{`Map: ${activeMap.metadata.name}`}</span>
+              {associatedGame?.title ? (
+                <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
+              ) : null}
+            </div>
+            <div ref={mapActionsContainerRef} className="app-top-bar__actions" />
+          </div>
+        </>
+      )}
+      {hasOpenMap && (
+        <>
+          <div className="app-controls app-controls--settings">
             <button
               type="button"
               className="app-control-button"
               aria-label="Toggle grid"
-              title="Toggle grid"
+              aria-keyshortcuts={UI_SHORTCUTS.toggleGrid.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleGrid.display}
+              title={getShortcutTitle('Toggle grid', UI_SHORTCUTS.toggleGrid)}
               aria-pressed={showGridEnabled}
               onClick={toggleShowGrid}
             >
@@ -493,7 +825,12 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label={useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections'}
-              title={useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections'}
+              aria-keyshortcuts={UI_SHORTCUTS.toggleConnectionStyle.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleConnectionStyle.display}
+              title={getShortcutTitle(
+                useBezierConnectionsEnabled ? 'Toggle straight connections' : 'Toggle curved connections',
+                UI_SHORTCUTS.toggleConnectionStyle,
+              )}
               aria-pressed={!useBezierConnectionsEnabled}
               onClick={toggleUseBezierConnections}
             >
@@ -506,7 +843,9 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label="Toggle map visual style"
-              title="Toggle map visual style"
+              aria-keyshortcuts={UI_SHORTCUTS.toggleMapVisualStyle.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.toggleMapVisualStyle.display}
+              title={getShortcutTitle('Toggle map visual style', UI_SHORTCUTS.toggleMapVisualStyle)}
               aria-pressed={mapVisualStyle === 'square-classic'}
               onClick={() => setMapVisualStyle(getNextMapVisualStyle(mapVisualStyle))}
             >
@@ -518,7 +857,9 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label={`Cycle canvas theme (current: ${mapCanvasTheme})`}
-              title={`Cycle canvas theme (current: ${mapCanvasTheme})`}
+              aria-keyshortcuts={UI_SHORTCUTS.cycleCanvasTheme.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.cycleCanvasTheme.display}
+              title={getShortcutTitle(`Cycle canvas theme (current: ${mapCanvasTheme})`, UI_SHORTCUTS.cycleCanvasTheme)}
               onClick={() => setMapCanvasTheme(getNextCanvasTheme(mapCanvasTheme))}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
@@ -532,7 +873,9 @@ export function App(): React.JSX.Element {
               type="button"
               className="app-control-button"
               aria-label="Help"
-              title="Help"
+              aria-keyshortcuts={UI_SHORTCUTS.openHelp.ariaKeyShortcuts}
+              data-shortcut={UI_SHORTCUTS.openHelp.display}
+              title={getShortcutTitle('Help', UI_SHORTCUTS.openHelp)}
               onClick={() => setIsHelpOpen(true)}
             >
               <svg width="16" height="16" viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
@@ -540,13 +883,17 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
           </div>
-          <h1 className="app-title" style={{ right: `${Math.max(16, visibleMapRightInset)}px` }}>fweep</h1>
+          <h1 className="app-title" style={{ right: `${appTitleRightInset}px` }}>fweep</h1>
           <ParchmentSidebar
             deviceInputRef={parchmentDeviceInputRef}
             iframeRef={parchmentIframeRef}
             searchInputRef={parchmentSearchInputRef}
             width={parchmentPanelWidth}
             height={parchmentPanelHeight}
+            minWidth={PARCHMENT_PANEL_MIN_WIDTH_PX}
+            maxWidth={clampParchmentPanelWidth(window.innerWidth, window.innerWidth)}
+            minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
+            maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
             isGameViewVisible={isParchmentGameViewVisible}
             parchmentSrc={parchmentSrc}
             ifdbSearchQuery={ifdbSearchQuery}
@@ -580,14 +927,36 @@ export function App(): React.JSX.Element {
             onWidthResizePointerDown={(event) => {
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
-              beginParchmentPanelResize(event.pointerId, event.clientX);
+              beginParchmentPanelResize(
+                event.pointerId,
+                event.clientX,
+                'left',
+              );
             }}
-            onWidthResizeKeyDown={handleParchmentPanelWidthResizeKeyDown}
+            onWidthResizeKeyDown={(event) => {
+              handleParchmentPanelWidthResizeKeyDown(event, 'left');
+            }}
           />
         </>
       )}
       <HelpDialog isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       <WelcomeDialog isOpen={isWelcomeOpen} onClose={() => setIsWelcomeOpen(false)} />
+      <TipsDialog
+        initialTipIndex={startupTipIndex}
+        isOpen={isTipsOpen}
+        onTipIndexChange={setNextStartupTipIndex}
+        showTipsOnStartup={showTipsOnStartup}
+        onClose={(nextTipIndex) => {
+          setIsTipsOpen(false);
+          setStartupTipIndex(nextTipIndex);
+          setNextStartupTipIndex(nextTipIndex);
+          persistStartupTipIndex(nextTipIndex, STARTUP_TIPS.length);
+        }}
+        onShowTipsOnStartupChange={(enabled) => {
+          setShowTipsOnStartup(enabled);
+          setStartupTipsEnabled(enabled);
+        }}
+      />
       {loading ? null : activeMap === null ? (
         <MapSelectionDialog
           onMapSelected={(doc, reason) => {
@@ -598,17 +967,21 @@ export function App(): React.JSX.Element {
       ) : (
         <MapCanvas
           mapName={activeMap.metadata.name}
+          actionsContainer={mapActionsContainerRef.current}
           onBack={() => {
             void handleCloseMap();
           }}
           visibleMapLeftInset={visibleMapLeftInset}
           visibleMapRightInset={visibleMapRightInset}
+          selectionFocusRightInset={selectionFocusRightInset}
           requestedRoomEditorRequest={requestedRoomEditorRequest}
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}
+          requestedMapZoomRequest={requestedMapZoomRequest}
           onRequestedRoomEditorHandled={handleRequestedRoomEditorHandled}
           onRequestedRoomRevealHandled={handleRequestedRoomRevealHandled}
           onRequestedViewportFocusHandled={handleRequestedViewportFocusHandled}
+          onRequestedMapZoomHandled={handleRequestedMapZoomHandled}
         />
       )}
     </main>

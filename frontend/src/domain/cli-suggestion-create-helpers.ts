@@ -169,14 +169,14 @@ export function getCreateCommandResolution(
     ]);
   }
 
-  if (parserBackedCreateContinuationSuggestions !== null) {
-    return suggestionResolution(parserBackedCreateContinuationSuggestions);
-  }
-
-  if (hasCompletedCreatePhrase && canonicalLastDirection !== null) {
+  if (canonicalLastDirection !== null) {
     return trimmedBeforeFragment.endsWith(',')
       ? suggestionResolution([])
       : suggestionResolution(createKeywordSuggestions(prefix, ['of']));
+  }
+
+  if (parserBackedCreateContinuationSuggestions !== null) {
+    return suggestionResolution(parserBackedCreateContinuationSuggestions);
   }
 
   return suggestionResolution([

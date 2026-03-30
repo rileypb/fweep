@@ -3,13 +3,8 @@
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --app-title-size: clamp(2.5rem, 8vw, 4rem);
   --app-title-size-mobile: clamp(2rem, 12vw, 3rem);
+  --app-left-panel-offset: 1rem;
   --room-label-color: #111827;
-  --app-game-output-text-color: #374151;
-  --app-game-output-bold-color: #000000;
-  --app-chrome-rail-background: #ffffff;
-  --app-cli-stack-left: calc(1rem + 2vw);
-  --app-cli-stack-width: min(37.5vw, 27rem);
-  --app-cli-stack-gutter: 1rem;
   --map-layer-reference-image: 0;
   --map-layer-background: 1;
   --map-layer-connections: 2;
@@ -34,9 +29,6 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --room-label-color: #f3f4f6;
-  --app-game-output-text-color: #f9fafb;
-  --app-game-output-bold-color: #ffffff;
-  --app-chrome-rail-background: #111827;
   color: #f3f4f6;
   background-color: #111827;
 }
@@ -80,17 +72,6 @@ body {
   background-color: #111827;
 }
 
-.app-left-rail-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: var(--app-cli-stack-left);
-  z-index: 5;
-  pointer-events: none;
-  background-color: var(--app-chrome-rail-background);
-}
-
 body.app-shell--resizing-side-panel {
   cursor: ew-resize;
   user-select: none;
@@ -103,7 +84,8 @@ body.app-shell--resizing-side-panel-height {
 
 .app-parchment-panel {
   position: fixed;
-  right: 1rem;
+  left: var(--app-left-panel-offset);
+  right: auto;
   bottom: 1rem;
   z-index: 11;
   display: flex;
@@ -121,6 +103,11 @@ body.app-shell--resizing-side-panel-height {
   outline: none;
   touch-action: none;
   user-select: none;
+}
+
+.app-parchment-panel__resize-handle--right {
+  left: auto;
+  right: -1rem;
 }
 
 .app-parchment-panel__resize-handle--height {
@@ -143,6 +130,11 @@ body.app-shell--resizing-side-panel-height {
   transform: translateY(-50%);
   border-radius: 999px;
   background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.app-parchment-panel__resize-handle--right::before {
+  left: auto;
+  right: 0.4rem;
 }
 
 .app-parchment-panel__resize-handle--height::before {
@@ -237,6 +229,45 @@ body.app-shell--resizing-side-panel-height {
 .app-parchment-panel__device-link:hover,
 .app-parchment-panel__device-link:focus-visible {
   text-decoration: underline;
+}
+
+.app-control-button[data-shortcut],
+.app-parchment-panel__reset-button[data-shortcut],
+.app-parchment-panel__device-link[data-shortcut] {
+  position: relative;
+}
+
+.app-control-button[data-shortcut]::after,
+.app-parchment-panel__reset-button[data-shortcut]::after,
+.app-parchment-panel__device-link[data-shortcut]::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.45rem);
+  transform: translate(-50%, 0.2rem);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.45rem;
+  background: rgba(17, 24, 39, 0.92);
+  color: #f9fafb;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 40;
+}
+
+.app-control-button[data-shortcut]:hover::after,
+.app-control-button[data-shortcut]:focus-visible::after,
+.app-parchment-panel__reset-button[data-shortcut]:hover::after,
+.app-parchment-panel__reset-button[data-shortcut]:focus-visible::after,
+.app-parchment-panel__device-link[data-shortcut]:hover::after,
+.app-parchment-panel__device-link[data-shortcut]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .app-parchment-panel__device-input {
@@ -432,139 +463,6 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   pointer-events: none;
 }
 
-.app-cli-stack {
-  position: fixed;
-  left: var(--app-cli-stack-left);
-  top: 1rem;
-  bottom: 1rem;
-  z-index: 6;
-  width: min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem));
-  max-width: calc(100vw - var(--app-cli-stack-left) - 1rem);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  pointer-events: none;
-  color: var(--room-label-color);
-  overflow: visible;
-}
-
-.app-cli-stack--collapsed {
-  top: auto;
-  bottom: 1rem;
-}
-
-.app-game-output {
-  position: static;
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-bottom: none;
-  border-radius: 0.9rem 0.9rem 0 0;
-  background: #ffffff;
-  color: var(--app-game-output-text-color);
-  font: 600 0.92rem/1.45 'IBM Plex Serif', Georgia, serif;
-  overflow: auto;
-  white-space: pre-wrap;
-}
-
-.app-cli-resizing {
-  cursor: ns-resize;
-  user-select: none;
-}
-
-.app-game-output-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.45rem;
-  margin-bottom: 0.7rem;
-  flex: 0 0 auto;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.app-game-output--collapsed {
-  flex: 0 0 auto;
-  min-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
-  max-height: calc((0.92rem * 1.45 * 5) + 1.6rem);
-}
-
-.app-cli-resize-handle {
-  pointer-events: auto;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 0.9rem;
-  margin: 0.15rem 0;
-  cursor: ns-resize;
-  outline: none;
-}
-
-.app-cli-resize-handle__grip {
-  display: block;
-  width: 3.5rem;
-  height: 0.28rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 26%, transparent);
-  transition: background-color 120ms ease, transform 120ms ease;
-}
-
-.app-cli-resize-handle:hover .app-cli-resize-handle__grip,
-.app-cli-resize-handle:focus-visible .app-cli-resize-handle__grip,
-.app-cli-resize-handle--active .app-cli-resize-handle__grip {
-  background: color-mix(in srgb, currentColor 42%, transparent);
-  transform: scaleY(1.15);
-}
-
-.app-game-output:focus {
-  outline: none;
-}
-
-.app-game-output:focus-visible {
-  border-color: color-mix(in srgb, currentColor 42%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
-}
-
-.app-game-output-content {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow: auto;
-  min-width: 100%;
-}
-
-.app-game-output-lines {
-  display: block;
-  min-width: 100%;
-  margin-top: auto;
-}
-
-.app-game-output-line {
-  white-space: pre-wrap;
-}
-
-.app-game-output-line--empty {
-  min-height: 1lh;
-}
-
-.app-game-output-strong {
-  font-weight: 800;
-  color: var(--app-game-output-bold-color);
-}
-
-.app-cli-bar {
-  position: static;
-  display: flex;
-  align-items: flex-end;
-  width: 100%;
-  pointer-events: none;
-}
-
 .app-title {
   position: fixed;
   right: 1rem;
@@ -579,84 +477,6 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   user-select: none;
   pointer-events: none;
   text-align: right;
-}
-
-.app-cli-form {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  position: relative;
-  width: 100%;
-}
-
-.app-cli-input-shell {
-  flex: 1 1 auto;
-  width: 100%;
-  height: calc(var(--app-title-size) * 0.6);
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.4em;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-top: none;
-  border-radius: 0 0 0.8rem 0.8rem;
-  background: #ffffff;
-  color: inherit;
-}
-
-:root[data-theme='light'] .app-shell[data-canvas-theme='antique'] {
-  --app-chrome-rail-background: rgb(232, 227, 208);
-}
-
-:root[data-theme='light'] .app-shell[data-canvas-theme='paper'] {
-  --app-chrome-rail-background: rgb(223, 207, 178);
-}
-
-:root[data-theme='light'] .app-shell[data-canvas-theme='contour'] {
-  --app-chrome-rail-background: rgb(220, 224, 236);
-}
-
-:root[data-theme='dark'] .app-shell[data-canvas-theme='antique'] {
-  --app-chrome-rail-background: rgb(40, 42, 38);
-}
-
-:root[data-theme='dark'] .app-shell[data-canvas-theme='paper'] {
-  --app-chrome-rail-background: rgb(41, 37, 30);
-}
-
-:root[data-theme='dark'] .app-game-output,
-:root[data-theme='dark'] .app-cli-input-shell {
-  background: #111827;
-}
-
-.app-cli-prompt {
-  flex: 0 0 auto;
-  color: color-mix(in srgb, currentColor 72%, transparent);
-  font-size: 12pt;
-  line-height: 1;
-  font-weight: 700;
-  user-select: none;
-}
-
-.app-cli-input {
-  flex: 1 1 auto;
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 12pt;
-  line-height: 1;
-  font-weight: 700;
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  opacity: 0.9;
-}
-
-.app-cli-import-input {
-  display: none;
 }
 
 .welcome-overlay {
@@ -732,95 +552,149 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   outline-offset: 2px;
 }
 
-.app-cli-collapse-button,
-.app-cli-import-button {
-  flex: 0 0 auto;
-  min-width: 4.4rem;
-  min-height: 2rem;
-  padding: 0.38rem 0.8rem;
-  border: none;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 12%, transparent);
-  color: inherit;
-  font: 700 0.8rem/1 inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
-}
-
-.app-cli-collapse-button:hover,
-.app-cli-collapse-button:focus-visible,
-.app-cli-import-button:hover,
-.app-cli-import-button:focus-visible {
-  background: color-mix(in srgb, currentColor 18%, transparent);
-  outline: none;
-}
-
-.app-cli-import-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.app-cli-input::placeholder {
-  color: color-mix(in srgb, currentColor 46%, transparent);
-}
-
-.app-cli-input:focus {
-  outline: none;
-}
-
-.app-cli-input:focus-visible {
-  box-shadow: none;
-}
-
-.app-cli-input-shell:focus-within {
-  box-shadow: none;
-}
-
-.app-cli-suggestion-list {
-  position: absolute;
-  bottom: calc(100% + 0.35rem);
-  left: 0;
-  right: 0;
+.tips-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
   display: grid;
-  gap: 0.2rem;
-  max-height: min(18rem, calc(100vh - 10rem));
-  overflow-y: auto;
-  padding: 0.35rem;
-  border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
-  z-index: 12;
+  place-items: center;
+  padding: 1.5rem;
 }
 
-:root[data-theme='dark'] .app-cli-suggestion-list {
-  background: rgba(17, 24, 39, 0.98);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+.tips-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
 }
 
-.app-cli-suggestion-option {
-  display: block;
-  padding: 0.45rem 0.55rem;
-  border-radius: 0.55rem;
+.tips-panel {
+  position: relative;
+  width: min(36rem, calc(100vw - 3rem));
+  max-height: min(30rem, calc(100vh - 3rem));
+  overflow: auto;
+  border-radius: 1.1rem;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, #eab308 12%, transparent), transparent 35%),
+    linear-gradient(180deg, #fffdf6 0%, #ffffff 100%);
+  box-shadow: 0 1.5rem 3rem rgba(15, 23, 42, 0.24);
+  color: #111827;
+}
+
+:root[data-theme='dark'] .tips-panel {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, #f59e0b 15%, transparent), transparent 35%),
+    linear-gradient(180deg, #101725 0%, #111827 100%);
+  color: #f3f4f6;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.5);
+}
+
+.tips-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.45rem 1.55rem 1.35rem;
+}
+
+.tips-kicker {
+  margin: 0;
+  color: #92400e;
+  font: 700 0.74rem/1.2 'IBM Plex Sans', Inter, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+:root[data-theme='dark'] .tips-kicker {
+  color: #fbbf24;
+}
+
+.tips-heading {
+  margin: 0;
+  font: 700 1.28rem/1.2 'IBM Plex Sans', Inter, system-ui, sans-serif;
+}
+
+.tips-body {
+  margin: 0;
+  font: 500 1rem/1.65 'IBM Plex Serif', Georgia, serif;
+}
+
+.tips-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: fit-content;
+  font: 600 0.92rem/1.4 'IBM Plex Sans', Inter, system-ui, sans-serif;
+}
+
+.tips-checkbox-row input {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.tips-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.tips-stepper-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.tips-cancel,
+.tips-back,
+.tips-next {
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  font: 600 0.92rem/1 'IBM Plex Sans', Inter, system-ui, sans-serif;
   cursor: pointer;
 }
 
-.app-cli-suggestion-option--active {
-  background: color-mix(in srgb, currentColor 14%, transparent);
+.tips-cancel {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: transparent;
+  color: inherit;
 }
 
-.app-cli-suggestion-option--placeholder {
-  cursor: default;
-  opacity: 0.7;
+.tips-back {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: transparent;
+  color: inherit;
 }
 
-.app-cli-suggestion-option--placeholder .app-cli-suggestion-label {
-  font-style: italic;
-  font-weight: 600;
+.tips-next {
+  border: none;
+  background: #0f172a;
+  color: #f8fafc;
 }
 
-.app-cli-suggestion-label {
-  font: 700 0.9rem/1.15 inherit;
+:root[data-theme='dark'] .tips-next {
+  background: #f8fafc;
+  color: #111827;
+}
+
+.tips-cancel:hover,
+.tips-back:hover,
+.tips-cancel:focus-visible {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.tips-back:focus-visible {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.tips-next:hover,
+.tips-next:focus-visible {
+  opacity: 0.92;
+}
+
+.tips-cancel:focus-visible,
+.tips-back:focus-visible,
+.tips-next:focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 55%, transparent);
+  outline-offset: 2px;
 }
 
 /* ---- App controls ---- */
@@ -833,22 +707,37 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   z-index: 7;
 }
 
-.app-controls--settings {
+.app-top-bar {
+  position: fixed;
   top: 1rem;
-  left: calc(var(--app-cli-stack-left) / 2);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  z-index: 7;
+}
+
+.app-top-bar--left {
+  left: 1rem;
+}
+
+.app-top-bar__actions {
+  display: flex;
+  align-items: flex-start;
+  min-height: 2.5rem;
+}
+
+.app-controls--settings {
+  top: 4rem;
+  left: 1rem;
   flex-direction: column;
   align-items: center;
-  transform: translateX(-50%);
-  max-width: calc(var(--app-cli-stack-left) - 1rem);
+  max-width: 3rem;
 }
 
 .app-map-name-chip {
-  position: fixed;
-  top: 1rem;
-  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + var(--app-cli-stack-gutter));
-  z-index: 7;
-  max-width: calc(100vw - var(--app-cli-stack-left) - min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) - 2rem - var(--app-cli-stack-gutter));
-  transition: left 180ms ease, max-width 180ms ease;
+  position: static;
+  z-index: auto;
+  transition: max-width 180ms ease;
 }
 
 .app-control-button {
@@ -1006,31 +895,8 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 @media (max-width: 720px) {
-  :root {
-    --app-cli-stack-width: min(52vw, 18rem);
-  }
-
-  .app-cli-bar {
-    right: 1rem;
-    align-items: stretch;
-  }
-
   .app-title {
     font-size: 2.5rem;
-  }
-
-  .app-cli-form {
-    gap: 0.6rem;
-  }
-  
-  .app-cli-input {
-    height: 100%;
-  }
-
-  .app-cli-input-shell {
-    flex-basis: var(--app-cli-stack-width);
-    width: var(--app-cli-stack-width);
-    height: calc(var(--app-title-size-mobile) * 0.6);
   }
 }
 
@@ -1809,12 +1675,19 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 
 .map-canvas-actions {
   position: fixed;
-  left: calc(var(--app-cli-stack-left) + min(var(--app-cli-stack-width), calc(100vw - var(--app-cli-stack-left) - 1rem)) + 1rem);
+  left: 1rem;
   bottom: 1rem;
   display: flex;
   gap: 0.5rem;
   align-items: flex-end;
   z-index: 12;
+}
+
+.map-canvas-actions--top-bar {
+  position: static;
+  left: auto;
+  bottom: auto;
+  align-items: flex-start;
 }
 
 .background-image-controls {
@@ -2449,13 +2322,76 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   pointer-events: none;
 }
 
+.room-node-name--low-zoom {
+  letter-spacing: 0.015em;
+}
+
 .room-node-items {
+  box-sizing: border-box;
+  width: 132px;
+  color: inherit;
   font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
   font-size: 0.67rem;
   font-weight: 400;
   letter-spacing: 0.005em;
-  opacity: 0.72;
-  pointer-events: none;
+  opacity: 0.78;
+  pointer-events: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.room-node-items__content {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  max-height: 54px;
+  overflow: hidden;
+  opacity: 0.94;
+  transform: translateY(0);
+  transition:
+    max-height 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.room-node-items--expanded .room-node-items__content {
+  max-height: 140px;
+  opacity: 1;
+  transform: translateY(1px);
+}
+
+.room-node-items__line {
+  white-space: nowrap;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.room-node-items__toggle {
+  margin: 1px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #4f46e5;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  text-align: right;
+}
+
+.room-node-items__toggle:hover {
+  text-decoration: underline;
+}
+
+.room-node-items__toggle:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+:root[data-theme='dark'] .room-node-items__toggle {
+  color: #a5b4fc;
 }
 
 .sticky-note-wrapper {
