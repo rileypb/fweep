@@ -575,6 +575,8 @@ describe('cli suggestions', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
     doc = addRoom(doc, { ...createRoom('Living Room'), position: { x: 40, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Foo'), position: { x: 80, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Foo Foobar'), position: { x: 120, y: 0 } });
 
     expect(getCliSuggestions('notate c', 'notate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('annotate c', 'annotate c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
@@ -583,6 +585,8 @@ describe('cli suggestions', () => {
     expect(getCliSuggestions('annotate cellar ', 'annotate cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('ann cellar ', 'ann cellar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('notate living room ', 'notate living room '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('notate foo ', 'notate foo '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
+    expect(getCliSuggestions('notate foo foobar ', 'notate foo foobar '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['with']);
     expect(getCliSuggestions('notate ', 'notate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
     expect(getCliSuggestions('annotate ', 'annotate '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);
     expect(getCliSuggestions('ann ', 'ann '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>', 'with']);

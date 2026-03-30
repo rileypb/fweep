@@ -139,7 +139,7 @@ function getConnectedRooms(doc: MapDocument, sourceRoom: Room): readonly Room[] 
     .filter((room): room is Room => room !== null);
 }
 
-function hasCompletedRoomReferenceBeforeFragment(
+export function hasCompletedRoomReferenceBeforeFragment(
   input: string,
   fragment: ActiveFragment,
   doc: MapDocument | null,
