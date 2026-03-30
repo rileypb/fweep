@@ -30,7 +30,7 @@ export type CliCommand =
   | {
     readonly kind: 'create-pseudo-room';
     readonly pseudoKind: PseudoRoomKind;
-    readonly sourceRoom: CliRoomReference;
+    readonly sourceRoom: CliRoomReference | null;
     readonly sourceDirection: string;
   }
   | { readonly kind: 'delete'; readonly room: CliRoomReference }
@@ -84,29 +84,39 @@ export const CLI_COMMAND_FORMS = [
   '<direction>',
   'create/c <room name>',
   '<direction> of <room name> is unknown',
+  '<direction> is unknown',
   'above/below <room name> is unknown',
+  'above/below is unknown',
   'the room <direction> of <room name> is unknown',
   'the room above/below <room name> is unknown',
   '<direction> of <room name> goes on forever',
+  '<direction> goes on forever',
   'above/below <room name> goes on forever',
+  'above/below goes on forever',
   'the way <direction> of <room name> goes on forever',
   'the way above/below <room name> goes on forever',
   '<direction> of <room name> lies death',
+  '<direction> lies death',
   'above/below <room name> lies death',
+  'above/below lies death',
   'the way <direction> of <room name> lies death',
   'the way above/below <room name> lies death',
   '<direction> of <room name> leads nowhere',
+  '<direction> leads nowhere',
   'above/below <room name> leads nowhere',
+  'above/below leads nowhere',
   'the way <direction> of <room name> leads nowhere',
   'the way above/below <room name> leads nowhere',
   '<direction> of <room name> leads to somewhere else',
+  '<direction> leads to somewhere else',
   'above/below <room name> leads to somewhere else',
+  'above/below leads to somewhere else',
   'the way <direction> of <room name> leads to somewhere else',
   'the way above/below <room name> leads to somewhere else',
   'delete/d/del <room name>',
   'edit/e/ed <room name>',
   'describe [<room name>]',
-  'show/s/go to <room name>',
+  'show/select/s/go to <room name>',
   '<direction>/above/below is <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
@@ -143,7 +153,7 @@ export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] =
   { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
   { id: 'zoom', insertText: 'zoom', matchTerms: ['zoom'], descriptionInput: 'zoom in' },
   { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
-  { id: 'show', insertText: 'show', matchTerms: ['show', 's', 'go to'], descriptionInput: 'show Kitchen' },
+  { id: 'show', insertText: 'show', matchTerms: ['show', 'select', 's', 'go to'], descriptionInput: 'show Kitchen' },
   { id: 'create', insertText: 'create', matchTerms: ['create', 'c'], descriptionInput: 'create Kitchen' },
   { id: 'create-and-connect', insertText: 'create and connect', matchTerms: ['create and connect'], descriptionInput: 'create and connect Kitchen north to Hallway' },
   { id: 'connect', insertText: 'connect', matchTerms: ['connect', 'con'], descriptionInput: 'connect Kitchen north to Hallway' },
@@ -413,7 +423,7 @@ function parseConnectTailFromSourceReference(
 
 interface ParsedDirectionReference {
   readonly sourceDirection: string;
-  readonly sourceRoom: CliRoomReference;
+  readonly sourceRoom: CliRoomReference | null;
   readonly nextIndex: number;
 }
 
@@ -466,10 +476,39 @@ function parseVerticalPseudoDirectionReference(tokens: readonly Token[], startIn
   };
 }
 
+function parseSelectedRoomPseudoDirectionReference(
+  tokens: readonly Token[],
+  startIndex: number,
+): ParsedDirectionReference | null {
+  const directionToken = tokens[startIndex];
+  if (directionToken === undefined || directionToken.quoted) {
+    return null;
+  }
+
+  if (isDirectionToken(directionToken)) {
+    return {
+      sourceDirection: normalizeDirection(directionToken.value),
+      sourceRoom: null,
+      nextIndex: startIndex + 1,
+    };
+  }
+
+  if (isTokenValue(directionToken, 'above') || isTokenValue(directionToken, 'below')) {
+    return {
+      sourceDirection: isTokenValue(directionToken, 'above') ? 'up' : 'down',
+      sourceRoom: null,
+      nextIndex: startIndex + 1,
+    };
+  }
+
+  return null;
+}
+
 function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-pseudo-room' }> | null {
   const parseUnknown = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
-      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
+      ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
@@ -491,7 +530,8 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
 
   const parseInfinite = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
-      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
+      ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
@@ -514,7 +554,8 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
 
   const parseDeath = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
-      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
+      ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
@@ -536,7 +577,8 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
 
   const parseNowhere = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
-      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
+      ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
@@ -558,7 +600,8 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
 
   const parseElsewhere = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
-      ?? parseVerticalPseudoDirectionReference(tokens, startIndex);
+      ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
+      ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
@@ -1186,7 +1229,7 @@ export function parseCliCommand(input: string): CliCommand | null {
     };
   }
 
-  if (isFirstWordAlias(tokens[0], 'show', 's')) {
+  if (isFirstWordAlias(tokens[0], 'show', 'select', 's')) {
     const roomName = readRoomName(tokens, 1, () => false);
     if (roomName === null || roomName.nextIndex !== tokens.length) {
       return null;
@@ -1297,6 +1340,21 @@ function describeCliCommand(command: CliCommand): string {
     case 'delete':
       return `delete the room called ${command.room.text}`;
     case 'create-pseudo-room':
+      if (command.sourceRoom === null) {
+        if (command.pseudoKind === 'unknown') {
+          return `mark the ${command.sourceDirection} exit from the selected room as unknown`;
+        }
+        if (command.pseudoKind === 'infinite') {
+          return `mark the ${command.sourceDirection} exit from the selected room as going on forever`;
+        }
+        if (command.pseudoKind === 'death') {
+          return `mark the ${command.sourceDirection} exit from the selected room as death`;
+        }
+        if (command.pseudoKind === 'nowhere') {
+          return `mark the ${command.sourceDirection} exit from the selected room as leading nowhere`;
+        }
+        return `mark the ${command.sourceDirection} exit from the selected room as leading to somewhere else`;
+      }
       if (command.pseudoKind === 'unknown') {
         return `mark the ${command.sourceDirection} exit from ${command.sourceRoom.text} as unknown`;
       }

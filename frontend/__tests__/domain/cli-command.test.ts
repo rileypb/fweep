@@ -34,6 +34,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('west of Bedroom is unknown')).toBe(
       'mark the west exit from Bedroom as unknown',
     );
+    expect(parseCliCommandDescription('west is unknown')).toBe(
+      'mark the west exit from the selected room as unknown',
+    );
     expect(parseCliCommandDescription('the room west of Bedroom is unknown')).toBe(
       'mark the west exit from Bedroom as unknown',
     );
@@ -48,6 +51,9 @@ describe('parseCliCommandDescription', () => {
   it('describes pseudo-room infinite commands', () => {
     expect(parseCliCommandDescription('east of Kitchen goes on forever')).toBe(
       'mark the east exit from Kitchen as going on forever',
+    );
+    expect(parseCliCommandDescription('east goes on forever')).toBe(
+      'mark the east exit from the selected room as going on forever',
     );
     expect(parseCliCommandDescription('the way east of Kitchen goes on forever')).toBe(
       'mark the east exit from Kitchen as going on forever',
@@ -64,6 +70,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('west of Castle lies death')).toBe(
       'mark the west exit from Castle as death',
     );
+    expect(parseCliCommandDescription('west lies death')).toBe(
+      'mark the west exit from the selected room as death',
+    );
     expect(parseCliCommandDescription('Above Kitchen lies death')).toBe(
       'mark the up exit from Kitchen as death',
     );
@@ -76,6 +85,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('west of Castle leads nowhere')).toBe(
       'mark the west exit from Castle as leading nowhere',
     );
+    expect(parseCliCommandDescription('west leads nowhere')).toBe(
+      'mark the west exit from the selected room as leading nowhere',
+    );
     expect(parseCliCommandDescription('Above Kitchen leads nowhere')).toBe(
       'mark the up exit from Kitchen as leading nowhere',
     );
@@ -87,6 +99,9 @@ describe('parseCliCommandDescription', () => {
   it('describes pseudo-room somewhere-else commands', () => {
     expect(parseCliCommandDescription('west of Castle leads to somewhere else')).toBe(
       'mark the west exit from Castle as leading to somewhere else',
+    );
+    expect(parseCliCommandDescription('west leads to somewhere else')).toBe(
+      'mark the west exit from the selected room as leading to somewhere else',
     );
     expect(parseCliCommandDescription('Above Kitchen leads to somewhere else')).toBe(
       'mark the up exit from Kitchen as leading to somewhere else',
@@ -110,6 +125,7 @@ describe('parseCliCommandDescription', () => {
 
   it('describes show commands', () => {
     expect(parseCliCommandDescription('show Kitchen')).toBe('scroll the map to Kitchen');
+    expect(parseCliCommandDescription('select Kitchen')).toBe('scroll the map to Kitchen');
     expect(parseCliCommandDescription('s Kitchen')).toBe('scroll the map to Kitchen');
     expect(parseCliCommandDescription('go to Kitchen')).toBe('scroll the map to Kitchen');
   });
@@ -379,6 +395,50 @@ describe('parseCliCommand', () => {
       pseudoKind: 'elsewhere',
       sourceRoom: { text: 'Kitchen', exact: false },
       sourceDirection: 'east',
+    });
+  });
+
+  it('parses selected-room pseudo-room terminal commands', () => {
+    expect(parseCliCommand('west is unknown')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'unknown',
+      sourceRoom: null,
+      sourceDirection: 'west',
+    });
+
+    expect(parseCliCommand('north goes on forever')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'infinite',
+      sourceRoom: null,
+      sourceDirection: 'north',
+    });
+
+    expect(parseCliCommand('above lies death')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'death',
+      sourceRoom: null,
+      sourceDirection: 'up',
+    });
+
+    expect(parseCliCommand('below leads nowhere')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'nowhere',
+      sourceRoom: null,
+      sourceDirection: 'down',
+    });
+
+    expect(parseCliCommand('east leads to somewhere else')).toEqual({
+      kind: 'create-pseudo-room',
+      pseudoKind: 'elsewhere',
+      sourceRoom: null,
+      sourceDirection: 'east',
+    });
+  });
+
+  it('parses select as a show synonym', () => {
+    expect(parseCliCommand('select Kitchen')).toEqual({
+      kind: 'show',
+      room: { text: 'Kitchen', exact: false },
     });
   });
 

@@ -29,6 +29,19 @@ function renderApp(): ReturnType<typeof render> {
   return render(<App />);
 }
 
+async function flushAppEffects(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function loadParchmentIframe(iframe: HTMLIFrameElement): Promise<void> {
+  await act(async () => {
+    fireEvent.load(iframe);
+    await Promise.resolve();
+  });
+}
+
 async function openSavedMap(doc: MapDocument): Promise<void> {
   await saveMap(doc);
   navigateTo(`#/map/${doc.metadata.id}`);
@@ -39,6 +52,7 @@ async function renderAppWithSavedMap(doc: MapDocument): Promise<void> {
   await openSavedMap(doc);
   renderApp();
   await screen.findByLabelText(`Map name: ${doc.metadata.name}`);
+  await flushAppEffects();
 }
 
 async function renderAppWithOpenMap(mapName = 'Opened Map') {
@@ -643,7 +657,7 @@ describe('URL routing', () => {
         },
       },
     });
-    fireEvent.load(iframe);
+    await loadParchmentIframe(iframe);
 
     expect(loadUploadedFile).toHaveBeenCalledTimes(1);
     expect(loadUploadedFile).toHaveBeenCalledWith(file);
@@ -687,7 +701,7 @@ describe('URL routing', () => {
         },
       },
     });
-    fireEvent.load(iframe);
+    await loadParchmentIframe(iframe);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Upload failed');
     expect(useEditorStore.getState().doc?.metadata.associatedGame).toBeNull();
@@ -732,7 +746,7 @@ describe('URL routing', () => {
     await renderAppWithSavedMap(linkedDoc);
 
     const iframe = await screen.findByTitle(/interactive fiction player/i);
-    fireEvent.load(iframe);
+    await loadParchmentIframe(iframe);
 
     expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame?.storyUrl).toBe('https://example.com/game.ulx');
@@ -761,7 +775,7 @@ describe('URL routing', () => {
         value: {},
       });
 
-      fireEvent.load(iframe);
+      await loadParchmentIframe(iframe);
       await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /^reset$/i }));
       act(() => {
         jest.runOnlyPendingTimers();
@@ -802,7 +816,7 @@ describe('URL routing', () => {
         parchment: parchmentInstance,
       },
     });
-    fireEvent.load(iframe);
+    await loadParchmentIframe(iframe);
 
     expect(parchmentInstance.seenFile).toBe(file);
   });
@@ -830,7 +844,7 @@ describe('URL routing', () => {
         configurable: true,
         value: {},
       });
-      fireEvent.load(iframe);
+      await loadParchmentIframe(iframe);
 
       const loadUploadedFile = jest.fn<(nextFile: File) => Promise<void>>().mockResolvedValue(undefined);
       Object.defineProperty(iframe, 'contentWindow', {
@@ -878,7 +892,7 @@ describe('URL routing', () => {
       configurable: true,
       value: {},
     });
-    fireEvent.load(iframe);
+    await loadParchmentIframe(iframe);
 
     await act(async () => {
       await jest.advanceTimersByTimeAsync(1200);

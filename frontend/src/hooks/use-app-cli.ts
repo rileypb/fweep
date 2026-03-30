@@ -945,29 +945,51 @@ export function useAppCli({
     }
 
     if (command.kind === 'create-pseudo-room' && currentDoc !== null) {
-      const sourceRoomMatch = resolveRoomByCliReference(
-        currentDoc,
-        command.sourceRoom.text,
-        command.sourceRoom.exact,
-        currentPronounRoomId,
-      );
-      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
-        return { ok: false, shouldSelectCliInput };
-      }
-      if (sourceRoomMatch.kind !== 'one') {
+      const sourceRoomId = (() => {
+        if (command.sourceRoom === null) {
+          if (liveEditorState.selectedRoomIds.length !== 1) {
+            appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to set an exit on.']);
+            return null;
+          }
+
+          const selectedRoomId = liveEditorState.selectedRoomIds[0];
+          if (!currentDoc.rooms[selectedRoomId]) {
+            appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to set an exit on.']);
+            return null;
+          }
+
+          return selectedRoomId;
+        }
+
+        const sourceRoomMatch = resolveRoomByCliReference(
+          currentDoc,
+          command.sourceRoom.text,
+          command.sourceRoom.exact,
+          currentPronounRoomId,
+        );
+        if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
+          return null;
+        }
+        if (sourceRoomMatch.kind !== 'one') {
+          return null;
+        }
+
+        return sourceRoomMatch.room.id;
+      })();
+      if (sourceRoomId === null) {
         return { ok: false, shouldSelectCliInput };
       }
 
       setPseudoRoomExit(
-        sourceRoomMatch.room.id,
+        sourceRoomId,
         command.sourceDirection,
         command.pseudoKind,
         getCliHistoryOptions(liveEditorState),
       );
-      selectRoom(sourceRoomMatch.room.id);
-      setCliPronounRoomReference(sourceRoomMatch.room.id);
+      selectRoom(sourceRoomId);
+      setCliPronounRoomReference(sourceRoomId);
       setRequestedRoomRevealRequest({
-        roomId: sourceRoomMatch.room.id,
+        roomId: sourceRoomId,
         requestId: issueUiRequestId(),
       });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
