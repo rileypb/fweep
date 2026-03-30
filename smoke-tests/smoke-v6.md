@@ -91,9 +91,8 @@ This document defines the manual smoke-test pass for `fweep v6`.
 - Persisted-data / migration review: passed
   - No schema changes detected in `main...v6`
   - No schema-version bump or migration required
-- Manual smoke pass: pending
-  - Not completed in this terminal-only environment
-  - Run the checklist above on the branch build before merging to `main`
+- Manual smoke pass: passed
+  - All core app flow, save/reload, import/export, embedded game, suggestions/tips, map interaction, and compatibility checks passed in a local smoke test run
 
 ## Minimum release gate
 A `v6` smoke pass is complete only if all of the following succeed:
