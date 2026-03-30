@@ -151,6 +151,8 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("target.dispatchEvent(new KeyboardEvent('keypress'");
     expect(parchmentHtml).toContain("textarea.getAttribute('aria-hidden') !== 'true'");
     expect(parchmentHtml).toContain("currentValue.startsWith('\\\\\\\\')");
+    expect(parchmentHtml).toContain("isLineInput(activeElement)");
+    expect(parchmentHtml).toContain("event.key === 'ArrowUp' || event.key === 'ArrowDown'");
     expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
   });
 
