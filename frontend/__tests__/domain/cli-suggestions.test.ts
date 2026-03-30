@@ -716,6 +716,8 @@ describe('cli suggestions', () => {
 
     expect(getCliSuggestions('s c', 's c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('select ', 'select '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+    expect(getCliSuggestions('go to ', 'go to '.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+    expect(getCliSuggestions('go to c', 'go to c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('ed c', 'ed c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
     expect(getCliSuggestions('del c', 'del c'.length, doc)?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Cellar']);
   });
@@ -724,6 +726,7 @@ describe('cli suggestions', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
 
     expect(getCliSuggestions('show cellar ', 'show cellar '.length, doc)).toBeNull();
+    expect(getCliSuggestions('go to cellar ', 'go to cellar '.length, doc)).toBeNull();
     expect(getCliSuggestions('edit cellar ', 'edit cellar '.length, doc)).toBeNull();
     expect(getCliSuggestions('delete cellar ', 'delete cellar '.length, doc)).toBeNull();
   });

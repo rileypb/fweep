@@ -1,0 +1,1083 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { act, renderHook, waitFor, fireEvent } from '@testing-library/react';
+import { addConnection, addItem, addRoom } from '../../src/domain/map-operations';
+import { createConnection, createEmptyMap, createItem, createRoom } from '../../src/domain/map-types';
+import { useAppCli } from '../../src/hooks/use-app-cli';
+import { useEditorStore } from '../../src/state/editor-store';
+
+function createOptions(activeMap = createEmptyMap('CLI Map')) {
+  return {
+    activeMap,
+    loadDocument: jest.fn<(doc: typeof activeMap) => void>(),
+    unloadDocument: jest.fn<() => void>(),
+    routeCrossInputCommandToParchment: jest.fn<(command: string) => boolean>().mockReturnValue(false),
+    requestedRoomEditorRequest: null,
+    requestedRoomRevealRequest: null,
+    requestedViewportFocusRequest: null,
+    requestedMapZoomRequest: null,
+    setRequestedRoomEditorRequest: jest.fn<(request: null) => void>(),
+    setRequestedRoomRevealRequest: jest.fn<(request: null) => void>(),
+    setRequestedViewportFocusRequest: jest.fn<(request: null) => void>(),
+    setRequestedMapZoomRequest: jest.fn<(request: null) => void>(),
+  } as const;
+}
+
+function createStoreBackedOptions(activeMap = createEmptyMap('CLI Map')) {
+  return {
+    ...createOptions(activeMap),
+    loadDocument: (doc: NonNullable<typeof activeMap>) => {
+      useEditorStore.getState().loadDocument(doc);
+    },
+    unloadDocument: () => {
+      useEditorStore.getState().unloadDocument();
+    },
+  } as const;
+}
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  window.localStorage.clear();
+  useEditorStore.setState(useEditorStore.getInitialState());
+});
+
+describe('useAppCli', () => {
+  it('loads cached CLI output for the active map and persists the restored snapshot', async () => {
+    const doc = createEmptyMap('Cached CLI Map');
+    const cachedLines = ['**fweep**', 'An interactive map creator by Phil Riley', 'Release 0000000 / Serial number 000000', '', '>show kitchen', 'Shown.', ''];
+    const options = createOptions(doc);
+
+    window.localStorage.setItem(`fweep-cli-output:${doc.metadata.id}`, JSON.stringify(cachedLines));
+
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(options.loadDocument).toHaveBeenCalledWith(expect.objectContaining({
+        metadata: expect.objectContaining({ id: doc.metadata.id }),
+        cliOutputLines: doc.cliOutputLines,
+      }));
+    });
+
+    expect(result.current.gameOutputLines).toEqual(cachedLines);
+    expect(result.current.hasUsedCliInput).toBe(true);
+  });
+
+  it('ignores malformed cached CLI output snapshots', async () => {
+    const doc = createEmptyMap('Malformed Cache Map');
+    const options = createOptions(doc);
+    window.localStorage.setItem(`fweep-cli-output:${doc.metadata.id}`, '{not json');
+
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(options.loadDocument).toHaveBeenCalledWith(expect.objectContaining({
+        metadata: expect.objectContaining({ id: doc.metadata.id }),
+      }));
+    });
+
+    expect(result.current.gameOutputLines).toEqual(doc.cliOutputLines);
+    expect(result.current.hasUsedCliInput).toBe(false);
+  });
+
+  it('focuses the CLI input on slash outside text editors and suppresses the paired slash toggle once', () => {
+    const options = createOptions(null);
+    const queuedMicrotasks: Array<() => void> = [];
+    const queueMicrotaskSpy = jest.spyOn(globalThis, 'queueMicrotask').mockImplementation((callback: VoidFunction) => {
+      queuedMicrotasks.push(callback);
+    });
+
+    const { result } = renderHook(() => useAppCli(options));
+    const cliInput = document.createElement('input');
+    cliInput.value = 'look';
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+
+    act(() => {
+      fireEvent.keyDown(window, { key: '/' });
+    });
+
+    expect(document.activeElement).toBe(cliInput);
+    expect(result.current.consumeCliSlashFocusSuppression()).toBe(true);
+    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
+
+    act(() => {
+      queuedMicrotasks.forEach((callback) => callback());
+    });
+
+    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
+    queueMicrotaskSpy.mockRestore();
+  });
+
+  it('does not hijack slash when focus is already inside a text-editing control', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+    const cliInput = document.createElement('input');
+    const otherInput = document.createElement('input');
+    document.body.append(cliInput, otherInput);
+    result.current.cliInputRef.current = cliInput;
+    otherInput.focus();
+
+    act(() => {
+      fireEvent.keyDown(otherInput, { key: '/' });
+    });
+
+    expect(document.activeElement).toBe(otherInput);
+    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
+  });
+
+  it('routes backslash-prefixed commands to parchment when available', () => {
+    const options = createOptions(null);
+    options.routeCrossInputCommandToParchment.mockReturnValue(true);
+    const { result } = renderHook(() => useAppCli(options));
+    let submission: ReturnType<typeof result.current.submitCliCommandText> | null = null;
+
+    act(() => {
+      submission = result.current.submitCliCommandText('\\look', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+    });
+
+    expect(options.routeCrossInputCommandToParchment).toHaveBeenCalledWith('look');
+    expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
+  });
+
+  it('treats a doubled leading backslash as a literal local command', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('\\\\look', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+    });
+
+    expect(options.routeCrossInputCommandToParchment).not.toHaveBeenCalled();
+    expect(result.current.gameOutputLines).toContain('I didn\'t understand you.');
+  });
+
+  it('reports a routed parchment command failure in the CLI output', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('\\look', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+    });
+
+    expect(result.current.gameOutputLines).toEqual([
+      '>\\look',
+      'No interactive fiction game is ready to receive commands.',
+      '',
+    ]);
+  });
+
+  it('navigates CLI history up and down after routed submissions', () => {
+    const options = createOptions(null);
+    options.routeCrossInputCommandToParchment.mockReturnValue(true);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('\\look', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+      result.current.submitCliCommandText('\\wait', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+      result.current.handleCliCommandChange('draft');
+    });
+
+    act(() => {
+      result.current.handleCliHistoryNavigate('up');
+    });
+    expect(result.current.cliCommand).toBe('\\wait');
+
+    act(() => {
+      result.current.handleCliHistoryNavigate('up');
+    });
+    expect(result.current.cliCommand).toBe('\\look');
+
+    act(() => {
+      result.current.handleCliHistoryNavigate('down');
+    });
+    expect(result.current.cliCommand).toBe('\\wait');
+
+    act(() => {
+      result.current.handleCliHistoryNavigate('down');
+    });
+    expect(result.current.cliCommand).toBe('draft');
+  });
+
+  it('applies the highlighted command suggestion into the CLI input', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+    const cliInput = document.createElement('input');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+
+    act(() => {
+      result.current.handleCliCommandChange('sh');
+      result.current.handleCliCaretChange(2);
+      result.current.toggleCliSuggestions();
+    });
+
+    expect(result.current.isCliSuggestionMenuOpen).toBe(true);
+
+    let applied = false;
+    act(() => {
+      applied = result.current.applyHighlightedCliSuggestion();
+    });
+
+    expect(applied).toBe(true);
+    expect(result.current.cliCommand).toBe('show ');
+  });
+
+  it('imports CLI scripts and reports the number of executed commands', async () => {
+    const doc = createEmptyMap('Script Import Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    const cliInput = document.createElement('input');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+    const file = new File(['create Kitchen\ncreate Hallway'], 'commands.txt', { type: 'text/plain' });
+    const event = {
+      target: {
+        files: [file],
+        value: 'commands.txt',
+      },
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+
+    await act(async () => {
+      await result.current.handleImportScriptChange(event);
+    });
+
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name).sort()).toEqual(['Hallway', 'Kitchen']);
+    expect(result.current.gameOutputLines).toContain('Imported 2 commands from "commands.txt".');
+    expect(event.target.value).toBe('');
+  });
+
+  it('rolls back CLI script imports when a later command fails', async () => {
+    const doc = createEmptyMap('Script Rollback Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    const cliInput = document.createElement('input');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+    const file = new File(['create Kitchen\nshow Missing Room'], 'broken-commands.txt', { type: 'text/plain' });
+    const event = {
+      target: {
+        files: [file],
+        value: 'broken-commands.txt',
+      },
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+
+    await act(async () => {
+      await result.current.handleImportScriptChange(event);
+    });
+
+    expect(Object.keys(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+    expect(result.current.gameOutputLines).toContain('Import aborted on line 2. Rolled back 1 successful command.');
+    expect(event.target.value).toBe('');
+  });
+
+  it('opens the room editor request for edit commands', async () => {
+    let doc = createEmptyMap('Edit Command Map');
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 10, y: 20 } });
+    const kitchenId = Object.keys(doc.rooms)[0]!;
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    let submission: ReturnType<typeof result.current.submitCliCommandText> | null = null;
+    act(() => {
+      submission = result.current.submitCliCommandText('edit Kitchen', {
+        clearInputState: false,
+      });
+    });
+
+    expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
+    expect(options.setRequestedRoomEditorRequest).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: kitchenId,
+      requestId: expect.any(Number),
+    }));
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchenId]);
+    expect(result.current.gameOutputLines).toContain('Edited.');
+  });
+
+  it('reveals and selects rooms for show commands', async () => {
+    let doc = createEmptyMap('Show Command Map');
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 10, y: 20 } });
+    const kitchenId = Object.keys(doc.rooms)[0]!;
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('show Kitchen', {
+        clearInputState: false,
+      });
+    });
+
+    expect(options.setRequestedRoomRevealRequest).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: kitchenId,
+      requestId: expect.any(Number),
+    }));
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([kitchenId]);
+    expect(result.current.gameOutputLines).toContain('**Kitchen**');
+  });
+
+  it('creates rooms and requests viewport focus for create commands', async () => {
+    const doc = createEmptyMap('Create Command Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('create Kitchen', {
+        clearInputState: false,
+      });
+    });
+
+    const rooms = Object.values(useEditorStore.getState().doc?.rooms ?? {});
+    expect(rooms.map((room) => room.name)).toContain('Kitchen');
+    expect(options.setRequestedViewportFocusRequest).toHaveBeenCalledWith(expect.objectContaining({
+      roomIds: [expect.any(String)],
+      requestId: expect.any(Number),
+    }));
+    expect(result.current.gameOutputLines).toContain('Created.');
+  });
+
+  it('validates zoom percentages and emits absolute zoom requests', async () => {
+    const doc = createEmptyMap('Zoom Command Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('zoom 0%', {
+        clearInputState: false,
+      });
+    });
+    expect(result.current.gameOutputLines).toContain('Zoom must be greater than 0%.');
+
+    act(() => {
+      result.current.submitCliCommandText('zoom 150%', {
+        clearInputState: false,
+      });
+    });
+    expect(options.setRequestedMapZoomRequest).toHaveBeenCalledWith({
+      mode: 'absolute',
+      targetZoom: 1.5,
+      requestId: expect.any(Number),
+    });
+    expect(result.current.gameOutputLines).toContain('Zoomed to 150%.');
+  });
+
+  it('lists help topics and emits relative zoom requests', async () => {
+    const doc = createEmptyMap('Help And Relative Zoom Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('help', { clearInputState: false });
+      result.current.submitCliCommandText('zoom in', { clearInputState: false });
+      result.current.submitCliCommandText('zoom out', { clearInputState: false });
+      result.current.submitCliCommandText('zoom reset', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('help rooms');
+    expect(result.current.gameOutputLines).toContain('help connect');
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(1, {
+      mode: 'relative',
+      direction: 'in',
+      requestId: expect.any(Number),
+    });
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(2, {
+      mode: 'relative',
+      direction: 'out',
+      requestId: expect.any(Number),
+    });
+    expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(3, {
+      mode: 'reset',
+      direction: undefined,
+      requestId: expect.any(Number),
+    });
+  });
+
+  it('reports when an imported script contains no commands', async () => {
+    const doc = createEmptyMap('Empty Script Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    const cliInput = document.createElement('input');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+    const file = new File(['   \n\n'], 'empty-commands.txt', { type: 'text/plain' });
+    const event = {
+      target: {
+        files: [file],
+        value: 'empty-commands.txt',
+      },
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+
+    await act(async () => {
+      await result.current.handleImportScriptChange(event);
+    });
+
+    expect(result.current.gameOutputLines).toContain('No commands found in "empty-commands.txt".');
+    expect(event.target.value).toBe('');
+  });
+
+  it('navigates from the selected room and reveals the destination', async () => {
+    let doc = createEmptyMap('Navigate Command Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('east', { clearInputState: false });
+    });
+
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([hallway.id]);
+    expect(options.setRequestedRoomRevealRequest).toHaveBeenLastCalledWith(expect.objectContaining({
+      roomId: hallway.id,
+      requestId: expect.any(Number),
+    }));
+    expect(result.current.gameOutputLines).toContain('**Hallway**');
+  });
+
+  it('reports navigation errors when no room is selected or the exit does not exist', async () => {
+    let doc = createEmptyMap('Navigate Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('east', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain('Select exactly one room to navigate from.');
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('east', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain("You can't go east from Kitchen.");
+  });
+
+  it('puts, takes, and takes all items through CLI commands', async () => {
+    let doc = createEmptyMap('Item Command Map');
+    const cellar = { ...createRoom('Cellar'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, cellar);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('put lantern in Cellar', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.items ?? {}).map((item) => item.name)).toContain('lantern');
+    expect(result.current.gameOutputLines).toContain('Dropped.');
+
+    act(() => {
+      result.current.submitCliCommandText('take lantern from Cellar', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
+    expect(result.current.gameOutputLines).toContain('Taken.');
+
+    act(() => {
+      result.current.submitCliCommandText('put lamp in Cellar', { clearInputState: false });
+      result.current.submitCliCommandText('put book in Cellar', { clearInputState: false });
+      result.current.submitCliCommandText('take all from Cellar', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
+  });
+
+  it('reports missing items on take commands', async () => {
+    let doc = createEmptyMap('Missing Item Map');
+    const cellar = { ...createRoom('Cellar'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, cellar);
+    doc = addItem(doc, { ...createItem('Lamp', cellar.id), id: 'item-lamp' });
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('take lantern from Cellar', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('Could not find lantern in Cellar.');
+    expect(Object.values(useEditorStore.getState().doc?.items ?? {}).map((item) => item.name)).toEqual(['Lamp']);
+  });
+
+  it('creates pseudo-room exits from the selected room', async () => {
+    let doc = createEmptyMap('Pseudo Room Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('north is unknown', { clearInputState: false });
+    });
+
+    expect(Object.keys(useEditorStore.getState().doc?.pseudoRooms ?? {})).toHaveLength(1);
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.north).toBeDefined();
+    expect(options.setRequestedRoomRevealRequest).toHaveBeenLastCalledWith(expect.objectContaining({
+      roomId: kitchen.id,
+      requestId: expect.any(Number),
+    }));
+    expect(result.current.gameOutputLines).toContain('Marked exit as unknown.');
+  });
+
+  it('reports pseudo-room creation errors when no room is selected', async () => {
+    let doc = createEmptyMap('Pseudo Room Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('north is unknown', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('Select exactly one room to set an exit on.');
+  });
+
+  it('supports explicit-source pseudo-room commands and respects pronoun bindings there too', async () => {
+    let doc = createEmptyMap('Explicit Pseudo Room Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('north of Kitchen is unknown', { clearInputState: false });
+    });
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.north).toBeDefined();
+
+    act(() => {
+      result.current.submitCliCommandText('west of it lies death', { clearInputState: false });
+    });
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.west).toBeDefined();
+    expect(result.current.gameOutputLines).toContain('Marked exit as death.');
+  });
+
+  it('reports unbound pronouns for explicit-source pseudo-room commands', async () => {
+    let doc = createEmptyMap('Explicit Pseudo Room Pronoun Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('west of it lies death', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('Nothing is currently bound to "it".');
+  });
+
+  it('deletes rooms and clears the pronoun binding when the deleted room was bound to it', async () => {
+    let doc = createEmptyMap('Delete Command Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('show Kitchen', { clearInputState: false });
+      result.current.submitCliCommandText('delete it', { clearInputState: false });
+    });
+
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]).toBeUndefined();
+    expect(result.current.gameOutputLines).toContain('Deleted.');
+
+    act(() => {
+      result.current.submitCliCommandText('show it', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('Nothing is currently bound to "it".');
+  });
+
+  it('connects rooms, annotates the connection, and disconnects it again', async () => {
+    let doc = createEmptyMap('Connection Command Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('connect Kitchen east to Hallway', { clearInputState: false });
+    });
+    const connectedDoc = useEditorStore.getState().doc;
+    const connectionId = connectedDoc?.rooms[kitchen.id]?.directions.east;
+    expect(connectionId).toBeDefined();
+    expect(result.current.gameOutputLines).toContain('Connected.');
+
+    act(() => {
+      result.current.submitCliCommandText('Kitchen to Hallway is door', { clearInputState: false });
+    });
+    expect(useEditorStore.getState().doc?.connections[connectionId!]?.annotation).toEqual({ kind: 'door' });
+    expect(result.current.gameOutputLines).toContain('Marked.');
+
+    act(() => {
+      result.current.submitCliCommandText('disconnect Kitchen east from Hallway', { clearInputState: false });
+    });
+    expect(useEditorStore.getState().doc?.connections[connectionId!]).toBeUndefined();
+    expect(result.current.gameOutputLines).toContain('Disconnected.');
+  });
+
+  it('creates or connects rooms with selected-room-relative connect commands', async () => {
+    let doc = createEmptyMap('Relative Connect Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('east is Hallway', { clearInputState: false });
+    });
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.east).toBeDefined();
+    expect(result.current.gameOutputLines).toContain('Connected.');
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('north is Observatory', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('Observatory');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
+  it('reports connection annotation errors when no connection exists', async () => {
+    let doc = createEmptyMap('Annotation Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('Kitchen to Hallway is door', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('There are no connections between Kitchen and Hallway.');
+  });
+
+  it('reports when disconnect is ambiguous across multiple connections', async () => {
+    let doc = createEmptyMap('Disconnect Ambiguity Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'north', 'south');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('disconnect Kitchen from Hallway', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain(
+      'There are multiple connections between Kitchen and Hallway. Use "disconnect Kitchen <direction> from Hallway".',
+    );
+  });
+
+  it('reports a direction-specific disconnect failure when no matching exit exists', async () => {
+    let doc = createEmptyMap('Disconnect Direction Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hallway);
+    doc = addConnection(doc, createConnection(kitchen.id, hallway.id, true), 'east', 'west');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('disconnect Kitchen north from Hallway', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('There is no connection from Kitchen going north to Hallway.');
+  });
+
+  it('adds sticky notes with notate commands', async () => {
+    let doc = createEmptyMap('Notate Command Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('notate Kitchen with hello there', { clearInputState: false });
+    });
+
+    expect(Object.values(useEditorStore.getState().doc?.stickyNotes ?? {}).map((note) => note.text)).toContain('hello there');
+    expect(result.current.gameOutputLines).toContain('Notated.');
+  });
+
+  it('reports describe and notate selection errors when no single room is selected', async () => {
+    let doc = createEmptyMap('Selection Error Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    const hall = { ...createRoom('Hall'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    doc = addRoom(doc, hall);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('describe', { clearInputState: false });
+      result.current.submitCliCommandText('annotate with hello', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain("You must select a room you want described. Use the 'show' command to select a room.");
+    expect(result.current.gameOutputLines).toContain("You must select a room to annotate. Use the 'show' command to select a room.");
+
+    act(() => {
+      useEditorStore.setState((state) => ({
+        ...state,
+        selectedRoomIds: [kitchen.id, hall.id],
+      }));
+      result.current.submitCliCommandText('describe', { clearInputState: false });
+      result.current.submitCliCommandText('annotate with hello', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain("You must select only one room at a time. Use the 'show' command to select a room.");
+    expect(result.current.gameOutputLines).toContain("You must select only one room at a time. Use the 'show' command to select a room.");
+  });
+
+  it('applies room-lighting adjectives and describes rooms by name and selection', async () => {
+    let doc = createEmptyMap('Room Adjective Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('Kitchen is dark', { clearInputState: false });
+      result.current.submitCliCommandText('describe Kitchen', { clearInputState: false });
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('describe', { clearInputState: false });
+    });
+
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.isDark).toBe(true);
+    expect(result.current.gameOutputLines).toContain('Marked as dark.');
+    expect(result.current.gameOutputLines).toContain('It is dark.');
+    expect(result.current.gameOutputLines.filter((line) => line === 'From Kitchen, one cannot go anywhere.').length).toBeGreaterThan(0);
+  });
+
+  it('reports stale selected-room errors for describe and notate when selection no longer resolves', async () => {
+    let doc = createEmptyMap('Stale Selection Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      useEditorStore.setState((state) => ({
+        ...state,
+        selectedRoomIds: ['missing-room-id'],
+      }));
+      result.current.submitCliCommandText('describe', { clearInputState: false });
+      result.current.submitCliCommandText('annotate with hello', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain("You must select a room you want described. Use the 'show' command to select a room.");
+    expect(result.current.gameOutputLines).toContain("You must select a room to annotate. Use the 'show' command to select a room.");
+  });
+
+  it('creates and connects a new dark room relative to an existing room', async () => {
+    let doc = createEmptyMap('Create And Connect Map');
+    const hallway = { ...createRoom('Hallway'), position: { x: 110, y: 20 } };
+    doc = addRoom(doc, hallway);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('create Kitchen, which is dark, east of Hallway', { clearInputState: false });
+    });
+
+    const createdRoom = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Kitchen');
+    expect(createdRoom).toBeDefined();
+    expect(createdRoom?.isDark).toBe(true);
+    expect(useEditorStore.getState().selectedRoomIds).toEqual([createdRoom!.id]);
+    expect(useEditorStore.getState().doc?.rooms[createdRoom!.id]?.directions.west).toBeDefined();
+    expect(options.setRequestedViewportFocusRequest).toHaveBeenCalledWith(expect.objectContaining({
+      roomIds: [createdRoom!.id, hallway.id],
+      requestId: expect.any(Number),
+    }));
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
+  it('reports ambiguous and unknown room references across command families', async () => {
+    let doc = createEmptyMap('Ambiguous Room Map');
+    const kitchenA = { ...createRoom('Kitchen'), id: 'kitchen-a', position: { x: 10, y: 20 } };
+    const kitchenB = { ...createRoom('Kitchen Pantry'), id: 'kitchen-b', position: { x: 110, y: 20 } };
+    const hall = { ...createRoom('Hall'), position: { x: 210, y: 20 } };
+    doc = addRoom(doc, kitchenA);
+    doc = addRoom(doc, kitchenB);
+    doc = addRoom(doc, hall);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('show Kitchen', { clearInputState: false });
+      result.current.submitCliCommandText('Kitchen is lit', { clearInputState: false });
+      result.current.submitCliCommandText('connect Hall east to Missing', { clearInputState: false });
+      useEditorStore.getState().selectRoom(hall.id);
+      result.current.submitCliCommandText('east is Kitchen', { clearInputState: false });
+      result.current.submitCliCommandText('create Loft east of Kitchen', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('The name "Kitchen" is ambiguous. It could match "Kitchen" or "Kitchen Pantry".');
+    expect(result.current.gameOutputLines).toContain('Unknown room "Missing".');
+  });
+
+  it('undoes and redoes CLI changes, including the empty-history error', async () => {
+    const doc = createEmptyMap('Undo Redo Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('undo', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain('Nothing to undo.');
+
+    act(() => {
+      result.current.submitCliCommandText('create Kitchen', { clearInputState: false });
+      result.current.submitCliCommandText('undo', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
+    expect(result.current.gameOutputLines).toContain('Undone.');
+
+    act(() => {
+      result.current.submitCliCommandText('redo', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('Kitchen');
+    expect(result.current.gameOutputLines).toContain('Redone.');
+
+    act(() => {
+      result.current.submitCliCommandText('redo', { clearInputState: false });
+    });
+    expect(result.current.gameOutputLines).toContain('Nothing to redo.');
+  });
+
+  it('falls back to describing commands when no active document is loaded', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('create Kitchen', { clearInputState: false });
+    });
+
+    expect(result.current.gameOutputLines).toContain('create a room called Kitchen');
+  });
+
+  it('surfaces file read failures during script import', async () => {
+    const doc = createEmptyMap('Import Failure Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    const cliInput = document.createElement('input');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+
+    const file = new File(['ignored'], 'broken.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'text', {
+      value: jest.fn<() => Promise<string>>().mockRejectedValue(new Error('disk exploded')),
+    });
+
+    const event = {
+      target: {
+        files: [file],
+        value: 'broken.txt',
+      },
+    } as unknown as React.ChangeEvent<HTMLInputElement>;
+
+    await act(async () => {
+      await result.current.handleImportScriptChange(event);
+    });
+
+    expect(result.current.gameOutputLines).toContain('Unable to import "broken.txt": disk exploded');
+    expect(event.target.value).toBe('');
+  });
+
+  it('mirrors appended output batches to the submit callback and respects selection flags', async () => {
+    const doc = createEmptyMap('Submit Callback Map');
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    const cliInput = document.createElement('input');
+    cliInput.value = 'seed';
+    const selectSpy = jest.spyOn(cliInput, 'select');
+    document.body.appendChild(cliInput);
+    result.current.cliInputRef.current = cliInput;
+    const onOutputAppended = jest.fn<(lines: readonly string[]) => void>();
+
+    let submission: ReturnType<typeof result.current.submitCliCommandText> | null = null;
+    act(() => {
+      result.current.handleCliCommandChange('draft');
+      submission = result.current.submitCliCommandText('help', {
+        clearInputState: true,
+        selectCliInput: false,
+        onOutputAppended,
+      });
+    });
+
+    expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
+    expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'help rooms']));
+    expect(selectSpy).not.toHaveBeenCalled();
+    expect(result.current.cliCommand).toBe('');
+    expect(result.current.cliHistory).toContain('help');
+  });
+
+  it('handles empty history navigation and closed-suggestion controls safely', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.handleCliHistoryNavigate('up');
+      result.current.handleCliHistoryNavigate('down');
+      result.current.moveCliSuggestionHighlight('up');
+      result.current.moveCliSuggestionHighlight('down');
+      result.current.setCliSuggestionHighlight(10);
+      result.current.closeCliSuggestions();
+    });
+
+    expect(result.current.cliHistoryIndex).toBeNull();
+    expect(result.current.isCliSuggestionMenuOpen).toBe(false);
+  });
+});

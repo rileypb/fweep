@@ -1229,7 +1229,16 @@ export function useAppCli({
             return null;
           }
 
-          return currentDoc.rooms[liveEditorState.selectedRoomIds[0]] ?? null;
+          const selectedRoom = currentDoc.rooms[liveEditorState.selectedRoomIds[0]];
+          if (!selectedRoom) {
+            appendGameOutput([
+              formatCliEcho(trimmedInput),
+              "You must select a room to annotate. Use the 'show' command to select a room.",
+            ]);
+            return null;
+          }
+
+          return selectedRoom;
         }
 
         const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);
