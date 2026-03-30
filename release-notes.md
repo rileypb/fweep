@@ -190,7 +190,7 @@
 - Expanded keyboard control coverage for focus switching, zoom, layout, and map interaction polish.
 
 ### User-visible changes
-- The embedded Parchment panel now sits on the left side of the app, and the old standalone CLI panel is hidden from the main shell layout.
+- The embedded Parchment panel now sits on the left side of the app, and the old standalone CLI panel is removed.
 - Mapper commands can now be driven from the game-side input flow:
   - map commands can be invoked from game input
   - mapper output is echoed into the game transcript
@@ -201,7 +201,6 @@
   - help and tips now document zoom commands and other keyboard workflows more clearly
 - Added a startup tips dialog with rotating keyboard-and-workflow tips.
 - Added or refined keyboard shortcuts for:
-  - focus switching between the game and mapper with `Ctrl+/` or `Cmd+/`
   - zoom commands, including direct numeric zoom targets such as `zoom 25` and `zoom 200%`
   - broader app shortcuts surfaced through help and tips
 - Map interaction polish includes:
