@@ -36,12 +36,9 @@ This document defines the manual smoke-test pass for `fweep v6`.
 ## Embedded game and transcript flow
 1. Open a map with no associated game and confirm the embedded game/search panel appears on the left side of the app.
 2. Search IFDB or load a local story file and confirm the game panel still launches normally.
-3. With a game running, use `Ctrl+/` or `Cmd+/` to switch focus between the game and the mapper.
-4. Enter a mapper command through the game-side input flow and confirm:
-   - the command is routed to the mapper
-   - the command echo appears in the game transcript
-   - the resulting mapper output also appears in the game transcript
-5. Enter a normal game command and confirm it still goes to the interactive fiction game rather than the mapper.
+3. With a game running, enter a map command directly into the shared game input and confirm it executes without requiring a separate mapper input.
+4. Confirm the map command is echoed in the transcript and that its resulting map output appears inline in the same transcript flow.
+5. Enter a normal interactive-fiction command in the same input and confirm story commands still behave normally after using map commands.
 
 ## Suggestions, tips, and keyboard help
 1. Open the tips dialog and confirm it shows a startup tip with next/back navigation.
