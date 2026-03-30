@@ -7,6 +7,7 @@ import type { MapDocument } from '../../src/domain/map-types';
 import { loadMap, saveMap } from '../../src/storage/map-store';
 import { App } from '../../src/app';
 import { useEditorStore } from '../../src/state/editor-store';
+import { cacheMapViewSession, loadCachedMapViewSession } from '../../src/state/map-view-session-cache';
 
 const BEZIER_TOGGLE_ICON_PATH = 'M296 200L296 152L344 152L344 200L296 200zM288 96C261.5 96 240 117.5 240 144L240 148L121.6 148C111.2 126.7 89.3 112 64 112C28.7 112 0 140.7 0 176C0 211.3 28.7 240 64 240C89.3 240 111.2 225.3 121.6 204L188.5 204C129.6 243.6 89.6 309 84.5 384L80 384C53.5 384 32 405.5 32 432L32 496C32 522.5 53.5 544 80 544L144 544C170.5 544 192 522.5 192 496L192 432C192 405.5 170.5 384 144 384L140.7 384C146.6 317 189.2 260.6 248.2 234.9C256.8 247.6 271.4 256 288 256L352 256C368.6 256 383.1 247.6 391.8 234.9C450.8 260.6 493.4 317 499.3 384L496 384C469.5 384 448 405.5 448 432L448 496C448 522.5 469.5 544 496 544L560 544C586.5 544 608 522.5 608 496L608 432C608 405.5 586.5 384 560 384L555.5 384C550.5 309 510.4 243.6 451.5 204L518.4 204C528.8 225.3 550.7 240 576 240C611.3 240 640 211.3 640 176C640 140.7 611.3 112 576 112C550.7 112 528.8 126.7 518.4 148L400 148L400 144C400 117.5 378.5 96 352 96L288 96zM88 440L136 440L136 488L88 488L88 440zM504 488L504 440L552 440L552 488L504 488z';
 const STRAIGHT_TOGGLE_ICON_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 128C337.7 128 352 142.3 352 160L352 448L448 448L448 320C448 302.3 462.3 288 480 288L544 288C561.7 288 576 302.3 576 320C576 337.7 561.7 352 544 352L512 352L512 480C512 497.7 497.7 512 480 512L320 512C302.3 512 288 497.7 288 480L288 192L192 192L192 320C192 337.7 177.7 352 160 352L96 352C78.3 352 64 337.7 64 320C64 302.3 78.3 288 96 288L128 288L128 160z';
@@ -1157,6 +1158,60 @@ describe('URL routing', () => {
     await waitFor(() => loadMap(doc.metadata.id).then((persisted) => {
       expect(Object.values(persisted?.rooms ?? {}).map((room) => room.name)).toContain('Kitchen');
     }));
+  });
+
+  it('keeps a cached map viewport across switching away, reopening, and refreshing', async () => {
+    const user = userEvent.setup();
+    const map1 = createEmptyMap('Map One');
+    const map2 = createEmptyMap('Map Two');
+    const map3 = createEmptyMap('Map Three');
+    await saveMap(map1);
+    await saveMap(map2);
+    await saveMap(map3);
+
+    navigateTo(`#/map/${map1.metadata.id}`);
+    let rendered = renderApp();
+
+    await screen.findByLabelText(`Map name: ${map1.metadata.name}`);
+
+    act(() => {
+      cacheMapViewSession(map1.metadata.id, { x: 180, y: -90 }, 1);
+      useEditorStore.getState().setMapPanOffset({ x: 180, y: -90 });
+    });
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.click((await screen.findByText(map2.metadata.name)).closest('button') as HTMLButtonElement);
+    await screen.findByLabelText(`Map name: ${map2.metadata.name}`);
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.click((await screen.findByText(map3.metadata.name)).closest('button') as HTMLButtonElement);
+    await screen.findByLabelText(`Map name: ${map3.metadata.name}`);
+
+    await user.click(screen.getByRole('button', { name: /back to maps/i }));
+    await screen.findByRole('dialog', { name: /choose a map/i });
+
+    await user.click((await screen.findByText(map1.metadata.name)).closest('button') as HTMLButtonElement);
+    await screen.findByLabelText(`Map name: ${map1.metadata.name}`);
+
+    expect(loadCachedMapViewSession(map1.metadata.id)).toEqual({
+      pan: { x: 180, y: -90 },
+      zoom: 1,
+    });
+    expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 180, y: -90 });
+
+    rendered.unmount();
+
+    window.history.replaceState({}, '', `#/map/${map1.metadata.id}`);
+    rendered = renderApp();
+
+    await screen.findByLabelText(`Map name: ${map1.metadata.name}`);
+    expect(useEditorStore.getState().mapPanOffset).toEqual({ x: 180, y: -90 });
+
+    rendered.unmount();
   });
 
   it('updates the URL when a map is selected from the dialog', async () => {

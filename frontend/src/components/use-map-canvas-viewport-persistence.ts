@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { MapDocument, Position } from '../domain/map-types';
 import { clampMapViewportZoom } from './use-map-viewport';
+import { cacheMapViewSession } from '../state/map-view-session-cache';
 
 interface UseMapCanvasViewportPersistenceParams {
   readonly doc: MapDocument | null;
@@ -23,15 +24,68 @@ export function useMapCanvasViewportPersistence({
 }: UseMapCanvasViewportPersistenceParams): void {
   const persistPanTimeoutRef = useRef<number | null>(null);
   const persistZoomTimeoutRef = useRef<number | null>(null);
+  const latestPanOffsetRef = useRef(panOffset);
+  const latestPersistedPanOffsetRef = useRef(persistedPanOffset);
+  const latestZoomRef = useRef(zoom);
+  const latestPersistedZoomRef = useRef(persistedZoom);
+  const latestDocRef = useRef(doc);
 
-  useEffect(() => () => {
+  latestPanOffsetRef.current = panOffset;
+  latestPersistedPanOffsetRef.current = persistedPanOffset;
+  latestZoomRef.current = zoom;
+  latestPersistedZoomRef.current = persistedZoom;
+  latestDocRef.current = doc;
+
+  const flushPendingViewportPersistence = () => {
+    if (!latestDocRef.current) {
+      return;
+    }
+
     if (persistPanTimeoutRef.current !== null) {
       window.clearTimeout(persistPanTimeoutRef.current);
+      persistPanTimeoutRef.current = null;
     }
+
+    if (
+      latestPersistedPanOffsetRef.current.x !== latestPanOffsetRef.current.x
+      || latestPersistedPanOffsetRef.current.y !== latestPanOffsetRef.current.y
+    ) {
+      setMapPanOffset(latestPanOffsetRef.current);
+    }
+
     if (persistZoomTimeoutRef.current !== null) {
       window.clearTimeout(persistZoomTimeoutRef.current);
+      persistZoomTimeoutRef.current = null;
     }
+
+    const safePersistedZoom = clampMapViewportZoom(latestPersistedZoomRef.current);
+    if (safePersistedZoom !== latestZoomRef.current) {
+      setMapZoom(latestZoomRef.current);
+    }
+  };
+
+  useEffect(() => () => {
+    flushPendingViewportPersistence();
   }, []);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      flushPendingViewportPersistence();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!doc) {
+      return;
+    }
+
+    cacheMapViewSession(doc.metadata.id, panOffset, zoom);
+  }, [doc, panOffset, zoom]);
 
   useEffect(() => {
     if (!doc) {

@@ -966,6 +966,7 @@ export function App(): React.JSX.Element {
         />
       ) : (
         <MapCanvas
+          key={activeMap.metadata.id}
           mapName={activeMap.metadata.name}
           actionsContainer={mapActionsContainerRef.current}
           onBack={() => {

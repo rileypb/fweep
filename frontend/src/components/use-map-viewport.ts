@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export interface PanOffset {
   readonly x: number;
@@ -56,11 +56,11 @@ export function useMapViewport(options: UseMapViewportOptions = {}): MapViewport
     zoomRef.current = zoom;
   }, [zoom]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPanOffset(initialPanOffset);
   }, [initialPanOffset.x, initialPanOffset.y]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setZoom(initialZoom);
   }, [initialZoom]);
 
