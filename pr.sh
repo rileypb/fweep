@@ -30,7 +30,7 @@ This PR releases `fweep v6` from `v6` to `main`.
 - `npm run build` passes
 - automated test suite passes: `74` suites, `1350` tests
 - manual smoke checklist is recorded in `smoke-tests/smoke-v6.md`
-- manual branch smoke pass is still pending before merge
+- manual branch smoke pass recorded in `smoke-tests/smoke-v6.md` passed
 
 ## Notes
 
