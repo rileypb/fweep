@@ -281,4 +281,4 @@
 - Persisted-data / migration review passed:
   - no schema changes detected in `main...v7`
   - no schema-version bump or migration required
-- Manual smoke-test confirmation is still pending before release.
+- Manual smoke-test confirmation passed.

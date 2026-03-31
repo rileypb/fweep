@@ -90,7 +90,14 @@ This document defines the manual smoke-test pass for `fweep v7`.
 - Persisted-data / migration review: passed
   - No schema changes detected in `main...v7`
   - No schema-version bump or migration required
-- Manual smoke pass: pending
+- Manual smoke pass: passed
+  - Core app flow: passed
+  - Save and reload: passed
+  - Import and export: passed
+  - Embedded game history and transcript routing flow: passed
+  - Command-suggestion and parser-polish checks: passed
+  - View restoration and focus checks: passed
+  - Compatibility and migration: passed
 
 ## Minimum release gate
 A `v7` smoke pass is complete only if all of the following succeed:
