@@ -9,6 +9,7 @@ import {
 describe('cli suggestion parser helpers', () => {
   it('normalizes command aliases before querying parser symbols', () => {
     expect(getParserNextSymbolsForTokens(['s']).map((entry) => entry.key)).toContain('slot:ROOM_REF');
+    expect(getParserNextSymbolsForTokens(['select']).map((entry) => entry.key)).toContain('slot:ROOM_REF');
     expect(getParserNextSymbolsForTokens(['ann']).map((entry) => entry.key)).toContain('slot:ROOM_REF');
     expect(getParserNextSymbolsForTokens(['arr']).map((entry) => entry.key)).toContain('end');
   });

@@ -106,6 +106,21 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('supports disambiguated multi-word room prefixes in disconnect suggestions', () => {
+    let doc = addRoom(createEmptyMap('Test'), { ...createRoom('Storage Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Store Room'), position: { x: 80, y: 0 } });
+
+    expect(
+      getCliSuggestions('disconnect storag', 'disconnect storag'.length, doc)?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['Storage Room']);
+    expect(
+      getCliSuggestions('disconnect Store Room ', 'disconnect Store Room '.length, doc)?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['from']));
+    expect(
+      getCliSuggestions('disconnect Store Room from ', 'disconnect Store Room from '.length, doc)?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<room>']));
+  });
+
   it('suggests matching rooms for describe commands and closes after a completed room', () => {
     let doc = createEmptyMap('Test');
     doc = addRoom(doc, { ...createRoom('Cellar'), position: { x: 0, y: 0 } });
@@ -298,6 +313,29 @@ describe('cli suggestions', () => {
       getCliSuggestions(
         'create and connect "blah", which is dark, south to store room west e',
         'create and connect "blah", which is dark, south to store room west e'.length,
+        doc,
+      ),
+    ).toBeNull();
+  });
+
+  it('closes suggestions after a completed trailing target direction in create-and-connect commands with Store Room', () => {
+    const doc = addRoom(
+      addRoom(createEmptyMap('Test'), { ...createRoom('Store Room'), position: { x: 0, y: 0 } }),
+      { ...createRoom('Hallway'), position: { x: 1, y: 0 } },
+    );
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to Store Room west ',
+        'create and connect "blah", which is dark, south to Store Room west '.length,
+        doc,
+      ),
+    ).toBeNull();
+
+    expect(
+      getCliSuggestions(
+        'create and connect "blah", which is dark, south to Store Room west e',
+        'create and connect "blah", which is dark, south to Store Room west e'.length,
         doc,
       ),
     ).toBeNull();
@@ -739,6 +777,16 @@ describe('cli suggestions', () => {
     const result = getCliSuggestions('connect kitchen north to ', 'connect kitchen north to '.length, createEmptyMap('Test'));
 
     expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['<room>']);
+  });
+
+  it('matches disambiguated Store Room target paths in connect commands', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Store Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Ice Cream Stand'), position: { x: 40, y: 0 } });
+
+    const result = getCliSuggestions('connect Store Room down to c', 'connect Store Room down to c'.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['Ice Cream Stand']);
   });
 
   it('keeps suggesting a longer multi-word room after a space inside the room reference', () => {
