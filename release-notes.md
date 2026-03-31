@@ -233,3 +233,52 @@
 - Production build passes.
 - Automated test suite passes: `74` suites, `1350` tests.
 - Manual smoke-test confirmation is still pending before release.
+
+## v7
+
+`v7` tightens the embedded-command workflow with restored shared history in Parchment, better parser-command suggestions, and more reliable viewport/session restoration when moving between maps.
+
+### Highlights
+- Restored `ArrowUp`/`ArrowDown` command history in the embedded Parchment input.
+- Unified history so game commands and `\` mapper commands can be recalled in one interleaved sequence.
+- Improved command parsing and suggestions for room selection, pseudo-room exits, and annotation flows.
+- Fixed map-view session restoration so pan and zoom state survive more transitions reliably.
+
+### User-visible changes
+- In the embedded game input, `ArrowUp` and `ArrowDown` once again navigate command history instead of scrolling the transcript when the line input is focused.
+- Command history now interleaves:
+  - normal interactive-fiction commands
+  - `\`-prefixed mapper commands
+- The command parser and suggestions are more forgiving and discoverable:
+  - `select <room>` now works as an alias for `show <room>`
+  - pseudo-room exit commands can target the currently selected room directly, such as `north is unknown`
+  - room-lead and pseudo-room suggestion flows offer more helpful follow-up keywords like `unknown`, `is`, `goes`, `leads`, and `lies`
+  - notate suggestions better prompt for `with` after a completed room reference
+- Room reveal, room focus, and map reopening behavior are more reliable when switching maps or restoring prior view state.
+
+### Compatibility and persistence
+- `v7` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- The existing explicit schema-`4` migration path remains unchanged.
+- `v7` does add session-scoped cached map view restoration for pan/zoom behavior:
+  - this affects in-session viewport restoration
+  - it does not require rewriting saved maps
+
+### Notable fixes
+- Fixed a regression where the embedded transcript stole `ArrowUp` and `ArrowDown` from Parchment’s command history.
+- Fixed shared-history behavior so typed game commands and bridged mapper commands both appear in the same recall list.
+- Fixed release-branch TypeScript test drift that had been blocking the production build even while Jest still passed.
+- Added broader regression coverage for:
+  - Parchment shell and history behavior
+  - CLI hook behavior
+  - viewport persistence
+  - room-focus behavior
+  - command-helper suggestion resolution
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `83` suites, `1447` tests.
+- Persisted-data / migration review passed:
+  - no schema changes detected in `main...v7`
+  - no schema-version bump or migration required
+- Manual smoke-test confirmation passed.

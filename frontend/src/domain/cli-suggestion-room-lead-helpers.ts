@@ -143,7 +143,10 @@ export function getRoomLeadResolution(
     const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
     return {
       ...roomResolution,
-      suggestions: mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+      suggestions: mergeSuggestions(
+        mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+        createKeywordSuggestions(fragment.prefix, ['unknown']),
+      ),
     };
   }
 
@@ -151,7 +154,10 @@ export function getRoomLeadResolution(
     const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
     return {
       ...roomResolution,
-      suggestions: mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+      suggestions: mergeSuggestions(
+        mergeSuggestions(createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+        createKeywordSuggestions(fragment.prefix, ['unknown']),
+      ),
     };
   }
 

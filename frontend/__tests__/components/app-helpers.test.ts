@@ -143,6 +143,12 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("fweep:restore-game-input-focus");
     expect(parchmentHtml).toContain("rawInput: currentValue");
     expect(parchmentHtml).toContain("var pendingGameCommand = null;");
+    expect(parchmentHtml).toContain("var sharedCommandHistory = [];");
+    expect(parchmentHtml).toContain("function navigateSharedCommandHistory(lineInput, direction)");
+    expect(parchmentHtml).toContain("function maybeRecordNativeLineInputHistory(event)");
+    expect(parchmentHtml).toContain("recordSharedCommandHistoryEntry(currentValue)");
+    expect(parchmentHtml).toContain("recordSharedCommandHistoryEntry(command)");
+    expect(parchmentHtml).toContain("suppressNextNativeLineHistoryRecord = true");
     expect(parchmentHtml).toContain("cliSuggestionsEnabled = true");
     expect(parchmentHtml).toContain("event.key === ' '");
     expect(parchmentHtml).toContain("event.code === 'Space'");
@@ -151,6 +157,9 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("target.dispatchEvent(new KeyboardEvent('keypress'");
     expect(parchmentHtml).toContain("textarea.getAttribute('aria-hidden') !== 'true'");
     expect(parchmentHtml).toContain("currentValue.startsWith('\\\\\\\\')");
+    expect(parchmentHtml).toContain("isLineInput(activeElement)");
+    expect(parchmentHtml).toContain("event.key === 'ArrowUp' || event.key === 'ArrowDown'");
+    expect(parchmentHtml).toContain("resetSharedCommandHistoryNavigation()");
     expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
   });
 

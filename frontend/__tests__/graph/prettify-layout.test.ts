@@ -8,6 +8,7 @@ import {
   pickMostStablePrettifiedLayout,
   PRETTIFY_GRID_SIZE,
   PRETTIFY_HORIZONTAL_SPACING,
+  TEST_ONLY_PRETTIFY_LAYOUT,
 } from '../../src/graph/prettify-layout';
 import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 import { STICKY_NOTE_WIDTH, getStickyNoteHeight } from '../../src/graph/sticky-note-geometry';
@@ -86,6 +87,26 @@ describe('computePrettifiedRoomPositions', () => {
     ] as const;
 
     expect(pickMostStablePrettifiedLayout(candidates, currentRoomPositions, {})).toEqual(candidates[1]);
+  });
+
+  it('falls back to the current layout when no stable candidate layouts repeat', () => {
+    const currentRoomPositions = {
+      'room-a': { x: 40, y: 80 },
+    };
+    const currentPseudoRoomPositions = {
+      'pseudo-a': { x: 140, y: 80 },
+    };
+    const currentStickyNotePositions = {
+      'note-a': { x: 220, y: 120 },
+    };
+
+    expect(
+      pickMostStablePrettifiedLayout([], currentRoomPositions, currentPseudoRoomPositions, currentStickyNotePositions),
+    ).toEqual({
+      roomPositions: currentRoomPositions,
+      pseudoRoomPositions: currentPseudoRoomPositions,
+      stickyNotePositions: currentStickyNotePositions,
+    });
   });
 
   it('returns no positions for an empty map', () => {
@@ -317,6 +338,20 @@ describe('computePrettifiedRoomPositions', () => {
     expect(positions[lockedRoom.id]).toEqual(lockedRoom.position);
     expect(positions[freeRoom.id]).not.toEqual(freeRoom.position);
     expect(positions[freeRoom.id].x).toBeGreaterThan(positions[lockedRoom.id].x);
+  });
+
+  it('keeps extra-locked rooms fixed while repositioning the rest of the component', () => {
+    let doc = createEmptyMap('Extra Locked');
+    const anchorRoom = { ...createRoom('Anchor'), position: { x: 480, y: 80 } };
+    const movingRoom = { ...createRoom('Moving'), position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, anchorRoom), movingRoom);
+    doc = addConnection(doc, createConnection(anchorRoom.id, movingRoom.id, true), 'east', 'west');
+
+    const positions = computePrettifiedRoomPositions(doc, new Set([anchorRoom.id]));
+
+    expect(positions[anchorRoom.id]).toEqual(anchorRoom.position);
+    expect(positions[movingRoom.id]).not.toEqual(movingRoom.position);
+    expect(positions[movingRoom.id].x).toBeGreaterThan(positions[anchorRoom.id].x);
   });
 
   it('does not drift when prettified repeatedly for disconnected overlapping rooms', () => {
@@ -666,5 +701,234 @@ describe('computePrettifiedRoomPositions', () => {
     const { stickyNotePositions } = computePrettifiedLayoutPositions(doc);
 
     expect(stickyNotePositions[stickyNoteA.id]).not.toEqual(stickyNotePositions[stickyNoteB.id]);
+  });
+
+  it('snaps an unlinked sticky note to the prettify grid even without any rooms', () => {
+    let doc = createEmptyMap('Sticky Only');
+    const stickyNote = { ...createStickyNote('Solo note'), position: { x: 33, y: 47 } };
+    doc = addStickyNote(doc, stickyNote);
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    const secondPassDoc: MapDocument = {
+      ...doc,
+      stickyNotes: {
+        ...doc.stickyNotes,
+        [stickyNote.id]: {
+          ...doc.stickyNotes[stickyNote.id],
+          position: firstPass.stickyNotePositions[stickyNote.id],
+        },
+      },
+    };
+    const secondPass = computePrettifiedLayoutPositions(secondPassDoc);
+
+    expect(firstPass.roomPositions).toEqual({});
+    expect(firstPass.pseudoRoomPositions).toEqual({});
+    expect(firstPass.stickyNotePositions[stickyNote.id]).toBeDefined();
+    expect(firstPass.stickyNotePositions[stickyNote.id]).not.toEqual(stickyNote.position);
+    expect(secondPass.stickyNotePositions).toEqual(firstPass.stickyNotePositions);
+  });
+
+  it('keeps extra-locked sticky notes fixed during prettify', () => {
+    let doc = createEmptyMap('Locked Note');
+    const room = { ...createRoom('Room'), position: { x: 200, y: 200 } };
+    const stickyNote = { ...createStickyNote('Pinned reminder'), position: { x: 620, y: 420 } };
+    doc = addRoom(doc, room);
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room.id));
+
+    const layout = computePrettifiedLayoutPositions(doc, new Set([stickyNote.id]));
+
+    expect(layout.stickyNotePositions[stickyNote.id]).toEqual(stickyNote.position);
+    expect(layout.roomPositions[room.id]).toBeDefined();
+  });
+
+  it('ignores sticky-note links whose targets are missing from the layout', () => {
+    let doc = createEmptyMap('Broken Sticky Note Link');
+    const room = { ...createRoom('Kitchen'), position: { x: 200, y: 200 } };
+    const stickyNote = { ...createStickyNote('Investigate'), position: { x: 15, y: 25 } };
+    doc = addRoom(doc, room);
+    doc = addStickyNote(doc, stickyNote);
+    doc = {
+      ...doc,
+      stickyNoteLinks: {
+        broken: {
+          ...createStickyNoteLink(stickyNote.id, room.id),
+          id: 'broken',
+          target: { kind: 'room', id: 'missing-room' },
+        },
+      },
+    };
+
+    const layout = computePrettifiedLayoutPositions(doc as MapDocument);
+
+    expect(layout.roomPositions[room.id]).toBeDefined();
+    expect(layout.stickyNotePositions[stickyNote.id]).toBeDefined();
+    expect(layout.stickyNotePositions[stickyNote.id]).not.toEqual(room.position);
+  });
+
+  it('covers exported prettify-layout helper branches directly', () => {
+    let doc = createEmptyMap('Helper Branches');
+    const alpha = { ...createRoom('Alpha'), id: 'alpha', position: { x: 0, y: 0 } };
+    const beta = { ...createRoom('Beta'), id: 'beta', position: { x: 0, y: 0 } };
+    const pseudo = { ...createPseudoRoom('unknown'), id: 'pseudo', position: { x: 160, y: 0 } };
+    const noteA = { ...createStickyNote('A'), id: 'note-a', position: { x: 0, y: 0 } };
+    const noteB = { ...createStickyNote('B'), id: 'note-b', position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, alpha), beta);
+    doc = addPseudoRoom(doc, pseudo);
+    doc = addStickyNote(addStickyNote(doc, noteA), noteB);
+    doc = addConnection(doc, createConnection(alpha.id, { kind: 'pseudo-room', id: pseudo.id }, false), 'east');
+    doc = addStickyNoteLink(doc, createStickyNoteLink(noteA.id, alpha.id));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(noteA.id, { kind: 'pseudo-room', id: pseudo.id }));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(noteB.id, alpha.id));
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.estimateRoomWidth(alpha, 'default')).toBeGreaterThan(0);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutRoom(doc, alpha.id)?.id).toBe(alpha.id);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutRoom(doc, pseudo.id)?.id).toBe(pseudo.id);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutRoom(doc, 'missing')).toBeNull();
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutPosition(doc, noteA.id)).toEqual(noteA.position);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutPosition(doc, 'missing')).toBeNull();
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutNodeDimensions(doc, 'missing', 'default')).toEqual({ width: 0, height: 0 });
+
+    const stickyConstraints = TEST_ONLY_PRETTIFY_LAYOUT.deriveStickyNoteConstraints(doc);
+    expect(stickyConstraints).toHaveLength(2);
+    expect(stickyConstraints[0]?.toRoomId).toBeDefined();
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, {})).toBe(false);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, { b: { x: 0, y: 0 } })).toBe(false);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, { a: { x: 20, y: 0 } })).toBe(false);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, { a: { x: 0, y: 0 } })).toBe(true);
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutMovementScore(
+      {
+        roomPositions: { gamma: { x: 10, y: 10 } },
+        pseudoRoomPositions: { delta: { x: 10, y: 10 } },
+        stickyNotePositions: { epsilon: { x: 10, y: 10 } },
+      },
+      {},
+      {},
+      {},
+    )).toBe(0);
+
+    const disconnectedSeeds = TEST_ONLY_PRETTIFY_LAYOUT.computeSeedPositions(['alpha', 'beta'], []);
+    expect(disconnectedSeeds.get('alpha')).toEqual({ x: 0, y: 0 });
+    expect(disconnectedSeeds.get('beta')).toEqual({ x: 0, y: 0 });
+
+    const missingCentroid = TEST_ONLY_PRETTIFY_LAYOUT.computePlacedCentroid(
+      ['alpha', 'missing'],
+      new Map([[alpha.id, alpha.position]]),
+      doc,
+    );
+    expect(Number.isFinite(missingCentroid.x)).toBe(true);
+    expect(Number.isFinite(missingCentroid.y)).toBe(true);
+
+    const overlappingPlaced = new Map<string, { x: number; y: number }>([
+      [alpha.id, { x: 0, y: 0 }],
+    ]);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.overlapsPlacedRooms(alpha.id, { x: 0, y: 0 }, overlappingPlaced, doc)).toBe(false);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.overlapsPlacedRooms(beta.id, { x: 0, y: 0 }, overlappingPlaced, doc)).toBe(true);
+
+    const noOpenPositionDoc = {
+      ...doc,
+      rooms: {
+        blocker1: { ...createRoom('Blocker 1'), id: 'blocker1', position: { x: -240, y: -240 } },
+        blocker2: { ...createRoom('Blocker 2'), id: 'blocker2', position: { x: -240, y: 0 } },
+        blocker3: { ...createRoom('Blocker 3'), id: 'blocker3', position: { x: -240, y: 240 } },
+        blocker4: { ...createRoom('Blocker 4'), id: 'blocker4', position: { x: 0, y: -240 } },
+        center: { ...createRoom('Center'), id: 'center', position: { x: 0, y: 0 } },
+        blocker5: { ...createRoom('Blocker 5'), id: 'blocker5', position: { x: 0, y: 240 } },
+        blocker6: { ...createRoom('Blocker 6'), id: 'blocker6', position: { x: 240, y: -240 } },
+        blocker7: { ...createRoom('Blocker 7'), id: 'blocker7', position: { x: 240, y: 0 } },
+        blocker8: { ...createRoom('Blocker 8'), id: 'blocker8', position: { x: 240, y: 240 } },
+      },
+      pseudoRooms: {},
+      stickyNotes: {},
+    };
+    const noOpenPlaced = new Map(
+      Object.entries(noOpenPositionDoc.rooms).map(([id, room]) => [id, room.position] as const),
+    );
+    const preferredBlocked = TEST_ONLY_PRETTIFY_LAYOUT.findNearestOpenPosition(
+      'center',
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      noOpenPlaced,
+      noOpenPositionDoc,
+    );
+    expect(preferredBlocked).toEqual({ x: 0, y: 0 });
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 0, y: 0 }, new Map([[alpha.id, alpha.position]]), doc)).toBe(true);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 20, y: 20 }, new Map(), doc)).toBe(false);
+
+    const translatableDoc = createEmptyMap('Translate');
+    const translateRoomA = { ...createRoom('A'), id: 'ta', position: { x: 0, y: 0 } };
+    const translateRoomB = { ...createRoom('B'), id: 'tb', position: { x: 400, y: 0 } };
+    const translatePlaced = new Map<string, { x: number; y: number }>([
+      [translateRoomA.id, translateRoomA.position],
+      [translateRoomB.id, translateRoomB.position],
+    ]);
+    const translateDoc = addRoom(addRoom(translatableDoc, translateRoomA), translateRoomB);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent([translateRoomA.id], { x: 20, y: 0 }, translatePlaced, translateDoc)).toBe(true);
+
+    const stickyBounds = TEST_ONLY_PRETTIFY_LAYOUT.getStickyNoteBounds(noteA, noteA.position);
+    expect(stickyBounds.left).toBe(noteA.position.x);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.getStickyNoteDimensions(noteA).width).toBe(STICKY_NOTE_WIDTH);
+    const stickyCenter = TEST_ONLY_PRETTIFY_LAYOUT.toStickyNoteCenter(noteA, noteA.position);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.toStickyNoteTopLeft(noteA, stickyCenter)).toEqual(noteA.position);
+    const roomBounds = TEST_ONLY_PRETTIFY_LAYOUT.getRoomBounds(alpha, alpha.position, 'default');
+    expect(roomBounds.left).toBe(alpha.position.x);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.intersectsWithGap(stickyBounds, roomBounds, 0)).toBe(true);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.intersectsWithGap(
+      { left: 0, top: 0, right: 10, bottom: 10 },
+      { left: 50, top: 50, right: 60, bottom: 60 },
+      0,
+    )).toBe(false);
+
+    const layoutPositions = {
+      [alpha.id]: alpha.position,
+      [pseudo.id]: pseudo.position,
+    };
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.overlapsRoomOrStickyNote(noteA.id, noteA.position, layoutPositions, new Map(), doc)).toBe(true);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.overlapsRoomOrStickyNote(noteA.id, { x: 600, y: 600 }, layoutPositions, new Map([[noteB.id, { x: 600, y: 600 }]]), doc)).toBe(true);
+
+    const nearestSticky = TEST_ONLY_PRETTIFY_LAYOUT.findNearestOpenStickyNotePosition(
+      noteA.id,
+      alpha.position,
+      noteA.position,
+      layoutPositions,
+      new Map([[noteB.id, noteB.position]]),
+      doc,
+    );
+    expect(nearestSticky).not.toEqual(alpha.position);
+
+    const preferredSticky = TEST_ONLY_PRETTIFY_LAYOUT.getPreferredStickyNotePosition(noteA.id, layoutPositions, doc);
+    expect(preferredSticky).not.toEqual(noteA.position);
+
+    const brokenStickyDoc = {
+      ...doc,
+      stickyNoteLinks: {
+        broken: { ...createStickyNoteLink(noteA.id, alpha.id), id: 'broken', target: { kind: 'room', id: 'missing' } },
+      },
+    };
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.buildStickyNoteLayoutConstraints(brokenStickyDoc as MapDocument, layoutPositions, [noteA.id])).toEqual([]);
+
+    const relaxedSticky = TEST_ONLY_PRETTIFY_LAYOUT.relaxStickyNotePositions(doc, layoutPositions, [noteA.id, noteB.id]);
+    expect(relaxedSticky.get(noteA.id)).toBeDefined();
+
+    const placedSticky = TEST_ONLY_PRETTIFY_LAYOUT.computePrettifiedStickyNotePositions(doc, { [alpha.id]: alpha.position }, { [pseudo.id]: pseudo.position });
+    expect(placedSticky[noteA.id]).toBeDefined();
+
+    const stableEmpty = TEST_ONLY_PRETTIFY_LAYOUT.computeStablePrettifiedPositions(
+      {
+        ...createEmptyMap('Stable Empty'),
+        rooms: {},
+        pseudoRooms: {},
+        stickyNotes: {},
+      },
+      new Set(),
+    );
+    expect(stableEmpty).toEqual({
+      roomPositions: {},
+      pseudoRoomPositions: {},
+      stickyNotePositions: {},
+    });
   });
 });

@@ -9,6 +9,7 @@ import {
   createKeywordSuggestions,
 } from './cli-suggestion-options';
 import {
+  hasCompletedRoomReferenceBeforeFragment,
   getRoomReferenceResolution,
   getRoomReferenceResolutionWithFallback,
   type RoomSlotSuggestionHelpers,
@@ -81,6 +82,13 @@ export function getParserBackedNotateResolution(
   doc: MapDocument | null,
   roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution {
+  if (
+    fragment.prefix.length === 0
+    && hasCompletedRoomReferenceBeforeFragment(input, fragment, doc, 1)
+  ) {
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['with']));
+  }
+
   if (fragment.tokenIndex === 1) {
     if (fragment.prefix.length === 0) {
       return suggestionResolution(

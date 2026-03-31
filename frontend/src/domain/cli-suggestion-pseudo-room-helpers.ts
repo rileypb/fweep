@@ -1,5 +1,6 @@
 import {
   getCanonicalDirectionToken,
+  mergeSuggestions,
   suggestionResolution,
 } from './cli-suggestion-grammar-helpers';
 import {
@@ -317,20 +318,24 @@ export function getPseudoRoomResolution(
 
   if (fragment.tokenIndex === 1 && getCanonicalDirectionToken(tokens[0] ?? null) !== null) {
     const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc, roomSlotSuggestionHelpers);
-    if (parserBackedPseudoRoomResolution !== null) {
-      return parserBackedPseudoRoomResolution;
-    }
-
-    return suggestionResolution(createKeywordSuggestions(prefix, ['of']));
+    const leadSuggestions = createKeywordSuggestions(prefix, ['of', 'is', 'goes', 'leads', 'lies']);
+    return suggestionResolution(
+      parserBackedPseudoRoomResolution === null
+        ? leadSuggestions
+        : mergeSuggestions(parserBackedPseudoRoomResolution.suggestions, leadSuggestions),
+    );
   }
 
   if (fragment.tokenIndex === 1 && (tokens[0] === 'above' || tokens[0] === 'below')) {
     const parserBackedPseudoRoomResolution = getParserBackedPseudoRoomResolution(input, fragment, doc, roomSlotSuggestionHelpers);
-    if (parserBackedPseudoRoomResolution !== null) {
-      return parserBackedPseudoRoomResolution;
-    }
-
-    return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+    const roomResolution = getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+    const leadSuggestions = createKeywordSuggestions(prefix, ['is', 'goes', 'leads', 'lies']);
+    const baseSuggestions = mergeSuggestions(roomResolution?.suggestions ?? [], leadSuggestions);
+    return suggestionResolution(
+      parserBackedPseudoRoomResolution === null
+        ? baseSuggestions
+        : mergeSuggestions(parserBackedPseudoRoomResolution.suggestions, baseSuggestions),
+    );
   }
 
   const isGenericPseudoLead = (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')

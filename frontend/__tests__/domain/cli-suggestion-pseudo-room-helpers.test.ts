@@ -59,7 +59,7 @@ describe('cli suggestion pseudo-room helpers', () => {
     };
 
     expect(getPseudoRoomResolution('north ', fragment, createEmptyMap('Test'), ['north'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['of']);
+      .toEqual(['of', 'is', 'goes', 'leads', 'lies']);
   });
 
   it('stays in the room slot while typing a pseudo-room target', () => {
@@ -237,7 +237,7 @@ describe('cli suggestion pseudo-room helpers', () => {
     };
 
     expect(getPseudoRoomResolution('above ', roomFragment, doc, ['above'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['<room>']);
+      .toEqual(['<room>', 'is', 'goes', 'leads', 'lies']);
     expect(getPseudoRoomResolution('above bedroom ', terminalFragment, doc, ['above', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
       .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });

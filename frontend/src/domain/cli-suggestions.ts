@@ -540,6 +540,7 @@ function getSuggestionsForCommandContext(
     && !isPseudoRoomLead(tokens)
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
+    && tokens[0] !== 'select'
     && tokens[0] !== 'delete'
     && tokens[0] !== 'd'
     && tokens[0] !== 'del'
@@ -584,6 +585,7 @@ function getSuggestionsForCommandContext(
     )
     && tokens[0] !== 'go'
     && tokens[0] !== 'show'
+    && tokens[0] !== 'select'
     && tokens[0] !== 's'
     && tokens[0] !== 'delete'
     && tokens[0] !== 'd'
@@ -614,6 +616,14 @@ function getSuggestionsForCommandContext(
   ) {
     const roomLeadResolution = getRoomLeadResolution(input, fragment, doc, tokens, lastToken, roomSlotSuggestionHelpers);
     if (roomLeadResolution !== null) {
+      const pseudoRoomResolution = getPseudoRoomResolution(input, fragment, doc, tokens, roomSlotSuggestionHelpers);
+      if (pseudoRoomResolution !== null) {
+        return {
+          ...roomLeadResolution,
+          suggestions: mergeSuggestions(roomLeadResolution.suggestions, pseudoRoomResolution.suggestions),
+        };
+      }
+
       return roomLeadResolution;
     }
   }
@@ -639,7 +649,11 @@ function getSuggestionsForCommandContext(
     return getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
   }
 
-  if (tokens[0] === 'show' || tokens[0] === 's') {
+  if (tokens[0] === 'show' || tokens[0] === 'select' || tokens[0] === 's') {
+    if (tokens[0] === 'select') {
+      return getRoomReferenceResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
+    }
+
     return getParserBackedSingleRoomCommandResolution(input, fragment, doc, 1, roomSlotSuggestionHelpers);
   }
 

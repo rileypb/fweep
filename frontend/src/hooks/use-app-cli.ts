@@ -21,6 +21,7 @@ import { isCliPronounReference, planCreateRoomFromCli, resolveRoomByCliReference
 import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument, type Room } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
 import { createSelectionSnapshot, type SelectionSnapshot } from '../state/editor-store-selection';
+import { applyCachedMapViewSession } from '../state/map-view-session-cache';
 import { saveMap } from '../storage/map-store';
 import { MAX_MAP_VIEWPORT_ZOOM, MIN_MAP_VIEWPORT_ZOOM } from '../components/use-map-viewport';
 
@@ -532,10 +533,11 @@ export function useAppCli({
 
   useLayoutEffect(() => {
     if (activeMap) {
+      const restoredActiveMap = applyCachedMapViewSession(activeMap);
       const cachedCliOutputLines = loadCachedCliOutputLines(activeMap.metadata.id);
-      const restoredCliOutputLines = cachedCliOutputLines !== null && cachedCliOutputLines.length > activeMap.cliOutputLines.length
+      const restoredCliOutputLines = cachedCliOutputLines !== null && cachedCliOutputLines.length > restoredActiveMap.cliOutputLines.length
         ? cachedCliOutputLines
-        : activeMap.cliOutputLines;
+        : restoredActiveMap.cliOutputLines;
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
       setHasUsedCliInput(hasPersistedCliUsage(restoredCliOutputLines));
@@ -546,11 +548,11 @@ export function useAppCli({
           ? [...restoredCliOutputLines]
           : [...DEFAULT_CLI_OUTPUT_LINES],
       );
-      loadDocument(activeMap);
+      loadDocument(restoredActiveMap);
 
-      if (restoredCliOutputLines !== activeMap.cliOutputLines) {
+      if (restoredCliOutputLines !== restoredActiveMap.cliOutputLines) {
         latestGameOutputLinesRef.current = restoredCliOutputLines;
-        queueSaveSnapshot(activeMap, restoredCliOutputLines);
+        queueSaveSnapshot(restoredActiveMap, restoredCliOutputLines);
       }
     } else {
       cliPronounRoomIdRef.current = null;
@@ -580,6 +582,20 @@ export function useAppCli({
     });
 
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      const currentDoc = latestStoreDocRef.current;
+      if (currentDoc !== null) {
+        queueSave(currentDoc);
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+    };
   }, []);
 
   useEffect(() => {
@@ -929,29 +945,51 @@ export function useAppCli({
     }
 
     if (command.kind === 'create-pseudo-room' && currentDoc !== null) {
-      const sourceRoomMatch = resolveRoomByCliReference(
-        currentDoc,
-        command.sourceRoom.text,
-        command.sourceRoom.exact,
-        currentPronounRoomId,
-      );
-      if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
-        return { ok: false, shouldSelectCliInput };
-      }
-      if (sourceRoomMatch.kind !== 'one') {
+      const sourceRoomId = (() => {
+        if (command.sourceRoom === null) {
+          if (liveEditorState.selectedRoomIds.length !== 1) {
+            appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to set an exit on.']);
+            return null;
+          }
+
+          const selectedRoomId = liveEditorState.selectedRoomIds[0];
+          if (!currentDoc.rooms[selectedRoomId]) {
+            appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to set an exit on.']);
+            return null;
+          }
+
+          return selectedRoomId;
+        }
+
+        const sourceRoomMatch = resolveRoomByCliReference(
+          currentDoc,
+          command.sourceRoom.text,
+          command.sourceRoom.exact,
+          currentPronounRoomId,
+        );
+        if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'connect', command.sourceRoom.text)) {
+          return null;
+        }
+        if (sourceRoomMatch.kind !== 'one') {
+          return null;
+        }
+
+        return sourceRoomMatch.room.id;
+      })();
+      if (sourceRoomId === null) {
         return { ok: false, shouldSelectCliInput };
       }
 
       setPseudoRoomExit(
-        sourceRoomMatch.room.id,
+        sourceRoomId,
         command.sourceDirection,
         command.pseudoKind,
         getCliHistoryOptions(liveEditorState),
       );
-      selectRoom(sourceRoomMatch.room.id);
-      setCliPronounRoomReference(sourceRoomMatch.room.id);
+      selectRoom(sourceRoomId);
+      setCliPronounRoomReference(sourceRoomId);
       setRequestedRoomRevealRequest({
-        roomId: sourceRoomMatch.room.id,
+        roomId: sourceRoomId,
         requestId: issueUiRequestId(),
       });
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
@@ -1191,7 +1229,16 @@ export function useAppCli({
             return null;
           }
 
-          return currentDoc.rooms[liveEditorState.selectedRoomIds[0]] ?? null;
+          const selectedRoom = currentDoc.rooms[liveEditorState.selectedRoomIds[0]];
+          if (!selectedRoom) {
+            appendGameOutput([
+              formatCliEcho(trimmedInput),
+              "You must select a room to annotate. Use the 'show' command to select a room.",
+            ]);
+            return null;
+          }
+
+          return selectedRoom;
         }
 
         const roomMatch = resolveRoomByCliReference(currentDoc, command.room.text, command.room.exact, currentPronounRoomId);

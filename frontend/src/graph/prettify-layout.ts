@@ -1454,3 +1454,31 @@ export function computePrettifiedLayoutPositions(
 ): PrettifiedLayoutPositions {
   return computeStablePrettifiedPositions(doc, extraLockedRoomIds);
 }
+
+export const TEST_ONLY_PRETTIFY_LAYOUT = {
+  estimateRoomWidth,
+  getLayoutRoom,
+  getLayoutPosition,
+  getLayoutNodeDimensions,
+  deriveStickyNoteConstraints,
+  positionsEqual,
+  getLayoutMovementScore,
+  computeSeedPositions,
+  computePlacedCentroid,
+  overlapsPlacedRooms,
+  findNearestOpenPosition,
+  canTranslateComponent,
+  getStickyNoteBounds,
+  getStickyNoteDimensions,
+  toStickyNoteCenter,
+  toStickyNoteTopLeft,
+  getRoomBounds,
+  intersectsWithGap,
+  overlapsRoomOrStickyNote,
+  findNearestOpenStickyNotePosition,
+  getPreferredStickyNotePosition,
+  buildStickyNoteLayoutConstraints,
+  relaxStickyNotePositions,
+  computePrettifiedStickyNotePositions,
+  computeStablePrettifiedPositions,
+} as const;
