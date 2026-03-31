@@ -121,7 +121,7 @@ describe('cli suggestion grammar', () => {
       'leads',
       'lies',
     ]);
-    expect(describeCliSuggestionGrammarSymbols('PSEUDO_IS')).toEqual(['unknown']);
+    expect(describeCliSuggestionGrammarSymbols('PSEUDO_IS')).toEqual(['unknown', '<room_ref>']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES')).toEqual(['on']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_GOES_ON')).toEqual(['forever']);
     expect(describeCliSuggestionGrammarSymbols('PSEUDO_LEADS')).toEqual(['nowhere', 'to somewhere else']);

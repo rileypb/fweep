@@ -22,6 +22,7 @@ import type { MapDocument } from './map-types';
 const unknownPseudoRoomSuggestions = ['is unknown'] as const;
 const pseudoWaySuggestionTexts = ['goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death'] as const;
 const pseudoRoomSuggestionTexts = ['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death'] as const;
+const genericPseudoTerminalSuggestions = ['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death'] as const;
 
 function getParserBackedPseudoRoomResolution(
   input: string,
@@ -82,6 +83,9 @@ function getParserBackedPseudoRoomResolution(
   );
   const hasUnknownKeyword = keywordEntries.some(
     (entry) => entry.symbol.text === 'unknown' && entry.sourceStateIds.includes('PSEUDO_IS'),
+  );
+  const hasPseudoIsRoomSlot = roomSlotEntries.some(
+    (entry) => entry.sourceStateIds.includes('PSEUDO_IS'),
   );
   const hasOnKeyword = keywordEntries.some(
     (entry) => entry.symbol.text === 'on' && entry.sourceStateIds.includes('PSEUDO_GOES'),
@@ -160,7 +164,7 @@ function getParserBackedPseudoRoomResolution(
       fragment,
       doc,
       roomSlotStartTokenIndex,
-      createKeywordSuggestions(fragment.prefix, pseudoRoomSuggestionTexts),
+      createKeywordSuggestions(fragment.prefix, genericPseudoTerminalSuggestions),
       roomSlotSuggestionHelpers,
     );
   }
@@ -174,7 +178,19 @@ function getParserBackedPseudoRoomResolution(
   }
 
   if (hasGenericPseudoTerminalKeyword) {
-    return suggestionResolution(createKeywordSuggestions(fragment.prefix, pseudoRoomSuggestionTexts));
+    return suggestionResolution(createKeywordSuggestions(fragment.prefix, genericPseudoTerminalSuggestions));
+  }
+
+  if (hasPseudoIsRoomSlot) {
+    const roomSlotStartTokenIndex = fragment.precedingTokens.findIndex((token) => token.value.toLowerCase() === 'is') + 1;
+    const roomResolution = getRoomReferenceResolution(input, fragment, doc, roomSlotStartTokenIndex, roomSlotSuggestionHelpers);
+    return {
+      ...roomResolution,
+      suggestions: mergeSuggestions(
+        mergeSuggestions(roomSlotSuggestionHelpers.createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+        createKeywordSuggestions(fragment.prefix, ['unknown']),
+      ),
+    };
   }
 
   if (hasUnknownKeyword) {
@@ -350,13 +366,37 @@ export function getPseudoRoomResolution(
 
   if (
     isGenericPseudoLead
+    && tokens.includes('is')
+    && !tokens.includes('goes')
+    && !tokens.includes('leads')
+    && !tokens.includes('lies')
+  ) {
+    const isIndex = tokens.indexOf('is');
+    const pseudoIsTail = tokens[isIndex + 1] ?? null;
+    if (pseudoIsTail === 'unknown' && fragment.tokenIndex > isIndex + 1 && fragment.prefix.length === 0) {
+      return suggestionResolution([]);
+    }
+    if (fragment.tokenIndex >= isIndex + 1) {
+      const roomResolution = getRoomReferenceResolution(input, fragment, doc, isIndex + 1, roomSlotSuggestionHelpers);
+      return {
+        ...roomResolution,
+        suggestions: mergeSuggestions(
+          mergeSuggestions(roomSlotSuggestionHelpers.createPlaceholderSuggestion('<room>'), roomResolution.suggestions),
+          createKeywordSuggestions(prefix, ['unknown']),
+        ),
+      };
+    }
+  }
+
+  if (
+    isGenericPseudoLead
     && !tokens.includes('is')
     && !tokens.includes('goes')
     && !tokens.includes('leads')
     && !tokens.includes('lies')
   ) {
     const ofIndex = tokens.indexOf('of');
-    const fallbackSuggestions = createKeywordSuggestions(prefix, pseudoRoomSuggestionTexts);
+    const fallbackSuggestions = createKeywordSuggestions(prefix, genericPseudoTerminalSuggestions);
 
     if (ofIndex !== -1 && fragment.tokenIndex >= ofIndex + 1) {
       return getRoomReferenceResolutionWithFallback(

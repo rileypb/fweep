@@ -34,6 +34,9 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('west of Bedroom is unknown')).toBe(
       'mark the west exit from Bedroom as unknown',
     );
+    expect(parseCliCommandDescription('west of Bedroom is Kitchen')).toBe(
+      'create a two-way connection from Bedroom going west to Kitchen going east',
+    );
     expect(parseCliCommandDescription('west is unknown')).toBe(
       'mark the west exit from the selected room as unknown',
     );
@@ -582,6 +585,22 @@ describe('parseCliCommand', () => {
       kind: 'selected-room-relative-connect',
       sourceDirection: 'down',
       targetRoom: { text: 'Cellar', exact: false },
+    });
+    expect(parseCliCommand('north of Bedroom is Kitchen')).toEqual({
+      kind: 'connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'north',
+      targetRoom: { text: 'Kitchen', exact: false },
+      targetDirection: 'south',
+      oneWay: false,
+    });
+    expect(parseCliCommand('above Bedroom is Attic')).toEqual({
+      kind: 'connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'up',
+      targetRoom: { text: 'Attic', exact: false },
+      targetDirection: 'down',
+      oneWay: false,
     });
   });
 

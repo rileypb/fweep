@@ -949,7 +949,7 @@ describe('cli suggestions', () => {
     ]);
     expect(verticalLeadPartialResult?.suggestions.map((suggestion) => suggestion.label)).toEqual(['goes']);
     expect(shorthandResult?.suggestions.map((suggestion) => suggestion.label)).toEqual([
-      'is unknown',
+      'is',
       'goes on forever',
       'leads nowhere',
       'leads to somewhere else',
@@ -964,7 +964,46 @@ describe('cli suggestions', () => {
 
     const result = getCliSuggestions('north of bedroom is ', 'north of bedroom is '.length, doc);
 
-    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(['unknown']);
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(expect.arrayContaining(['<room>', 'unknown']));
+  });
+
+  it('suggests room targets after generic pseudo-room is phrases', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 2, y: 0 } });
+
+    const result = getCliSuggestions('north of bedroom is Ki', 'north of bedroom is Ki'.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']),
+    );
+  });
+
+  it('offers bare is after generic pseudo-room phrases with multi-word room names', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Control Room'), position: { x: 0, y: 0 } });
+
+    const result = getCliSuggestions('north of Control Room ', 'north of Control Room '.length, doc);
+
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).toEqual(
+      expect.arrayContaining(['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']),
+    );
+    expect(result?.suggestions.map((suggestion) => suggestion.label)).not.toContain('is unknown');
+  });
+
+  it('suggests unknown and room targets after generic pseudo-room is with multi-word room names', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Control Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 2, y: 0 } });
+
+    expect(
+      getCliSuggestions('north of Control Room is ', 'north of Control Room is '.length, doc)?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<room>', 'unknown']));
+    expect(
+      getCliSuggestions('north of Control Room is Ki', 'north of Control Room is Ki'.length, doc)?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']));
   });
 
   it('closes suggestions after a completed pseudo-room terminal phrase', () => {

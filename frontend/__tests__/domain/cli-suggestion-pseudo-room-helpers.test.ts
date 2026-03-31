@@ -99,7 +99,60 @@ describe('cli suggestion pseudo-room helpers', () => {
     };
 
     expect(getPseudoRoomResolution('north of bedroom ', fragment, doc, ['north', 'of', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
+      .toEqual(['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
+  });
+
+  it('switches to bare is after a completed multi-word generic room reference', () => {
+    const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Control Room'), position: { x: 0, y: 0 } });
+    const fragment = {
+      start: 'north of Control Room '.length,
+      end: 'north of Control Room '.length,
+      caret: 'north of Control Room '.length,
+      prefix: '',
+      tokenIndex: 4,
+      precedingTokens: [
+        { value: 'north', start: 0, end: 5 },
+        { value: 'of', start: 6, end: 8 },
+        { value: 'Control', start: 9, end: 16 },
+        { value: 'Room', start: 17, end: 21 },
+      ],
+    };
+
+    expect(getPseudoRoomResolution('north of Control Room ', fragment, doc, ['north', 'of', 'control', 'room'], helpers)?.suggestions.map((suggestion) => suggestion.label))
+      .toEqual(['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
+  });
+
+  it('offers unknown and room targets after multi-word generic pseudo-room is', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Control Room'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 2, y: 0 } });
+
+    const emptyFragment = {
+      start: 'north of Control Room is '.length,
+      end: 'north of Control Room is '.length,
+      caret: 'north of Control Room is '.length,
+      prefix: '',
+      tokenIndex: 5,
+      precedingTokens: [
+        { value: 'north', start: 0, end: 5 },
+        { value: 'of', start: 6, end: 8 },
+        { value: 'Control', start: 9, end: 16 },
+        { value: 'Room', start: 17, end: 21 },
+        { value: 'is', start: 22, end: 24 },
+      ],
+    };
+    const typingFragment = {
+      ...emptyFragment,
+      end: 'north of Control Room is Ki'.length,
+      caret: 'north of Control Room is Ki'.length,
+      prefix: 'Ki',
+    };
+
+    expect(getPseudoRoomResolution('north of Control Room is ', emptyFragment, doc, ['north', 'of', 'control', 'room', 'is'], helpers)?.suggestions.map((suggestion) => suggestion.label))
+      .toEqual(expect.arrayContaining(['<room>', 'unknown']));
+    expect(getPseudoRoomResolution('north of Control Room is Ki', typingFragment, doc, ['north', 'of', 'control', 'room', 'is'], helpers)?.suggestions.map((suggestion) => suggestion.label))
+      .toEqual(expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']));
   });
 
   it('returns only unknown after the room room-reference completion', () => {
@@ -121,6 +174,38 @@ describe('cli suggestion pseudo-room helpers', () => {
 
     expect(getPseudoRoomResolution('the room north of bedroom ', fragment, doc, ['the', 'room', 'north', 'of', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
       .toEqual(['is unknown']);
+  });
+
+  it('offers room targets as well as unknown after generic pseudo-room is phrases', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen'), position: { x: 1, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Kitchen Annex'), position: { x: 2, y: 0 } });
+
+    const emptyFragment = {
+      start: 'north of bedroom is '.length,
+      end: 'north of bedroom is '.length,
+      caret: 'north of bedroom is '.length,
+      prefix: '',
+      tokenIndex: 4,
+      precedingTokens: [
+        { value: 'north', start: 0, end: 5 },
+        { value: 'of', start: 6, end: 8 },
+        { value: 'bedroom', start: 9, end: 16 },
+        { value: 'is', start: 17, end: 19 },
+      ],
+    };
+    const typingFragment = {
+      ...emptyFragment,
+      end: 'north of bedroom is Ki'.length,
+      caret: 'north of bedroom is Ki'.length,
+      prefix: 'Ki',
+    };
+
+    expect(getPseudoRoomResolution('north of bedroom is ', emptyFragment, doc, ['north', 'of', 'bedroom', 'is'], helpers)?.suggestions.map((suggestion) => suggestion.label))
+      .toEqual(expect.arrayContaining(['<room>', 'unknown']));
+    expect(getPseudoRoomResolution('north of bedroom is Ki', typingFragment, doc, ['north', 'of', 'bedroom', 'is'], helpers)?.suggestions.map((suggestion) => suggestion.label))
+      .toEqual(expect.arrayContaining(['<room>', 'Kitchen', 'Kitchen Annex']));
   });
 
   it('suggests room targets and of within the room-prefixed forms', () => {
@@ -239,14 +324,14 @@ describe('cli suggestion pseudo-room helpers', () => {
     expect(getPseudoRoomResolution('above ', roomFragment, doc, ['above'], helpers)?.suggestions.map((suggestion) => suggestion.label))
       .toEqual(['<room>', 'is', 'goes', 'leads', 'lies']);
     expect(getPseudoRoomResolution('above bedroom ', terminalFragment, doc, ['above', 'bedroom'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
+      .toEqual(['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']);
   });
 
   it('continues mid-phrase pseudo-room keywords', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
 
     const cases = [
-      ['north of bedroom is ', ['unknown']],
+      ['north of bedroom is ', ['<room>', 'unknown']],
       ['north of bedroom goes ', ['on']],
       ['north of bedroom goes on ', ['forever']],
       ['north of bedroom leads ', ['nowhere', 'to somewhere else']],
@@ -310,7 +395,7 @@ describe('cli suggestion pseudo-room helpers', () => {
         { value: 'nowhere', start: 9, end: 16 },
       ],
     }, doc, ['north', 'of', 'nowhere'], helpers)?.suggestions.map((suggestion) => suggestion.label))
-      .toEqual(expect.arrayContaining(['is unknown', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']));
+      .toEqual(expect.arrayContaining(['is', 'goes on forever', 'leads nowhere', 'leads to somewhere else', 'lies death']));
     expect(getPseudoRoomResolution('below ', genericVerticalFragment, doc, ['below'], helpers)?.suggestions.map((suggestion) => suggestion.label))
       .toEqual(expect.arrayContaining(['<room>']));
   });

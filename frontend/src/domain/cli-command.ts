@@ -84,8 +84,10 @@ export const CLI_COMMAND_FORMS = [
   '<direction>',
   'create/c <room name>',
   '<direction> of <room name> is unknown',
+  '<direction> of <room name> is <room name>',
   '<direction> is unknown',
   'above/below <room name> is unknown',
+  'above/below <room name> is <room name>',
   'above/below is unknown',
   'the room <direction> of <room name> is unknown',
   'the room above/below <room name> is unknown',
@@ -504,27 +506,56 @@ function parseSelectedRoomPseudoDirectionReference(
   return null;
 }
 
-function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-pseudo-room' }> | null {
-  const parseUnknown = (startIndex: number) => {
+function parsePseudoRoomCommand(
+  tokens: readonly Token[],
+): Extract<CliCommand, { kind: 'create-pseudo-room' | 'selected-room-relative-connect' | 'connect' }> | null {
+  const parseUnknownOrConnect = (startIndex: number) => {
     const directionReference = parseDirectionReference(tokens, startIndex)
       ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
       ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
-    if (
-      !isTokenValue(tokens[directionReference.nextIndex], 'is')
-      || !isTokenValue(tokens[directionReference.nextIndex + 1], 'unknown')
-      || directionReference.nextIndex + 2 !== tokens.length
-    ) {
+    if (!isTokenValue(tokens[directionReference.nextIndex], 'is')) {
       return null;
     }
 
+    if (
+      isTokenValue(tokens[directionReference.nextIndex + 1], 'unknown')
+      && directionReference.nextIndex + 2 === tokens.length
+    ) {
+      return {
+        kind: 'create-pseudo-room' as const,
+        pseudoKind: 'unknown' as const,
+        sourceRoom: directionReference.sourceRoom,
+        sourceDirection: directionReference.sourceDirection,
+      };
+    }
+
+    const targetRoom = readRoomName(tokens, directionReference.nextIndex + 1, () => false);
+    if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+      return null;
+    }
+
+    if (directionReference.sourceRoom === null) {
+      if (tokens.length === directionReference.nextIndex + 2 && parseRoomAdjective(tokens[directionReference.nextIndex + 1]) !== null) {
+        return null;
+      }
+
+      return {
+        kind: 'selected-room-relative-connect',
+        sourceDirection: directionReference.sourceDirection,
+        targetRoom: targetRoom.reference,
+      };
+    }
+
     return {
-      kind: 'create-pseudo-room' as const,
-      pseudoKind: 'unknown' as const,
+      kind: 'connect',
       sourceRoom: directionReference.sourceRoom,
       sourceDirection: directionReference.sourceDirection,
+      targetRoom: targetRoom.reference,
+      targetDirection: oppositeDirection(directionReference.sourceDirection),
+      oneWay: false,
     };
   };
 
@@ -624,14 +655,14 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
   };
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'room')) {
-    return parseUnknown(2);
+    return parseUnknownOrConnect(2);
   }
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'way')) {
     return parseInfinite(2) ?? parseDeath(2) ?? parseNowhere(2) ?? parseElsewhere(2);
   }
 
-  return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0) ?? parseElsewhere(0);
+  return parseUnknownOrConnect(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0) ?? parseElsewhere(0);
 }
 
 function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedConnectTail | null {

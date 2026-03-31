@@ -25,13 +25,15 @@ It is not a literal dump of the current implementation. It is a menu-oriented gr
 - `` => `create` | `connect` | `show` | `edit` | `arrange` | `help` | `north` | `south` | `east` | `west` | `<room>`
 - `<direction>` => `of`
 - `<direction> of` => `<room>`
-- `<direction> of <room>` => `matching room names` while the room reference is still incomplete; otherwise `is unknown` | `goes on forever` | `leads nowhere` | `lies death`
+- `<direction> of <room>` => `matching room names` while the room reference is still incomplete; otherwise `is` | `goes on forever` | `leads nowhere` | `lies death`
+- `<direction> of <room> is` => `unknown` | `<room>`
 - `<room>` => `is` | `to`
 - `<room> is` => `dark` | `lit`
 - `<room> to <room>` => `matching room names` while the target-room reference is still incomplete; otherwise `is`
 - `<room> to <room> is` => `door` | `locked door` | `clear`
 - `above` => `<room>`
-- `above <room>` => `matching room names` while the room reference is still incomplete; otherwise `is unknown` | `goes on forever` | `leads nowhere` | `lies death`
+- `above <room>` => `matching room names` while the room reference is still incomplete; otherwise `is` | `goes on forever` | `leads nowhere` | `lies death`
+- `above/below <room> is` => `unknown` | `<room>`
 - `annotate` => `<room>`
 - `annotate <room>` => `matching room names` while the room reference is still incomplete; otherwise `with`
 - `annotate <room> with` => no suggestions
