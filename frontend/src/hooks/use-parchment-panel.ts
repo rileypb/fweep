@@ -26,6 +26,8 @@ import {
 interface UseParchmentPanelOptions {
   readonly activeMapId: string | null;
   readonly associatedGame: AssociatedGameMetadata | null;
+  readonly defaultStoryUrlForNewMap?: string | null;
+  readonly shouldLoadDefaultStoryForActiveMap?: boolean;
   readonly setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
   readonly parchmentDeviceInputRef: React.RefObject<HTMLInputElement | null>;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -64,6 +66,8 @@ interface UseParchmentPanelResult {
 export function useParchmentPanel({
   activeMapId,
   associatedGame,
+  defaultStoryUrlForNewMap = null,
+  shouldLoadDefaultStoryForActiveMap = false,
   setAssociatedGameMetadata,
   parchmentDeviceInputRef,
   parchmentIframeRef,
@@ -302,6 +306,20 @@ export function useParchmentPanel({
       return;
     }
 
+    if (
+      hasSwitchedMaps
+      && shouldLoadDefaultStoryForActiveMap
+      && associatedGame === null
+      && defaultStoryUrlForNewMap !== null
+    ) {
+      resetChooserState();
+      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+      setIsParchmentGameViewVisible(true);
+      setIsParchmentChooserForcedVisible(false);
+      setPendingLocalFile(null);
+      return;
+    }
+
     if (hasSwitchedMaps) {
       resetChooserState();
       setParchmentSrc(buildParchmentSrc(null));
@@ -313,9 +331,12 @@ export function useParchmentPanel({
     activeMapId,
     associatedGame?.sourceType,
     associatedGame?.storyUrl,
+    associatedGame,
+    defaultStoryUrlForNewMap,
     isParchmentChooserForcedVisible,
     isParchmentGameViewVisible,
     resetChooserState,
+    shouldLoadDefaultStoryForActiveMap,
   ]);
 
   const handleOpenParchmentFileChooser = useCallback((): void => {

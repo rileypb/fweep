@@ -25,6 +25,7 @@ import { useParchmentPanel } from './hooks/use-parchment-panel';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
 import {
+  DEFAULT_NEW_MAP_PARCHMENT_STORY_URL,
   buildParchmentSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
@@ -256,6 +257,7 @@ function appendCliOutputToParchmentTranscript(
 
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
+  const [defaultParchmentMapId, setDefaultParchmentMapId] = useState<string | null>(null);
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
   const showGridEnabled = useEditorStore((s) => s.showGridEnabled);
@@ -314,6 +316,8 @@ export function App(): React.JSX.Element {
   } = useParchmentPanel({
     activeMapId: activeMap?.metadata.id ?? null,
     associatedGame,
+    defaultStoryUrlForNewMap: DEFAULT_NEW_MAP_PARCHMENT_STORY_URL,
+    shouldLoadDefaultStoryForActiveMap: (activeMap?.metadata.id ?? null) === defaultParchmentMapId,
     setAssociatedGameMetadata,
     parchmentDeviceInputRef,
     parchmentIframeRef,
@@ -634,7 +638,7 @@ export function App(): React.JSX.Element {
     };
   }, []);
 
-  const handleMapSelected = useCallback(async (doc: Parameters<typeof openMap>[0], _reason: 'create' | 'open' | 'import') => {
+  const handleMapSelected = useCallback(async (doc: Parameters<typeof openMap>[0], reason: 'create' | 'open' | 'import') => {
     await flushDocumentSave();
 
     if (!hasSeenWelcomeDialog()) {
@@ -643,6 +647,7 @@ export function App(): React.JSX.Element {
       setPendingWelcomeMapId(null);
     }
 
+    setDefaultParchmentMapId(reason === 'create' ? doc.metadata.id : null);
     openMap(doc);
   }, [flushDocumentSave, openMap]);
 
@@ -652,6 +657,7 @@ export function App(): React.JSX.Element {
     }
 
     await flushDocumentSave();
+    setDefaultParchmentMapId(null);
     closeMap();
   }, [closeMap, flushDocumentSave, shouldWarnAboutLeavingActiveGame]);
 

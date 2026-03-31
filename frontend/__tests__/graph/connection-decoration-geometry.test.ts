@@ -2,7 +2,9 @@ import { describe, expect, it } from '@jest/globals';
 import {
   getDirectionalAnnotationRenderIntent,
   getDirectionalAnnotationReverseDirection,
+  getRoomPassThroughBounds,
 } from '../../src/graph/connection-decoration-geometry';
+import type { Room } from '../../src/domain/map-types';
 import type { ConnectionRenderGeometry } from '../../src/graph/connection-geometry';
 
 const verticalBezierGeometry: ConnectionRenderGeometry = {
@@ -13,7 +15,31 @@ const verticalBezierGeometry: ConnectionRenderGeometry = {
   end: { x: 0, y: 120 },
 };
 
+const baseRoom: Room = {
+  id: 'room-1',
+  name: 'Room',
+  description: '',
+  position: { x: 100, y: 200 },
+  directions: {},
+  isDark: false,
+  locked: false,
+  shape: 'rectangle',
+  fillColorIndex: 0,
+  strokeColorIndex: 0,
+  strokeStyle: 'solid',
+};
+
 describe('connection decoration geometry', () => {
+  it('expands room pass-through bounds by the requested padding', () => {
+    const unpaddedBounds = getRoomPassThroughBounds(baseRoom, 'default', 0);
+    const paddedBounds = getRoomPassThroughBounds(baseRoom, 'default', 3);
+
+    expect(paddedBounds.left).toBe(unpaddedBounds.left - 3);
+    expect(paddedBounds.top).toBe(unpaddedBounds.top - 3);
+    expect(paddedBounds.right).toBe(unpaddedBounds.right + 3);
+    expect(paddedBounds.bottom).toBe(unpaddedBounds.bottom + 3);
+  });
+
   it('prefers semantic reverse direction for vertical annotations when only the target is up', () => {
     expect(getDirectionalAnnotationReverseDirection('up', null, 'up')).toBe(true);
   });

@@ -509,7 +509,9 @@ function parseSelectedRoomPseudoDirectionReference(
 function parsePseudoRoomCommand(
   tokens: readonly Token[],
 ): Extract<CliCommand, { kind: 'create-pseudo-room' | 'selected-room-relative-connect' | 'connect' }> | null {
-  const parseUnknownOrConnect = (startIndex: number) => {
+  const parseUnknownOrConnect = (
+    startIndex: number,
+  ): Extract<CliCommand, { kind: 'create-pseudo-room' | 'selected-room-relative-connect' | 'connect' }> | null => {
     const directionReference = parseDirectionReference(tokens, startIndex)
       ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
       ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
@@ -554,7 +556,7 @@ function parsePseudoRoomCommand(
       sourceRoom: directionReference.sourceRoom,
       sourceDirection: directionReference.sourceDirection,
       targetRoom: targetRoom.reference,
-      targetDirection: oppositeDirection(directionReference.sourceDirection),
+      targetDirection: oppositeDirection(directionReference.sourceDirection) ?? null,
       oneWay: false,
     };
   };

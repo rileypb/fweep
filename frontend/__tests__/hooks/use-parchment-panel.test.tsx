@@ -51,6 +51,8 @@ function createPointerEvent(type: string, pointerId: number, coords: { clientX?:
 function createOptions(overrides?: Partial<{
   activeMapId: string | null;
   associatedGame: AssociatedGameMetadata | null;
+  defaultStoryUrlForNewMap: string | null;
+  shouldLoadDefaultStoryForActiveMap: boolean;
   setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
   heightTopInsetPx: number;
   heightBottomInsetPx: number;
@@ -59,6 +61,8 @@ function createOptions(overrides?: Partial<{
   return {
     activeMapId: 'map-1',
     associatedGame: null,
+    defaultStoryUrlForNewMap: null,
+    shouldLoadDefaultStoryForActiveMap: false,
     setAssociatedGameMetadata: jest.fn<(associatedGame: AssociatedGameMetadata | null) => void>(),
     heightTopInsetPx: 16,
     heightBottomInsetPx: 16,
@@ -248,6 +252,36 @@ describe('useParchmentPanel', () => {
     }));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
     expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+  });
+
+  it('loads the bundled default story for a newly created map without associated game metadata', async () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-new',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: true,
+    })));
+
+    await waitFor(() => {
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    });
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
+  it('does not load the bundled default story for existing maps unless requested', () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-existing',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.isParchmentGameViewVisible).toBe(false);
   });
 
   it('opens the device chooser and loads a local file when parchment is ready', async () => {

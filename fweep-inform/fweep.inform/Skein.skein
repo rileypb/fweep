@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+
+<Skein rootNode="node-1002">
+    <generator>Inform Mac Client (Inform version 1.82/6.41/10.1.2)</generator>
+    <item nodeId="node-1002">
+        <command xml:space="preserve">fweep</command>
+        <result xml:space="preserve">
+
+
+
+fweep
+A map creator by Phil Riley
+Release 1 / Serial number 260331 / Inform 7 v10.1.2 / D
+
+Bat Cave
+West of here is the Glass Maze.
+
+You can see a fweep instruction book here.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1005"></child>
+            <child nodeId="node-1010"></child>
+        </children>
+    </item>
+    <item nodeId="node-1010">
+        <command xml:space="preserve">read. book</command>
+        <result xml:space="preserve">You can't see any such thing.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1011"></child>
+        </children>
+    </item>
+    <item nodeId="node-1011">
+        <command xml:space="preserve">read book</command>
+        <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
+
+fweep has an interactive visual editor, but it's meant to be primarily used through the keyboard, in the same window in which you're playing a game. You may play the game normally, or input mapping commands by prefixing them with "\". Here, let's try one: enter "\create Bat Cave".
+
+Poof! Now there's a room called Bat Cave on your map! Now, assuming you're still hanging around in the Bat Cave, go west. Here's another room you'll probably want to put on your map. So type "\west of bat cave is Glass Maze", et voilà, you have a second room connected to the first.
+
+That's all the basic stuff you need to know, but here's a few handy extras:
+
+* Typing Ctrl+Space while in \ mode brings up auto-suggestions.
+ * "\undo" is exactly what it sounds like
+ * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, "\north of kitchen is unknown" to mark that on the map.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+    <item nodeId="node-1005">
+        <command xml:space="preserve">read book</command>
+        <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
+
+fweep has an interactive visual editor, but it's meant to be primarily used through the keyboard, in the same window in which you're playing a game. You may play the game normally, or input mapping commands by prefixing them with "\". Here, let's try one: enter "\create Bat Cave".
+
+Poof! Now there's a room called Bat Cave on your map! Now, assuming you're still hanging around in the Bat Cave, go west. Here's another room you'll probably want to put on your map. So type "\west of bat cave is Glass Maze", et voilà, you have a second room connected to the first.
+
+That's all the basic stuff you need to know, but here's a few handy extras:
+
+* Typing Ctrl+Space while in \ mode brings up auto-suggestions.
+ * "\undo" is exactly what it sounds like
+ * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, "\north of kitchen is unknown" to mark that on the map.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1013"></child>
+        </children>
+    </item>
+    <item nodeId="node-1013">
+        <command xml:space="preserve">w</command>
+        <result xml:space="preserve">
+Glass Maze
+East of here is the Bat Cave.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+</Skein>
