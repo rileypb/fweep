@@ -22,7 +22,8 @@ Instead of examining the fweep instruction book:
 	
 	* Typing Ctrl+Space while in \ mode brings up auto-suggestions.[line break]
 * '\undo' is exactly what it sounds like.[line break]
-* if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, '\north of kitchen is unknown' to mark that on the map."
+* if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, '\north of kitchen is unknown' to mark that on the map.[line break]
+* or, of course, you could type '\help'."
 	
 	
 Glass Maze is west of Bat Cave. "East of here is the Bat Cave."

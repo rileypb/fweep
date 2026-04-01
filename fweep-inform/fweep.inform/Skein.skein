@@ -60,8 +60,8 @@ Poof! Now there's a room called Bat Cave on your map! Now, assuming you're still
 That's all the basic stuff you need to know, but here's a few handy extras:
 
 * Typing Ctrl+Space while in \ mode brings up auto-suggestions.
- * "\undo" is exactly what it sounds like
- * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, "\north of kitchen is unknown" to mark that on the map.
+ * "\undo" is exactly what it sounds like.
+ * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, "\north of kitchen is unknown" to mark that on the map. * or, of course, you could type "\help".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
