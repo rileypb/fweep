@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import cliHelpOutlineMarkdown from '../content/cli-help-outline.md?raw';
+import { HelpImageScriptRunner } from './help-image-script-runner';
 
 const HELP_IMAGE_URLS: Readonly<Record<string, string>> = {
   'blank.png': new URL('../content/images/blank.png', import.meta.url).href,
@@ -271,6 +272,7 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
               />
             ))}
           </ul>
+          <HelpImageScriptRunner />
         </section>
         <section className="cli-help-panel__section cli-help-panel__section--images" aria-label="Help image panel">
           {selectedImageNode && fromImageUrl && toImageUrl ? (

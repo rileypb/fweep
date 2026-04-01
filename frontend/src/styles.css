@@ -576,6 +576,9 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .cli-help-panel__section--tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
@@ -593,6 +596,9 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .cli-help-panel__tree-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -726,6 +732,84 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   font-size: 0.84rem;
   line-height: 1.45;
   opacity: 0.68;
+}
+
+.cli-help-panel__script-runner {
+  flex: 0 0 auto;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.cli-help-panel__script-runner-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.cli-help-panel__script-runner-copy {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  opacity: 0.82;
+}
+
+.cli-help-panel__script-runner-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.cli-help-panel__script-button {
+  flex: 1 1 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 0.7rem;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cli-help-panel__script-button--primary {
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.cli-help-panel__script-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.cli-help-panel__script-status,
+.cli-help-panel__script-error {
+  margin: 0.45rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.cli-help-panel__script-error {
+  color: #b91c1c;
+}
+
+:root[data-theme='dark'] .cli-help-panel__script-runner {
+  border-top-color: rgba(148, 163, 184, 0.16);
+}
+
+:root[data-theme='dark'] .cli-help-panel__script-button {
+  border-color: rgba(147, 197, 253, 0.28);
+  background: rgba(59, 130, 246, 0.12);
+  color: #bfdbfe;
+}
+
+:root[data-theme='dark'] .cli-help-panel__script-button--primary {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+:root[data-theme='dark'] .cli-help-panel__script-error {
+  color: #fca5a5;
 }
 
 .welcome-overlay {
