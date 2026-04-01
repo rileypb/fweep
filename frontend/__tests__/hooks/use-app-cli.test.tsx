@@ -756,6 +756,30 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Created and connected.');
   });
 
+  it('creates missing rooms for explicit-source relative connect commands', async () => {
+    let doc = createEmptyMap('Explicit Relative Connect Map');
+    const foyer = { ...createRoom('Foo'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, foyer);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('below foo is bar', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('bar');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+
+    act(() => {
+      result.current.submitCliCommandText('north of foo is baz', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('baz');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
   it('reports connection annotation errors when no connection exists', async () => {
     let doc = createEmptyMap('Annotation Error Map');
     const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };

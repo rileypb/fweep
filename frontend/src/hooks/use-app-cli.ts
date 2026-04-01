@@ -1116,14 +1116,37 @@ export function useAppCli({
     }
 
     if (command.kind === 'selected-room-relative-connect' && currentDoc !== null) {
-      if (liveEditorState.selectedRoomIds.length !== 1) {
-        appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to connect from.']);
-        return { ok: false, shouldSelectCliInput };
-      }
+      const sourceRoom = (() => {
+        if (command.sourceRoom !== null) {
+          const sourceRoomMatch = resolveRoomByCliReference(
+            currentDoc,
+            command.sourceRoom.text,
+            command.sourceRoom.exact,
+            currentPronounRoomId,
+          );
+          if (reportRoomReferenceError(trimmedInput, sourceRoomMatch, 'selected-room-relative-connect', command.sourceRoom.text)) {
+            return null;
+          }
+          if (sourceRoomMatch.kind !== 'one') {
+            return null;
+          }
+          return sourceRoomMatch.room;
+        }
 
-      const sourceRoom = currentDoc.rooms[liveEditorState.selectedRoomIds[0]];
-      if (!sourceRoom) {
-        appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to connect from.']);
+        if (liveEditorState.selectedRoomIds.length !== 1) {
+          appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to connect from.']);
+          return null;
+        }
+
+        const selectedSourceRoom = currentDoc.rooms[liveEditorState.selectedRoomIds[0]];
+        if (!selectedSourceRoom) {
+          appendGameOutput([formatCliEcho(trimmedInput), 'Select exactly one room to connect from.']);
+          return null;
+        }
+
+        return selectedSourceRoom;
+      })();
+      if (sourceRoom === null) {
         return { ok: false, shouldSelectCliInput };
       }
 

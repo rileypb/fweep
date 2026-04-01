@@ -42,7 +42,7 @@ describe('parseCliCommandDescription', () => {
       'mark the west exit from Bedroom as unknown',
     );
     expect(parseCliCommandDescription('west of Bedroom is Kitchen')).toBe(
-      'create a two-way connection from Bedroom going west to Kitchen going east',
+      'connect Bedroom going west to Kitchen, creating it if needed',
     );
     expect(parseCliCommandDescription('west is unknown')).toBe(
       'mark the west exit from the selected room as unknown',
@@ -156,6 +156,12 @@ describe('parseCliCommandDescription', () => {
     );
     expect(parseCliCommandDescription('above is Attic')).toBe(
       'connect the selected room going up to Attic, creating it if needed',
+    );
+    expect(parseCliCommandDescription('north of Bedroom is Kitchen')).toBe(
+      'connect Bedroom going north to Kitchen, creating it if needed',
+    );
+    expect(parseCliCommandDescription('below Bedroom is Cellar')).toBe(
+      'connect Bedroom going down to Cellar, creating it if needed',
     );
   });
 
@@ -584,30 +590,28 @@ describe('parseCliCommand', () => {
   it('parses selected-room relative connect commands', () => {
     expect(parseCliCommand('north is Kitchen')).toEqual({
       kind: 'selected-room-relative-connect',
+      sourceRoom: null,
       sourceDirection: 'north',
       targetRoom: { text: 'Kitchen', exact: false },
     });
 
     expect(parseCliCommand('below is Cellar')).toEqual({
       kind: 'selected-room-relative-connect',
+      sourceRoom: null,
       sourceDirection: 'down',
       targetRoom: { text: 'Cellar', exact: false },
     });
     expect(parseCliCommand('north of Bedroom is Kitchen')).toEqual({
-      kind: 'connect',
+      kind: 'selected-room-relative-connect',
       sourceRoom: { text: 'Bedroom', exact: false },
       sourceDirection: 'north',
       targetRoom: { text: 'Kitchen', exact: false },
-      targetDirection: 'south',
-      oneWay: false,
     });
     expect(parseCliCommand('above Bedroom is Attic')).toEqual({
-      kind: 'connect',
+      kind: 'selected-room-relative-connect',
       sourceRoom: { text: 'Bedroom', exact: false },
       sourceDirection: 'up',
       targetRoom: { text: 'Attic', exact: false },
-      targetDirection: 'down',
-      oneWay: false,
     });
   });
 

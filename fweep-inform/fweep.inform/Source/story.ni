@@ -25,7 +25,7 @@ Instead of examining the fweep instruction book:
 * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, '\north of kitchen is unknown' to mark that on the map.[line break]
 * or, of course, you could type '\help'.
 
-Now go ahead and type '\choose a game'!r"
+Now go ahead and type '\choose a game'!"
 	
 	
 Glass Maze is west of Bat Cave. "East of here is the Bat Cave."

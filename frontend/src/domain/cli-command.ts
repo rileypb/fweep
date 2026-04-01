@@ -41,6 +41,7 @@ export type CliCommand =
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | {
     readonly kind: 'selected-room-relative-connect';
+    readonly sourceRoom: CliRoomReference | null;
     readonly sourceDirection: string;
     readonly targetRoom: CliRoomReference;
   }
@@ -549,18 +550,17 @@ function parsePseudoRoomCommand(
 
       return {
         kind: 'selected-room-relative-connect',
+        sourceRoom: null,
         sourceDirection: directionReference.sourceDirection,
         targetRoom: targetRoom.reference,
       };
     }
 
     return {
-      kind: 'connect',
+      kind: 'selected-room-relative-connect',
       sourceRoom: directionReference.sourceRoom,
       sourceDirection: directionReference.sourceDirection,
       targetRoom: targetRoom.reference,
-      targetDirection: oppositeDirection(directionReference.sourceDirection) ?? null,
-      oneWay: false,
     };
   };
 
@@ -1074,6 +1074,7 @@ function parseSelectedRoomRelativeConnectCommand(
 
   return {
     kind: 'selected-room-relative-connect',
+    sourceRoom: null,
     sourceDirection: isTokenValue(directionToken, 'above')
       ? 'up'
       : isTokenValue(directionToken, 'below')
@@ -1424,7 +1425,9 @@ function describeCliCommand(command: CliCommand): string {
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
     case 'selected-room-relative-connect':
-      return `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
+      return command.sourceRoom === null
+        ? `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
+        : `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
     case 'set-connection-annotation':
       if (command.annotation === 'door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;
