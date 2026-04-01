@@ -47,7 +47,6 @@
 ## Keyboard
 
 - `/`: focus the CLI input.
-- `Ctrl+/` or `Cmd+/`: switch keyboard focus between the interactive fiction game and the mapper.
 - `Delete` / `Backspace`: delete the current mixed selection.
 - `Enter`: open the room editor when exactly one room is selected.
 - `Enter`: open the connection editor when exactly one connection is selected.
