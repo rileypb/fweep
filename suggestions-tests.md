@@ -58,7 +58,7 @@ For each step below:
 
 1. With an empty CLI input, confirm the menu includes:
    `create`, `connect`, `disconnect`, `describe`, `go`, `show`, `edit`, `delete`, `annotate`, `arrange`, `help`, `put`, `take`, `zoom`, `undo`, `redo`, `above`, `below`, `the`, `<direction>`, `<room>`.
-   result: "zoom" is moved to after "the", "create and connect" is added before `<direction>`
+   result: `zoom` is moved to after `the`, `create and connect` is added before `<direction>`
 2. Type `c` and confirm command suggestions include `create` and `connect`.
 3. Type `dr` and confirm `drop` is suggested.
 4. Type `t` and confirm `the` is suggested.
