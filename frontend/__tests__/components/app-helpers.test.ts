@@ -150,6 +150,12 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("recordSharedCommandHistoryEntry(command)");
     expect(parchmentHtml).toContain("suppressNextNativeLineHistoryRecord = true");
     expect(parchmentHtml).toContain("cliSuggestionsEnabled = true");
+    expect(parchmentHtml).toContain("function shouldReserveArrowKeysForCliSuggestions(lineInput)");
+    expect(parchmentHtml).toContain("var preferredMenuHeight = 288;");
+    expect(parchmentHtml).toContain("var shouldPlaceBelow = availableBelow >= preferredMenuHeight || availableBelow >= availableAbove;");
+    expect(parchmentHtml).toContain("var currentLineInput = isLineInput(event.target) ? event.target : getCurrentLineInput();");
+    expect(parchmentHtml).toContain("if (shouldReserveArrowKeysForCliSuggestions(currentLineInput))");
+    expect(parchmentHtml).toContain("requestCliSuggestions(currentLineInput);");
     expect(parchmentHtml).toContain("event.key === ' '");
     expect(parchmentHtml).toContain("event.code === 'Space'");
     expect(parchmentHtml).toContain("submitCharacterCommand(charInput, ' ')");

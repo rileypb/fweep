@@ -40,7 +40,69 @@ Etched in the ceiling is the inscription "\above is unknown".
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
         <children><child nodeId="node-1021"></child>
+            <child nodeId="node-1054"></child>
         </children>
+    </item>
+    <item nodeId="node-1054">
+        <command xml:space="preserve">up</command>
+        <result xml:space="preserve">
+Darkness
+It is pitch dark, and you can't see a thing.
+A hollow voice says "frotz".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1055"></child>
+        </children>
+    </item>
+    <item nodeId="node-1055">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Behold! Now the room is lit!
+
+Dark Corner
+Now that it's light, you see that this room is little more than a nook at the top of a narrow stair. It looks like you can just squeeze through a tight crack to the north.
+
+Smoky tendrils float through the room. You can just make out a message in them: "\above Glass Maze is Dark Corner, which is dark"
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1056"></child>
+        </children>
+    </item>
+    <item nodeId="node-1056">
+        <command xml:space="preserve">n</command>
+        <result xml:space="preserve">
+Treasure Room
+The brillliance of this room is staggering, the light reflecting from a million coins and refracting through a thousand jewels. But you are not here for wealth, you are here for wisdom.
+
+A narrow crack leads south.
+
+You can see a jewel-encrusted book here.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1057"></child>
+        </children>
+    </item>
+    <item nodeId="node-1057">
+        <command xml:space="preserve">read book</command>
+        <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
+
+fweep has an interactive visual editor, but it's meant to be primarily used through the keyboard, in the same window in which you're playing a game. You may play the game normally, or input mapping commands by prefixing them with "\".
+
+Now enter "\put fweep instruction book in Dark Corner".
+
+Here are some extra tips:
+
+* Typing Ctrl+Space while in \ mode brings up auto-suggestions.
+ * "\undo" is exactly what it sounds like.
+ * if you want to record directions you could go on the map but haven't had time to yet, you can use, for instance, "\north of kitchen is unknown" to mark that on the map.
+ * or, of course, you could type "\help".
+
+Now go ahead and type "\choose a game"!
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
     </item>
     <item nodeId="node-1021">
         <command xml:space="preserve">u</command>
@@ -124,15 +186,14 @@ You can see a fweep instruction book here.
         <result xml:space="preserve">Behold! Now the room is lit!
 
 Dark Corner
-Now that it's light, you see that this room is little more than a nook at the top of a narrow stair. It looks like you  can just squeeze through a tight crack to the north.
+Now that it's light, you see that this room is little more than a nook at the top of a narrow stair. It looks like you can just squeeze through a tight crack to the north.
 
-The 
-
-You can see a fweep instruction book here.
+Smoky tendrils float through the room. You can just make out a message in them: "\above Glass Maze is Dark Corner, which is dark"
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
         <children><child nodeId="node-1047"></child>
+            <child nodeId="node-1061"></child>
             <child nodeId="node-1028"></child>
         </children>
     </item>
@@ -170,6 +231,51 @@ You can see a fweep instruction book here.
 It is pitch dark, and you can't see a thing.
 
 A hollow voice says "frotz".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+    <item nodeId="node-1061">
+        <command xml:space="preserve">u</command>
+        <result xml:space="preserve">You can't go that way.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1062"></child>
+        </children>
+    </item>
+    <item nodeId="node-1062">
+        <command xml:space="preserve">n</command>
+        <result xml:space="preserve">
+Treasure Room
+The brillliance of this room is staggering, the light reflecting from a million coins and refracting through a thousand jewels. But you are not here for wealth, you are here for wisdom.
+
+A choir of a hundred angels sings "\create Treasure Room north of Dark Corner".
+
+A narrow crack leads south.
+
+You can see a jewel-encrusted book here.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1063"></child>
+        </children>
+    </item>
+    <item nodeId="node-1063">
+        <command xml:space="preserve">read book</command>
+        <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
+
+fweep has an interactive visual editor, but it's meant to be primarily used through the keyboard, in the same window in which you're playing a game. You may play the game normally, or input mapping commands by prefixing them with "\".
+
+Now enter "\put fweep instruction book in Treasure Room".
+
+Here are some extra tips:
+
+* Typing Ctrl+Space while in \ mode brings up auto-suggestions.
+ * "\undo" is exactly what it sounds like.
+ * or, of course, you could type "\help".
+
+Now go ahead and type "\choose a game"!
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
