@@ -10,18 +10,200 @@
 
 fweep
 A map creator by Phil Riley
-Release 1 / Serial number 260331 / Inform 7 v10.1.2 / D
+Release 1 / Serial number 260401 / Inform 7 v10.1.2 / D
 
 Bat Cave
-West of here is the Glass Maze.
+A dark passage leads west.
+
+On the north wall is a sign saying "enter '\create Bat Cave'".
+
+On the west wall is a sign saying "enter '\west is unknown'"
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1018"></child>
+            <child nodeId="node-1005"></child>
+            <child nodeId="node-1010"></child>
+            <child nodeId="node-1020"></child>
+        </children>
+    </item>
+    <item nodeId="node-1020">
+        <command xml:space="preserve">w</command>
+        <result xml:space="preserve">
+Glass Maze
+A dark passage leads east and a stairway leads up.
+
+Scribbled on the floor are the instructions "\west of Bat Cave is Glass Maze".
+
+Etched in the ceiling is the inscription "\above is unknown".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1021"></child>
+        </children>
+    </item>
+    <item nodeId="node-1021">
+        <command xml:space="preserve">u</command>
+        <result xml:space="preserve">
+Darkness
+It is pitch dark, and you can't see a thing.
+A hollow voice says "frotz".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1027"></child>
+            <child nodeId="node-1038"></child>
+            <child nodeId="node-1022"></child>
+        </children>
+    </item>
+    <item nodeId="node-1022">
+        <command xml:space="preserve">z</command>
+        <result xml:space="preserve">Time passes.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1023"></child>
+        </children>
+    </item>
+    <item nodeId="node-1023">
+        <command xml:space="preserve">l</command>
+        <result xml:space="preserve">Darkness
+It is pitch dark, and you can't see a thing.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1024"></child>
+        </children>
+    </item>
+    <item nodeId="node-1024">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Behold! Now the room is lit!
+
+Dark Corner
+Now that it's light, you see that this room is little more than a nook at the top of a narrow stair.
 
 You can see a fweep instruction book here.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1005"></child>
-            <child nodeId="node-1010"></child>
+    </item>
+    <item nodeId="node-1038">
+        <command xml:space="preserve">l</command>
+        <result xml:space="preserve">Darkness
+It is pitch dark, and you can't see a thing.
+A hollow voice says "frotz".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1042"></child>
         </children>
+    </item>
+    <item nodeId="node-1042">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Behold! Now the room is lit!
+
+Dark Corner
+Now that it's light, you see that this room is little more than a nook at the top of a narrow stair.
+
+You can see a fweep instruction book here.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1043"></child>
+        </children>
+    </item>
+    <item nodeId="node-1043">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Behold! Now the room is lit!
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+    <item nodeId="node-1027">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Behold! Now the room is lit!
+
+Dark Corner
+Now that it's light, you see that this room is little more than a nook at the top of a narrow stair. It looks like you  can just squeeze through a tight crack to the north.
+
+The 
+
+You can see a fweep instruction book here.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1047"></child>
+            <child nodeId="node-1028"></child>
+        </children>
+    </item>
+    <item nodeId="node-1028">
+        <command xml:space="preserve">undo</command>
+        <result xml:space="preserve">Darkness
+[Previous turn undone.]
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1029"></child>
+        </children>
+    </item>
+    <item nodeId="node-1029">
+        <command xml:space="preserve">z</command>
+        <result xml:space="preserve">Time passes.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1030"></child>
+        </children>
+    </item>
+    <item nodeId="node-1030">
+        <command xml:space="preserve">z</command>
+        <result xml:space="preserve">Time passes.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1031"></child>
+        </children>
+    </item>
+    <item nodeId="node-1031">
+        <command xml:space="preserve">l</command>
+        <result xml:space="preserve">Darkness
+It is pitch dark, and you can't see a thing.
+
+A hollow voice says "frotz".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+    <item nodeId="node-1047">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Nothing seems to happen.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1048"></child>
+        </children>
+    </item>
+    <item nodeId="node-1048">
+        <command xml:space="preserve">d</command>
+        <result xml:space="preserve">
+Glass Maze
+A dark passage leads east and a stairway leads up.
+
+Scribbled on the floor are the instructions "\west of Bat Cave is Glass Maze".
+
+Etched in the ceiling is the inscription "\above is unknown".
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1049"></child>
+        </children>
+    </item>
+    <item nodeId="node-1049">
+        <command xml:space="preserve">frotz</command>
+        <result xml:space="preserve">Nothing seems to happen.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
     </item>
     <item nodeId="node-1010">
         <command xml:space="preserve">read. book</command>
@@ -76,6 +258,22 @@ Now go ahead and type "\choose a game"!
         <result xml:space="preserve">
 Glass Maze
 East of here is the Bat Cave.
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+    </item>
+    <item nodeId="node-1018">
+        <command xml:space="preserve"></command>
+        <result xml:space="preserve">I beg your pardon?
+
+&gt;</result>
+        <commentary xml:space="preserve"></commentary>
+        <children><child nodeId="node-1019"></child>
+        </children>
+    </item>
+    <item nodeId="node-1019">
+        <command xml:space="preserve"></command>
+        <result xml:space="preserve">I beg your pardon?
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>

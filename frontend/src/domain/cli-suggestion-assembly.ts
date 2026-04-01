@@ -29,6 +29,7 @@ import {
   getParserNextSymbolsForRawFragmentInput,
 } from './cli-suggestion-parser-helpers';
 import { getRoomLeadResolution } from './cli-suggestion-room-lead-helpers';
+import { parseCliCommand } from './cli-command';
 import { roomSlotSuggestionHelpers } from './cli-suggestion-slot-resolvers';
 import {
   createCommandSuggestions,
@@ -56,6 +57,45 @@ function getParserBackedTerminalCommandResolution(fragment: ActiveFragment): Sug
   }
 
   return null;
+}
+
+function isRelativeConnectContinuationContext(input: string, fragment: ActiveFragment): boolean {
+  const matchesRelativeConnect = (candidate: string): boolean =>
+    candidate.length > 0 && parseCliCommand(candidate)?.kind === 'selected-room-relative-connect';
+
+  const trimmedBeforeFragment = input.slice(0, fragment.start).trimEnd();
+  const trimmedCurrentInput = input.slice(0, fragment.caret).trimEnd();
+  if (fragment.prefix.length === 0 && matchesRelativeConnect(trimmedCurrentInput)) {
+    return true;
+  }
+
+  if (trimmedBeforeFragment.endsWith(',')) {
+    return matchesRelativeConnect(trimmedBeforeFragment.slice(0, -1).trimEnd());
+  }
+
+  const normalizedBeforeFragment = trimmedBeforeFragment.toLowerCase();
+  if (normalizedBeforeFragment.endsWith('which')) {
+    const whichIndex = normalizedBeforeFragment.lastIndexOf('which');
+    return matchesRelativeConnect(
+      trimmedBeforeFragment.slice(0, whichIndex).trimEnd().replace(/,$/, '').trimEnd(),
+    );
+  }
+
+  if (normalizedBeforeFragment.endsWith('which is')) {
+    const whichIndex = normalizedBeforeFragment.lastIndexOf('which');
+    return matchesRelativeConnect(
+      trimmedBeforeFragment.slice(0, whichIndex).trimEnd().replace(/,$/, '').trimEnd(),
+    );
+  }
+
+  if (normalizedBeforeFragment.endsWith('which is dark') || normalizedBeforeFragment.endsWith('which is lit')) {
+    const whichIndex = normalizedBeforeFragment.lastIndexOf('which');
+    return matchesRelativeConnect(
+      trimmedBeforeFragment.slice(0, whichIndex).trimEnd().replace(/,$/, '').trimEnd(),
+    );
+  }
+
+  return false;
 }
 
 function getParserBackedCreateContinuationSuggestions(
@@ -568,7 +608,7 @@ export function getCliSuggestionResolution(
       !isPseudoRoomLead(tokens)
       || (
         (getCanonicalDirectionToken(tokens[0] ?? null) !== null || tokens[0] === 'above' || tokens[0] === 'below')
-        && (fragment.tokenIndex === 1 || tokens[1] === 'is')
+        && (fragment.tokenIndex === 1 || tokens[1] === 'is' || isRelativeConnectContinuationContext(input, fragment))
       )
     )
     && tokens[0] !== 'go'
@@ -604,6 +644,10 @@ export function getCliSuggestionResolution(
   ) {
     const roomLeadResolution = getRoomLeadResolution(input, fragment, doc, tokens, lastToken, roomSlotSuggestionHelpers);
     if (roomLeadResolution !== null) {
+      if (isRelativeConnectContinuationContext(input, fragment)) {
+        return roomLeadResolution;
+      }
+
       const pseudoRoomResolution = getPseudoRoomResolution(input, fragment, doc, tokens, roomSlotSuggestionHelpers);
       if (pseudoRoomResolution !== null) {
         return {

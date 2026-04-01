@@ -381,6 +381,27 @@ describe('cli suggestions', () => {
     );
   });
 
+  it('suggests adjective continuations after completing a relative-connect target room', () => {
+    let doc = createEmptyMap('Test');
+    doc = addRoom(doc, { ...createRoom('Bedroom'), position: { x: 0, y: 0 } });
+    doc = addRoom(doc, { ...createRoom('Attic'), position: { x: 0, y: -80 } });
+
+    expect(
+      getCliSuggestions('above Bedroom is Attic ', 'above Bedroom is Attic '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain(', which is');
+
+    expect(
+      getCliSuggestions('above Bedroom is Attic, ', 'above Bedroom is Attic, '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toContain(', which is');
+
+    expect(
+      getCliSuggestions('above Bedroom is Attic, which is ', 'above Bedroom is Attic, which is '.length, doc)
+        ?.suggestions.map((suggestion) => suggestion.label),
+    ).toEqual(['dark', 'lit']);
+  });
+
   it('closes suggestions after a completed room adjective with a trailing space', () => {
     const doc = addRoom(createEmptyMap('Test'), { ...createRoom('Kitchen'), position: { x: 0, y: 0 } });
 

@@ -163,6 +163,12 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('below Bedroom is Cellar')).toBe(
       'connect Bedroom going down to Cellar, creating it if needed',
     );
+    expect(parseCliCommandDescription('above Bedroom is Attic, which is dark')).toBe(
+      'connect Bedroom going up to Attic, creating it if needed, and mark Attic as dark',
+    );
+    expect(parseCliCommandDescription('north is Hallway, which is lit')).toBe(
+      'connect the selected room going north to Hallway, creating it if needed, and mark Hallway as lit',
+    );
   });
 
   it('describes connection annotation commands', () => {
@@ -593,6 +599,7 @@ describe('parseCliCommand', () => {
       sourceRoom: null,
       sourceDirection: 'north',
       targetRoom: { text: 'Kitchen', exact: false },
+      adjective: null,
     });
 
     expect(parseCliCommand('below is Cellar')).toEqual({
@@ -600,18 +607,35 @@ describe('parseCliCommand', () => {
       sourceRoom: null,
       sourceDirection: 'down',
       targetRoom: { text: 'Cellar', exact: false },
+      adjective: null,
     });
     expect(parseCliCommand('north of Bedroom is Kitchen')).toEqual({
       kind: 'selected-room-relative-connect',
       sourceRoom: { text: 'Bedroom', exact: false },
       sourceDirection: 'north',
       targetRoom: { text: 'Kitchen', exact: false },
+      adjective: null,
     });
     expect(parseCliCommand('above Bedroom is Attic')).toEqual({
       kind: 'selected-room-relative-connect',
       sourceRoom: { text: 'Bedroom', exact: false },
       sourceDirection: 'up',
       targetRoom: { text: 'Attic', exact: false },
+      adjective: null,
+    });
+    expect(parseCliCommand('above Bedroom is Attic, which is dark')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'up',
+      targetRoom: { text: 'Attic', exact: false },
+      adjective: { kind: 'lighting', text: 'dark', isDark: true },
+    });
+    expect(parseCliCommand('below is Cellar, which is lit')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: null,
+      sourceDirection: 'down',
+      targetRoom: { text: 'Cellar', exact: false },
+      adjective: { kind: 'lighting', text: 'lit', isDark: false },
     });
   });
 

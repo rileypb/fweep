@@ -1157,6 +1157,10 @@ export function useAppCli({
       }
 
       if (targetRoomMatch.kind === 'one') {
+        const historyOptions = getCliHistoryOptions(
+          liveEditorState,
+          createRoomOnlySelectionSnapshot(targetRoomMatch.room.id),
+        );
         connectRooms(
           sourceRoom.id,
           command.sourceDirection,
@@ -1164,9 +1168,12 @@ export function useAppCli({
           {
             oneWay: false,
             targetDirection: oppositeDirection(command.sourceDirection) ?? command.sourceDirection,
-            ...getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(targetRoomMatch.room.id)),
+            ...historyOptions,
           },
         );
+        if (command.adjective !== null) {
+          applyCliRoomAdjective(targetRoomMatch.room.id, command.adjective, historyOptions);
+        }
         selectRoom(targetRoomMatch.room.id);
         if (!isCliPronounReference(command.targetRoom.text)) {
           setCliPronounRoomReference(sourceRoom.id);
@@ -1193,6 +1200,11 @@ export function useAppCli({
           ...getCliHistoryOptions(liveEditorState, undefined, historyMergeKey),
         },
       );
+      if (command.adjective !== null) {
+        applyCliRoomAdjective(result.roomId, command.adjective, {
+          ...getCliHistoryOptions(liveEditorState, createRoomOnlySelectionSnapshot(result.roomId), historyMergeKey),
+        });
+      }
       selectRoom(result.roomId);
       setCliPronounRoomReference(sourceRoom.id);
       appendGameOutput([formatCliEcho(trimmedInput), 'Created and connected.']);

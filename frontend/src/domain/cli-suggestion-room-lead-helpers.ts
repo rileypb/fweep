@@ -12,11 +12,13 @@ import {
   createPlaceholderSuggestion,
   createTerminalKeywordSuggestions,
 } from './cli-suggestion-options';
+import { createCreateWhichIsSuggestions } from './cli-suggestion-create-helpers';
 import {
   getConnectedRoomReferenceResolution,
   getRoomReferenceResolution,
   type RoomSlotSuggestionHelpers,
 } from './cli-suggestion-room-slots';
+import { parseCliCommand } from './cli-command';
 import type { ActiveFragment, SuggestionResolution } from './cli-suggestion-types';
 import type { MapDocument } from './map-types';
 
@@ -28,6 +30,16 @@ function isSelectedRoomRelativeDirectionLead(tokens: readonly string[]): boolean
 function shouldOfferSelectedRoomRelativeIs(prefix: string): boolean {
   const normalizedPrefix = prefix.trim().toLowerCase();
   return normalizedPrefix.length === 0 || 'is'.startsWith(normalizedPrefix);
+}
+
+function parseRelativeConnectWithoutAdjective(input: string): Extract<
+  ReturnType<typeof parseCliCommand>,
+  { kind: 'selected-room-relative-connect' }
+> | null {
+  const parsed = parseCliCommand(input);
+  return parsed?.kind === 'selected-room-relative-connect' && parsed.adjective === null
+    ? parsed
+    : null;
 }
 
 function getParserBackedRoomLeadResolution(
@@ -107,6 +119,50 @@ export function getRoomLeadResolution(
   lastToken: string | null,
   roomSlotSuggestionHelpers: RoomSlotSuggestionHelpers,
 ): SuggestionResolution | null {
+  const trimmedBeforeFragment = input.slice(0, fragment.start).trimEnd();
+  const trimmedCurrentInput = input.slice(0, fragment.caret).trimEnd();
+  const relativeConnectIsIndex = tokens.lastIndexOf('is');
+
+  if (lastToken === 'which') {
+    const baseInput = trimmedBeforeFragment.endsWith(',')
+      ? trimmedBeforeFragment.slice(0, -1).trimEnd()
+      : '';
+    if (baseInput.length > 0 && parseRelativeConnectWithoutAdjective(baseInput) !== null) {
+      return suggestionResolution(createKeywordSuggestions(fragment.prefix, ['is']));
+    }
+  }
+
+  if (tokens.at(-2) === 'which' && lastToken === 'is') {
+    const whichIndex = trimmedBeforeFragment.toLowerCase().lastIndexOf('which');
+    const baseInput = whichIndex >= 0
+      ? trimmedBeforeFragment.slice(0, whichIndex).trimEnd().replace(/,$/, '').trimEnd()
+      : '';
+    if (baseInput.length > 0 && parseRelativeConnectWithoutAdjective(baseInput) !== null) {
+      return suggestionResolution(createTerminalKeywordSuggestions(fragment.prefix, ['dark', 'lit']));
+    }
+  }
+
+  if ((lastToken === 'dark' || lastToken === 'lit')) {
+    const whichIsIndex = trimmedBeforeFragment.toLowerCase().lastIndexOf('which is');
+    const baseInput = whichIsIndex >= 0
+      ? trimmedBeforeFragment.slice(0, whichIsIndex).trimEnd().replace(/,$/, '').trimEnd()
+      : '';
+    if (baseInput.length > 0 && parseRelativeConnectWithoutAdjective(baseInput) !== null) {
+      return suggestionResolution([]);
+    }
+  }
+
+  if (trimmedBeforeFragment.endsWith(',')) {
+    const baseInput = trimmedBeforeFragment.slice(0, -1).trimEnd();
+    if (baseInput.length > 0 && parseRelativeConnectWithoutAdjective(baseInput) !== null) {
+      return suggestionResolution(createCreateWhichIsSuggestions(fragment.prefix));
+    }
+  }
+
+  if (trimmedCurrentInput.length > 0 && parseRelativeConnectWithoutAdjective(trimmedCurrentInput) !== null) {
+    return suggestionResolution(createCreateWhichIsSuggestions(fragment.prefix));
+  }
+
   const parserBackedRoomLeadResolution = getParserBackedRoomLeadResolution(input, fragment, doc, roomSlotSuggestionHelpers);
   if (parserBackedRoomLeadResolution !== null) {
     return parserBackedRoomLeadResolution;
@@ -140,7 +196,13 @@ export function getRoomLeadResolution(
   }
 
   if (lastToken === 'is' && isSelectedRoomRelativeDirectionLead(tokens)) {
-    const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
+    const roomResolution = getRoomReferenceResolution(
+      input,
+      fragment,
+      doc,
+      Math.max(relativeConnectIsIndex + 1, 2),
+      roomSlotSuggestionHelpers,
+    );
     return {
       ...roomResolution,
       suggestions: mergeSuggestions(
@@ -150,8 +212,18 @@ export function getRoomLeadResolution(
     };
   }
 
-  if (tokens[1] === 'is' && fragment.tokenIndex >= 2 && isSelectedRoomRelativeDirectionLead(tokens)) {
-    const roomResolution = getRoomReferenceResolution(input, fragment, doc, 2, roomSlotSuggestionHelpers);
+  if (
+    relativeConnectIsIndex >= 1
+    && fragment.tokenIndex >= relativeConnectIsIndex + 1
+    && isSelectedRoomRelativeDirectionLead(tokens)
+  ) {
+    const roomResolution = getRoomReferenceResolution(
+      input,
+      fragment,
+      doc,
+      relativeConnectIsIndex + 1,
+      roomSlotSuggestionHelpers,
+    );
     return {
       ...roomResolution,
       suggestions: mergeSuggestions(

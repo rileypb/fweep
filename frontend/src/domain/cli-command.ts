@@ -44,6 +44,7 @@ export type CliCommand =
     readonly sourceRoom: CliRoomReference | null;
     readonly sourceDirection: string;
     readonly targetRoom: CliRoomReference;
+    readonly adjective: CliRoomAdjective | null;
   }
   | {
     readonly kind: 'set-connection-annotation';
@@ -538,9 +539,22 @@ function parsePseudoRoomCommand(
       };
     }
 
-    const targetRoom = readRoomName(tokens, directionReference.nextIndex + 1, () => false);
-    if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+    const targetRoom = readRoomName(tokens, directionReference.nextIndex + 1, isCommaToken);
+    if (targetRoom === null) {
       return null;
+    }
+
+    let adjective: CliRoomAdjective | null = null;
+    if (targetRoom.nextIndex < tokens.length) {
+      if (!isCommaToken(tokens[targetRoom.nextIndex])) {
+        return null;
+      }
+
+      const adjectiveClause = parseWhichIsAdjectiveClause(tokens, targetRoom.nextIndex + 1);
+      if (adjectiveClause === null || adjectiveClause.nextIndex !== tokens.length) {
+        return null;
+      }
+      adjective = adjectiveClause.adjective;
     }
 
     if (directionReference.sourceRoom === null) {
@@ -553,6 +567,7 @@ function parsePseudoRoomCommand(
         sourceRoom: null,
         sourceDirection: directionReference.sourceDirection,
         targetRoom: targetRoom.reference,
+        adjective,
       };
     }
 
@@ -561,6 +576,7 @@ function parsePseudoRoomCommand(
       sourceRoom: directionReference.sourceRoom,
       sourceDirection: directionReference.sourceDirection,
       targetRoom: targetRoom.reference,
+      adjective,
     };
   };
 
@@ -1067,9 +1083,22 @@ function parseSelectedRoomRelativeConnectCommand(
     return null;
   }
 
-  const targetRoom = readRoomName(tokens, 2, () => false);
-  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+  const targetRoom = readRoomName(tokens, 2, isCommaToken);
+  if (targetRoom === null) {
     return null;
+  }
+
+  let adjective: CliRoomAdjective | null = null;
+  if (targetRoom.nextIndex < tokens.length) {
+    if (!isCommaToken(tokens[targetRoom.nextIndex])) {
+      return null;
+    }
+
+    const adjectiveClause = parseWhichIsAdjectiveClause(tokens, targetRoom.nextIndex + 1);
+    if (adjectiveClause === null || adjectiveClause.nextIndex !== tokens.length) {
+      return null;
+    }
+    adjective = adjectiveClause.adjective;
   }
 
   return {
@@ -1081,6 +1110,7 @@ function parseSelectedRoomRelativeConnectCommand(
         ? 'down'
         : normalizeDirection(directionToken!.value),
     targetRoom: targetRoom.reference,
+    adjective,
   };
 }
 
@@ -1425,9 +1455,14 @@ function describeCliCommand(command: CliCommand): string {
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
     case 'selected-room-relative-connect':
-      return command.sourceRoom === null
-        ? `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
-        : `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
+      if (command.sourceRoom === null) {
+        return command.adjective === null
+          ? `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
+          : `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed, and mark ${command.targetRoom.text} as ${command.adjective.text}`;
+      }
+      return command.adjective === null
+        ? `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
+        : `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed, and mark ${command.targetRoom.text} as ${command.adjective.text}`;
     case 'set-connection-annotation':
       if (command.annotation === 'door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;

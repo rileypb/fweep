@@ -780,6 +780,34 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Created and connected.');
   });
 
+  it('applies adjectives to the target room for relative connect commands', async () => {
+    let doc = createEmptyMap('Relative Connect Adjectives Map');
+    const foyer = { ...createRoom('Foyer'), position: { x: 10, y: 20 } };
+    const attic = { ...createRoom('Attic'), position: { x: 10, y: -80 } };
+    doc = addRoom(doc, foyer);
+    doc = addRoom(doc, attic);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('above foyer is attic, which is dark', { clearInputState: false });
+    });
+    const darkenedAttic = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Attic');
+    expect(darkenedAttic?.isDark).toBe(true);
+    expect(result.current.gameOutputLines).toContain('Connected.');
+
+    act(() => {
+      result.current.submitCliCommandText('below foyer is cellar, which is lit', { clearInputState: false });
+    });
+    const cellar = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'cellar');
+    expect(cellar?.isDark).toBe(false);
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
   it('reports connection annotation errors when no connection exists', async () => {
     let doc = createEmptyMap('Annotation Error Map');
     const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
