@@ -127,6 +127,25 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /collapse cli help panel/i })).toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('renders the CLI help outline as a collapsed tree and ignores from/to lines', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Outline Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+
+    const creatingRooms = screen.getByText('Creating rooms', { selector: '.cli-help-panel__tree-label span' });
+    const creatingRoomsDetails = creatingRooms.closest('details');
+    expect(creatingRoomsDetails).not.toHaveAttribute('open');
+
+    expect(screen.getByText('Connecting rooms')).toBeInTheDocument();
+    expect(screen.queryByText(/from:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/to:/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Creating rooms'));
+    expect(creatingRoomsDetails).toHaveAttribute('open');
+    expect(screen.getByText('create kitchen', { selector: 'code' })).toBeInTheDocument();
+  });
+
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
     setViewportWidth(959);
     renderApp();

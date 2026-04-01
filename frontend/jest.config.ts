@@ -19,6 +19,8 @@ export default {
     'welcome\\.txt$': '<rootDir>/__tests__/__mocks__/welcome-text.ts',
     'tips\\.txt\\?raw$': '<rootDir>/__tests__/__mocks__/tips-text.ts',
     'tips\\.txt$': '<rootDir>/__tests__/__mocks__/tips-text.ts',
+    'cli-help-outline\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/cli-help-outline-markdown.ts',
+    'cli-help-outline\\.md$': '<rootDir>/__tests__/__mocks__/cli-help-outline-markdown.ts',
     '\\.md\\?raw$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
     '\\.md$': '<rootDir>/__tests__/__mocks__/raw-markdown.ts',
   },

@@ -558,11 +558,80 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   flex: 1 1 auto;
   min-height: 0;
   opacity: 0;
+  margin-top: 0.85rem;
+  overflow: auto;
   transition: opacity 160ms ease;
 }
 
 .cli-help-panel--open .cli-help-panel__body {
   opacity: 1;
+}
+
+.cli-help-panel__tree-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cli-help-panel__tree-list--nested {
+  margin-top: 0.35rem;
+  padding-left: 1.1rem;
+}
+
+.cli-help-panel__tree-item + .cli-help-panel__tree-item {
+  margin-top: 0.3rem;
+}
+
+.cli-help-panel__tree-details {
+  display: block;
+}
+
+.cli-help-panel__tree-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.cli-help-panel__tree-summary::-webkit-details-marker {
+  display: none;
+}
+
+.cli-help-panel__tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.8rem;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  transition: transform 180ms ease;
+}
+
+.cli-help-panel__tree-details[open] > .cli-help-panel__tree-summary .cli-help-panel__tree-chevron {
+  transform: rotate(90deg);
+}
+
+.cli-help-panel__tree-label {
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.cli-help-panel__tree-label--leaf {
+  padding-left: 1.2rem;
+}
+
+.cli-help-panel__inline-code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.35rem;
+  background: rgba(148, 163, 184, 0.16);
+  font-size: 0.82em;
+}
+
+:root[data-theme='dark'] .cli-help-panel__inline-code {
+  background: rgba(148, 163, 184, 0.22);
 }
 
 .welcome-overlay {
