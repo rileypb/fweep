@@ -310,6 +310,7 @@ export function App(): React.JSX.Element {
     handleIfdbAuthorSearch,
     handleIfdbGameSelected,
     handleOpenParchmentFileChooser,
+    handlePlayDefaultStory,
     handleParchmentDeviceFileChange,
     handleResetParchmentPanel,
     handleParchmentIframeLoad,
@@ -376,6 +377,7 @@ export function App(): React.JSX.Element {
     activeMap,
     loadDocument,
     unloadDocument,
+    chooseGame: handleResetParchmentPanel,
     routeCrossInputCommandToParchment,
     requestedRoomEditorRequest,
     requestedRoomRevealRequest,
@@ -919,6 +921,7 @@ export function App(): React.JSX.Element {
               void handleIfdbGameSelected(tuid);
             }}
             onOpenParchmentFileChooser={handleOpenParchmentFileChooser}
+            onPlayDefaultStory={handlePlayDefaultStory}
             onParchmentDeviceFileChange={(event) => {
               void handleParchmentDeviceFileChange(event);
             }}

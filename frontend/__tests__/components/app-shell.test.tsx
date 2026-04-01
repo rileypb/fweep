@@ -220,6 +220,7 @@ await jest.unstable_mockModule('../../src/hooks/use-parchment-panel', () => ({
     handleIfdbAuthorSearch: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleIfdbGameSelected: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleOpenParchmentFileChooser: mockHandleOpenParchmentFileChooser,
+    handlePlayDefaultStory: jest.fn<() => void>(),
     handleParchmentDeviceFileChange: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleResetParchmentPanel: mockHandleResetParchmentPanel,
     handleParchmentIframeLoad: jest.fn<() => void>(),

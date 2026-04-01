@@ -270,6 +270,59 @@ describe('useParchmentPanel', () => {
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
+  it('can switch the chooser to the bundled intro game on demand', () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-existing',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    act(() => {
+      result.current.handlePlayDefaultStory();
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
+  it('keeps the bundled intro game selected after resetting an IFDB-loaded game', async () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+    const associatedGame: AssociatedGameMetadata = {
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    };
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-ifdb',
+      associatedGame,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    await waitFor(() => {
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+    });
+
+    act(() => {
+      result.current.handleResetParchmentPanel();
+    });
+
+    act(() => {
+      result.current.handlePlayDefaultStory();
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
   it('does not load the bundled default story for existing maps unless requested', () => {
     const defaultStoryUrl = '/fweep.gblorb';
 

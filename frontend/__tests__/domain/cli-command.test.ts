@@ -14,6 +14,13 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
   });
 
+  it('describes choose-game commands', () => {
+    expect(parseCliCommand('choose game')).toEqual({ kind: 'choose-game' });
+    expect(parseCliCommand('choose a game')).toEqual({ kind: 'choose-game' });
+    expect(parseCliCommandDescription('choose game')).toBe('open the game chooser');
+    expect(parseCliCommandDescription('choose a game')).toBe('open the game chooser');
+  });
+
   it('describes zoom commands', () => {
     expect(parseCliCommandDescription('zoom in')).toBe('zoom the map in');
     expect(parseCliCommandDescription('zoom out')).toBe('zoom the map out');

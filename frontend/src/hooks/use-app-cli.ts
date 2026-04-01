@@ -46,6 +46,7 @@ interface UseAppCliOptions {
   readonly activeMap: MapDocument | null;
   readonly loadDocument: (doc: MapDocument) => void;
   readonly unloadDocument: () => void;
+  readonly chooseGame: () => void;
   readonly routeCrossInputCommandToParchment: (command: string) => boolean;
   readonly requestedRoomEditorRequest: RoomUiRequest | null;
   readonly requestedRoomRevealRequest: RoomUiRequest | null;
@@ -251,6 +252,8 @@ function describeCliOutcome(command: CliCommand): string {
       return 'Listed available commands.';
     case 'arrange':
       return 'Arranged.';
+    case 'choose-game':
+      return 'Opened the game chooser.';
     case 'zoom':
       if (command.mode === 'relative') {
         return command.direction === 'in' ? 'Zoomed in.' : 'Zoomed out.';
@@ -408,6 +411,7 @@ export function useAppCli({
   activeMap,
   loadDocument,
   unloadDocument,
+  chooseGame,
   routeCrossInputCommandToParchment,
   requestedRoomEditorRequest,
   requestedRoomRevealRequest,
@@ -1414,6 +1418,12 @@ export function useAppCli({
         return { ok: false, shouldSelectCliInput };
       }
       void redo();
+      appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+      return { ok: true, shouldSelectCliInput };
+    }
+
+    if (command.kind === 'choose-game') {
+      chooseGame();
       appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
       return { ok: true, shouldSelectCliInput };
     }

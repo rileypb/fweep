@@ -16,6 +16,7 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
+  | { readonly kind: 'choose-game' }
   | {
     readonly kind: 'zoom';
     readonly mode: 'relative' | 'reset' | 'absolute';
@@ -79,6 +80,7 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
+  'choose [a] game',
   'zoom in/out/reset/<percent>',
   'go <direction>',
   '<direction>',
@@ -153,6 +155,7 @@ export interface CliCommandSuggestionSpec {
 export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] = [
   { id: 'help', insertText: 'help', matchTerms: ['help', 'h'], descriptionInput: 'help' },
   { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
+  { id: 'choose-game', insertText: 'choose game', matchTerms: ['choose game', 'choose a game'], descriptionInput: 'choose game' },
   { id: 'zoom', insertText: 'zoom', matchTerms: ['zoom'], descriptionInput: 'zoom in' },
   { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
   { id: 'show', insertText: 'show', matchTerms: ['show', 'select', 's', 'go to'], descriptionInput: 'show Kitchen' },
@@ -1117,6 +1120,13 @@ export function parseCliCommand(input: string): CliCommand | null {
   }
 
   if (
+    (tokens.length === 2 && isTokenValue(tokens[0], 'choose') && isTokenValue(tokens[1], 'game'))
+    || (tokens.length === 3 && isTokenValue(tokens[0], 'choose') && isTokenValue(tokens[1], 'a') && isTokenValue(tokens[2], 'game'))
+  ) {
+    return { kind: 'choose-game' };
+  }
+
+  if (
     tokens.length === 2
     && isTokenValue(tokens[0], 'zoom')
     && (isTokenValue(tokens[1], 'in') || isTokenValue(tokens[1], 'out') || isTokenValue(tokens[1], 'reset'))
@@ -1348,6 +1358,8 @@ function describeCliCommand(command: CliCommand): string {
         : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
+    case 'choose-game':
+      return 'open the game chooser';
     case 'zoom':
       if (command.mode === 'relative') {
         return command.direction === 'in' ? 'zoom the map in' : 'zoom the map out';

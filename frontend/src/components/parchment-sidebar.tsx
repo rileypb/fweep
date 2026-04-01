@@ -33,6 +33,7 @@ interface ParchmentSidebarProps {
   readonly onIfdbAuthorSearch: (author: string) => void;
   readonly onIfdbGameSelected: (tuid: string) => void;
   readonly onOpenParchmentFileChooser: () => void;
+  readonly onPlayDefaultStory: () => void;
   readonly onParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly onResetParchmentPanel: () => void;
   readonly onParchmentIframeLoad: () => void;
@@ -65,6 +66,7 @@ export function ParchmentSidebar({
   onIfdbAuthorSearch,
   onIfdbGameSelected,
   onOpenParchmentFileChooser,
+  onPlayDefaultStory,
   onParchmentDeviceFileChange,
   onResetParchmentPanel,
   onParchmentIframeLoad,
@@ -182,6 +184,13 @@ export function ParchmentSidebar({
               onClick={onOpenParchmentFileChooser}
             >
               {deviceLinkLabel}
+            </button>
+            <button
+              type="button"
+              className="app-parchment-panel__device-link"
+              onClick={onPlayDefaultStory}
+            >
+              Or play the fweep intro game
             </button>
             {ifdbSearchError ? (
               <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>

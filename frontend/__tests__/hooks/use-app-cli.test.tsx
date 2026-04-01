@@ -12,6 +12,7 @@ function createOptions(activeMap: MapDocument | null = createEmptyMap('CLI Map')
     activeMap,
     loadDocument: jest.fn<(doc: MapDocument) => void>(),
     unloadDocument: jest.fn<() => void>(),
+    chooseGame: jest.fn<() => void>(),
     routeCrossInputCommandToParchment: jest.fn<(command: string) => boolean>().mockReturnValue(false),
     requestedRoomEditorRequest: null,
     requestedRoomRevealRequest: null,
@@ -172,6 +173,25 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toEqual([
       '>\\look',
       'No interactive fiction game is ready to receive commands.',
+      '',
+    ]);
+  });
+
+  it('opens the game chooser from the choose-game CLI command', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('choose a game', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+    });
+
+    expect(options.chooseGame).toHaveBeenCalledTimes(1);
+    expect(result.current.gameOutputLines).toEqual([
+      '>choose a game',
+      'Opened the game chooser.',
       '',
     ]);
   });
