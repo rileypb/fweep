@@ -1319,8 +1319,8 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo).toHaveBeenCalledWith(120, 220);
-    expect(context.lineTo).toHaveBeenCalledWith(120, 158);
-    expect(context.moveTo).toHaveBeenCalledWith(120, 118);
+    expect(context.lineTo).toHaveBeenCalledWith(120, 159);
+    expect(context.moveTo).toHaveBeenCalledWith(120, 117);
     expect(context.lineTo).toHaveBeenCalledWith(120, 20);
     expect(context.fill).toHaveBeenCalled();
   });
@@ -1387,8 +1387,8 @@ describe('renderExportCanvas', () => {
     });
 
     expect(context.moveTo.mock.calls.some(([x, y]) => x === 80 && y === 220)).toBe(true);
-    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y === 158)).toBe(true);
-    expect(context.moveTo.mock.calls.some(([x, y]) => x === 120 && y === 118)).toBe(true);
+    expect(context.lineTo.mock.calls.some(([x, y]) => x === 120 && y === 159)).toBe(true);
+    expect(context.moveTo.mock.calls.some(([x, y]) => x === 120 && y === 117)).toBe(true);
     expect(context.fill).toHaveBeenCalled();
   });
 });

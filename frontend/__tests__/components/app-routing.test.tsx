@@ -132,23 +132,22 @@ describe('URL routing', () => {
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
-    expect(screen.getByText('Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /choose game/i })).not.toBeInTheDocument();
   });
 
   it('keeps the chooser tip visible while typing until search results appear', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('IFDB Tip Visibility Map');
 
-    const tipText = 'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.';
     const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
 
-    expect(screen.getByText(tipText)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
 
     await user.type(searchInput, 'exam');
 
-    expect(screen.getByText(tipText)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
   });
 
   it('shows the associated game title beneath the map name chip when a game is linked', async () => {
@@ -402,7 +401,7 @@ describe('URL routing', () => {
     await waitFor(() => {
       expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
       sourceType: 'ifdb',
@@ -661,7 +660,7 @@ describe('URL routing', () => {
 
     expect(loadUploadedFile).toHaveBeenCalledTimes(1);
     expect(loadUploadedFile).toHaveBeenCalledWith(file);
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
@@ -748,7 +747,7 @@ describe('URL routing', () => {
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await loadParchmentIframe(iframe);
 
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame?.storyUrl).toBe('https://example.com/game.ulx');
   });
 
@@ -776,7 +775,7 @@ describe('URL routing', () => {
       });
 
       await loadParchmentIframe(iframe);
-      await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /^reset$/i }));
+      await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /choose game/i }));
       act(() => {
         jest.runOnlyPendingTimers();
       });
@@ -926,7 +925,7 @@ describe('URL routing', () => {
     await renderAppWithSavedMap(linkedDoc);
 
     expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+    await user.click(screen.getByRole('button', { name: /choose game/i }));
 
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();

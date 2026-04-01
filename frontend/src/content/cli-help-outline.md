@@ -1,0 +1,3 @@
+- Creating rooms
+	- `create kitchen`
+	- `create pantry west of kitchen`

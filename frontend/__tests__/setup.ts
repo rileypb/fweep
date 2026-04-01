@@ -23,3 +23,9 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: () => false,
   }),
 });
+
+// jsdom does not implement confirm; default to confirming in tests unless a case overrides it.
+Object.defineProperty(window, 'confirm', {
+  writable: true,
+  value: () => true,
+});
