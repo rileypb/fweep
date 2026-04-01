@@ -49,4 +49,36 @@ describe('map-view-session-cache', () => {
       zoom: 3,
     });
   });
+
+  it('returns the original document when the cached viewport already matches', () => {
+    const doc = createEmptyMap('Already Matching');
+    cacheMapViewSession(doc.metadata.id, doc.view.pan, doc.view.zoom);
+
+    expect(applyCachedMapViewSession(doc)).toBe(doc);
+  });
+
+  it('returns null for invalid cached JSON', () => {
+    window.sessionStorage.setItem('fweep-map-view:broken', '{not valid json');
+
+    expect(loadCachedMapViewSession('broken')).toBeNull();
+  });
+
+  it('gracefully handles session storage access failures', () => {
+    const sessionStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new Error('Blocked');
+      },
+    });
+
+    try {
+      cacheMapViewSession('map-1', { x: 12, y: 34 }, 1.2);
+      expect(loadCachedMapViewSession('map-1')).toBeNull();
+    } finally {
+      if (sessionStorageDescriptor) {
+        Object.defineProperty(window, 'sessionStorage', sessionStorageDescriptor);
+      }
+    }
+  });
 });

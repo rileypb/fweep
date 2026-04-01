@@ -18,10 +18,12 @@ describe('HelpDialog', () => {
     expect(screen.getByRole('heading', { name: /fweep help/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /navigating the map/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /creating, editing and deleting rooms/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /pointer controls/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /keyboard shortcuts/i })).toBeInTheDocument();
     expect(screen.getByText('middle-clicking', { selector: 'code' })).toBeInTheDocument();
     expect(screen.getByText('Alt+Shift+M', { selector: 'code' })).toBeInTheDocument();
     expect(document.querySelectorAll('.help-list li').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('.help-rule')).toHaveLength(1);
   });
 
   it('closes from the close button and backdrop', async () => {
