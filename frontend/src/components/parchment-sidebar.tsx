@@ -1,14 +1,5 @@
-import { useState } from 'react';
 import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
 import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
-
-const PARCHMENT_PANEL_TIPS = [
-  'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.',
-] as const;
-
-function getRandomParchmentPanelTip(): string {
-  return PARCHMENT_PANEL_TIPS[Math.floor(Math.random() * PARCHMENT_PANEL_TIPS.length)] ?? PARCHMENT_PANEL_TIPS[0];
-}
 
 interface ParchmentSidebarProps {
   readonly deviceInputRef: React.RefObject<HTMLInputElement | null>;
@@ -75,9 +66,6 @@ export function ParchmentSidebar({
   onWidthResizePointerDown,
   onWidthResizeKeyDown,
 }: ParchmentSidebarProps): React.JSX.Element {
-  const [emptyStateTip] = useState(getRandomParchmentPanelTip);
-  const shouldShowEmptyStateTip = !isGameViewVisible && ifdbSearchResults.length === 0;
-
   return (
     <div
       className="app-parchment-panel"
@@ -194,12 +182,6 @@ export function ParchmentSidebar({
             </button>
             {ifdbSearchError ? (
               <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
-            ) : null}
-            {shouldShowEmptyStateTip ? (
-              <div className="app-parchment-panel__empty-state" aria-live="polite">
-                <p className="app-parchment-panel__empty-state-label">Tip</p>
-                <p className="app-parchment-panel__empty-state-tip">{emptyStateTip}</p>
-              </div>
             ) : null}
             {ifdbSearchResults.length > 0 ? (
               <div className="app-parchment-panel__results" aria-label="IFDB search results">
