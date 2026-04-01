@@ -1,0 +1,19 @@
+clear
+create Kitchen
+export kitchen.png
+
+create Pantry west of kitchen
+export pantrykitchen.png
+
+undo
+create Pantry
+export pantrykitchennoconnect.png
+
+connect pantry east to kitchen
+export pantrykitchen.png
+
+undo
+connect pantry east to kitchen south
+export pantryeasttokitchensouth.png
+
+
