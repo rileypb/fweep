@@ -109,6 +109,24 @@ describe('URL routing', () => {
     expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ right: '16px' });
   });
 
+  it('renders a collapsible CLI help panel framing beside the map', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Frame Map');
+
+    const panel = screen.getByTestId('cli-help-panel');
+    const toggle = screen.getByRole('button', { name: /expand cli help panel/i });
+
+    expect(panel).toHaveClass('cli-help-panel');
+    expect(panel).not.toHaveClass('cli-help-panel--open');
+    expect(screen.getByText('help')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(toggle);
+
+    expect(panel).toHaveClass('cli-help-panel--open');
+    expect(screen.getByRole('button', { name: /collapse cli help panel/i })).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
     setViewportWidth(959);
     renderApp();

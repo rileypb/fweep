@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { HelpDialog } from './components/help-dialog';
+import { CliHelpPanel } from './components/cli-help-panel';
 import { MapCanvas } from './components/map-canvas';
 import { MapSelectionDialog } from './components/map-selection-dialog';
 import { ParchmentSidebar } from './components/parchment-sidebar';
@@ -272,6 +273,7 @@ export function App(): React.JSX.Element {
   const associatedGame = useEditorStore((s) => s.doc?.metadata.associatedGame ?? null);
   const setAssociatedGameMetadata = useEditorStore((s) => s.setAssociatedGameMetadata);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isCliHelpPanelOpen, setIsCliHelpPanelOpen] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [isTipsOpen, setIsTipsOpen] = useState(false);
   const [pendingWelcomeMapId, setPendingWelcomeMapId] = useState<string | null>(null);
@@ -412,6 +414,7 @@ export function App(): React.JSX.Element {
 
     setIsWelcomeOpen(false);
     setIsTipsOpen(false);
+    setIsCliHelpPanelOpen(false);
     setPendingWelcomeMapId(null);
     setPendingTipsMapId(null);
     previousTipsMapIdRef.current = null;
@@ -892,6 +895,10 @@ export function App(): React.JSX.Element {
             </button>
           </div>
           <h1 className="app-title" style={{ right: `${appTitleRightInset}px` }}>fweep</h1>
+          <CliHelpPanel
+            isOpen={isCliHelpPanelOpen}
+            onToggle={() => setIsCliHelpPanelOpen((current) => !current)}
+          />
           <ParchmentSidebar
             deviceInputRef={parchmentDeviceInputRef}
             iframeRef={parchmentIframeRef}
