@@ -8,8 +8,8 @@
 - Connecting rooms
 	- `connect pantry...`
 		- `...east to kitchen`
-			- from:blank.png
-			- to:kitchen.png
+			- from:pantrykitchennoconnect.png
+			- to:pantrykitchen.png
 		- `...east to kitchen south`
-			- from:blank.png
-			- to:kitchen.png 
+			- from:pantrykitchennoconnect.png
+			- to:pantryeasttokitchensouth.png 
