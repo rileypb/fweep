@@ -1,15 +1,31 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import cliHelpOutlineMarkdown from '../content/cli-help-outline.md?raw';
+
+const HELP_IMAGE_URLS: Readonly<Record<string, string>> = {
+  'blank.png': new URL('../content/images/blank.png', import.meta.url).href,
+  'kitchen.png': new URL('../content/images/kitchen.png', import.meta.url).href,
+  'pantrykitchen.png': new URL('../content/images/pantrykitchen.png', import.meta.url).href,
+};
+
+interface CliHelpImageTransition {
+  readonly from: string | null;
+  readonly to: string | null;
+}
 
 interface CliHelpOutlineNode {
   readonly id: string;
   readonly label: string;
+  readonly imageTransition: CliHelpImageTransition | null;
   readonly children: readonly CliHelpOutlineNode[];
 }
 
 interface MutableCliHelpOutlineNode {
   id: string;
   label: string;
+  imageTransition: {
+    from: string | null;
+    to: string | null;
+  } | null;
   children: MutableCliHelpOutlineNode[];
 }
 
@@ -25,6 +41,24 @@ function normalizeOutlineLabel(rawLine: string): string {
 
 function shouldIgnoreOutlineLabel(label: string): boolean {
   return label.length === 0 || label.startsWith('from') || label.startsWith('to');
+}
+
+function parseImageTransitionLine(label: string): { kind: 'from' | 'to'; fileName: string } | null {
+  if (label.startsWith('from:')) {
+    return {
+      kind: 'from',
+      fileName: label.slice('from:'.length).trim(),
+    };
+  }
+
+  if (label.startsWith('to:')) {
+    return {
+      kind: 'to',
+      fileName: label.slice('to:'.length).trim(),
+    };
+  }
+
+  return null;
 }
 
 function renderInlineCode(text: string): React.JSX.Element[] {
@@ -48,6 +82,21 @@ function parseCliHelpOutline(markdown: string): readonly CliHelpOutlineNode[] {
 
   markdown.split(/\r?\n/).forEach((rawLine) => {
     const label = normalizeOutlineLabel(rawLine);
+    const transitionLine = parseImageTransitionLine(label);
+    if (transitionLine) {
+      const target = nodeStack[nodeStack.length - 1]?.node;
+      if (!target) {
+        return;
+      }
+
+      if (target.imageTransition === null) {
+        target.imageTransition = { from: null, to: null };
+      }
+
+      target.imageTransition[transitionLine.kind] = transitionLine.fileName;
+      return;
+    }
+
     if (shouldIgnoreOutlineLabel(label)) {
       return;
     }
@@ -56,6 +105,7 @@ function parseCliHelpOutline(markdown: string): readonly CliHelpOutlineNode[] {
     const node: MutableCliHelpOutlineNode = {
       id: `cli-help-node-${nodeId}`,
       label,
+      imageTransition: null,
       children: [],
     };
     nodeId += 1;
@@ -77,12 +127,45 @@ function parseCliHelpOutline(markdown: string): readonly CliHelpOutlineNode[] {
   return roots;
 }
 
-function CliHelpTreeNode({ node }: { readonly node: CliHelpOutlineNode }): React.JSX.Element {
+function getHelpImageUrl(fileName: string | null): string | null {
+  if (fileName === null) {
+    return null;
+  }
+
+  return HELP_IMAGE_URLS[fileName] ?? null;
+}
+
+function CliHelpTreeNode(
+  {
+    node,
+    selectedNodeId,
+    onImageLinkClick,
+  }: {
+    readonly node: CliHelpOutlineNode;
+    readonly selectedNodeId: string | null;
+    readonly onImageLinkClick: (node: CliHelpOutlineNode) => void;
+  },
+): React.JSX.Element {
+  const hasImageLink = node.imageTransition !== null;
+  const labelContent = hasImageLink ? (
+    <button
+      type="button"
+      className={`cli-help-panel__image-link${selectedNodeId === node.id ? ' cli-help-panel__image-link--active' : ''}`}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onImageLinkClick(node);
+      }}
+    >
+      {renderInlineCode(node.label)}
+    </button>
+  ) : renderInlineCode(node.label);
+
   if (node.children.length === 0) {
     return (
       <li className="cli-help-panel__tree-item">
         <div className="cli-help-panel__tree-label cli-help-panel__tree-label--leaf">
-          {renderInlineCode(node.label)}
+          {labelContent}
         </div>
       </li>
     );
@@ -93,11 +176,16 @@ function CliHelpTreeNode({ node }: { readonly node: CliHelpOutlineNode }): React
       <details className="cli-help-panel__tree-details">
         <summary className="cli-help-panel__tree-summary">
           <span className="cli-help-panel__tree-chevron" aria-hidden="true">▸</span>
-          <span className="cli-help-panel__tree-label">{renderInlineCode(node.label)}</span>
+          <span className="cli-help-panel__tree-label">{labelContent}</span>
         </summary>
         <ul className="cli-help-panel__tree-list cli-help-panel__tree-list--nested">
           {node.children.map((child) => (
-            <CliHelpTreeNode key={child.id} node={child} />
+            <CliHelpTreeNode
+              key={child.id}
+              node={child}
+              selectedNodeId={selectedNodeId}
+              onImageLinkClick={onImageLinkClick}
+            />
           ))}
         </ul>
       </details>
@@ -112,6 +200,30 @@ interface CliHelpPanelProps {
 
 export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX.Element {
   const outlineTree = useMemo(() => parseCliHelpOutline(cliHelpOutlineMarkdown), []);
+  const [selectedImageNodeId, setSelectedImageNodeId] = useState<string | null>(null);
+  const selectedImageNode = useMemo(() => {
+    if (selectedImageNodeId === null) {
+      return null;
+    }
+
+    const stack = [...outlineTree];
+    while (stack.length > 0) {
+      const candidate = stack.pop();
+      if (!candidate) {
+        continue;
+      }
+
+      if (candidate.id === selectedImageNodeId) {
+        return candidate;
+      }
+
+      stack.push(...candidate.children);
+    }
+
+    return null;
+  }, [outlineTree, selectedImageNodeId]);
+  const fromImageUrl = getHelpImageUrl(selectedImageNode?.imageTransition?.from ?? null);
+  const toImageUrl = getHelpImageUrl(selectedImageNode?.imageTransition?.to ?? null);
 
   return (
     <aside
@@ -148,11 +260,37 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
         className="cli-help-panel__body"
         aria-hidden={!isOpen}
       >
-        <ul className="cli-help-panel__tree-list">
-          {outlineTree.map((node) => (
-            <CliHelpTreeNode key={node.id} node={node} />
-          ))}
-        </ul>
+        <section className="cli-help-panel__section cli-help-panel__section--tree" aria-label="Help tree panel">
+          <ul className="cli-help-panel__tree-list">
+            {outlineTree.map((node) => (
+              <CliHelpTreeNode
+                key={node.id}
+                node={node}
+                selectedNodeId={selectedImageNodeId}
+                onImageLinkClick={(clickedNode) => setSelectedImageNodeId(clickedNode.id)}
+              />
+            ))}
+          </ul>
+        </section>
+        <section className="cli-help-panel__section cli-help-panel__section--images" aria-label="Help image panel">
+          {selectedImageNode && fromImageUrl && toImageUrl ? (
+            <div className="cli-help-panel__image-preview">
+              <img
+                className="cli-help-panel__image"
+                src={fromImageUrl}
+                alt={`${selectedImageNode.label.replace(/`/g, '')} from state`}
+              />
+              <div className="cli-help-panel__image-arrow" aria-hidden="true">↓</div>
+              <img
+                className="cli-help-panel__image"
+                src={toImageUrl}
+                alt={`${selectedImageNode.label.replace(/`/g, '')} to state`}
+              />
+            </div>
+          ) : (
+            <p className="cli-help-panel__image-placeholder">Select a linked example above to preview its transition.</p>
+          )}
+        </section>
       </div>
     </aside>
   );

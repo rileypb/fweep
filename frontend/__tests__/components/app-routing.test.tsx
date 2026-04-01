@@ -146,6 +146,20 @@ describe('URL routing', () => {
     expect(screen.getByText('create kitchen', { selector: 'code' })).toBeInTheDocument();
   });
 
+  it('shows from and to images in the help image panel when an image link is clicked', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Images Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+    await user.click(screen.getByText('Creating rooms', { selector: '.cli-help-panel__tree-label span' }));
+    await user.click(screen.getByRole('button', { name: /create kitchen/i }));
+
+    expect(screen.getByLabelText(/help image panel/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/create kitchen from state/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/create kitchen to state/i)).toBeInTheDocument();
+    expect(screen.getByText('↓')).toBeInTheDocument();
+  });
+
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
     setViewportWidth(959);
     renderApp();
