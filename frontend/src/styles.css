@@ -2114,7 +2114,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 .background-image-panel {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 0.5rem);
+  top: calc(100% + 0.5rem);
   width: min(24rem, calc(100vw - 2rem));
   display: grid;
   gap: 0.75rem;
