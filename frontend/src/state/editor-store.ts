@@ -386,6 +386,19 @@ export interface EditorState {
   /** Clear the active document. */
   unloadDocument: () => void;
 
+  /** Apply a precomputed CLI session snapshot, optionally recording document history. */
+  applyCliSessionSnapshot: (
+    snapshot: {
+      readonly doc: MapDocument;
+      readonly selectedRoomIds: readonly string[];
+      readonly selectedPseudoRoomIds: readonly string[];
+      readonly selectedStickyNoteIds: readonly string[];
+      readonly selectedConnectionIds: readonly string[];
+      readonly selectedStickyNoteLinkIds: readonly string[];
+    },
+    options?: HistoryOptions,
+  ) => void;
+
   /** Restore the previous document snapshot. */
   undo: () => void;
 
@@ -966,6 +979,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadDocument: (doc) => set(getLoadedDocumentState(doc)),
 
   unloadDocument: () => set(getUnloadedDocumentState()),
+
+  applyCliSessionSnapshot: (snapshot, options) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot apply CLI session snapshot: no document is loaded.');
+    }
+
+    set((state) => {
+      const nextDoc = snapshot.doc;
+      const selectionState = {
+        selectedRoomIds: filterSelectionForDoc(nextDoc, snapshot.selectedRoomIds),
+        selectedPseudoRoomIds: filterPseudoRoomSelectionForDoc(nextDoc, snapshot.selectedPseudoRoomIds),
+        selectedStickyNoteIds: filterStickyNoteSelectionForDoc(nextDoc, snapshot.selectedStickyNoteIds),
+        selectedConnectionIds: filterConnectionSelectionForDoc(nextDoc, snapshot.selectedConnectionIds),
+        selectedStickyNoteLinkIds: filterStickyNoteLinkSelectionForDoc(nextDoc, snapshot.selectedStickyNoteLinkIds),
+      };
+
+      return {
+        ...commitDocumentChange(state, doc, nextDoc, options),
+        ...selectionState,
+      };
+    });
+  },
 
   undo: async () => {
     const {
