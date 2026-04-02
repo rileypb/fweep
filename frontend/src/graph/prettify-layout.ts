@@ -18,6 +18,7 @@ const REPULSION_STRENGTH = 18_000;
 const PSEUDO_ROOM_REPULSION_MULTIPLIER = 0.2;
 const MAX_STEP = 18;
 const MAX_STABILIZATION_PASSES = 6;
+const COMPONENT_JIGGLE_MAX_RADIUS = 40;
 
 interface Vector {
   x: number;
@@ -1299,6 +1300,88 @@ function recenterUnlockedComponents(
   }
 }
 
+function getComponentCentroidSignature(
+  componentRoomIds: readonly string[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): string {
+  const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
+  const centroid = computePlacedCentroid(centroidAnchorRoomIds, placedPositions, doc);
+  return `${snapCoordinate(centroid.x)},${snapCoordinate(centroid.y)}`;
+}
+
+function getComponentJiggleCandidates(): readonly Position[] {
+  const candidates: Position[] = [];
+
+  for (let radius = 1; radius <= COMPONENT_JIGGLE_MAX_RADIUS; radius += 1) {
+    const offset = radius * PRETTIFY_GRID_SIZE;
+    candidates.push({ x: offset, y: 0 });
+    candidates.push({ x: -offset, y: 0 });
+    candidates.push({ x: 0, y: offset });
+    candidates.push({ x: 0, y: -offset });
+    candidates.push({ x: offset, y: offset });
+    candidates.push({ x: offset, y: -offset });
+    candidates.push({ x: -offset, y: offset });
+    candidates.push({ x: -offset, y: -offset });
+  }
+
+  return candidates;
+}
+
+function separateCoincidentComponentCentroids(
+  components: readonly string[][],
+  lockedRoomIds: ReadonlySet<string>,
+  placedPositions: Map<string, Position>,
+  doc: MapDocument,
+): void {
+  const unlockedComponents = components
+    .filter((componentRoomIds) => !componentRoomIds.some((roomId) => lockedRoomIds.has(roomId)))
+    .map((componentRoomIds) => ({
+      roomIds: componentRoomIds,
+      key: componentRoomIds.join('\0'),
+      signature: getComponentCentroidSignature(componentRoomIds, placedPositions, doc),
+    }))
+    .sort((left, right) => {
+      const sizeDifference = right.roomIds.length - left.roomIds.length;
+      if (sizeDifference !== 0) {
+        return sizeDifference;
+      }
+      return left.key.localeCompare(right.key);
+    });
+
+  const componentsBySignature = new Map<string, typeof unlockedComponents>();
+  for (const component of unlockedComponents) {
+    const group = componentsBySignature.get(component.signature) ?? [];
+    group.push(component);
+    componentsBySignature.set(component.signature, group);
+  }
+
+  const jiggleCandidates = getComponentJiggleCandidates();
+  for (const group of componentsBySignature.values()) {
+    if (group.length <= 1) {
+      continue;
+    }
+
+    for (let index = 1; index < group.length; index += 1) {
+      const component = group[index];
+      for (const candidate of jiggleCandidates) {
+        if (!canTranslateComponent(component.roomIds, candidate, placedPositions, doc)) {
+          continue;
+        }
+
+        for (const roomId of component.roomIds) {
+          const currentPosition = placedPositions.get(roomId)!;
+          placedPositions.set(roomId, {
+            x: currentPosition.x + candidate.x,
+            y: currentPosition.y + candidate.y,
+          });
+        }
+        break;
+      }
+    }
+  }
+}
+
 function computePrettifiedRoomPositionsSinglePass(
   doc: MapDocument,
   extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
@@ -1381,6 +1464,7 @@ function computePrettifiedRoomPositionsSinglePass(
   }
 
   recenterUnlockedComponents(components, componentTargetCentroids, lockedRoomIds, placedPositions, doc);
+  separateCoincidentComponentCentroids(components, lockedRoomIds, placedPositions, doc);
 
   const roomPositions = Object.fromEntries(
     [...placedPositions.entries()].filter(([roomId]) => roomId in doc.rooms),
@@ -1465,6 +1549,7 @@ export const TEST_ONLY_PRETTIFY_LAYOUT = {
   getLayoutMovementScore,
   computeSeedPositions,
   computePlacedCentroid,
+  separateCoincidentComponentCentroids,
   overlapsPlacedRooms,
   findNearestOpenPosition,
   canTranslateComponent,

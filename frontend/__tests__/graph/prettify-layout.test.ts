@@ -858,6 +858,19 @@ describe('computePrettifiedRoomPositions', () => {
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 0, y: 0 }, new Map([[alpha.id, alpha.position]]), doc)).toBe(true);
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 20, y: 20 }, new Map(), doc)).toBe(false);
 
+    const coincidentPositions = new Map<string, { x: number; y: number }>([
+      [alpha.id, { x: 0, y: 0 }],
+      [beta.id, { x: 0, y: 0 }],
+    ]);
+    TEST_ONLY_PRETTIFY_LAYOUT.separateCoincidentComponentCentroids(
+      [[alpha.id], [beta.id]],
+      new Set(),
+      coincidentPositions,
+      doc,
+    );
+    expect(coincidentPositions.get(alpha.id)).toEqual({ x: 0, y: 0 });
+    expect(coincidentPositions.get(beta.id)).not.toEqual({ x: 0, y: 0 });
+
     const translatableDoc = createEmptyMap('Translate');
     const translateRoomA = { ...createRoom('A'), id: 'ta', position: { x: 0, y: 0 } };
     const translateRoomB = { ...createRoom('B'), id: 'tb', position: { x: 400, y: 0 } };
