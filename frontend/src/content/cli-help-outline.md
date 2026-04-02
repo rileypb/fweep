@@ -19,3 +19,12 @@
 		- `...east to kitchen south`
 			- from:pantrykitchennoconnect.png
 			- to:pantryeasttokitchensouth.png 
+	- `west of kitchen is pantry`
+		- from:pantrykitchennoconnect.png
+		- to:pantrykitchen.png
+	- `create and connect pantry east to kitchen south`
+		- from:pantrykitchennoconnect.png
+		- to:pantryeasttokitchensouth.png
+- `delete pantry`
+	- from:pantrykitchen.png
+	- to:kitchen.png

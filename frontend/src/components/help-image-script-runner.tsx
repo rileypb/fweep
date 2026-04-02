@@ -20,7 +20,7 @@ declare global {
 
 const HELP_IMAGE_EXPORT_SETTINGS: ExportSettings = {
   scope: 'entire-map',
-  padding: 80,
+  padding: 40,
   scale: 2,
   background: 'theme-canvas',
   includeBackgroundImage: true,
