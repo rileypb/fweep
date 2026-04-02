@@ -186,53 +186,72 @@ export function ParchmentSidebar({
             {ifdbSearchResults.length > 0 ? (
               <div className="app-parchment-panel__results" aria-label="IFDB search results">
                 {ifdbSearchResults.map((result) => (
-                  <article key={result.tuid} className="app-parchment-panel__result">
+                  <article
+                    key={result.tuid}
+                    className={`app-parchment-panel__result${result.isPlayable ? ' app-parchment-panel__result--playable' : ' app-parchment-panel__result--nonplayable'}`}
+                  >
                     {result.coverArtUrl ? (
-                      <button
-                        type="button"
-                        className="app-parchment-panel__result-cover-button"
-                        aria-label={`Play ${result.title} via cover art`}
-                        disabled={loadingIfdbGameTuid === result.tuid}
-                        onClick={() => {
-                          onIfdbGameSelected(result.tuid);
-                        }}
-                      >
-                        <img
-                          className="app-parchment-panel__result-cover"
-                          src={result.coverArtUrl}
-                          alt={`Cover art for ${result.title}`}
-                        />
-                      </button>
+                      result.isPlayable ? (
+                        <button
+                          type="button"
+                          className="app-parchment-panel__result-cover-button"
+                          aria-label={`Play ${result.title} via cover art`}
+                          disabled={loadingIfdbGameTuid === result.tuid}
+                          onClick={() => {
+                            onIfdbGameSelected(result.tuid);
+                          }}
+                        >
+                          <img
+                            className="app-parchment-panel__result-cover"
+                            src={result.coverArtUrl}
+                            alt={`Cover art for ${result.title}`}
+                          />
+                        </button>
+                      ) : (
+                        <div className="app-parchment-panel__result-cover-static">
+                          <img
+                            className="app-parchment-panel__result-cover"
+                            src={result.coverArtUrl}
+                            alt={`Cover art for ${result.title}`}
+                          />
+                        </div>
+                      )
                     ) : null}
                     <h2 className="app-parchment-panel__result-title">
-                      <button
-                        type="button"
-                        className="app-parchment-panel__result-button"
-                        aria-label={`Play ${result.title}`}
-                        disabled={loadingIfdbGameTuid === result.tuid}
-                        onClick={() => {
-                          onIfdbGameSelected(result.tuid);
-                        }}
-                      >
-                        {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
-                      </button>
+                      {result.isPlayable ? (
+                        <button
+                          type="button"
+                          className="app-parchment-panel__result-button app-parchment-panel__result-button--playable"
+                          aria-label={`Play ${result.title}`}
+                          disabled={loadingIfdbGameTuid === result.tuid}
+                          onClick={() => {
+                            onIfdbGameSelected(result.tuid);
+                          }}
+                        >
+                          {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
+                        </button>
+                      ) : (
+                        <span className="app-parchment-panel__result-text">{result.title}</span>
+                      )}
                     </h2>
                     <p className="app-parchment-panel__result-meta">
                       {result.author ? (() => {
                         const author = result.author;
-                        return (
-                          <button
-                            type="button"
-                            className="app-parchment-panel__result-link"
-                            aria-label={`Search IFDB for games by ${author}`}
-                            disabled={isIfdbSearching}
-                            onClick={() => {
-                              onIfdbAuthorSearch(author);
-                            }}
-                          >
-                            {author}
-                          </button>
-                        );
+                        return result.isPlayable
+                          ? (
+                            <button
+                              type="button"
+                              className="app-parchment-panel__result-link app-parchment-panel__result-link--playable"
+                              aria-label={`Search IFDB for games by ${author}`}
+                              disabled={isIfdbSearching}
+                              onClick={() => {
+                                onIfdbAuthorSearch(author);
+                              }}
+                            >
+                              {author}
+                            </button>
+                          )
+                          : <span className="app-parchment-panel__result-text">{author}</span>;
                       })() : 'Unknown author'}
                     </p>
                     {result.publishedDisplay ? (
@@ -241,7 +260,7 @@ export function ParchmentSidebar({
                     {result.ifdbLink ? (
                       <p className="app-parchment-panel__result-meta">
                         <a
-                          className="app-parchment-panel__result-link"
+                          className={`app-parchment-panel__result-link${result.isPlayable ? ' app-parchment-panel__result-link--playable' : ''}`}
                           href={result.ifdbLink}
                           target="_blank"
                           rel="noreferrer"

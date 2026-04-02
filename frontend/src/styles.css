@@ -321,6 +321,16 @@ body.app-shell--resizing-side-panel-height {
   background: color-mix(in srgb, currentColor 5%, transparent);
 }
 
+.app-parchment-panel__result--playable {
+  border-color: rgba(37, 99, 235, 0.42);
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.14);
+}
+
+.app-parchment-panel__result--nonplayable {
+  opacity: 0.82;
+}
+
 .app-parchment-panel__result-cover-button {
   display: block;
   padding: 0;
@@ -332,6 +342,11 @@ body.app-shell--resizing-side-panel-height {
 
 .app-parchment-panel__result-cover-button:disabled {
   cursor: progress;
+}
+
+.app-parchment-panel__result-cover-static {
+  display: block;
+  margin: 0 0 0.55rem;
 }
 
 .app-parchment-panel__result-cover {
@@ -358,6 +373,12 @@ body.app-shell--resizing-side-panel-height {
   cursor: pointer;
 }
 
+.app-parchment-panel__result-button--playable,
+.app-parchment-panel__result-link--playable {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .app-parchment-panel__result-button:hover,
 .app-parchment-panel__result-button:focus-visible {
   text-decoration: underline;
@@ -372,6 +393,10 @@ body.app-shell--resizing-side-panel-height {
 .app-parchment-panel__result-meta {
   margin: 0.2rem 0 0;
   font-size: 0.84rem;
+}
+
+.app-parchment-panel__result-text {
+  color: inherit;
 }
 
 .app-parchment-panel__result-link {

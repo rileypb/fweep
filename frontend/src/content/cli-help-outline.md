@@ -25,18 +25,22 @@
 	- `west of kitchen is pantry`
 		- from:pantrykitchennoconnect.png
 		- to:pantrykitchen.png
-	- `create and connect pantry east to kitchen south`
+	- `connect pantry east to kitchen south`
 		- from:pantrykitchennoconnect.png
 		- to:pantryeasttokitchensouth.png
-	- `kitchen to pantry is a door`
-		- from:pantrykitchen.png
-		- to:pantrykitchendoor.png
-	- `kitchen to pantry is locked`
-		- from:pantrykitchendoor.png
-		- to:pantrykitchenlocked.png
-	- `kitchen to pantry is open`
-		- from:pantrykitchenlocked.png
-		- to:pantrykitchen.png
+	- `create and connect pantry east to kitchen south`
+		- from:kitchen.png
+		- to:pantryeasttokitchensouth.png
+	- `kitchen to pantry...`
+		- `...is a door`
+			- from:pantrykitchen.png
+			- to:pantrykitchendoor.png
+		- `...is locked`
+			- from:pantrykitchendoor.png
+			- to:pantrykitchenlocked.png
+		- `...is open`
+			- from:pantrykitchenlocked.png
+			- to:pantrykitchen.png
 - `delete pantry`
 	- from:pantrykitchen.png
 	- to:kitchen.png
@@ -49,21 +53,23 @@
 		- from:kitchendark.png
 		- to:kitchen.png
 - Special "rooms"
-	- `north of kitchen is unknown`
-		- from:pantrykitchen.png
-		- to:pantrykitchenunknown.png
-	- `north of kitchen goes on forever`
-		- from:pantrykitchen.png
-		- to:pantrykitchenforever.png
-	- `north of kitchen lies death`
-		- from:pantrykitchen.png
-		- to:pantrykitchendeath.png
-	- `north of kitchen leads nowhere`
-		- from:pantrykitchen.png
-		- to:pantrykitchennowhere.png
-	- `north of kitchen leads to somewhere else`
-		- from:pantrykitchen.png
-		- to:pantrykitchensomewhereelse.png
+	- `north of kitchen...`
+		- `...is unknown`
+			- from:pantrykitchen.png
+			- to:pantrykitchenunknown.png
+		- `...goes on forever`
+			- from:pantrykitchen.png
+			- to:pantrykitchenforever.png
+		- `...lies death`
+			- from:pantrykitchen.png
+			- to:pantrykitchendeath.png
+		- `...leads nowhere`
+			- from:pantrykitchen.png
+			- to:pantrykitchennowhere.png
+		- `...leads to somewhere else`
+			- from:pantrykitchen.png
+			- to:pantrykitchensomewhereelse.png
+	- also try `north, south, and east of kitchen is unknown` to make many at once.
 - Above/below
 	- `above kitchen is Attic`
 		- from:kitchen.png

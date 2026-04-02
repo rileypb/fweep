@@ -102,6 +102,27 @@ export function useParchmentPanel({
     ? `Reconnect ${associatedGame.title}`
     : 'Or click here to play a story file from your device';
 
+  const enrichIfdbSearchResultsWithPlayability = useCallback(async (
+    results: readonly NormalizedIfdbSearchResult[],
+  ): Promise<readonly NormalizedIfdbSearchResult[]> => {
+    const enrichedResults = await Promise.all(results.map(async (result) => {
+      try {
+        const resolvedGame = await viewIfdbGame(result.tuid);
+        return {
+          ...result,
+          isPlayable: resolvedGame.storyUrl !== null,
+        };
+      } catch {
+        return {
+          ...result,
+          isPlayable: false,
+        };
+      }
+    }));
+
+    return enrichedResults;
+  }, []);
+
   const resetChooserState = useCallback((): void => {
     setIfdbSearchQuery('');
     setIfdbSearchResults([]);
@@ -245,14 +266,15 @@ export function useParchmentPanel({
 
     try {
       const results = await searchIfdbGames(trimmedQuery);
-      setIfdbSearchResults(results);
+      const enrichedResults = await enrichIfdbSearchResultsWithPlayability(results);
+      setIfdbSearchResults(enrichedResults);
     } catch (error) {
       setIfdbSearchResults([]);
       setIfdbSearchError(error instanceof Error ? error.message : 'IFDB search failed.');
     } finally {
       setIsIfdbSearching(false);
     }
-  }, []);
+  }, [enrichIfdbSearchResultsWithPlayability]);
 
   const handleIfdbSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();

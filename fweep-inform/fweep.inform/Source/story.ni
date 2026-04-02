@@ -56,7 +56,6 @@ Instead of examining the jewel-encrusted book:
 	
 	Here are some extra tips:
 	
-	* Typing Ctrl+Space while in \ mode brings up auto-suggestions.[line break]
 * '\undo' is exactly what it sounds like.[line break]
 * and of course, you can type '\help'.
 

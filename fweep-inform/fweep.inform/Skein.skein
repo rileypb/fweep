@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 
-<Skein rootNode="node-1002">
+<Skein rootNode="node-1066">
     <generator>Inform Mac Client (Inform version 1.82/6.41/10.1.2)</generator>
-    <item nodeId="node-1002">
+    <item nodeId="node-1066">
         <command xml:space="preserve">fweep</command>
         <result xml:space="preserve">
 
@@ -21,13 +21,13 @@ On the west wall is a sign saying "enter '\west is unknown'"
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1018"></child>
-            <child nodeId="node-1005"></child>
-            <child nodeId="node-1010"></child>
-            <child nodeId="node-1020"></child>
+        <children><child nodeId="node-1094"></child>
+            <child nodeId="node-1092"></child>
+            <child nodeId="node-1090"></child>
+            <child nodeId="node-1067"></child>
         </children>
     </item>
-    <item nodeId="node-1020">
+    <item nodeId="node-1067">
         <command xml:space="preserve">w</command>
         <result xml:space="preserve">
 Glass Maze
@@ -39,11 +39,11 @@ Etched in the ceiling is the inscription "\above is unknown".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1021"></child>
-            <child nodeId="node-1054"></child>
+        <children><child nodeId="node-1072"></child>
+            <child nodeId="node-1068"></child>
         </children>
     </item>
-    <item nodeId="node-1054">
+    <item nodeId="node-1068">
         <command xml:space="preserve">up</command>
         <result xml:space="preserve">
 Darkness
@@ -52,10 +52,10 @@ A hollow voice says "frotz".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1055"></child>
+        <children><child nodeId="node-1069"></child>
         </children>
     </item>
-    <item nodeId="node-1055">
+    <item nodeId="node-1069">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Behold! Now the room is lit!
 
@@ -66,10 +66,10 @@ Smoky tendrils float through the room. You can just make out a message in them: 
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1056"></child>
+        <children><child nodeId="node-1070"></child>
         </children>
     </item>
-    <item nodeId="node-1056">
+    <item nodeId="node-1070">
         <command xml:space="preserve">n</command>
         <result xml:space="preserve">
 Treasure Room
@@ -81,10 +81,10 @@ You can see a jewel-encrusted book here.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1057"></child>
+        <children><child nodeId="node-1071"></child>
         </children>
     </item>
-    <item nodeId="node-1057">
+    <item nodeId="node-1071">
         <command xml:space="preserve">read book</command>
         <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
 
@@ -104,7 +104,7 @@ Now go ahead and type "\choose a game"!
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1021">
+    <item nodeId="node-1072">
         <command xml:space="preserve">u</command>
         <result xml:space="preserve">
 Darkness
@@ -113,31 +113,31 @@ A hollow voice says "frotz".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1027"></child>
-            <child nodeId="node-1038"></child>
-            <child nodeId="node-1022"></child>
+        <children><child nodeId="node-1079"></child>
+            <child nodeId="node-1076"></child>
+            <child nodeId="node-1073"></child>
         </children>
     </item>
-    <item nodeId="node-1022">
+    <item nodeId="node-1073">
         <command xml:space="preserve">z</command>
         <result xml:space="preserve">Time passes.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1023"></child>
+        <children><child nodeId="node-1074"></child>
         </children>
     </item>
-    <item nodeId="node-1023">
+    <item nodeId="node-1074">
         <command xml:space="preserve">l</command>
         <result xml:space="preserve">Darkness
 It is pitch dark, and you can't see a thing.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1024"></child>
+        <children><child nodeId="node-1075"></child>
         </children>
     </item>
-    <item nodeId="node-1024">
+    <item nodeId="node-1075">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Behold! Now the room is lit!
 
@@ -149,7 +149,7 @@ You can see a fweep instruction book here.
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1038">
+    <item nodeId="node-1076">
         <command xml:space="preserve">l</command>
         <result xml:space="preserve">Darkness
 It is pitch dark, and you can't see a thing.
@@ -157,10 +157,10 @@ A hollow voice says "frotz".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1042"></child>
+        <children><child nodeId="node-1077"></child>
         </children>
     </item>
-    <item nodeId="node-1042">
+    <item nodeId="node-1077">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Behold! Now the room is lit!
 
@@ -171,17 +171,17 @@ You can see a fweep instruction book here.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1043"></child>
+        <children><child nodeId="node-1078"></child>
         </children>
     </item>
-    <item nodeId="node-1043">
+    <item nodeId="node-1078">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Behold! Now the room is lit!
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1027">
+    <item nodeId="node-1079">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Behold! Now the room is lit!
 
@@ -192,40 +192,40 @@ Smoky tendrils float through the room. You can just make out a message in them: 
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1047"></child>
-            <child nodeId="node-1061"></child>
-            <child nodeId="node-1028"></child>
+        <children><child nodeId="node-1087"></child>
+            <child nodeId="node-1084"></child>
+            <child nodeId="node-1080"></child>
         </children>
     </item>
-    <item nodeId="node-1028">
+    <item nodeId="node-1080">
         <command xml:space="preserve">undo</command>
         <result xml:space="preserve">Darkness
 [Previous turn undone.]
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1029"></child>
+        <children><child nodeId="node-1081"></child>
         </children>
     </item>
-    <item nodeId="node-1029">
+    <item nodeId="node-1081">
         <command xml:space="preserve">z</command>
         <result xml:space="preserve">Time passes.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1030"></child>
+        <children><child nodeId="node-1082"></child>
         </children>
     </item>
-    <item nodeId="node-1030">
+    <item nodeId="node-1082">
         <command xml:space="preserve">z</command>
         <result xml:space="preserve">Time passes.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1031"></child>
+        <children><child nodeId="node-1083"></child>
         </children>
     </item>
-    <item nodeId="node-1031">
+    <item nodeId="node-1083">
         <command xml:space="preserve">l</command>
         <result xml:space="preserve">Darkness
 It is pitch dark, and you can't see a thing.
@@ -235,16 +235,16 @@ A hollow voice says "frotz".
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1061">
+    <item nodeId="node-1084">
         <command xml:space="preserve">u</command>
         <result xml:space="preserve">You can't go that way.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1062"></child>
+        <children><child nodeId="node-1085"></child>
         </children>
     </item>
-    <item nodeId="node-1062">
+    <item nodeId="node-1085">
         <command xml:space="preserve">n</command>
         <result xml:space="preserve">
 Treasure Room
@@ -258,10 +258,10 @@ You can see a jewel-encrusted book here.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1063"></child>
+        <children><child nodeId="node-1086"></child>
         </children>
     </item>
-    <item nodeId="node-1063">
+    <item nodeId="node-1086">
         <command xml:space="preserve">read book</command>
         <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
 
@@ -280,16 +280,16 @@ Now go ahead and type "\choose a game"!
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1047">
+    <item nodeId="node-1087">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Nothing seems to happen.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1048"></child>
+        <children><child nodeId="node-1088"></child>
         </children>
     </item>
-    <item nodeId="node-1048">
+    <item nodeId="node-1088">
         <command xml:space="preserve">d</command>
         <result xml:space="preserve">
 Glass Maze
@@ -301,26 +301,26 @@ Etched in the ceiling is the inscription "\above is unknown".
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1049"></child>
+        <children><child nodeId="node-1089"></child>
         </children>
     </item>
-    <item nodeId="node-1049">
+    <item nodeId="node-1089">
         <command xml:space="preserve">frotz</command>
         <result xml:space="preserve">Nothing seems to happen.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1010">
+    <item nodeId="node-1090">
         <command xml:space="preserve">read. book</command>
         <result xml:space="preserve">You can't see any such thing.
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1011"></child>
+        <children><child nodeId="node-1091"></child>
         </children>
     </item>
-    <item nodeId="node-1011">
+    <item nodeId="node-1091">
         <command xml:space="preserve">read book</command>
         <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
 
@@ -337,7 +337,7 @@ That's all the basic stuff you need to know, but here's a few handy extras:
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1005">
+    <item nodeId="node-1092">
         <command xml:space="preserve">read book</command>
         <result xml:space="preserve"> Welcome to fweep! The map creator for people who like to type! And frankly, who hate switching from the keyboard to the mouse and back again.
 
@@ -356,10 +356,10 @@ Now go ahead and type "\choose a game"!
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1013"></child>
+        <children><child nodeId="node-1093"></child>
         </children>
     </item>
-    <item nodeId="node-1013">
+    <item nodeId="node-1093">
         <command xml:space="preserve">w</command>
         <result xml:space="preserve">
 Glass Maze
@@ -368,16 +368,16 @@ East of here is the Bat Cave.
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
     </item>
-    <item nodeId="node-1018">
+    <item nodeId="node-1094">
         <command xml:space="preserve"></command>
         <result xml:space="preserve">I beg your pardon?
 
 &gt;</result>
         <commentary xml:space="preserve"></commentary>
-        <children><child nodeId="node-1019"></child>
+        <children><child nodeId="node-1095"></child>
         </children>
     </item>
-    <item nodeId="node-1019">
+    <item nodeId="node-1095">
         <command xml:space="preserve"></command>
         <result xml:space="preserve">I beg your pardon?
 
