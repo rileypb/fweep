@@ -258,6 +258,7 @@ function appendCliOutputToParchmentTranscript(
 
 export function App(): React.JSX.Element {
   const { activeMap, loading, openMap, closeMap, routeError } = useMapRouter();
+  const [showComponentBoundsDebug, setShowComponentBoundsDebug] = useState(false);
   const [defaultParchmentMapId, setDefaultParchmentMapId] = useState<string | null>(null);
   const loadDocument = useEditorStore((s) => s.loadDocument);
   const unloadDocument = useEditorStore((s) => s.unloadDocument);
@@ -885,6 +886,19 @@ export function App(): React.JSX.Element {
             <ThemeToggle />
             <button
               type="button"
+              className={`app-control-button${showComponentBoundsDebug ? ' app-control-button--active-history' : ''}`}
+              aria-label="Toggle component bounds debug overlay"
+              aria-pressed={showComponentBoundsDebug}
+              title="Toggle component bounds debug overlay"
+              onClick={() => setShowComponentBoundsDebug((current) => !current)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
+                <rect x="2.25" y="2.25" width="11.5" height="11.5" rx="1.75" strokeDasharray="2 1.5" />
+                <rect x="5" y="5" width="6" height="6" rx="1" />
+              </svg>
+            </button>
+            <button
+              type="button"
               className="app-control-button"
               aria-label="Help"
               aria-keyshortcuts={UI_SHORTCUTS.openHelp.ariaKeyShortcuts}
@@ -1003,6 +1017,7 @@ export function App(): React.JSX.Element {
           requestedRoomRevealRequest={requestedRoomRevealRequest}
           requestedViewportFocusRequest={requestedViewportFocusRequest}
           requestedMapZoomRequest={requestedMapZoomRequest}
+          showComponentBoundsDebug={showComponentBoundsDebug}
           onRequestedRoomEditorHandled={handleRequestedRoomEditorHandled}
           onRequestedRoomRevealHandled={handleRequestedRoomRevealHandled}
           onRequestedViewportFocusHandled={handleRequestedViewportFocusHandled}

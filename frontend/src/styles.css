@@ -1998,6 +1998,22 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   z-index: var(--map-layer-export-region);
 }
 
+.map-canvas-component-bounds-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.map-canvas-component-bounds-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #ef4444;
+  border-radius: 0.9rem;
+  background: rgba(239, 68, 68, 0.09);
+  box-shadow: 0 0 0 1px color-mix(in srgb, white 45%, transparent);
+}
+
 .map-canvas-connection-create-menu {
   z-index: 12;
   display: grid;

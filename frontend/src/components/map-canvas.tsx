@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createPseudoRoom, createRoom, type MapDocument, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
@@ -42,6 +42,7 @@ import { UndoButton } from './undo-button';
 import { MapCanvasThemeLayer } from './map-canvas-theme-layer';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
+import { getConnectedComponentBounds } from '../graph/prettify-layout';
 import {
   BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
@@ -288,6 +289,7 @@ export interface MapCanvasProps {
   mapName: string;
   actionsContainer?: Element | null;
   showGrid?: boolean;
+  showComponentBoundsDebug?: boolean;
   onBack?: () => void;
   visibleMapLeftInset?: number;
   visibleMapRightInset?: number;
@@ -374,6 +376,7 @@ export function MapCanvas({
   mapName,
   actionsContainer = null,
   showGrid: initialShowGrid = true,
+  showComponentBoundsDebug = false,
   visibleMapLeftInset = 0,
   visibleMapRightInset = 0,
   selectionFocusRightInset = 0,
@@ -484,6 +487,10 @@ export function MapCanvas({
     : {};
   const pseudoRooms = doc ? Object.values(doc.pseudoRooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
+  const componentBounds = useMemo(
+    () => (doc && showComponentBoundsDebug ? getConnectedComponentBounds(doc) : []),
+    [doc, showComponentBoundsDebug],
+  );
   const hasExportSelection = selectedRoomIds.length > 0
     || selectedPseudoRoomIds.length > 0
     || selectedStickyNoteIds.length > 0
@@ -1638,6 +1645,33 @@ export function MapCanvas({
               isDragging={isDraggingBackgroundImage}
               onMouseDown={handleBackgroundImageMouseDown}
             />
+          )}
+          {showComponentBoundsDebug && componentBounds.length > 0 && (
+            <div
+              className="map-canvas-component-bounds-overlay"
+              data-testid="map-canvas-component-bounds-overlay"
+              aria-hidden="true"
+            >
+              {componentBounds.map((bounds, index) => (
+                (() => {
+                  const hue = (index * 53) % 360;
+                  return (
+                    <div
+                      key={bounds.key}
+                      className="map-canvas-component-bounds-box"
+                      style={{
+                        left: `${bounds.left}px`,
+                        top: `${bounds.top}px`,
+                        width: `${bounds.right - bounds.left}px`,
+                        height: `${bounds.bottom - bounds.top}px`,
+                        borderColor: `hsl(${hue} 88% 58%)`,
+                        backgroundColor: `hsl(${hue} 88% 58% / 0.09)`,
+                      }}
+                    />
+                  );
+                })()
+              ))}
+            </div>
           )}
           {doc && (
             <MapCanvasConnections
