@@ -593,4 +593,34 @@ describe('useParchmentPanel', () => {
     expect(result.current.parchmentPanelWidth).toBeLessThanOrEqual(initialWidth);
     expect(result.current.parchmentPanelHeight).toBeLessThanOrEqual(initialHeight);
   });
+
+  it('clamps panel height to stay below the protected top area', () => {
+    window.localStorage.setItem('fweep-parchment-panel-height', '880');
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      heightTopInsetPx: 84,
+      heightBottomInsetPx: 16,
+    })));
+
+    expect(result.current.parchmentPanelHeight).toBe(800);
+
+    act(() => {
+      result.current.beginParchmentPanelHeightResize(7, 500);
+      window.dispatchEvent(createPointerEvent('pointermove', 7, { clientY: -200 }));
+      window.dispatchEvent(createPointerEvent('pointerup', 7, { clientY: -200 }));
+    });
+
+    expect(result.current.parchmentPanelHeight).toBe(800);
+
+    const preventDefault = jest.fn();
+    act(() => {
+      result.current.handleParchmentPanelHeightResizeKeyDown({
+        key: 'ArrowUp',
+        preventDefault,
+      } as unknown as React.KeyboardEvent<HTMLElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(result.current.parchmentPanelHeight).toBe(800);
+  });
 });

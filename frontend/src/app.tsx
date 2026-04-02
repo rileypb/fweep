@@ -53,6 +53,7 @@ const WAVE_SQUARE_SOLID_FULL_PATH = 'M128 160C128 142.3 142.3 128 160 128L320 12
 const WELCOME_DIALOG_SEEN_STORAGE_KEY = 'fweep-welcome-dialog-seen';
 const STARTUP_TIPS_ENABLED_STORAGE_KEY = 'fweep-startup-tips-enabled';
 const STARTUP_TIP_INDEX_STORAGE_KEY = 'fweep-startup-tip-index';
+const PARCHMENT_PANEL_TOP_PROTECTED_INSET_PX = 84;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 export {
@@ -325,7 +326,7 @@ export function App(): React.JSX.Element {
     setAssociatedGameMetadata,
     parchmentDeviceInputRef,
     parchmentIframeRef,
-    heightTopInsetPx: 16,
+    heightTopInsetPx: PARCHMENT_PANEL_TOP_PROTECTED_INSET_PX,
     heightBottomInsetPx: 16,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
