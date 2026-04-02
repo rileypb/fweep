@@ -23,7 +23,7 @@ import { createSelectionSnapshot, type SelectionSnapshot } from '../state/editor
 import { applyCachedMapViewSession } from '../state/map-view-session-cache';
 import { saveMap } from '../storage/map-store';
 import { MAX_MAP_VIEWPORT_ZOOM, MIN_MAP_VIEWPORT_ZOOM } from '../components/use-map-viewport';
-import { runHelpImageMapCommand, type HelpImageScriptState } from '../domain/help-image-script';
+import { runCliSessionCommand, type CliSessionState } from '../domain/cli-session-engine';
 
 export interface RoomUiRequest {
   readonly roomId: string;
@@ -664,7 +664,7 @@ export function useAppCli({
   const createCliSessionStateFromEditor = (
     liveEditorState: ReturnType<typeof useEditorStore.getState>,
     pronounRoomId: string | null,
-  ): HelpImageScriptState | null => {
+  ): CliSessionState | null => {
     if (liveEditorState.doc === null) {
       return null;
     }
@@ -684,7 +684,7 @@ export function useAppCli({
 
   const applyCliSessionStateToEditor = (
     currentEditorState: ReturnType<typeof useEditorStore.getState>,
-    nextState: HelpImageScriptState,
+    nextState: CliSessionState,
     historyMergeKey?: string,
   ): void => {
     applyCliSessionSnapshot(
@@ -908,7 +908,7 @@ export function useAppCli({
       })();
 
       try {
-        const nextState = runHelpImageMapCommand(cliSessionState, trimmedInput, {
+        const nextState = runCliSessionCommand(cliSessionState, trimmedInput, {
           viewportSize: { width: window.innerWidth, height: window.innerHeight },
           panOffset: currentMapPanOffset,
         });
