@@ -11,6 +11,7 @@ export kitchendark.png
 
 kitchen is lit
 create Pantry
+arrange
 export pantrykitchennoconnect.png
 
 connect pantry east to kitchen

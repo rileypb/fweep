@@ -106,7 +106,7 @@ describe('URL routing', () => {
 
     await renderAppWithOpenMap();
 
-    expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ right: '16px' });
+    expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ left: '498px', right: 'auto' });
   });
 
   it('renders a collapsible CLI help panel framing beside the map', async () => {

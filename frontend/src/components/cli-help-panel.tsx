@@ -2,12 +2,6 @@ import { useMemo, useState } from 'react';
 import cliHelpOutlineMarkdown from '../content/cli-help-outline.md?raw';
 import { HelpImageScriptRunner } from './help-image-script-runner';
 
-const HELP_IMAGE_URLS: Readonly<Record<string, string>> = {
-  'blank.png': new URL('../content/images/blank.png', import.meta.url).href,
-  'kitchen.png': new URL('../content/images/kitchen.png', import.meta.url).href,
-  'pantrykitchen.png': new URL('../content/images/pantrykitchen.png', import.meta.url).href,
-};
-
 interface CliHelpImageTransition {
   readonly from: string | null;
   readonly to: string | null;
@@ -133,7 +127,7 @@ function getHelpImageUrl(fileName: string | null): string | null {
     return null;
   }
 
-  return HELP_IMAGE_URLS[fileName] ?? null;
+  return new URL(`../content/images/${fileName}`, import.meta.url).href;
 }
 
 function CliHelpTreeNode(
@@ -165,7 +159,7 @@ function CliHelpTreeNode(
   if (node.children.length === 0) {
     return (
       <li className="cli-help-panel__tree-item">
-        <div className="cli-help-panel__tree-label cli-help-panel__tree-label--leaf">
+        <div className={`cli-help-panel__tree-label cli-help-panel__tree-label--leaf${selectedNodeId === node.id ? ' cli-help-panel__tree-label--selected' : ''}`}>
           {labelContent}
         </div>
       </li>
@@ -177,7 +171,7 @@ function CliHelpTreeNode(
       <details className="cli-help-panel__tree-details">
         <summary className="cli-help-panel__tree-summary">
           <span className="cli-help-panel__tree-chevron" aria-hidden="true">▸</span>
-          <span className="cli-help-panel__tree-label">{labelContent}</span>
+          <span className={`cli-help-panel__tree-label${selectedNodeId === node.id ? ' cli-help-panel__tree-label--selected' : ''}`}>{labelContent}</span>
         </summary>
         <ul className="cli-help-panel__tree-list cli-help-panel__tree-list--nested">
           {node.children.map((child) => (

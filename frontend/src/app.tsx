@@ -362,7 +362,10 @@ export function App(): React.JSX.Element {
     : 0;
   const selectionFocusRightInset = 0;
   const mapNameChipRightInset = 0;
-  const appTitleRightInset = 16;
+  const appTitlePanelGap = 10;
+  const appTitleLeftInset = hasOpenMap
+    ? panelColumnLeft + parchmentPanelWidth + appTitlePanelGap
+    : null;
   const topBarLeft = typeof window === 'undefined'
     ? 16
     : panelColumnLeft;
@@ -894,7 +897,12 @@ export function App(): React.JSX.Element {
               </svg>
             </button>
           </div>
-          <h1 className="app-title" style={{ right: `${appTitleRightInset}px` }}>fweep</h1>
+          <h1
+            className="app-title"
+            style={appTitleLeftInset === null ? undefined : { left: `${appTitleLeftInset}px`, right: 'auto', textAlign: 'left' }}
+          >
+            fweep
+          </h1>
           <CliHelpPanel
             isOpen={isCliHelpPanelOpen}
             onToggle={() => setIsCliHelpPanelOpen((current) => !current)}
