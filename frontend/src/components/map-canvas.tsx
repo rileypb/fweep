@@ -5,7 +5,7 @@ import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
-import { useMapViewport } from './use-map-viewport';
+import { type PanOffset, useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
@@ -81,6 +81,10 @@ import {
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
 const J_SOLID_FULL_PATH = 'M448 96C465.7 96 480 110.3 480 128L480 384C480 472.4 408.4 544 320 544C231.6 544 160 472.4 160 384L160 352C160 334.3 174.3 320 192 320C209.7 320 224 334.3 224 352L224 384C224 437 267 480 320 480C373 480 416 437 416 384L416 128C416 110.3 430.3 96 448 96z';
+const DRAG_EDGE_AUTO_PAN_TRIGGER_PX = 48;
+const DRAG_EDGE_AUTO_PAN_MAX_STEP_PX = 18;
+const DRAG_EDGE_AUTO_PAN_MIN_STEP_PX = 4;
+const DRAG_EDGE_AUTO_PAN_INTERVAL_MS = 16;
 import {
   deleteBackgroundChunks,
   loadBackgroundChunk,
@@ -110,6 +114,8 @@ interface ActiveDrawingStroke {
   readonly chunks: Map<string, StrokeChunkState>;
 }
 
+type DragPointerTickHandler = (clientX: number, clientY: number) => void;
+
 function isDrawingInterfaceEnabled(): boolean {
   return (
     (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
@@ -124,6 +130,16 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
     colorRgbHex: normalizeHexColor(drawingToolState.colorRgbHex),
     fillColorRgbHex: normalizeHexColor(drawingToolState.fillColorRgbHex),
   };
+}
+
+function getDragEdgeAutoPanStep(distanceToEdge: number): number {
+  const clampedDistance = Math.max(distanceToEdge, 0);
+  if (clampedDistance >= DRAG_EDGE_AUTO_PAN_TRIGGER_PX) {
+    return 0;
+  }
+
+  const proximity = (DRAG_EDGE_AUTO_PAN_TRIGGER_PX - clampedDistance) / DRAG_EDGE_AUTO_PAN_TRIGGER_PX;
+  return Math.max(DRAG_EDGE_AUTO_PAN_MIN_STEP_PX, Math.ceil(proximity * DRAG_EDGE_AUTO_PAN_MAX_STEP_PX));
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
@@ -453,6 +469,9 @@ export function MapCanvas({
   const suppressCanvasClickRef = useRef(false);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
+  const dragEdgeAutoPanCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const dragEdgeAutoPanTickRef = useRef<DragPointerTickHandler | null>(null);
+  const dragEdgeAutoPanIntervalRef = useRef<number | null>(null);
   const theme = useDocumentTheme();
   const {
     canvasRef,
@@ -496,6 +515,85 @@ export function MapCanvas({
     || selectedStickyNoteIds.length > 0
     || selectedConnectionIds.length > 0
     || selectedStickyNoteLinkIds.length > 0;
+
+  const stopDragEdgeAutoPan = useCallback(() => {
+    if (dragEdgeAutoPanIntervalRef.current !== null) {
+      window.clearInterval(dragEdgeAutoPanIntervalRef.current);
+      dragEdgeAutoPanIntervalRef.current = null;
+    }
+    dragEdgeAutoPanCursorRef.current = null;
+    dragEdgeAutoPanTickRef.current = null;
+    setIsAutoPanning(false);
+  }, []);
+
+  const getDragEdgeAutoPanDelta = useCallback((clientX: number, clientY: number): PanOffset | null => {
+    const rect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    if (!rect) {
+      return null;
+    }
+
+    const visibleLeftEdge = rect.left + visibleMapLeftInset;
+    const visibleRightEdge = rect.right - visibleMapRightInset;
+    const leftStep = getDragEdgeAutoPanStep(clientX - visibleLeftEdge);
+    const rightStep = getDragEdgeAutoPanStep(visibleRightEdge - clientX);
+    const topStep = getDragEdgeAutoPanStep(clientY - rect.top);
+    const bottomStep = getDragEdgeAutoPanStep(rect.bottom - clientY);
+
+    const x = leftStep > rightStep
+      ? leftStep
+      : rightStep > 0
+        ? -rightStep
+        : 0;
+    const y = topStep > bottomStep
+      ? topStep
+      : bottomStep > 0
+        ? -bottomStep
+        : 0;
+
+    if (x === 0 && y === 0) {
+      return null;
+    }
+
+    return { x, y };
+  }, [canvasRect, canvasRef, visibleMapLeftInset, visibleMapRightInset]);
+
+  const tickDragEdgeAutoPan = useCallback(() => {
+    const pointer = dragEdgeAutoPanCursorRef.current;
+    if (!pointer) {
+      stopDragEdgeAutoPan();
+      return;
+    }
+
+    const delta = getDragEdgeAutoPanDelta(pointer.x, pointer.y);
+    if (!delta) {
+      stopDragEdgeAutoPan();
+      return;
+    }
+
+    panBy(delta);
+    setIsAutoPanning(true);
+    dragEdgeAutoPanTickRef.current?.(pointer.x, pointer.y);
+  }, [getDragEdgeAutoPanDelta, panBy, stopDragEdgeAutoPan]);
+
+  const updateDragEdgeAutoPan = useCallback((clientX: number, clientY: number, onTick: DragPointerTickHandler) => {
+    dragEdgeAutoPanCursorRef.current = { x: clientX, y: clientY };
+    dragEdgeAutoPanTickRef.current = onTick;
+
+    if (getDragEdgeAutoPanDelta(clientX, clientY) === null) {
+      if (dragEdgeAutoPanIntervalRef.current !== null) {
+        window.clearInterval(dragEdgeAutoPanIntervalRef.current);
+        dragEdgeAutoPanIntervalRef.current = null;
+      }
+      setIsAutoPanning(false);
+      return;
+    }
+
+    if (dragEdgeAutoPanIntervalRef.current === null) {
+      dragEdgeAutoPanIntervalRef.current = window.setInterval(tickDragEdgeAutoPan, DRAG_EDGE_AUTO_PAN_INTERVAL_MS);
+    }
+  }, [getDragEdgeAutoPanDelta, tickDragEdgeAutoPan]);
+
+  useEffect(() => stopDragEdgeAutoPan, [stopDragEdgeAutoPan]);
 
   useEffect(() => {
     if (drawingInterfaceEnabled) {
@@ -1138,21 +1236,27 @@ export function MapCanvas({
           .forEach((pseudoRoom) => addPseudoRoomToSelection(pseudoRoom.id));
       };
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
+      const updateSelectionFromPointer = (clientX: number, clientY: number) => {
         const nextSelectionBox: SelectionBox = {
           startX: initialSelectionBox.startX,
           startY: initialSelectionBox.startY,
-          currentX: moveEvent.clientX - (canvasRect?.left ?? 0),
-          currentY: moveEvent.clientY - (canvasRect?.top ?? 0),
+          currentX: clientX - (canvasRect?.left ?? 0),
+          currentY: clientY - (canvasRect?.top ?? 0),
         };
 
         setSelectionBox(nextSelectionBox);
         updateSelection(nextSelectionBox);
       };
 
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        updateDragEdgeAutoPan(moveEvent.clientX, moveEvent.clientY, updateSelectionFromPointer);
+        updateSelectionFromPointer(moveEvent.clientX, moveEvent.clientY);
+      };
+
       const handleMouseUp = (upEvent: MouseEvent) => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        stopDragEdgeAutoPan();
 
         const finalSelectionBox: SelectionBox = {
           startX: initialSelectionBox.startX,
@@ -1196,8 +1300,10 @@ export function MapCanvas({
     isRoomEditorOpen,
     rooms,
     stickyNotes,
+    stopDragEdgeAutoPan,
     setSelection,
     toMapPoint,
+    updateDragEdgeAutoPan,
     updateExportRegion,
     exportScope,
     effectiveCanvasInteractionMode,
@@ -1698,6 +1804,8 @@ export function MapCanvas({
               isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
               onOpenPseudoRoomEditor={openPseudoRoomEditor}
               toMapPoint={toMapPoint}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
 
@@ -1710,6 +1818,8 @@ export function MapCanvas({
               toMapPoint={toMapPoint}
               onOpenEditor={openStickyNoteEditor}
               onCloseEditor={closeStickyNoteEditor}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
 
@@ -1725,6 +1835,8 @@ export function MapCanvas({
               onOpenRoomEditor={openRoomEditor}
               onEmptyConnectionDrop={openConnectionCreationMenu}
               toMapPoint={toMapPoint}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
         </div>

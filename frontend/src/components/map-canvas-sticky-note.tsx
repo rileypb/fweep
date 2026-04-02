@@ -24,6 +24,8 @@ export interface MapCanvasStickyNoteProps {
   readonly toMapPoint: (clientX: number, clientY: number) => PanOffset;
   readonly onOpenEditor: (stickyNoteId: string) => void;
   readonly onCloseEditor: () => void;
+  readonly onDragPointerMove?: (clientX: number, clientY: number, onTick: (clientX: number, clientY: number) => void) => void;
+  readonly onDragPointerEnd?: () => void;
 }
 
 export function MapCanvasStickyNote({
@@ -33,6 +35,8 @@ export function MapCanvasStickyNote({
   toMapPoint,
   onOpenEditor,
   onCloseEditor,
+  onDragPointerMove,
+  onDragPointerEnd,
 }: MapCanvasStickyNoteProps): React.JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const setStickyNoteText = useEditorStore((s) => s.setStickyNoteText);
@@ -171,13 +175,18 @@ export function MapCanvasStickyNote({
           startStickyNoteDrag(stickyNote.id);
 
           const handleMouseMove = (moveEvent: MouseEvent) => {
-            const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
-            updateStickyNoteDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+            const updateDrag = (clientX: number, clientY: number) => {
+              const cursorPoint = toMapPoint(clientX, clientY);
+              updateStickyNoteDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+            };
+            onDragPointerMove?.(moveEvent.clientX, moveEvent.clientY, updateDrag);
+            updateDrag(moveEvent.clientX, moveEvent.clientY);
           };
 
           const handleMouseUp = (upEvent: MouseEvent) => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            onDragPointerEnd?.();
 
             const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
             const dx = endPoint.x - startPoint.x;

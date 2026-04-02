@@ -137,6 +137,8 @@ export interface MapCanvasRoomNodeProps {
   onOpenRoomEditor: (roomId: string) => void;
   onEmptyConnectionDrop: (position: PanOffset, clientX: number, clientY: number) => void;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
+  onDragPointerMove?: (clientX: number, clientY: number, onTick: (clientX: number, clientY: number) => void) => void;
+  onDragPointerEnd?: () => void;
 }
 
 export function MapCanvasRoomNode({
@@ -149,6 +151,8 @@ export function MapCanvasRoomNode({
   onOpenRoomEditor,
   onEmptyConnectionDrop,
   toMapPoint,
+  onDragPointerMove,
+  onDragPointerEnd,
 }: MapCanvasRoomNodeProps): React.JSX.Element {
   const [hovered, setHovered] = useState(false);
   const [areItemsExpanded, setAreItemsExpanded] = useState(false);
@@ -255,13 +259,18 @@ export function MapCanvasRoomNode({
       startRoomDrag(room.id);
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
-        updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+        const updateDrag = (clientX: number, clientY: number) => {
+          const cursorPoint = toMapPoint(clientX, clientY);
+          updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+        };
+        onDragPointerMove?.(moveEvent.clientX, moveEvent.clientY, updateDrag);
+        updateDrag(moveEvent.clientX, moveEvent.clientY);
       };
 
       const handleMouseUp = (upEvent: MouseEvent) => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        onDragPointerEnd?.();
 
         const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
         const dx = endPoint.x - startPoint.x;
@@ -329,7 +338,7 @@ export function MapCanvasRoomNode({
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
-    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveSelection, room.id, selectRoom, startRoomDrag, toMapPoint, updateRoomDrag],
+    [addRoomToSelection, endRoomDrag, isRoomEditorOpen, moveSelection, onDragPointerEnd, onDragPointerMove, room.id, selectRoom, startRoomDrag, toMapPoint, updateRoomDrag],
   );
 
   const handleDirectionMouseDown = useCallback(
