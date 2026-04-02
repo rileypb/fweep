@@ -1300,16 +1300,6 @@ function recenterUnlockedComponents(
   }
 }
 
-function getComponentCentroidSignature(
-  componentRoomIds: readonly string[],
-  placedPositions: ReadonlyMap<string, Position>,
-  doc: MapDocument,
-): string {
-  const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
-  const centroid = computePlacedCentroid(centroidAnchorRoomIds, placedPositions, doc);
-  return `${snapCoordinate(centroid.x)},${snapCoordinate(centroid.y)}`;
-}
-
 function getComponentJiggleCandidates(): readonly Position[] {
   const candidates: Position[] = [];
 
@@ -1328,7 +1318,61 @@ function getComponentJiggleCandidates(): readonly Position[] {
   return candidates;
 }
 
-function separateCoincidentComponentCentroids(
+function getComponentBounds(
+  componentRoomIds: readonly string[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): { left: number; top: number; right: number; bottom: number } | null {
+  const visualStyle = doc.view.visualStyle;
+  let bounds: { left: number; top: number; right: number; bottom: number } | null = null;
+
+  for (const roomId of componentRoomIds) {
+    const position = placedPositions.get(roomId);
+    if (!position) {
+      return null;
+    }
+
+    const stickyNote = doc.stickyNotes[roomId];
+    const nextBounds = stickyNote
+      ? getStickyNoteBounds(stickyNote, position)
+      : (() => {
+        const room = getLayoutRoom(doc, roomId);
+        return room ? getRoomBounds(room, position, visualStyle) : null;
+      })();
+
+    if (!nextBounds) {
+      return null;
+    }
+
+    bounds = bounds === null
+      ? nextBounds
+      : {
+        left: Math.min(bounds.left, nextBounds.left),
+        top: Math.min(bounds.top, nextBounds.top),
+        right: Math.max(bounds.right, nextBounds.right),
+        bottom: Math.max(bounds.bottom, nextBounds.bottom),
+      };
+  }
+
+  return bounds;
+}
+
+function doComponentsOverlap(
+  leftComponentRoomIds: readonly string[],
+  rightComponentRoomIds: readonly string[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): boolean {
+  const leftBounds = getComponentBounds(leftComponentRoomIds, placedPositions, doc);
+  const rightBounds = getComponentBounds(rightComponentRoomIds, placedPositions, doc);
+  if (!leftBounds || !rightBounds) {
+    return false;
+  }
+
+  return intersectsWithGap(leftBounds, rightBounds, 0);
+}
+
+function separateOverlappingComponents(
   components: readonly string[][],
   lockedRoomIds: ReadonlySet<string>,
   placedPositions: Map<string, Position>,
@@ -1339,7 +1383,6 @@ function separateCoincidentComponentCentroids(
     .map((componentRoomIds) => ({
       roomIds: componentRoomIds,
       key: componentRoomIds.join('\0'),
-      signature: getComponentCentroidSignature(componentRoomIds, placedPositions, doc),
     }))
     .sort((left, right) => {
       const sizeDifference = right.roomIds.length - left.roomIds.length;
@@ -1349,35 +1392,45 @@ function separateCoincidentComponentCentroids(
       return left.key.localeCompare(right.key);
     });
 
-  const componentsBySignature = new Map<string, typeof unlockedComponents>();
-  for (const component of unlockedComponents) {
-    const group = componentsBySignature.get(component.signature) ?? [];
-    group.push(component);
-    componentsBySignature.set(component.signature, group);
-  }
-
   const jiggleCandidates = getComponentJiggleCandidates();
-  for (const group of componentsBySignature.values()) {
-    if (group.length <= 1) {
+  for (let index = 1; index < unlockedComponents.length; index += 1) {
+    const component = unlockedComponents[index];
+    const overlappingEarlierComponents = unlockedComponents
+      .slice(0, index)
+      .filter((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, placedPositions, doc));
+    if (overlappingEarlierComponents.length === 0) {
       continue;
     }
 
-    for (let index = 1; index < group.length; index += 1) {
-      const component = group[index];
-      for (const candidate of jiggleCandidates) {
-        if (!canTranslateComponent(component.roomIds, candidate, placedPositions, doc)) {
-          continue;
-        }
-
-        for (const roomId of component.roomIds) {
-          const currentPosition = placedPositions.get(roomId)!;
-          placedPositions.set(roomId, {
-            x: currentPosition.x + candidate.x,
-            y: currentPosition.y + candidate.y,
-          });
-        }
-        break;
+    for (const candidate of jiggleCandidates) {
+      if (!canTranslateComponent(component.roomIds, candidate, placedPositions, doc)) {
+        continue;
       }
+
+      const translatedPositions = new Map(placedPositions);
+      for (const roomId of component.roomIds) {
+        const currentPosition = translatedPositions.get(roomId)!;
+        translatedPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+
+      const stillOverlaps = unlockedComponents
+        .slice(0, index)
+        .some((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, translatedPositions, doc));
+      if (stillOverlaps) {
+        continue;
+      }
+
+      for (const roomId of component.roomIds) {
+        const currentPosition = placedPositions.get(roomId)!;
+        placedPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+      break;
     }
   }
 }
@@ -1464,7 +1517,7 @@ function computePrettifiedRoomPositionsSinglePass(
   }
 
   recenterUnlockedComponents(components, componentTargetCentroids, lockedRoomIds, placedPositions, doc);
-  separateCoincidentComponentCentroids(components, lockedRoomIds, placedPositions, doc);
+  separateOverlappingComponents(components, lockedRoomIds, placedPositions, doc);
 
   const roomPositions = Object.fromEntries(
     [...placedPositions.entries()].filter(([roomId]) => roomId in doc.rooms),
@@ -1549,7 +1602,9 @@ export const TEST_ONLY_PRETTIFY_LAYOUT = {
   getLayoutMovementScore,
   computeSeedPositions,
   computePlacedCentroid,
-  separateCoincidentComponentCentroids,
+  getComponentBounds,
+  doComponentsOverlap,
+  separateOverlappingComponents,
   overlapsPlacedRooms,
   findNearestOpenPosition,
   canTranslateComponent,

@@ -858,18 +858,30 @@ describe('computePrettifiedRoomPositions', () => {
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 0, y: 0 }, new Map([[alpha.id, alpha.position]]), doc)).toBe(true);
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 20, y: 20 }, new Map(), doc)).toBe(false);
 
-    const coincidentPositions = new Map<string, { x: number; y: number }>([
+    const overlappingComponentPositions = new Map<string, { x: number; y: number }>([
       [alpha.id, { x: 0, y: 0 }],
-      [beta.id, { x: 0, y: 0 }],
+      [beta.id, { x: 20, y: 0 }],
     ]);
-    TEST_ONLY_PRETTIFY_LAYOUT.separateCoincidentComponentCentroids(
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.doComponentsOverlap(
+      [alpha.id],
+      [beta.id],
+      overlappingComponentPositions,
+      doc,
+    )).toBe(true);
+    TEST_ONLY_PRETTIFY_LAYOUT.separateOverlappingComponents(
       [[alpha.id], [beta.id]],
       new Set(),
-      coincidentPositions,
+      overlappingComponentPositions,
       doc,
     );
-    expect(coincidentPositions.get(alpha.id)).toEqual({ x: 0, y: 0 });
-    expect(coincidentPositions.get(beta.id)).not.toEqual({ x: 0, y: 0 });
+    expect(overlappingComponentPositions.get(alpha.id)).toEqual({ x: 0, y: 0 });
+    expect(overlappingComponentPositions.get(beta.id)).not.toEqual({ x: 20, y: 0 });
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.doComponentsOverlap(
+      [alpha.id],
+      [beta.id],
+      overlappingComponentPositions,
+      doc,
+    )).toBe(false);
 
     const translatableDoc = createEmptyMap('Translate');
     const translateRoomA = { ...createRoom('A'), id: 'ta', position: { x: 0, y: 0 } };
