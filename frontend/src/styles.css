@@ -484,7 +484,8 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   --cli-help-panel-bottom-gap: 0.75rem;
   --cli-help-panel-collapsed-width: 6.5rem;
   --cli-help-panel-collapsed-height: 3.4rem;
-  --cli-help-panel-open-width: min(24rem, calc(100vw - 32rem));
+  --cli-help-panel-open-width: min(33vw, calc(100vw - 2rem));
+  --cli-help-panel-dev-runner-height: 7.75rem;
   position: fixed;
   top: var(--cli-help-panel-top);
   right: 0.75rem;
@@ -562,7 +563,10 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 .cli-help-panel__body {
   flex: 1 1 auto;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows:
+    minmax(0, 20vh)
+    minmax(0, 1fr)
+    minmax(var(--cli-help-panel-dev-runner-height), var(--cli-help-panel-dev-runner-height));
   gap: 0.85rem;
   min-height: 0;
   max-height: 0;
@@ -585,9 +589,6 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .cli-help-panel__section--tree {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
@@ -769,7 +770,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
 }
 
 .cli-help-panel__script-runner {
-  flex: 0 0 auto;
+  height: var(--cli-help-panel-dev-runner-height);
   padding-top: 0.2rem;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
 }
@@ -2606,7 +2607,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   }
 
   .cli-help-panel {
-    --cli-help-panel-open-width: min(20rem, calc(100vw - 2rem));
+    --cli-help-panel-open-width: min(33vw, calc(100vw - 2rem));
   }
 }
 

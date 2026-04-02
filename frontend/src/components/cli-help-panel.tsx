@@ -266,7 +266,6 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
               />
             ))}
           </ul>
-          <HelpImageScriptRunner />
         </section>
         <section className="cli-help-panel__section cli-help-panel__section--images" aria-label="Help image panel">
           {selectedImageNode && fromImageUrl && toImageUrl ? (
@@ -287,6 +286,7 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
             <p className="cli-help-panel__image-placeholder">Select a linked example above to preview its transition.</p>
           )}
         </section>
+        <HelpImageScriptRunner />
       </div>
     </aside>
   );
