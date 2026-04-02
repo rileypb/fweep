@@ -13,6 +13,7 @@ function createOptions(activeMap: MapDocument | null = createEmptyMap('CLI Map')
     loadDocument: jest.fn<(doc: MapDocument) => void>(),
     unloadDocument: jest.fn<() => void>(),
     chooseGame: jest.fn<() => void>(),
+    onOpenCliHelpPanel: jest.fn<() => void>(),
     routeCrossInputCommandToParchment: jest.fn<(command: string) => boolean>().mockReturnValue(false),
     requestedRoomEditorRequest: null,
     requestedRoomRevealRequest: null,
@@ -421,7 +422,7 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Zoomed to 150%.');
   });
 
-  it('lists help topics and emits relative zoom requests', async () => {
+  it('opens the CLI help panel and emits relative zoom requests', async () => {
     const doc = createEmptyMap('Help And Relative Zoom Map');
     const options = createStoreBackedOptions(doc);
     const { result } = renderHook(() => useAppCli(options));
@@ -437,8 +438,8 @@ describe('useAppCli', () => {
       result.current.submitCliCommandText('zoom reset', { clearInputState: false });
     });
 
-    expect(result.current.gameOutputLines).toContain('help rooms');
-    expect(result.current.gameOutputLines).toContain('help connect');
+    expect(options.onOpenCliHelpPanel).toHaveBeenCalledTimes(1);
+    expect(result.current.gameOutputLines).toContain('Opened the CLI help panel.');
     expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
       mode: 'relative',
       direction: 'in',
@@ -1131,7 +1132,7 @@ describe('useAppCli', () => {
     });
 
     expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
-    expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'help rooms']));
+    expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'Opened the CLI help panel.']));
     expect(selectSpy).not.toHaveBeenCalled();
     expect(result.current.cliCommand).toBe('');
     expect(result.current.cliHistory).toContain('help');

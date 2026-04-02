@@ -5,7 +5,6 @@ import {
   type CliCommand,
 } from '../domain/cli-command';
 import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
-import { getCliHelpOverviewLines, getCliHelpTopicLines } from '../domain/cli-help';
 import { parseCliScript } from '../domain/cli-script';
 import { describeRoomForCliLines } from '../domain/cli-room-description';
 import {
@@ -47,6 +46,7 @@ interface UseAppCliOptions {
   readonly loadDocument: (doc: MapDocument) => void;
   readonly unloadDocument: () => void;
   readonly chooseGame: () => void;
+  readonly onOpenCliHelpPanel: () => void;
   readonly routeCrossInputCommandToParchment: (command: string) => boolean;
   readonly requestedRoomEditorRequest: RoomUiRequest | null;
   readonly requestedRoomRevealRequest: RoomUiRequest | null;
@@ -352,6 +352,7 @@ export function useAppCli({
   loadDocument,
   unloadDocument,
   chooseGame,
+  onOpenCliHelpPanel,
   routeCrossInputCommandToParchment,
   requestedRoomEditorRequest,
   requestedRoomRevealRequest,
@@ -806,9 +807,12 @@ export function useAppCli({
     }
 
     if (command.kind === 'help') {
+      onOpenCliHelpPanel();
       appendGameOutput([
         formatCliEcho(trimmedInput),
-        ...(command.topic === null ? getCliHelpOverviewLines() : getCliHelpTopicLines(command.topic)),
+        command.topic === null
+          ? 'Opened the CLI help panel.'
+          : `Opened the CLI help panel for ${command.topic}.`,
       ]);
       return { ok: true, shouldSelectCliInput };
     }

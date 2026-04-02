@@ -384,6 +384,7 @@ export function App(): React.JSX.Element {
     loadDocument,
     unloadDocument,
     chooseGame: handleResetParchmentPanel,
+    onOpenCliHelpPanel: () => setIsCliHelpPanelOpen(true),
     routeCrossInputCommandToParchment,
     requestedRoomEditorRequest,
     requestedRoomRevealRequest,
