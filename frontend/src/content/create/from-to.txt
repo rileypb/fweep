@@ -5,7 +5,11 @@ export kitchen.png
 create Pantry west of kitchen
 export pantrykitchen.png
 
-undo
+clear 
+create Kitchen, which is dark
+export kitchendark.png
+
+kitchen is lit
 create Pantry
 export pantrykitchennoconnect.png
 

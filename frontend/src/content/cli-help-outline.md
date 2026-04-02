@@ -5,6 +5,12 @@
 	- `create pantry west of kitchen` 
 		- from:kitchen.png
 		- to:pantrykitchen.png
+	- `west of kitchen is Pantry`
+		- from:kitchen.png
+		- to:pantrykitchen.png
+	- `create kitchen, which is dark`
+		- from:blank.png
+		- to:kitchendark.png
 - Connecting rooms
 	- `connect pantry...`
 		- `...east to kitchen`
