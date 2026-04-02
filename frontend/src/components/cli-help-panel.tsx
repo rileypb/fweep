@@ -247,8 +247,8 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
           >
             <path d="M7.5 2.25 3.75 6l3.75 3.75" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
+          <span className="cli-help-panel__title">help</span>
         </button>
-        <span className="cli-help-panel__title">help</span>
       </div>
       <div
         id="cli-help-panel-body"

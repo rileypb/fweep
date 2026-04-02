@@ -187,8 +187,11 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('Bedroom to Bathroom is locked door')).toBe(
       'mark all connections between Bedroom and Bathroom as locked doors',
     );
+    expect(parseCliCommandDescription('Bedroom to Bathroom is open')).toBe(
+      'mark all connections between Bedroom and Bathroom as open',
+    );
     expect(parseCliCommandDescription('Bedroom to Bathroom is clear')).toBe(
-      'clear all connection annotations between Bedroom and Bathroom',
+      'mark all connections between Bedroom and Bathroom as open',
     );
   });
 
@@ -498,6 +501,13 @@ describe('parseCliCommand', () => {
       sourceRoom: { text: 'Bedroom', exact: false },
       targetRoom: { text: 'Bathroom', exact: false },
       annotation: 'locked door',
+    });
+
+    expect(parseCliCommand('Bedroom to Bathroom is open')).toEqual({
+      kind: 'set-connection-annotation',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      targetRoom: { text: 'Bathroom', exact: false },
+      annotation: null,
     });
 
     expect(parseCliCommand('Bedroom to Bathroom is clear')).toEqual({

@@ -126,7 +126,7 @@ export const CLI_COMMAND_FORMS = [
   '<direction>/above/below is <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
-  '<room name> to <room name> is clear',
+  '<room name> to <room name> is open',
   '<room name> is dark',
   '<room name> is lit',
   'create/c <room name>, which is <adjective>',
@@ -987,7 +987,7 @@ function parseConnectionAnnotationCommand(
   }
 
   const tailTokens = tokens.slice(isIndex + 1).map((token) => token.value.toLowerCase());
-  if (tailTokens.length === 1 && tailTokens[0] === 'clear') {
+  if (tailTokens.length === 1 && (tailTokens[0] === 'open' || tailTokens[0] === 'clear')) {
     return {
       kind: 'set-connection-annotation',
       sourceRoom: sourceRoom.reference,
@@ -1470,7 +1470,7 @@ function describeCliCommand(command: CliCommand): string {
       if (command.annotation === 'locked door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as locked doors`;
       }
-      return `clear all connection annotations between ${command.sourceRoom.text} and ${command.targetRoom.text}`;
+      return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as open`;
     case 'notate':
       return command.room === null
         ? `create a sticky note on the selected room saying ${command.noteText}`

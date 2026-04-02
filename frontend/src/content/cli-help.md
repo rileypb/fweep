@@ -34,7 +34,7 @@
 - `create/c <room name> above/below <room name>`
 - `<room name> to <room name> is a door`
 - `<room name> to <room name> is locked`
-- `<room name> to <room name> is clear`
+- `<room name> to <room name> is open`
 
 ## navigation
 

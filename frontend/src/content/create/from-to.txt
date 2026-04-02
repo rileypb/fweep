@@ -3,7 +3,15 @@ create Kitchen
 export kitchen.png
 
 create Pantry west of kitchen
+arrange
 export pantrykitchen.png
+pantry is dark
+export pantrykitchendark.png
+undo 
+kitchen to pantry is a door
+export pantrykitchendoor.png
+kitchen to pantry is locked
+export pantrykitchenlocked.png
 
 clear 
 create Kitchen, which is dark
@@ -15,10 +23,48 @@ arrange
 export pantrykitchennoconnect.png
 
 connect pantry east to kitchen
-export pantrykitchen.png
+north of Kitchen is unknown
+export pantrykitchenunknown.png
 
+undo
+north of kitchen goes on forever
+export pantrykitchenforever.png
+
+undo
+north of kitchen lies death
+export pantrykitchendeath.png
+
+undo
+north of kitchen leads nowhere
+export pantrykitchennowhere.png
+
+undo
+north of kitchen leads to somewhere else
+export pantrykitchensomewhereelse.png
+
+undo
+above kitchen is Attic
+export kitchenattic.png
+
+undo
+below kitchen is death
+export kitchenbasementdeath.png
+
+undo
 undo
 connect pantry east to kitchen south
 export pantryeasttokitchensouth.png
 
+clear
+create Kitchen
+annotate kitchen with filled with delicious smells
+export kitchennote.png
 
+clear
+Create Kitchen
+put knife in kitchen
+export kitchenknife.png
+put pan in kitchen
+export kitchenknifepan.png
+take knife from kitchen
+export kitchenpan.png
