@@ -2,8 +2,38 @@ import { parseCliCommand, type CliRoomAdjective } from './cli-command';
 import { planCreateRoomFromCli, resolveRoomByCliReference, isCliPronounReference } from './cli-execution';
 import { normalizeDirection } from './directions';
 import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
-import { addConnection, addRoom, deleteConnection, setRoomDark, setRoomPositions } from './map-operations';
-import { createConnection, createEmptyMap, createRoom, type MapDocument, type Position } from './map-types';
+import { getRoomNodeWidth } from '../graph/room-label-geometry';
+import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
+import { describeRoomForCliLines } from './cli-room-description';
+import {
+  addConnection,
+  addItem,
+  addPseudoRoom,
+  addRoom,
+  addStickyNote,
+  addStickyNoteLink,
+  deleteConnection,
+  deleteItem,
+  deleteRoom,
+  setConnectionAnnotation,
+  setPseudoRoomKind,
+  setPseudoRoomPositions,
+  setRoomDark,
+  setRoomPositions,
+  setStickyNotePositions,
+} from './map-operations';
+import {
+  createConnection,
+  createEmptyMap,
+  createItem,
+  createPseudoRoom,
+  createRoom,
+  createStickyNote,
+  createStickyNoteLink,
+  type MapDocument,
+  type Position,
+  type Room,
+} from './map-types';
 
 export type HelpImageScriptStep =
   | { readonly kind: 'clear'; readonly lineNumber: number }
@@ -13,8 +43,23 @@ export type HelpImageScriptStep =
 export interface HelpImageScriptState {
   readonly doc: MapDocument;
   readonly pronounRoomId: string | null;
-  readonly undoStack: readonly MapDocument[];
-  readonly redoStack: readonly MapDocument[];
+  readonly selectedRoomIds: readonly string[];
+  readonly selectedPseudoRoomIds: readonly string[];
+  readonly selectedStickyNoteIds: readonly string[];
+  readonly selectedConnectionIds: readonly string[];
+  readonly selectedStickyNoteLinkIds: readonly string[];
+  readonly undoStack: readonly HelpImageScriptSnapshot[];
+  readonly redoStack: readonly HelpImageScriptSnapshot[];
+}
+
+export interface HelpImageScriptSnapshot {
+  readonly doc: MapDocument;
+  readonly pronounRoomId: string | null;
+  readonly selectedRoomIds: readonly string[];
+  readonly selectedPseudoRoomIds: readonly string[];
+  readonly selectedStickyNoteIds: readonly string[];
+  readonly selectedConnectionIds: readonly string[];
+  readonly selectedStickyNoteLinkIds: readonly string[];
 }
 
 export interface HelpImageScriptCommandOptions {
@@ -24,6 +69,7 @@ export interface HelpImageScriptCommandOptions {
 
 const DEFAULT_VIEWPORT_SIZE = { width: 800, height: 600 } as const;
 const DEFAULT_PAN_OFFSET = { x: 0, y: 0 } as const;
+const GRID_SIZE = 40;
 
 function prettifyCliConnectionResult(doc: MapDocument, movableRoomIds: readonly string[]): MapDocument {
   const movableSet = new Set(movableRoomIds);
@@ -32,6 +78,167 @@ function prettifyCliConnectionResult(doc: MapDocument, movableRoomIds: readonly 
   );
   const { roomPositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
   return setRoomPositions(doc, roomPositions);
+}
+
+function prettifyCliPseudoRoomResult(doc: MapDocument): MapDocument {
+  const transientLockedRoomIds = new Set(Object.keys(doc.rooms));
+  const { pseudoRoomPositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
+  return setPseudoRoomPositions(doc, pseudoRoomPositions);
+}
+
+function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
+  const transientLockedRoomIds = new Set(Object.keys(doc.rooms));
+  const { stickyNotePositions } = computePrettifiedLayoutPositions(doc, transientLockedRoomIds);
+  return setStickyNotePositions(doc, stickyNotePositions);
+}
+
+function getCliPseudoRoomPlacement(doc: MapDocument, sourceRoomId: string, sourceDirection: string): Position {
+  const sourceRoom = doc.rooms[sourceRoomId];
+  if (!sourceRoom) {
+    throw new Error(`Room "${sourceRoomId}" not found.`);
+  }
+
+  const offset = GRID_SIZE * 2;
+  const direction = normalizeDirection(sourceDirection);
+  const deltaByDirection: Record<string, Position> = {
+    north: { x: 0, y: -offset },
+    south: { x: 0, y: offset },
+    east: { x: offset, y: 0 },
+    west: { x: -offset, y: 0 },
+    northeast: { x: offset, y: -offset },
+    northwest: { x: -offset, y: -offset },
+    southeast: { x: offset, y: offset },
+    southwest: { x: -offset, y: offset },
+    up: { x: 0, y: -offset },
+    down: { x: 0, y: offset },
+    in: { x: -offset, y: 0 },
+    out: { x: offset, y: 0 },
+  };
+  const delta = deltaByDirection[direction] ?? { x: offset, y: 0 };
+
+  return {
+    x: sourceRoom.position.x + delta.x,
+    y: sourceRoom.position.y + delta.y,
+  };
+}
+
+function normalizeEntityName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function findMatchingItemIdsInRoom(
+  doc: MapDocument,
+  roomId: string,
+  itemNames: readonly string[],
+): {
+  readonly removedItemIds: readonly string[];
+  readonly missingItemNames: readonly string[];
+} {
+  const availableItems = Object.values(doc.items)
+    .filter((item) => item.roomId === roomId)
+    .map((item) => ({
+      id: item.id,
+      normalizedName: normalizeEntityName(item.name),
+    }));
+  const usedItemIds = new Set<string>();
+  const removedItemIds: string[] = [];
+  const missingItemNames: string[] = [];
+
+  for (const itemName of itemNames) {
+    const normalizedName = normalizeEntityName(itemName);
+    const matchingItem = availableItems.find((item) => item.normalizedName === normalizedName && !usedItemIds.has(item.id));
+    if (matchingItem === undefined) {
+      missingItemNames.push(itemName);
+      continue;
+    }
+
+    usedItemIds.add(matchingItem.id);
+    removedItemIds.push(matchingItem.id);
+  }
+
+  return { removedItemIds, missingItemNames };
+}
+
+function getStickyNotePlacementForRoom(doc: MapDocument, roomId: string, text: string): Position {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+
+  const noteHeight = getStickyNoteHeight(text);
+  return {
+    x: room.position.x + getRoomNodeWidth(room) + GRID_SIZE,
+    y: room.position.y + Math.round((36 - noteHeight) / 2),
+  };
+}
+
+function getConnectionIdsBetweenRooms(doc: MapDocument, sourceRoomId: string, targetRoomId: string): string[] {
+  return Object.values(doc.connections)
+    .filter((connection) => (
+      connection.target.kind === 'room'
+      && (
+        (connection.sourceRoomId === sourceRoomId && connection.target.id === targetRoomId)
+        || (connection.sourceRoomId === targetRoomId && connection.target.id === sourceRoomId)
+      )
+    ))
+    .map((connection) => connection.id);
+}
+
+function getConnectionIdsBetweenRoomsFromSourceDirection(
+  doc: MapDocument,
+  sourceRoomId: string,
+  sourceDirection: string,
+  targetRoomId: string,
+): string[] {
+  const sourceRoom = doc.rooms[sourceRoomId];
+  if (!sourceRoom) {
+    return [];
+  }
+
+  const connectionId = sourceRoom.directions[normalizeDirection(sourceDirection)];
+  if (!connectionId) {
+    return [];
+  }
+
+  return getConnectionIdsBetweenRooms(doc, sourceRoomId, targetRoomId).filter((candidateId) => candidateId === connectionId);
+}
+
+function getRoomNavigationTarget(doc: MapDocument, room: Room, direction: string): Room | null {
+  const connectionId = room.directions[direction];
+  if (!connectionId) {
+    return null;
+  }
+
+  const connection = doc.connections[connectionId];
+  if (!connection) {
+    return null;
+  }
+
+  if (connection.sourceRoomId === room.id) {
+    if (connection.target.kind !== 'room') {
+      return null;
+    }
+
+    return doc.rooms[connection.target.id] ?? null;
+  }
+
+  if (connection.isBidirectional && connection.target.kind === 'room' && connection.target.id === room.id) {
+    return doc.rooms[connection.sourceRoomId] ?? null;
+  }
+
+  return null;
+}
+
+function createSnapshot(state: HelpImageScriptState): HelpImageScriptSnapshot {
+  return {
+    doc: state.doc,
+    pronounRoomId: state.pronounRoomId,
+    selectedRoomIds: state.selectedRoomIds,
+    selectedPseudoRoomIds: state.selectedPseudoRoomIds,
+    selectedStickyNoteIds: state.selectedStickyNoteIds,
+    selectedConnectionIds: state.selectedConnectionIds,
+    selectedStickyNoteLinkIds: state.selectedStickyNoteLinkIds,
+  };
 }
 
 function applyCliConnection(
@@ -89,7 +296,7 @@ function applyCliConnection(
 function pushUndoState(state: HelpImageScriptState): HelpImageScriptState {
   return {
     ...state,
-    undoStack: [...state.undoStack, state.doc],
+    undoStack: [...state.undoStack, createSnapshot(state)],
     redoStack: [],
   };
 }
@@ -97,12 +304,24 @@ function pushUndoState(state: HelpImageScriptState): HelpImageScriptState {
 function updateStateDoc(
   state: HelpImageScriptState,
   nextDoc: MapDocument,
-  pronounRoomId: string | null = state.pronounRoomId,
+  options?: {
+    readonly pronounRoomId?: string | null;
+    readonly selectedRoomIds?: readonly string[];
+    readonly selectedPseudoRoomIds?: readonly string[];
+    readonly selectedStickyNoteIds?: readonly string[];
+    readonly selectedConnectionIds?: readonly string[];
+    readonly selectedStickyNoteLinkIds?: readonly string[];
+  },
 ): HelpImageScriptState {
   return {
     ...state,
     doc: nextDoc,
-    pronounRoomId,
+    pronounRoomId: options?.pronounRoomId ?? state.pronounRoomId,
+    selectedRoomIds: options?.selectedRoomIds ?? state.selectedRoomIds,
+    selectedPseudoRoomIds: options?.selectedPseudoRoomIds ?? state.selectedPseudoRoomIds,
+    selectedStickyNoteIds: options?.selectedStickyNoteIds ?? state.selectedStickyNoteIds,
+    selectedConnectionIds: options?.selectedConnectionIds ?? state.selectedConnectionIds,
+    selectedStickyNoteLinkIds: options?.selectedStickyNoteLinkIds ?? state.selectedStickyNoteLinkIds,
   };
 }
 
@@ -170,6 +389,11 @@ export function createHelpImageScriptState(mapName = 'Help Images'): HelpImageSc
   return {
     doc: createEmptyMap(mapName),
     pronounRoomId: null,
+    selectedRoomIds: [],
+    selectedPseudoRoomIds: [],
+    selectedStickyNoteIds: [],
+    selectedConnectionIds: [],
+    selectedStickyNoteLinkIds: [],
     undoStack: [],
     redoStack: [],
   };
@@ -186,6 +410,11 @@ export function clearHelpImageScriptState(state: HelpImageScriptState): HelpImag
       },
     },
     pronounRoomId: null,
+    selectedRoomIds: [],
+    selectedPseudoRoomIds: [],
+    selectedStickyNoteIds: [],
+    selectedConnectionIds: [],
+    selectedStickyNoteLinkIds: [],
     undoStack: [],
     redoStack: [],
   };
@@ -208,20 +437,334 @@ export function runHelpImageMapCommand(
     case 'create': {
       const state = pushUndoState(inputState);
       const plan = planCreateRoomFromCli(state.doc, command.roomName, viewportSize, panOffset);
+      const room = {
+        ...createRoom(plan.roomName),
+        position: plan.position,
+      };
+      let nextDoc = addRoom(state.doc, room);
+
+      if (command.adjective !== null) {
+        nextDoc = applyRoomAdjective(nextDoc, room.id, command.adjective);
+      }
+
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: room.id,
+        selectedRoomIds: [room.id],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
+
+    case 'arrange': {
+      const state = pushUndoState(inputState);
+      const transientLockedRoomIds = new Set<string>();
+      const { roomPositions, pseudoRoomPositions, stickyNotePositions } = computePrettifiedLayoutPositions(state.doc, transientLockedRoomIds);
+      let nextDoc = setRoomPositions(state.doc, roomPositions);
+      nextDoc = setPseudoRoomPositions(nextDoc, pseudoRoomPositions);
+      nextDoc = setStickyNotePositions(nextDoc, stickyNotePositions);
+      return updateStateDoc(state, nextDoc);
+    }
+
+    case 'show': {
+      const roomId = resolveOneRoom(inputState.doc, command.room.text, inputState.pronounRoomId);
+      return updateStateDoc(inputState, inputState.doc, {
+        pronounRoomId: roomId,
+        selectedRoomIds: [roomId],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
+
+    case 'navigate': {
+      if (inputState.selectedRoomIds.length !== 1) {
+        throw new Error('Select exactly one room to navigate from.');
+      }
+
+      const sourceRoom = inputState.doc.rooms[inputState.selectedRoomIds[0] ?? ''];
+      if (!sourceRoom) {
+        throw new Error('Select exactly one room to navigate from.');
+      }
+
+      const targetRoom = getRoomNavigationTarget(inputState.doc, sourceRoom, command.direction);
+      if (targetRoom === null) {
+        throw new Error(`You can't go ${command.direction} from ${sourceRoom.name}.`);
+      }
+
+      return updateStateDoc(inputState, inputState.doc, {
+        pronounRoomId: targetRoom.id,
+        selectedRoomIds: [targetRoom.id],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
+
+    case 'put-items': {
+      const state = pushUndoState(inputState);
+      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      let nextDoc = state.doc;
+      for (const itemName of command.itemNames) {
+        nextDoc = addItem(nextDoc, createItem(itemName, roomId));
+      }
+
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: roomId,
+        selectedRoomIds: [roomId],
+      });
+    }
+
+    case 'take-items': {
+      const state = pushUndoState(inputState);
+      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const removal = findMatchingItemIdsInRoom(state.doc, roomId, command.itemNames);
+      if (removal.missingItemNames.length > 0) {
+        throw new Error(`Could not find ${removal.missingItemNames.join(', ')} in ${state.doc.rooms[roomId]?.name ?? 'that room'}.`);
+      }
+
+      let nextDoc = state.doc;
+      for (const itemId of removal.removedItemIds) {
+        nextDoc = deleteItem(nextDoc, itemId);
+      }
+
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: roomId,
+        selectedRoomIds: [roomId],
+      });
+    }
+
+    case 'take-all-items': {
+      const state = pushUndoState(inputState);
+      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      let nextDoc = state.doc;
+      for (const item of Object.values(state.doc.items).filter((candidate) => candidate.roomId === roomId)) {
+        nextDoc = deleteItem(nextDoc, item.id);
+      }
+
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: roomId,
+        selectedRoomIds: [roomId],
+      });
+    }
+
+    case 'create-pseudo-room': {
+      const state = pushUndoState(inputState);
+      const sourceRoomId = command.sourceRoom === null
+        ? (() => {
+          if (state.selectedRoomIds.length !== 1) {
+            throw new Error('Select exactly one room to set an exit on.');
+          }
+          return state.selectedRoomIds[0]!;
+        })()
+        : resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
+      const normalizedSourceDirection = normalizeDirection(command.sourceDirection);
+      const sourceRoom = state.doc.rooms[sourceRoomId];
+      if (!sourceRoom) {
+        throw new Error(`Room "${sourceRoomId}" not found.`);
+      }
+
+      const existingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+      if (existingConnectionId) {
+        const existingConnection = state.doc.connections[existingConnectionId];
+        if (existingConnection?.target.kind === 'pseudo-room') {
+          let nextDoc = setPseudoRoomKind(state.doc, existingConnection.target.id, command.pseudoKind);
+          nextDoc = prettifyCliPseudoRoomResult(nextDoc);
+          return updateStateDoc(state, nextDoc, {
+            pronounRoomId: sourceRoomId,
+            selectedRoomIds: [sourceRoomId],
+            selectedPseudoRoomIds: [],
+            selectedStickyNoteIds: [],
+            selectedConnectionIds: [existingConnection.id],
+            selectedStickyNoteLinkIds: [],
+          });
+        }
+      }
+
+      let nextDoc = state.doc;
+      if (existingConnectionId) {
+        nextDoc = deleteConnection(nextDoc, existingConnectionId);
+      }
+
+      const pseudoRoom = {
+        ...createPseudoRoom(command.pseudoKind),
+        position: getCliPseudoRoomPlacement(nextDoc, sourceRoomId, normalizedSourceDirection),
+      };
+      const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
+      nextDoc = addPseudoRoom(nextDoc, pseudoRoom);
+      nextDoc = addConnection(nextDoc, connection, normalizedSourceDirection);
+      nextDoc = prettifyCliPseudoRoomResult(nextDoc);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: sourceRoomId,
+        selectedRoomIds: [sourceRoomId],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [connection.id],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
+
+    case 'delete': {
+      const state = pushUndoState(inputState);
+      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const nextDoc = deleteRoom(state.doc, roomId);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: state.pronounRoomId === roomId ? null : state.pronounRoomId,
+        selectedRoomIds: state.selectedRoomIds.filter((id) => id !== roomId),
+        selectedConnectionIds: state.selectedConnectionIds.filter((id) => nextDoc.connections[id]),
+        selectedStickyNoteLinkIds: state.selectedStickyNoteLinkIds.filter((id) => nextDoc.stickyNoteLinks[id]),
+      });
+    }
+
+    case 'describe': {
+      if (command.room === null) {
+        if (inputState.selectedRoomIds.length !== 1) {
+          throw new Error('You must select exactly one room to describe.');
+        }
+        describeRoomForCliLines(inputState.doc, inputState.selectedRoomIds[0]!);
+        return inputState;
+      }
+      const roomId = resolveOneRoom(inputState.doc, command.room.text, inputState.pronounRoomId);
+      describeRoomForCliLines(inputState.doc, roomId);
+      return inputState;
+    }
+
+    case 'set-room-adjective': {
+      const state = pushUndoState(inputState);
+      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const nextDoc = applyRoomAdjective(state.doc, roomId, command.adjective);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: roomId,
+      });
+    }
+
+    case 'selected-room-relative-connect': {
+      const state = pushUndoState(inputState);
+      const sourceRoomId = command.sourceRoom !== null
+        ? resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId)
+        : (() => {
+          if (state.selectedRoomIds.length !== 1) {
+            throw new Error('Select exactly one room to connect from.');
+          }
+          return state.selectedRoomIds[0]!;
+        })();
+      const targetMatchId = (() => {
+        const match = resolveRoomByCliReference(state.doc, command.targetRoom.text, command.targetRoom.exact, state.pronounRoomId);
+        if (match.kind === 'pronoun-unbound') {
+          throw new Error('The script referenced "it" before any room was established.');
+        }
+        if (match.kind === 'multiple') {
+          throw new Error(`Room reference "${command.targetRoom.text}" is ambiguous.`);
+        }
+        return match.kind === 'one' ? match.room.id : null;
+      })();
+
+      if (targetMatchId !== null) {
+        const connectionResult = applyCliConnection(
+          state.doc,
+          sourceRoomId,
+          command.sourceDirection,
+          targetMatchId,
+          {
+            oneWay: false,
+            targetDirection: normalizeDirection(command.sourceDirection),
+          },
+        );
+        let nextDoc = sourceRoomId === targetMatchId
+          ? connectionResult.doc
+          : prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, targetMatchId]);
+        if (command.adjective !== null) {
+          nextDoc = applyRoomAdjective(nextDoc, targetMatchId, command.adjective);
+        }
+        return updateStateDoc(state, nextDoc, {
+          pronounRoomId: isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : sourceRoomId,
+          selectedRoomIds: [targetMatchId],
+          selectedConnectionIds: [connectionResult.connectionId],
+          selectedStickyNoteIds: [],
+          selectedStickyNoteLinkIds: [],
+        });
+      }
+
+      const plan = planCreateRoomFromCli(state.doc, command.targetRoom.text, viewportSize, panOffset);
       let nextDoc = addRoom(state.doc, {
         ...createRoom(plan.roomName),
         position: plan.position,
       });
-      const roomId = Object.keys(nextDoc.rooms).at(-1) ?? null;
-      if (roomId === null) {
+      const createdRoomId = Object.keys(nextDoc.rooms).find((roomId) => nextDoc.rooms[roomId]?.name === plan.roomName && !state.doc.rooms[roomId]) ?? null;
+      if (createdRoomId === null) {
         throw new Error('Failed to create room.');
       }
-
+      const connectionResult = applyCliConnection(
+        nextDoc,
+        createdRoomId,
+        normalizeDirection(command.sourceDirection),
+        sourceRoomId,
+        {
+          oneWay: false,
+          targetDirection: command.sourceDirection,
+        },
+      );
+      nextDoc = sourceRoomId === createdRoomId
+        ? connectionResult.doc
+        : prettifyCliConnectionResult(connectionResult.doc, [createdRoomId]);
       if (command.adjective !== null) {
-        nextDoc = applyRoomAdjective(nextDoc, roomId, command.adjective);
+        nextDoc = applyRoomAdjective(nextDoc, createdRoomId, command.adjective);
+      }
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: sourceRoomId,
+        selectedRoomIds: [createdRoomId],
+        selectedConnectionIds: [connectionResult.connectionId],
+        selectedStickyNoteIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
+
+    case 'set-connection-annotation': {
+      const state = pushUndoState(inputState);
+      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
+      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
+      const connectionIds = getConnectionIdsBetweenRooms(state.doc, sourceRoomId, targetRoomId);
+      if (connectionIds.length === 0) {
+        throw new Error('There are no connections between those rooms.');
       }
 
-      return updateStateDoc(state, nextDoc, roomId);
+      let nextDoc = state.doc;
+      for (const connectionId of connectionIds) {
+        nextDoc = setConnectionAnnotation(nextDoc, connectionId, command.annotation === null ? null : { kind: command.annotation });
+      }
+
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : sourceRoomId,
+      });
+    }
+
+    case 'notate': {
+      const state = pushUndoState(inputState);
+      const roomId = command.room === null
+        ? (() => {
+          if (state.selectedRoomIds.length !== 1) {
+            throw new Error('You must select exactly one room to annotate.');
+          }
+          return state.selectedRoomIds[0]!;
+        })()
+        : resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const stickyNote = {
+        ...createStickyNote(command.noteText),
+        position: getStickyNotePlacementForRoom(state.doc, roomId, command.noteText),
+      };
+      let nextDoc = addStickyNote(state.doc, stickyNote);
+      nextDoc = addStickyNoteLink(nextDoc, createStickyNoteLink(stickyNote.id, roomId));
+      nextDoc = prettifyCliStickyNoteResult(nextDoc);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: roomId,
+        selectedRoomIds: [],
+        selectedStickyNoteIds: [stickyNote.id],
+        selectedConnectionIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
     }
 
     case 'connect': {
@@ -242,25 +785,28 @@ export function runHelpImageMapCommand(
         ? connectionResult.doc
         : prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, targetRoomId]);
       const nextPronounRoomId = isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : sourceRoomId;
-      return updateStateDoc(state, nextDoc, nextPronounRoomId);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: nextPronounRoomId,
+        selectedRoomIds: [targetRoomId],
+        selectedConnectionIds: [connectionResult.connectionId],
+        selectedStickyNoteIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
     }
 
     case 'create-and-connect': {
       const state = pushUndoState(inputState);
       const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
       const plan = planCreateRoomFromCli(state.doc, command.sourceRoomName, viewportSize, panOffset);
-      let nextDoc = addRoom(state.doc, {
+      const room = {
         ...createRoom(plan.roomName),
         position: plan.position,
-      });
-      const createdRoomId = Object.keys(nextDoc.rooms).at(-1) ?? null;
-      if (createdRoomId === null) {
-        throw new Error('Failed to create room.');
-      }
+      };
+      let nextDoc = addRoom(state.doc, room);
 
       const connectionResult = applyCliConnection(
         nextDoc,
-        createdRoomId,
+        room.id,
         command.sourceDirection,
         targetRoomId,
         {
@@ -268,16 +814,22 @@ export function runHelpImageMapCommand(
           targetDirection: command.targetDirection,
         },
       );
-      nextDoc = createdRoomId === targetRoomId
+      nextDoc = room.id === targetRoomId
         ? connectionResult.doc
-        : prettifyCliConnectionResult(connectionResult.doc, [createdRoomId, targetRoomId]);
+        : prettifyCliConnectionResult(connectionResult.doc, [room.id, targetRoomId]);
 
       if (command.adjective !== null) {
-        nextDoc = applyRoomAdjective(nextDoc, createdRoomId, command.adjective);
+        nextDoc = applyRoomAdjective(nextDoc, room.id, command.adjective);
       }
 
-      const nextPronounRoomId = isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : createdRoomId;
-      return updateStateDoc(state, nextDoc, nextPronounRoomId);
+      const nextPronounRoomId = isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : room.id;
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: nextPronounRoomId,
+        selectedRoomIds: [room.id, targetRoomId],
+        selectedConnectionIds: [connectionResult.connectionId],
+        selectedStickyNoteIds: [],
+        selectedStickyNoteLinkIds: [],
+      });
     }
 
     case 'disconnect': {
@@ -316,33 +868,37 @@ export function runHelpImageMapCommand(
 
       const nextDoc = deleteConnection(state.doc, connectionIds[0]!);
       const nextPronounRoomId = isCliPronounReference(command.targetRoom.text) ? state.pronounRoomId : sourceRoomId;
-      return updateStateDoc(state, nextDoc, nextPronounRoomId);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: nextPronounRoomId,
+        selectedRoomIds: [sourceRoomId],
+        selectedConnectionIds: [],
+      });
     }
 
     case 'undo': {
-      const previousDoc = inputState.undoStack.at(-1);
-      if (!previousDoc) {
+      const previousSnapshot = inputState.undoStack.at(-1);
+      if (!previousSnapshot) {
         throw new Error('Nothing to undo.');
       }
 
       return {
         ...inputState,
-        doc: previousDoc,
+        ...previousSnapshot,
         undoStack: inputState.undoStack.slice(0, -1),
-        redoStack: [...inputState.redoStack, inputState.doc],
+        redoStack: [...inputState.redoStack, createSnapshot(inputState)],
       };
     }
 
     case 'redo': {
-      const nextDoc = inputState.redoStack.at(-1);
-      if (!nextDoc) {
+      const nextSnapshot = inputState.redoStack.at(-1);
+      if (!nextSnapshot) {
         throw new Error('Nothing to redo.');
       }
 
       return {
         ...inputState,
-        doc: nextDoc,
-        undoStack: [...inputState.undoStack, inputState.doc],
+        ...nextSnapshot,
+        undoStack: [...inputState.undoStack, createSnapshot(inputState)],
         redoStack: inputState.redoStack.slice(0, -1),
       };
     }
