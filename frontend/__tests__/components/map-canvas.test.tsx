@@ -1054,11 +1054,15 @@ describe('MapCanvas', () => {
       fireEvent.mouseDown(canvas, { clientX: 40, clientY: 60, button: 0 });
       fireEvent.mouseMove(document, { clientX: 250, clientY: 100 });
 
+      const selectionBox = screen.getByTestId('map-canvas-selection-box');
+      expect(selectionBox.style.left).toBe('40px');
+
       act(() => {
         jest.advanceTimersByTime(64);
       });
 
       expect(content.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+      expect(Number.parseFloat(selectionBox.style.left)).toBeLessThan(40);
 
       fireEvent.mouseUp(document, { clientX: 250, clientY: 100, button: 0 });
       jest.useRealTimers();

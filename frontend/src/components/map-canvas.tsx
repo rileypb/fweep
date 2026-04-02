@@ -9,6 +9,7 @@ import { type PanOffset, useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
+  getScreenSpaceSelectionBox,
   getPseudoRoomsWithinSelectionBox,
   getRoomScreenGeometry,
   getStickyNoteLinksWithinSelectionBox,
@@ -16,6 +17,7 @@ import {
   getRoomsWithinSelectionBox,
   getSelectionBounds,
   isEditableTarget,
+  type MapSelectionBox,
   type SelectionBox,
   useDocumentTheme,
 } from './map-canvas-helpers';
@@ -423,7 +425,7 @@ export function MapCanvas({
   const [isRoomPlacementArmed, setIsRoomPlacementArmed] = useState(false);
   const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
   const [pendingConnectionDrop, setPendingConnectionDrop] = useState<PendingConnectionDrop | null>(null);
-  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const [selectionBox, setSelectionBox] = useState<MapSelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
   const selectedPseudoRoomIds = useEditorStore((s) => s.selectedPseudoRoomIds);
@@ -1215,33 +1217,36 @@ export function MapCanvas({
     if (e.shiftKey || !drawingEnabled || effectiveCanvasInteractionMode === 'map') {
       e.preventDefault();
 
-      const initialSelectionBox: SelectionBox = {
-        startX: e.clientX - (canvasRect?.left ?? 0),
-        startY: e.clientY - (canvasRect?.top ?? 0),
-        currentX: e.clientX - (canvasRect?.left ?? 0),
-        currentY: e.clientY - (canvasRect?.top ?? 0),
+      const startPoint = toMapPoint(e.clientX, e.clientY);
+      const initialSelectionBox: MapSelectionBox = {
+        start: startPoint,
+        current: startPoint,
       };
 
       setSelectionBox(initialSelectionBox);
 
-      const updateSelection = (nextSelectionBox: SelectionBox) => {
+      const updateSelection = (nextSelectionBox: MapSelectionBox) => {
+        const nextScreenSpaceSelectionBox = getScreenSpaceSelectionBox(
+          nextSelectionBox,
+          panOffsetRef.current,
+          canvasRect,
+          zoomRef.current,
+        );
         setSelection(
-          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle),
-          getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
-          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
-          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle),
+          getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current),
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.connections, panOffsetRef.current, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle) : [],
+          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextScreenSpaceSelectionBox, zoomRef.current) : [],
         );
         pseudoRooms
-          .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))
+          .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))
           .forEach((pseudoRoom) => addPseudoRoomToSelection(pseudoRoom.id));
       };
 
       const updateSelectionFromPointer = (clientX: number, clientY: number) => {
-        const nextSelectionBox: SelectionBox = {
-          startX: initialSelectionBox.startX,
-          startY: initialSelectionBox.startY,
-          currentX: clientX - (canvasRect?.left ?? 0),
-          currentY: clientY - (canvasRect?.top ?? 0),
+        const nextSelectionBox: MapSelectionBox = {
+          start: initialSelectionBox.start,
+          current: toMapPoint(clientX, clientY),
         };
 
         setSelectionBox(nextSelectionBox);
@@ -1258,13 +1263,13 @@ export function MapCanvas({
         document.removeEventListener('mouseup', handleMouseUp);
         stopDragEdgeAutoPan();
 
-        const finalSelectionBox: SelectionBox = {
-          startX: initialSelectionBox.startX,
-          startY: initialSelectionBox.startY,
-          currentX: upEvent.clientX - (canvasRect?.left ?? 0),
-          currentY: upEvent.clientY - (canvasRect?.top ?? 0),
+        const finalSelectionBox: MapSelectionBox = {
+          start: initialSelectionBox.start,
+          current: toMapPoint(upEvent.clientX, upEvent.clientY),
         };
-        const bounds = getSelectionBounds(finalSelectionBox);
+        const bounds = getSelectionBounds(
+          getScreenSpaceSelectionBox(finalSelectionBox, panOffsetRef.current, canvasRect, zoomRef.current),
+        );
 
         if (bounds.width > 0 || bounds.height > 0) {
           suppressCanvasClickRef.current = true;
@@ -1868,7 +1873,7 @@ export function MapCanvas({
           <div
             className="map-canvas-selection-box"
             data-testid="map-canvas-selection-box"
-            style={getSelectionBounds(selectionBox)}
+            style={getSelectionBounds(getScreenSpaceSelectionBox(selectionBox, panOffset, canvasRect, zoom))}
           />
         )}
         {(isExportDialogOpen || isPickingExportRegion) && exportScope === 'region' && (exportRegionDraft || exportRegion) && (
