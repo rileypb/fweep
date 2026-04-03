@@ -389,4 +389,4 @@
   - no schema changes detected in `main...v9`
   - no schema-version bump or migration required
 - Production build emits a Vite chunk-size warning for the main JS bundle; this remains non-blocking for the release unless performance review decides otherwise.
-- Manual smoke-test confirmation: pending
+- Manual smoke-test confirmation passed.

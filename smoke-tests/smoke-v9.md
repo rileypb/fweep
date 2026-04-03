@@ -83,14 +83,14 @@ This document defines the manual smoke-test pass for `fweep v9`.
 - Persisted-data / migration review: passed
   - No schema changes detected in `main...v9`
   - No schema-version bump or migration required
-- Manual smoke pass: pending
-  - Core app flow: pending
-  - Save and reload: pending
-  - Import and export: pending
-  - CLI pseudo-room grammar: pending
-  - Explicit-source relative connect: pending
-  - IFDB proxy failure behavior: pending
-  - Compatibility and migration: pending
+- Manual smoke pass: passed
+  - Core app flow: passed
+  - Save and reload: passed
+  - Import and export: passed
+  - CLI pseudo-room grammar: passed
+  - Explicit-source relative connect: passed
+  - IFDB proxy failure behavior: passed
+  - Compatibility and migration: passed
 
 ## Minimum release gate
 A `v9` smoke pass is complete only if all of the following succeed:
