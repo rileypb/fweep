@@ -115,10 +115,21 @@ export async function handleIfdbProxyHttpRequest(
     };
   }
 
-  const proxyResult: IfdbProxyResult = await proxyIfdbRequest(
-    parsedRequestUrl,
-    request.fetchImpl,
-  );
+  let proxyResult: IfdbProxyResult;
+  try {
+    proxyResult = await proxyIfdbRequest(
+      parsedRequestUrl,
+      request.fetchImpl,
+    );
+  } catch (error) {
+    return createJsonResponse(
+      502,
+      {
+        error: error instanceof Error ? error.message : 'IFDB proxy request failed.',
+      },
+      corsHeaders,
+    );
+  }
 
   return {
     status: proxyResult.status,

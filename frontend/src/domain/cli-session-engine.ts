@@ -1,6 +1,6 @@
 import { parseCliCommand, type CliRoomAdjective } from './cli-command';
 import { planCreateRoomFromCli, resolveRoomByCliReference, isCliPronounReference } from './cli-execution';
-import { normalizeDirection } from './directions';
+import { normalizeDirection, oppositeDirection } from './directions';
 import { computePrettifiedLayoutPositions } from '../graph/prettify-layout';
 import { getRoomNodeWidth } from '../graph/room-label-geometry';
 import { getStickyNoteHeight } from '../graph/sticky-note-geometry';
@@ -320,8 +320,17 @@ function updateStateDoc(
   };
 }
 
-function resolveOneRoom(doc: MapDocument, requestedName: string, pronounRoomId: string | null): string {
-  const match = resolveRoomByCliReference(doc, requestedName, false, pronounRoomId);
+function resolveOneRoom(
+  doc: MapDocument,
+  requestedName: string,
+  exactOrPronounRoomId: boolean | string | null,
+  pronounRoomId?: string | null,
+): string {
+  const exact = typeof exactOrPronounRoomId === 'boolean' ? exactOrPronounRoomId : false;
+  const resolvedPronounRoomId = typeof exactOrPronounRoomId === 'boolean'
+    ? (pronounRoomId ?? null)
+    : exactOrPronounRoomId;
+  const match = resolveRoomByCliReference(doc, requestedName, exact, resolvedPronounRoomId);
   if (match.kind === 'pronoun-unbound') {
     throw new Error('The script referenced "it" before any room was established.');
   }
@@ -394,6 +403,47 @@ export function runCliSessionCommand(
 
   const viewportSize = options?.viewportSize ?? DEFAULT_VIEWPORT_SIZE;
   const panOffset = options?.panOffset ?? DEFAULT_PAN_OFFSET;
+
+  const applyPseudoRoomExit = (
+    doc: CliSessionState['doc'],
+    sourceRoomId: string,
+    sourceDirection: string,
+    pseudoKind: Parameters<typeof createPseudoRoom>[0],
+  ): { readonly nextDoc: CliSessionState['doc']; readonly connectionId: string } => {
+    const normalizedSourceDirection = normalizeDirection(sourceDirection);
+    const sourceRoom = doc.rooms[sourceRoomId];
+    if (!sourceRoom) {
+      throw new Error(`Room "${sourceRoomId}" not found.`);
+    }
+
+    const existingConnectionId = sourceRoom.directions[normalizedSourceDirection];
+    if (existingConnectionId) {
+      const existingConnection = doc.connections[existingConnectionId];
+      if (existingConnection?.target.kind === 'pseudo-room') {
+        return {
+          nextDoc: setPseudoRoomKind(doc, existingConnection.target.id, pseudoKind),
+          connectionId: existingConnection.id,
+        };
+      }
+    }
+
+    let nextDoc = doc;
+    if (existingConnectionId) {
+      nextDoc = deleteConnection(nextDoc, existingConnectionId);
+    }
+
+    const pseudoRoom = {
+      ...createPseudoRoom(pseudoKind),
+      position: getCliPseudoRoomPlacement(nextDoc, sourceRoomId, normalizedSourceDirection),
+    };
+    const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
+    nextDoc = addPseudoRoom(nextDoc, pseudoRoom);
+    nextDoc = addConnection(nextDoc, connection, normalizedSourceDirection);
+    return {
+      nextDoc,
+      connectionId: connection.id,
+    };
+  };
 
   switch (command.kind) {
     case 'create': {
@@ -522,49 +572,44 @@ export function runCliSessionCommand(
           }
           return state.selectedRoomIds[0]!;
         })()
-        : resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
-      const normalizedSourceDirection = normalizeDirection(command.sourceDirection);
-      const sourceRoom = state.doc.rooms[sourceRoomId];
-      if (!sourceRoom) {
-        throw new Error(`Room "${sourceRoomId}" not found.`);
-      }
+        : resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
+      const result = applyPseudoRoomExit(state.doc, sourceRoomId, command.sourceDirection, command.pseudoKind);
+      const nextDoc = prettifyCliPseudoRoomResult(result.nextDoc);
+      return updateStateDoc(state, nextDoc, {
+        pronounRoomId: sourceRoomId,
+        selectedRoomIds: [sourceRoomId],
+        selectedPseudoRoomIds: [],
+        selectedStickyNoteIds: [],
+        selectedConnectionIds: [result.connectionId],
+        selectedStickyNoteLinkIds: [],
+      });
+    }
 
-      const existingConnectionId = sourceRoom.directions[normalizedSourceDirection];
-      if (existingConnectionId) {
-        const existingConnection = state.doc.connections[existingConnectionId];
-        if (existingConnection?.target.kind === 'pseudo-room') {
-          let nextDoc = setPseudoRoomKind(state.doc, existingConnection.target.id, command.pseudoKind);
-          nextDoc = prettifyCliPseudoRoomResult(nextDoc);
-          return updateStateDoc(state, nextDoc, {
-            pronounRoomId: sourceRoomId,
-            selectedRoomIds: [sourceRoomId],
-            selectedPseudoRoomIds: [],
-            selectedStickyNoteIds: [],
-            selectedConnectionIds: [existingConnection.id],
-            selectedStickyNoteLinkIds: [],
-          });
-        }
-      }
-
+    case 'create-pseudo-rooms': {
+      const state = pushUndoState(inputState);
+      const sourceRoomId = command.sourceRoom === null
+        ? (() => {
+          if (state.selectedRoomIds.length !== 1) {
+            throw new Error('Select exactly one room to set exits on.');
+          }
+          return state.selectedRoomIds[0]!;
+        })()
+        : resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
       let nextDoc = state.doc;
-      if (existingConnectionId) {
-        nextDoc = deleteConnection(nextDoc, existingConnectionId);
+      const connectionIds: string[] = [];
+      for (const sourceDirection of command.sourceDirections) {
+        const result = applyPseudoRoomExit(nextDoc, sourceRoomId, sourceDirection, command.pseudoKind);
+        nextDoc = result.nextDoc;
+        connectionIds.push(result.connectionId);
       }
 
-      const pseudoRoom = {
-        ...createPseudoRoom(command.pseudoKind),
-        position: getCliPseudoRoomPlacement(nextDoc, sourceRoomId, normalizedSourceDirection),
-      };
-      const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
-      nextDoc = addPseudoRoom(nextDoc, pseudoRoom);
-      nextDoc = addConnection(nextDoc, connection, normalizedSourceDirection);
       nextDoc = prettifyCliPseudoRoomResult(nextDoc);
       return updateStateDoc(state, nextDoc, {
         pronounRoomId: sourceRoomId,
         selectedRoomIds: [sourceRoomId],
         selectedPseudoRoomIds: [],
         selectedStickyNoteIds: [],
-        selectedConnectionIds: [connection.id],
+        selectedConnectionIds: connectionIds,
         selectedStickyNoteLinkIds: [],
       });
     }
@@ -623,6 +668,18 @@ export function runCliSessionCommand(
         }
         return match.kind === 'one' ? match.room.id : null;
       })();
+      // IMPORTANT: For grammar like "west of Carnival is Foobar", the direction names the exit
+      // on the SOURCE room. The TARGET room must therefore use the OPPOSITE direction ("east"),
+      // not the same direction ("west"). We have gotten this wrong before by accidentally reusing
+      // the source direction on both rooms, which flips the connection semantics.
+      //
+      // If you are touching this code in the future, keep this rule in mind:
+      //   "<dir> of <source> is <target>" means:
+      //   - source uses <dir>
+      //   - target uses opposite(<dir>)
+      //
+      // Reusing <dir> on the target room is a bug.
+      const targetDirection = oppositeDirection(normalizeDirection(command.sourceDirection)) ?? null;
 
       if (targetMatchId !== null) {
         const connectionResult = applyCliConnection(
@@ -632,7 +689,7 @@ export function runCliSessionCommand(
           targetMatchId,
           {
             oneWay: false,
-            targetDirection: normalizeDirection(command.sourceDirection),
+            targetDirection,
           },
         );
         let nextDoc = sourceRoomId === targetMatchId
@@ -661,17 +718,17 @@ export function runCliSessionCommand(
       }
       const connectionResult = applyCliConnection(
         nextDoc,
-        createdRoomId,
-        normalizeDirection(command.sourceDirection),
         sourceRoomId,
+        command.sourceDirection,
+        createdRoomId,
         {
           oneWay: false,
-          targetDirection: command.sourceDirection,
+          targetDirection,
         },
       );
       nextDoc = sourceRoomId === createdRoomId
         ? connectionResult.doc
-        : prettifyCliConnectionResult(connectionResult.doc, [createdRoomId]);
+        : prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, createdRoomId]);
       if (command.adjective !== null) {
         nextDoc = applyRoomAdjective(nextDoc, createdRoomId, command.adjective);
       }

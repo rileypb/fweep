@@ -228,6 +228,20 @@ function describeCliOutcome(command: CliCommand): string {
         return 'Marked exit as leading to somewhere else.';
       }
       return 'Marked exit as leading nowhere.';
+    case 'create-pseudo-rooms':
+      if (command.pseudoKind === 'unknown') {
+        return 'Marked exits as unknown.';
+      }
+      if (command.pseudoKind === 'infinite') {
+        return 'Marked exits as going on forever.';
+      }
+      if (command.pseudoKind === 'death') {
+        return 'Marked exits as death.';
+      }
+      if (command.pseudoKind === 'elsewhere') {
+        return 'Marked exits as leading to somewhere else.';
+      }
+      return 'Marked exits as leading nowhere.';
     case 'delete':
       return 'Deleted.';
     case 'edit':
@@ -734,6 +748,52 @@ export function useAppCli({
     }
   };
 
+  const getCliCommandRoomReferences = (command: CliCommand): readonly CliRoomReference[] => {
+    switch (command.kind) {
+      case 'delete':
+      case 'edit':
+      case 'show':
+      case 'set-room-adjective':
+      case 'put-items':
+      case 'take-items':
+      case 'take-all-items':
+        return [command.room];
+      case 'describe':
+      case 'notate':
+        return command.room === null ? [] : [command.room];
+      case 'connect':
+      case 'disconnect':
+      case 'set-connection-annotation':
+        return [command.sourceRoom, command.targetRoom];
+      case 'create-and-connect':
+        return [command.targetRoom];
+      case 'selected-room-relative-connect':
+        return command.sourceRoom === null ? [command.targetRoom] : [command.sourceRoom, command.targetRoom];
+      case 'create-pseudo-room':
+        return command.sourceRoom === null ? [] : [command.sourceRoom];
+      case 'create-pseudo-rooms':
+        return command.sourceRoom === null ? [] : [command.sourceRoom];
+      default:
+        return [];
+    }
+  };
+
+  const getAmbiguousRoomNamesFromCommand = (
+    command: CliCommand,
+    doc: MapDocument,
+    pronounRoomId: string | null,
+    roomName: string,
+  ): readonly string[] => {
+    const roomReferences = getCliCommandRoomReferences(command).filter((roomReference) => roomReference.text === roomName);
+    for (const roomReference of roomReferences) {
+      const roomMatch = resolveRoomByCliReference(doc, roomReference.text, roomReference.exact, pronounRoomId);
+      if (roomMatch.kind === 'multiple') {
+        return roomMatch.rooms.map((room) => room.name);
+      }
+    }
+
+    return [];
+  };
   const translateSharedEngineError = (
     command: CliCommand,
     error: Error,
@@ -862,6 +922,7 @@ export function useAppCli({
         || command.kind === 'take-items'
         || command.kind === 'take-all-items'
         || command.kind === 'create-pseudo-room'
+        || command.kind === 'create-pseudo-rooms'
         || command.kind === 'delete'
         || command.kind === 'show'
         || command.kind === 'set-room-adjective'
@@ -947,6 +1008,18 @@ export function useAppCli({
         }
 
         if (command.kind === 'create-pseudo-room') {
+          const roomId = nextState.pronounRoomId;
+          if (roomId !== null) {
+            setRequestedRoomRevealRequest({
+              roomId,
+              requestId: issueUiRequestId(),
+            });
+          }
+          appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+          return { ok: true, shouldSelectCliInput };
+        }
+
+        if (command.kind === 'create-pseudo-rooms') {
           const roomId = nextState.pronounRoomId;
           if (roomId !== null) {
             setRequestedRoomRevealRequest({

@@ -107,4 +107,23 @@ describe('handleIfdbProxyHttpRequest', () => {
     expect(response.status).toBe(200);
     expect(response.headers['cache-control']).toBe('public, s-maxage=86400, stale-while-revalidate=604800');
   });
+
+  it('returns CORS headers when the upstream IFDB request fails', async () => {
+    const fetchMock = jest.fn<typeof fetch>().mockRejectedValue(new Error('upstream timeout'));
+
+    const response = await handleIfdbProxyHttpRequest({
+      method: 'GET',
+      url: '/api/ifdb/viewgame?tuid=abc123',
+      origin: 'https://fweep.xyz',
+      allowedOrigins: ['https://fweep.xyz'],
+      fetchImpl: fetchMock,
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.headers['access-control-allow-origin']).toBe('https://fweep.xyz');
+    expect(response.headers['content-type']).toBe('application/json; charset=utf-8');
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'upstream timeout',
+    });
+  });
 });
