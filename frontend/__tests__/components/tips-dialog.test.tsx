@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TipsDialog } from '../../src/components/tips-dialog';
+import { STARTUP_TIPS, TipsDialog } from '../../src/components/tips-dialog';
 
 describe('TipsDialog', () => {
   it('renders the first tip and advances through tips', async () => {
@@ -69,7 +69,7 @@ describe('TipsDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /^back$/i }));
 
-    expect(screen.getByText(/Press \/ in the CLI input/i)).toBeInTheDocument();
+    expect(screen.getByText(STARTUP_TIPS[STARTUP_TIPS.length - 1] ?? '')).toBeInTheDocument();
   });
 
   it('reports checkbox changes and closes from cancel', async () => {
@@ -98,10 +98,11 @@ describe('TipsDialog', () => {
   it('starts at the requested tip index and wraps the next saved index after the last tip', async () => {
     const user = userEvent.setup();
     const onClose = jest.fn<(nextTipIndex: number) => void>();
+    const lastTipIndex = STARTUP_TIPS.length - 1;
 
     render(
       <TipsDialog
-        initialTipIndex={2}
+        initialTipIndex={lastTipIndex}
         isOpen
         onTipIndexChange={() => undefined}
         showTipsOnStartup
@@ -110,8 +111,8 @@ describe('TipsDialog', () => {
       />,
     );
 
-    expect(screen.getByText(/tip 3 of/i)).toBeInTheDocument();
-    expect(screen.getByText(/Press \/ in the CLI input/i)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`tip ${STARTUP_TIPS.length} of`, 'i'))).toBeInTheDocument();
+    expect(screen.getByText(STARTUP_TIPS[lastTipIndex] ?? '')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^done$/i }));
     expect(onClose).toHaveBeenCalledWith(0);
@@ -135,6 +136,6 @@ describe('TipsDialog', () => {
     expect(onTipIndexChange).toHaveBeenLastCalledWith(1);
 
     await user.click(screen.getByRole('button', { name: /^next$/i }));
-    expect(onTipIndexChange).toHaveBeenLastCalledWith(2);
+    expect(onTipIndexChange).toHaveBeenLastCalledWith(0);
   });
 });

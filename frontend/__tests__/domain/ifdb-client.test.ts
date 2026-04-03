@@ -78,6 +78,7 @@ describe('searchIfdbGames', () => {
         averageRating: 4.25,
         coverArtUrl: null,
         ifdbLink: null,
+        isPlayable: null,
       },
     ]);
   });
