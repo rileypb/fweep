@@ -310,6 +310,7 @@
   - better protection of the map-name chip from the Parchment panel
   - improved edge-scroll and marquee-pan behavior while interacting with the canvas
   - removal of the old `?` help button in favor of keyboard help flows and the dedicated help surfaces
+- Removed auto-suggestions
 
 ### Compatibility and persistence
 - `v8` does not change the persisted map schema.
