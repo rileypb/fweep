@@ -320,8 +320,8 @@ function updateStateDoc(
   };
 }
 
-function resolveOneRoom(doc: MapDocument, requestedName: string, pronounRoomId: string | null): string {
-  const match = resolveRoomByCliReference(doc, requestedName, false, pronounRoomId);
+function resolveOneRoom(doc: MapDocument, requestedName: string, exact: boolean, pronounRoomId: string | null): string {
+  const match = resolveRoomByCliReference(doc, requestedName, exact, pronounRoomId);
   if (match.kind === 'pronoun-unbound') {
     throw new Error('The script referenced "it" before any room was established.');
   }
@@ -430,7 +430,7 @@ export function runCliSessionCommand(
     }
 
     case 'show': {
-      const roomId = resolveOneRoom(inputState.doc, command.room.text, inputState.pronounRoomId);
+      const roomId = resolveOneRoom(inputState.doc, command.room.text, command.room.exact, inputState.pronounRoomId);
       return updateStateDoc(inputState, inputState.doc, {
         pronounRoomId: roomId,
         selectedRoomIds: [roomId],
@@ -468,7 +468,7 @@ export function runCliSessionCommand(
 
     case 'put-items': {
       const state = pushUndoState(inputState);
-      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const roomId = resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       let nextDoc = state.doc;
       for (const itemName of command.itemNames) {
         nextDoc = addItem(nextDoc, createItem(itemName, roomId));
@@ -482,7 +482,7 @@ export function runCliSessionCommand(
 
     case 'take-items': {
       const state = pushUndoState(inputState);
-      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const roomId = resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       const removal = findMatchingItemIdsInRoom(state.doc, roomId, command.itemNames);
       if (removal.missingItemNames.length > 0) {
         throw new Error(`Could not find ${removal.missingItemNames.join(', ')} in ${state.doc.rooms[roomId]?.name ?? 'that room'}.`);
@@ -501,7 +501,7 @@ export function runCliSessionCommand(
 
     case 'take-all-items': {
       const state = pushUndoState(inputState);
-      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const roomId = resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       let nextDoc = state.doc;
       for (const item of Object.values(state.doc.items).filter((candidate) => candidate.roomId === roomId)) {
         nextDoc = deleteItem(nextDoc, item.id);
@@ -522,7 +522,7 @@ export function runCliSessionCommand(
           }
           return state.selectedRoomIds[0]!;
         })()
-        : resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
+        : resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
       const normalizedSourceDirection = normalizeDirection(command.sourceDirection);
       const sourceRoom = state.doc.rooms[sourceRoomId];
       if (!sourceRoom) {
@@ -571,7 +571,7 @@ export function runCliSessionCommand(
 
     case 'delete': {
       const state = pushUndoState(inputState);
-      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const roomId = resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       const nextDoc = deleteRoom(state.doc, roomId);
       return updateStateDoc(state, nextDoc, {
         pronounRoomId: state.pronounRoomId === roomId ? null : state.pronounRoomId,
@@ -589,14 +589,14 @@ export function runCliSessionCommand(
         describeRoomForCliLines(inputState.doc, inputState.selectedRoomIds[0]!);
         return inputState;
       }
-      const roomId = resolveOneRoom(inputState.doc, command.room.text, inputState.pronounRoomId);
+      const roomId = resolveOneRoom(inputState.doc, command.room.text, command.room.exact, inputState.pronounRoomId);
       describeRoomForCliLines(inputState.doc, roomId);
       return inputState;
     }
 
     case 'set-room-adjective': {
       const state = pushUndoState(inputState);
-      const roomId = resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+      const roomId = resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       const nextDoc = applyRoomAdjective(state.doc, roomId, command.adjective);
       return updateStateDoc(state, nextDoc, {
         pronounRoomId: roomId,
@@ -606,7 +606,7 @@ export function runCliSessionCommand(
     case 'selected-room-relative-connect': {
       const state = pushUndoState(inputState);
       const sourceRoomId = command.sourceRoom !== null
-        ? resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId)
+        ? resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId)
         : (() => {
           if (state.selectedRoomIds.length !== 1) {
             throw new Error('Select exactly one room to connect from.');
@@ -686,8 +686,8 @@ export function runCliSessionCommand(
 
     case 'set-connection-annotation': {
       const state = pushUndoState(inputState);
-      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
-      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
+      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
+      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, command.targetRoom.exact, state.pronounRoomId);
       const connectionIds = getConnectionIdsBetweenRooms(state.doc, sourceRoomId, targetRoomId);
       if (connectionIds.length === 0) {
         throw new Error('There are no connections between those rooms.');
@@ -712,7 +712,7 @@ export function runCliSessionCommand(
           }
           return state.selectedRoomIds[0]!;
         })()
-        : resolveOneRoom(state.doc, command.room.text, state.pronounRoomId);
+        : resolveOneRoom(state.doc, command.room.text, command.room.exact, state.pronounRoomId);
       const stickyNote = {
         ...createStickyNote(command.noteText),
         position: getStickyNotePlacementForRoom(state.doc, roomId, command.noteText),
@@ -731,8 +731,8 @@ export function runCliSessionCommand(
 
     case 'connect': {
       const state = pushUndoState(inputState);
-      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
-      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
+      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
+      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, command.targetRoom.exact, state.pronounRoomId);
       const connectionResult = applyCliConnection(
         state.doc,
         sourceRoomId,
@@ -758,7 +758,7 @@ export function runCliSessionCommand(
 
     case 'create-and-connect': {
       const state = pushUndoState(inputState);
-      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
+      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, command.targetRoom.exact, state.pronounRoomId);
       const plan = planCreateRoomFromCli(state.doc, command.sourceRoomName, viewportSize, panOffset);
       const room = {
         ...createRoom(plan.roomName),
@@ -796,8 +796,8 @@ export function runCliSessionCommand(
 
     case 'disconnect': {
       const state = pushUndoState(inputState);
-      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, state.pronounRoomId);
-      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, state.pronounRoomId);
+      const sourceRoomId = resolveOneRoom(state.doc, command.sourceRoom.text, command.sourceRoom.exact, state.pronounRoomId);
+      const targetRoomId = resolveOneRoom(state.doc, command.targetRoom.text, command.targetRoom.exact, state.pronounRoomId);
       const sourceRoom = state.doc.rooms[sourceRoomId];
       const connectionIds = Object.values(state.doc.connections)
         .filter((connection) => {

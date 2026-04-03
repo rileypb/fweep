@@ -3,6 +3,7 @@ import {
   parseCliCommand,
   parseCliCommandDescription,
   type CliCommand,
+  type CliRoomReference,
 } from '../domain/cli-command';
 import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
 import { parseCliScript } from '../domain/cli-script';
@@ -15,7 +16,7 @@ import {
   type CliErrorCommandKind,
   type CliError,
 } from '../domain/cli-errors';
-import { findRoomsByCliName, resolveRoomByCliReference } from '../domain/cli-execution';
+import { resolveRoomByCliReference } from '../domain/cli-execution';
 import { DEFAULT_CLI_OUTPUT_LINES, type MapDocument } from '../domain/map-types';
 import { useEditorStore } from '../state/editor-store';
 import { createSelectionSnapshot, type SelectionSnapshot } from '../state/editor-store-selection';
@@ -734,6 +735,51 @@ export function useAppCli({
     }
   };
 
+  const getCliCommandRoomReferences = (command: CliCommand): readonly CliRoomReference[] => {
+    switch (command.kind) {
+      case 'delete':
+      case 'edit':
+      case 'show':
+      case 'set-room-adjective':
+      case 'put-items':
+      case 'take-items':
+      case 'take-all-items':
+        return [command.room];
+      case 'describe':
+      case 'notate':
+        return command.room === null ? [] : [command.room];
+      case 'connect':
+      case 'disconnect':
+      case 'set-connection-annotation':
+        return [command.sourceRoom, command.targetRoom];
+      case 'create-and-connect':
+        return [command.targetRoom];
+      case 'selected-room-relative-connect':
+        return command.sourceRoom === null ? [command.targetRoom] : [command.sourceRoom, command.targetRoom];
+      case 'create-pseudo-room':
+        return command.sourceRoom === null ? [] : [command.sourceRoom];
+      default:
+        return [];
+    }
+  };
+
+  const getAmbiguousRoomNamesFromCommand = (
+    command: CliCommand,
+    doc: MapDocument,
+    pronounRoomId: string | null,
+    roomName: string,
+  ): readonly string[] => {
+    const roomReferences = getCliCommandRoomReferences(command).filter((roomReference) => roomReference.text === roomName);
+    for (const roomReference of roomReferences) {
+      const roomMatch = resolveRoomByCliReference(doc, roomReference.text, roomReference.exact, pronounRoomId);
+      if (roomMatch.kind === 'multiple') {
+        return roomMatch.rooms.map((room) => room.name);
+      }
+    }
+
+    return [];
+  };
+
   const translateSharedEngineError = (
     command: CliCommand,
     error: Error,
@@ -754,7 +800,8 @@ export function useAppCli({
       const roomName = ambiguousRoomMatch[1] ?? '';
       const commandKind = getCliErrorCommandKind(command);
       if (commandKind !== null) {
-        return createAmbiguousRoomCliError(commandKind, roomName, findRoomsByCliName(doc, roomName).map((room) => room.name)).message;
+        const matchingRoomNames = getAmbiguousRoomNamesFromCommand(command, doc, pronounRoomId, roomName);
+        return createAmbiguousRoomCliError(commandKind, roomName, matchingRoomNames).message;
       }
     }
 
