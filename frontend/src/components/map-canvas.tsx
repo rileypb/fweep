@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createPseudoRoom, createRoom, type MapDocument, type Position, type PseudoRoomKind, type Room } from '../domain/map-types';
 import { getPseudoRoomNodeDimensions } from '../domain/pseudo-room-helpers';
 import { getPseudoRoomSymbolDefinition, PSEUDO_ROOM_SYMBOL_VIEWBOX_SIZE, pseudoRoomPathCommandsToSvgPath } from '../domain/pseudo-room-symbols';
 import { MapMinimap } from './map-minimap';
 import { useEditorStore } from '../state/editor-store';
-import { useMapViewport } from './use-map-viewport';
+import { type PanOffset, useMapViewport } from './use-map-viewport';
 import {
   findNearestRoomInDirection,
   getConnectionsWithinSelectionBox,
+  getScreenSpaceSelectionBox,
   getPseudoRoomsWithinSelectionBox,
   getRoomScreenGeometry,
   getStickyNoteLinksWithinSelectionBox,
@@ -16,6 +17,7 @@ import {
   getRoomsWithinSelectionBox,
   getSelectionBounds,
   isEditableTarget,
+  type MapSelectionBox,
   type SelectionBox,
   useDocumentTheme,
 } from './map-canvas-helpers';
@@ -42,6 +44,7 @@ import { UndoButton } from './undo-button';
 import { MapCanvasThemeLayer } from './map-canvas-theme-layer';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
 import { getStickyNoteHeight, STICKY_NOTE_WIDTH } from '../graph/sticky-note-geometry';
+import { getConnectedComponentBounds } from '../graph/prettify-layout';
 import {
   BUCKET_FILL_MAX_RADIUS,
   blobToCanvas,
@@ -80,6 +83,10 @@ import {
 
 const DOWNLOAD_SOLID_FULL_PATH = 'M352 96C352 78.3 337.7 64 320 64C302.3 64 288 78.3 288 96L288 306.7L246.6 265.3C234.1 252.8 213.8 252.8 201.3 265.3C188.8 277.8 188.8 298.1 201.3 310.6L297.3 406.6C309.8 419.1 330.1 419.1 342.6 406.6L438.6 310.6C451.1 298.1 451.1 277.8 438.6 265.3C426.1 252.8 405.8 252.8 393.3 265.3L352 306.7L352 96zM160 384C124.7 384 96 412.7 96 448L96 480C96 515.3 124.7 544 160 544L480 544C515.3 544 544 515.3 544 480L544 448C544 412.7 515.3 384 480 384L433.1 384L376.5 440.6C345.3 471.8 294.6 471.8 263.4 440.6L206.9 384L160 384zM464 440C477.3 440 488 450.7 488 464C488 477.3 477.3 488 464 488C450.7 488 440 477.3 440 464C440 450.7 450.7 440 464 440z';
 const J_SOLID_FULL_PATH = 'M448 96C465.7 96 480 110.3 480 128L480 384C480 472.4 408.4 544 320 544C231.6 544 160 472.4 160 384L160 352C160 334.3 174.3 320 192 320C209.7 320 224 334.3 224 352L224 384C224 437 267 480 320 480C373 480 416 437 416 384L416 128C416 110.3 430.3 96 448 96z';
+const DRAG_EDGE_AUTO_PAN_TRIGGER_PX = 48;
+const DRAG_EDGE_AUTO_PAN_MAX_STEP_PX = 18;
+const DRAG_EDGE_AUTO_PAN_MIN_STEP_PX = 4;
+const DRAG_EDGE_AUTO_PAN_INTERVAL_MS = 16;
 import {
   deleteBackgroundChunks,
   loadBackgroundChunk,
@@ -109,6 +116,8 @@ interface ActiveDrawingStroke {
   readonly chunks: Map<string, StrokeChunkState>;
 }
 
+type DragPointerTickHandler = (clientX: number, clientY: number) => void;
+
 function isDrawingInterfaceEnabled(): boolean {
   return (
     (globalThis as typeof globalThis & { __FWEEP_TEST_ENABLE_DRAWING_INTERFACE__?: boolean })
@@ -123,6 +132,16 @@ function getDrawingToolSnapshot(): ReturnType<typeof useEditorStore.getState>['d
     colorRgbHex: normalizeHexColor(drawingToolState.colorRgbHex),
     fillColorRgbHex: normalizeHexColor(drawingToolState.fillColorRgbHex),
   };
+}
+
+function getDragEdgeAutoPanStep(distanceToEdge: number): number {
+  const clampedDistance = Math.max(distanceToEdge, 0);
+  if (clampedDistance >= DRAG_EDGE_AUTO_PAN_TRIGGER_PX) {
+    return 0;
+  }
+
+  const proximity = (DRAG_EDGE_AUTO_PAN_TRIGGER_PX - clampedDistance) / DRAG_EDGE_AUTO_PAN_TRIGGER_PX;
+  return Math.max(DRAG_EDGE_AUTO_PAN_MIN_STEP_PX, Math.ceil(proximity * DRAG_EDGE_AUTO_PAN_MAX_STEP_PX));
 }
 
 function isCanvasChromeTarget(target: Element | null): boolean {
@@ -288,6 +307,7 @@ export interface MapCanvasProps {
   mapName: string;
   actionsContainer?: Element | null;
   showGrid?: boolean;
+  showComponentBoundsDebug?: boolean;
   onBack?: () => void;
   visibleMapLeftInset?: number;
   visibleMapRightInset?: number;
@@ -374,6 +394,7 @@ export function MapCanvas({
   mapName,
   actionsContainer = null,
   showGrid: initialShowGrid = true,
+  showComponentBoundsDebug = false,
   visibleMapLeftInset = 0,
   visibleMapRightInset = 0,
   selectionFocusRightInset = 0,
@@ -404,7 +425,7 @@ export function MapCanvas({
   const [isRoomPlacementArmed, setIsRoomPlacementArmed] = useState(false);
   const [isNotePlacementArmed, setIsNotePlacementArmed] = useState(false);
   const [pendingConnectionDrop, setPendingConnectionDrop] = useState<PendingConnectionDrop | null>(null);
-  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
+  const [selectionBox, setSelectionBox] = useState<MapSelectionBox | null>(null);
   const doc = useEditorStore((s) => s.doc);
   const selectedRoomIds = useEditorStore((s) => s.selectedRoomIds);
   const selectedPseudoRoomIds = useEditorStore((s) => s.selectedPseudoRoomIds);
@@ -450,6 +471,9 @@ export function MapCanvas({
   const suppressCanvasClickRef = useRef(false);
   const backgroundRef = useRef<MapCanvasBackgroundHandle | null>(null);
   const drawingStrokeRef = useRef<ActiveDrawingStroke | null>(null);
+  const dragEdgeAutoPanCursorRef = useRef<{ x: number; y: number } | null>(null);
+  const dragEdgeAutoPanTickRef = useRef<DragPointerTickHandler | null>(null);
+  const dragEdgeAutoPanIntervalRef = useRef<number | null>(null);
   const theme = useDocumentTheme();
   const {
     canvasRef,
@@ -484,11 +508,94 @@ export function MapCanvas({
     : {};
   const pseudoRooms = doc ? Object.values(doc.pseudoRooms) : [];
   const stickyNotes = doc ? Object.values(doc.stickyNotes) : [];
+  const componentBounds = useMemo(
+    () => (doc && showComponentBoundsDebug ? getConnectedComponentBounds(doc) : []),
+    [doc, showComponentBoundsDebug],
+  );
   const hasExportSelection = selectedRoomIds.length > 0
     || selectedPseudoRoomIds.length > 0
     || selectedStickyNoteIds.length > 0
     || selectedConnectionIds.length > 0
     || selectedStickyNoteLinkIds.length > 0;
+
+  const stopDragEdgeAutoPan = useCallback(() => {
+    if (dragEdgeAutoPanIntervalRef.current !== null) {
+      window.clearInterval(dragEdgeAutoPanIntervalRef.current);
+      dragEdgeAutoPanIntervalRef.current = null;
+    }
+    dragEdgeAutoPanCursorRef.current = null;
+    dragEdgeAutoPanTickRef.current = null;
+    setIsAutoPanning(false);
+  }, []);
+
+  const getDragEdgeAutoPanDelta = useCallback((clientX: number, clientY: number): PanOffset | null => {
+    const rect = canvasRef.current?.getBoundingClientRect() ?? canvasRect;
+    if (!rect) {
+      return null;
+    }
+
+    const visibleLeftEdge = rect.left + visibleMapLeftInset;
+    const visibleRightEdge = rect.right - visibleMapRightInset;
+    const leftStep = getDragEdgeAutoPanStep(clientX - visibleLeftEdge);
+    const rightStep = getDragEdgeAutoPanStep(visibleRightEdge - clientX);
+    const topStep = getDragEdgeAutoPanStep(clientY - rect.top);
+    const bottomStep = getDragEdgeAutoPanStep(rect.bottom - clientY);
+
+    const x = leftStep > rightStep
+      ? leftStep
+      : rightStep > 0
+        ? -rightStep
+        : 0;
+    const y = topStep > bottomStep
+      ? topStep
+      : bottomStep > 0
+        ? -bottomStep
+        : 0;
+
+    if (x === 0 && y === 0) {
+      return null;
+    }
+
+    return { x, y };
+  }, [canvasRect, canvasRef, visibleMapLeftInset, visibleMapRightInset]);
+
+  const tickDragEdgeAutoPan = useCallback(() => {
+    const pointer = dragEdgeAutoPanCursorRef.current;
+    if (!pointer) {
+      stopDragEdgeAutoPan();
+      return;
+    }
+
+    const delta = getDragEdgeAutoPanDelta(pointer.x, pointer.y);
+    if (!delta) {
+      stopDragEdgeAutoPan();
+      return;
+    }
+
+    panBy(delta);
+    setIsAutoPanning(true);
+    dragEdgeAutoPanTickRef.current?.(pointer.x, pointer.y);
+  }, [getDragEdgeAutoPanDelta, panBy, stopDragEdgeAutoPan]);
+
+  const updateDragEdgeAutoPan = useCallback((clientX: number, clientY: number, onTick: DragPointerTickHandler) => {
+    dragEdgeAutoPanCursorRef.current = { x: clientX, y: clientY };
+    dragEdgeAutoPanTickRef.current = onTick;
+
+    if (getDragEdgeAutoPanDelta(clientX, clientY) === null) {
+      if (dragEdgeAutoPanIntervalRef.current !== null) {
+        window.clearInterval(dragEdgeAutoPanIntervalRef.current);
+        dragEdgeAutoPanIntervalRef.current = null;
+      }
+      setIsAutoPanning(false);
+      return;
+    }
+
+    if (dragEdgeAutoPanIntervalRef.current === null) {
+      dragEdgeAutoPanIntervalRef.current = window.setInterval(tickDragEdgeAutoPan, DRAG_EDGE_AUTO_PAN_INTERVAL_MS);
+    }
+  }, [getDragEdgeAutoPanDelta, tickDragEdgeAutoPan]);
+
+  useEffect(() => stopDragEdgeAutoPan, [stopDragEdgeAutoPan]);
 
   useEffect(() => {
     if (drawingInterfaceEnabled) {
@@ -1110,50 +1217,59 @@ export function MapCanvas({
     if (e.shiftKey || !drawingEnabled || effectiveCanvasInteractionMode === 'map') {
       e.preventDefault();
 
-      const initialSelectionBox: SelectionBox = {
-        startX: e.clientX - (canvasRect?.left ?? 0),
-        startY: e.clientY - (canvasRect?.top ?? 0),
-        currentX: e.clientX - (canvasRect?.left ?? 0),
-        currentY: e.clientY - (canvasRect?.top ?? 0),
+      const startPoint = toMapPoint(e.clientX, e.clientY);
+      const initialSelectionBox: MapSelectionBox = {
+        start: startPoint,
+        current: startPoint,
       };
 
       setSelectionBox(initialSelectionBox);
 
-      const updateSelection = (nextSelectionBox: SelectionBox) => {
+      const updateSelection = (nextSelectionBox: MapSelectionBox) => {
+        const nextScreenSpaceSelectionBox = getScreenSpaceSelectionBox(
+          nextSelectionBox,
+          panOffsetRef.current,
+          canvasRect,
+          zoomRef.current,
+        );
         setSelection(
-          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle),
-          getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current),
-          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.connections, panOffsetRef.current, nextSelectionBox, zoomRef.current, mapVisualStyle) : [],
-          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextSelectionBox, zoomRef.current) : [],
+          getRoomsWithinSelectionBox(rooms, panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle),
+          getStickyNotesWithinSelectionBox(stickyNotes, panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current),
+          doc ? getConnectionsWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.connections, panOffsetRef.current, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle) : [],
+          doc ? getStickyNoteLinksWithinSelectionBox(doc.rooms, doc.pseudoRooms, doc.stickyNotes, doc.stickyNoteLinks, panOffsetRef.current, nextScreenSpaceSelectionBox, zoomRef.current) : [],
         );
         pseudoRooms
-          .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))
+          .filter((pseudoRoom) => getPseudoRoomsWithinSelectionBox([pseudoRoom], panOffsetRef.current, canvasRect, nextScreenSpaceSelectionBox, zoomRef.current, mapVisualStyle).includes(pseudoRoom.id))
           .forEach((pseudoRoom) => addPseudoRoomToSelection(pseudoRoom.id));
       };
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const nextSelectionBox: SelectionBox = {
-          startX: initialSelectionBox.startX,
-          startY: initialSelectionBox.startY,
-          currentX: moveEvent.clientX - (canvasRect?.left ?? 0),
-          currentY: moveEvent.clientY - (canvasRect?.top ?? 0),
+      const updateSelectionFromPointer = (clientX: number, clientY: number) => {
+        const nextSelectionBox: MapSelectionBox = {
+          start: initialSelectionBox.start,
+          current: toMapPoint(clientX, clientY),
         };
 
         setSelectionBox(nextSelectionBox);
         updateSelection(nextSelectionBox);
       };
 
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        updateDragEdgeAutoPan(moveEvent.clientX, moveEvent.clientY, updateSelectionFromPointer);
+        updateSelectionFromPointer(moveEvent.clientX, moveEvent.clientY);
+      };
+
       const handleMouseUp = (upEvent: MouseEvent) => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        stopDragEdgeAutoPan();
 
-        const finalSelectionBox: SelectionBox = {
-          startX: initialSelectionBox.startX,
-          startY: initialSelectionBox.startY,
-          currentX: upEvent.clientX - (canvasRect?.left ?? 0),
-          currentY: upEvent.clientY - (canvasRect?.top ?? 0),
+        const finalSelectionBox: MapSelectionBox = {
+          start: initialSelectionBox.start,
+          current: toMapPoint(upEvent.clientX, upEvent.clientY),
         };
-        const bounds = getSelectionBounds(finalSelectionBox);
+        const bounds = getSelectionBounds(
+          getScreenSpaceSelectionBox(finalSelectionBox, panOffsetRef.current, canvasRect, zoomRef.current),
+        );
 
         if (bounds.width > 0 || bounds.height > 0) {
           suppressCanvasClickRef.current = true;
@@ -1189,8 +1305,10 @@ export function MapCanvas({
     isRoomEditorOpen,
     rooms,
     stickyNotes,
+    stopDragEdgeAutoPan,
     setSelection,
     toMapPoint,
+    updateDragEdgeAutoPan,
     updateExportRegion,
     exportScope,
     effectiveCanvasInteractionMode,
@@ -1639,6 +1757,33 @@ export function MapCanvas({
               onMouseDown={handleBackgroundImageMouseDown}
             />
           )}
+          {showComponentBoundsDebug && componentBounds.length > 0 && (
+            <div
+              className="map-canvas-component-bounds-overlay"
+              data-testid="map-canvas-component-bounds-overlay"
+              aria-hidden="true"
+            >
+              {componentBounds.map((bounds, index) => (
+                (() => {
+                  const hue = (index * 53) % 360;
+                  return (
+                    <div
+                      key={bounds.key}
+                      className="map-canvas-component-bounds-box"
+                      style={{
+                        left: `${bounds.left}px`,
+                        top: `${bounds.top}px`,
+                        width: `${bounds.right - bounds.left}px`,
+                        height: `${bounds.bottom - bounds.top}px`,
+                        borderColor: `hsl(${hue} 88% 58%)`,
+                        backgroundColor: `hsl(${hue} 88% 58% / 0.09)`,
+                      }}
+                    />
+                  );
+                })()
+              ))}
+            </div>
+          )}
           {doc && (
             <MapCanvasConnections
               rooms={doc.rooms}
@@ -1664,6 +1809,8 @@ export function MapCanvas({
               isSelected={selectedPseudoRoomIds.includes(pseudoRoom.id)}
               onOpenPseudoRoomEditor={openPseudoRoomEditor}
               toMapPoint={toMapPoint}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
 
@@ -1676,6 +1823,8 @@ export function MapCanvas({
               toMapPoint={toMapPoint}
               onOpenEditor={openStickyNoteEditor}
               onCloseEditor={closeStickyNoteEditor}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
 
@@ -1691,6 +1840,8 @@ export function MapCanvas({
               onOpenRoomEditor={openRoomEditor}
               onEmptyConnectionDrop={openConnectionCreationMenu}
               toMapPoint={toMapPoint}
+              onDragPointerMove={updateDragEdgeAutoPan}
+              onDragPointerEnd={stopDragEdgeAutoPan}
             />
           ))}
         </div>
@@ -1722,7 +1873,7 @@ export function MapCanvas({
           <div
             className="map-canvas-selection-box"
             data-testid="map-canvas-selection-box"
-            style={getSelectionBounds(selectionBox)}
+            style={getSelectionBounds(getScreenSpaceSelectionBox(selectionBox, panOffset, canvasRect, zoom))}
           />
         )}
         {(isExportDialogOpen || isPickingExportRegion) && exportScope === 'region' && (exportRegionDraft || exportRegion) && (

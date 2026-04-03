@@ -16,6 +16,7 @@ export interface CliRoomAdjective {
 export type CliCommand =
   | { readonly kind: 'help'; readonly topic: CliHelpTopic | null }
   | { readonly kind: 'arrange' }
+  | { readonly kind: 'choose-game' }
   | {
     readonly kind: 'zoom';
     readonly mode: 'relative' | 'reset' | 'absolute';
@@ -40,8 +41,10 @@ export type CliCommand =
   | { readonly kind: 'set-room-adjective'; readonly room: CliRoomReference; readonly adjective: CliRoomAdjective }
   | {
     readonly kind: 'selected-room-relative-connect';
+    readonly sourceRoom: CliRoomReference | null;
     readonly sourceDirection: string;
     readonly targetRoom: CliRoomReference;
+    readonly adjective: CliRoomAdjective | null;
   }
   | {
     readonly kind: 'set-connection-annotation';
@@ -79,13 +82,16 @@ export type CliCommand =
 export const CLI_COMMAND_FORMS = [
   'help/h',
   'arrange/arr/prettify',
+  'choose [a] game',
   'zoom in/out/reset/<percent>',
   'go <direction>',
   '<direction>',
   'create/c <room name>',
   '<direction> of <room name> is unknown',
+  '<direction> of <room name> is <room name>',
   '<direction> is unknown',
   'above/below <room name> is unknown',
+  'above/below <room name> is <room name>',
   'above/below is unknown',
   'the room <direction> of <room name> is unknown',
   'the room above/below <room name> is unknown',
@@ -120,7 +126,7 @@ export const CLI_COMMAND_FORMS = [
   '<direction>/above/below is <room name>',
   '<room name> to <room name> is [a] door',
   '<room name> to <room name> is [a] locked door',
-  '<room name> to <room name> is clear',
+  '<room name> to <room name> is open',
   '<room name> is dark',
   '<room name> is lit',
   'create/c <room name>, which is <adjective>',
@@ -151,6 +157,7 @@ export interface CliCommandSuggestionSpec {
 export const CLI_COMMAND_SUGGESTION_SPECS: readonly CliCommandSuggestionSpec[] = [
   { id: 'help', insertText: 'help', matchTerms: ['help', 'h'], descriptionInput: 'help' },
   { id: 'arrange', insertText: 'arrange', matchTerms: ['arrange', 'arr', 'prettify'], descriptionInput: 'arrange' },
+  { id: 'choose-game', insertText: 'choose game', matchTerms: ['choose game', 'choose a game'], descriptionInput: 'choose game' },
   { id: 'zoom', insertText: 'zoom', matchTerms: ['zoom'], descriptionInput: 'zoom in' },
   { id: 'go', insertText: 'go', matchTerms: ['go'], descriptionInput: 'go north' },
   { id: 'show', insertText: 'show', matchTerms: ['show', 'select', 's', 'go to'], descriptionInput: 'show Kitchen' },
@@ -504,27 +511,72 @@ function parseSelectedRoomPseudoDirectionReference(
   return null;
 }
 
-function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, { kind: 'create-pseudo-room' }> | null {
-  const parseUnknown = (startIndex: number) => {
+function parsePseudoRoomCommand(
+  tokens: readonly Token[],
+): Extract<CliCommand, { kind: 'create-pseudo-room' | 'selected-room-relative-connect' | 'connect' }> | null {
+  const parseUnknownOrConnect = (
+    startIndex: number,
+  ): Extract<CliCommand, { kind: 'create-pseudo-room' | 'selected-room-relative-connect' | 'connect' }> | null => {
     const directionReference = parseDirectionReference(tokens, startIndex)
       ?? parseVerticalPseudoDirectionReference(tokens, startIndex)
       ?? parseSelectedRoomPseudoDirectionReference(tokens, startIndex);
     if (directionReference === null) {
       return null;
     }
-    if (
-      !isTokenValue(tokens[directionReference.nextIndex], 'is')
-      || !isTokenValue(tokens[directionReference.nextIndex + 1], 'unknown')
-      || directionReference.nextIndex + 2 !== tokens.length
-    ) {
+    if (!isTokenValue(tokens[directionReference.nextIndex], 'is')) {
       return null;
     }
 
+    if (
+      isTokenValue(tokens[directionReference.nextIndex + 1], 'unknown')
+      && directionReference.nextIndex + 2 === tokens.length
+    ) {
+      return {
+        kind: 'create-pseudo-room' as const,
+        pseudoKind: 'unknown' as const,
+        sourceRoom: directionReference.sourceRoom,
+        sourceDirection: directionReference.sourceDirection,
+      };
+    }
+
+    const targetRoom = readRoomName(tokens, directionReference.nextIndex + 1, isCommaToken);
+    if (targetRoom === null) {
+      return null;
+    }
+
+    let adjective: CliRoomAdjective | null = null;
+    if (targetRoom.nextIndex < tokens.length) {
+      if (!isCommaToken(tokens[targetRoom.nextIndex])) {
+        return null;
+      }
+
+      const adjectiveClause = parseWhichIsAdjectiveClause(tokens, targetRoom.nextIndex + 1);
+      if (adjectiveClause === null || adjectiveClause.nextIndex !== tokens.length) {
+        return null;
+      }
+      adjective = adjectiveClause.adjective;
+    }
+
+    if (directionReference.sourceRoom === null) {
+      if (tokens.length === directionReference.nextIndex + 2 && parseRoomAdjective(tokens[directionReference.nextIndex + 1]) !== null) {
+        return null;
+      }
+
+      return {
+        kind: 'selected-room-relative-connect',
+        sourceRoom: null,
+        sourceDirection: directionReference.sourceDirection,
+        targetRoom: targetRoom.reference,
+        adjective,
+      };
+    }
+
     return {
-      kind: 'create-pseudo-room' as const,
-      pseudoKind: 'unknown' as const,
+      kind: 'selected-room-relative-connect',
       sourceRoom: directionReference.sourceRoom,
       sourceDirection: directionReference.sourceDirection,
+      targetRoom: targetRoom.reference,
+      adjective,
     };
   };
 
@@ -624,14 +676,14 @@ function parsePseudoRoomCommand(tokens: readonly Token[]): Extract<CliCommand, {
   };
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'room')) {
-    return parseUnknown(2);
+    return parseUnknownOrConnect(2);
   }
 
   if (isTokenValue(tokens[0], 'the') && isTokenValue(tokens[1], 'way')) {
     return parseInfinite(2) ?? parseDeath(2) ?? parseNowhere(2) ?? parseElsewhere(2);
   }
 
-  return parseUnknown(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0) ?? parseElsewhere(0);
+  return parseUnknownOrConnect(0) ?? parseInfinite(0) ?? parseDeath(0) ?? parseNowhere(0) ?? parseElsewhere(0);
 }
 
 function parseConnectTail(tokens: readonly Token[], startIndex: number): ParsedConnectTail | null {
@@ -935,7 +987,7 @@ function parseConnectionAnnotationCommand(
   }
 
   const tailTokens = tokens.slice(isIndex + 1).map((token) => token.value.toLowerCase());
-  if (tailTokens.length === 1 && tailTokens[0] === 'clear') {
+  if (tailTokens.length === 1 && (tailTokens[0] === 'open' || tailTokens[0] === 'clear')) {
     return {
       kind: 'set-connection-annotation',
       sourceRoom: sourceRoom.reference,
@@ -1031,19 +1083,34 @@ function parseSelectedRoomRelativeConnectCommand(
     return null;
   }
 
-  const targetRoom = readRoomName(tokens, 2, () => false);
-  if (targetRoom === null || targetRoom.nextIndex !== tokens.length) {
+  const targetRoom = readRoomName(tokens, 2, isCommaToken);
+  if (targetRoom === null) {
     return null;
+  }
+
+  let adjective: CliRoomAdjective | null = null;
+  if (targetRoom.nextIndex < tokens.length) {
+    if (!isCommaToken(tokens[targetRoom.nextIndex])) {
+      return null;
+    }
+
+    const adjectiveClause = parseWhichIsAdjectiveClause(tokens, targetRoom.nextIndex + 1);
+    if (adjectiveClause === null || adjectiveClause.nextIndex !== tokens.length) {
+      return null;
+    }
+    adjective = adjectiveClause.adjective;
   }
 
   return {
     kind: 'selected-room-relative-connect',
+    sourceRoom: null,
     sourceDirection: isTokenValue(directionToken, 'above')
       ? 'up'
       : isTokenValue(directionToken, 'below')
         ? 'down'
         : normalizeDirection(directionToken!.value),
     targetRoom: targetRoom.reference,
+    adjective,
   };
 }
 
@@ -1081,6 +1148,13 @@ export function parseCliCommand(input: string): CliCommand | null {
 
   if (tokens.length === 1 && (isFirstWordAlias(tokens[0], 'arrange', 'arr') || isTokenValue(tokens[0], 'prettify'))) {
     return { kind: 'arrange' };
+  }
+
+  if (
+    (tokens.length === 2 && isTokenValue(tokens[0], 'choose') && isTokenValue(tokens[1], 'game'))
+    || (tokens.length === 3 && isTokenValue(tokens[0], 'choose') && isTokenValue(tokens[1], 'a') && isTokenValue(tokens[2], 'game'))
+  ) {
+    return { kind: 'choose-game' };
   }
 
   if (
@@ -1315,6 +1389,8 @@ function describeCliCommand(command: CliCommand): string {
         : `show CLI help for ${command.topic}`;
     case 'arrange':
       return 'rearrange the map layout';
+    case 'choose-game':
+      return 'open the game chooser';
     case 'zoom':
       if (command.mode === 'relative') {
         return command.direction === 'in' ? 'zoom the map in' : 'zoom the map out';
@@ -1379,7 +1455,14 @@ function describeCliCommand(command: CliCommand): string {
     case 'set-room-adjective':
       return `mark ${command.room.text} as ${command.adjective.text}`;
     case 'selected-room-relative-connect':
-      return `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`;
+      if (command.sourceRoom === null) {
+        return command.adjective === null
+          ? `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
+          : `connect the selected room going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed, and mark ${command.targetRoom.text} as ${command.adjective.text}`;
+      }
+      return command.adjective === null
+        ? `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed`
+        : `connect ${command.sourceRoom.text} going ${command.sourceDirection} to ${command.targetRoom.text}, creating it if needed, and mark ${command.targetRoom.text} as ${command.adjective.text}`;
     case 'set-connection-annotation':
       if (command.annotation === 'door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as doors`;
@@ -1387,7 +1470,7 @@ function describeCliCommand(command: CliCommand): string {
       if (command.annotation === 'locked door') {
         return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as locked doors`;
       }
-      return `clear all connection annotations between ${command.sourceRoom.text} and ${command.targetRoom.text}`;
+      return `mark all connections between ${command.sourceRoom.text} and ${command.targetRoom.text} as open`;
     case 'notate':
       return command.room === null
         ? `create a sticky note on the selected room saying ${command.noteText}`

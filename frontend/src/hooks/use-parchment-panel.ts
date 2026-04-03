@@ -26,6 +26,8 @@ import {
 interface UseParchmentPanelOptions {
   readonly activeMapId: string | null;
   readonly associatedGame: AssociatedGameMetadata | null;
+  readonly defaultStoryUrlForNewMap?: string | null;
+  readonly shouldLoadDefaultStoryForActiveMap?: boolean;
   readonly setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
   readonly parchmentDeviceInputRef: React.RefObject<HTMLInputElement | null>;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
@@ -56,6 +58,7 @@ interface UseParchmentPanelResult {
   readonly handleIfdbAuthorSearch: (author: string) => Promise<void>;
   readonly handleIfdbGameSelected: (tuid: string) => Promise<void>;
   readonly handleOpenParchmentFileChooser: () => void;
+  readonly handlePlayDefaultStory: () => void;
   readonly handleParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   readonly handleResetParchmentPanel: () => void;
   readonly handleParchmentIframeLoad: () => void;
@@ -64,6 +67,8 @@ interface UseParchmentPanelResult {
 export function useParchmentPanel({
   activeMapId,
   associatedGame,
+  defaultStoryUrlForNewMap = null,
+  shouldLoadDefaultStoryForActiveMap = false,
   setAssociatedGameMetadata,
   parchmentDeviceInputRef,
   parchmentIframeRef,
@@ -89,12 +94,34 @@ export function useParchmentPanel({
   const [isParchmentGameViewVisible, setIsParchmentGameViewVisible] = useState(false);
   const [isParchmentChooserForcedVisible, setIsParchmentChooserForcedVisible] = useState(false);
   const [pendingLocalFile, setPendingLocalFile] = useState<File | null>(null);
+  const [isAssociatedGameSyncSuppressed, setIsAssociatedGameSyncSuppressed] = useState(false);
   const syncedParchmentMapIdRef = useRef<string | null>(null);
   const pendingLocalFileRetryTimeoutRef = useRef<number | null>(null);
 
   const deviceLinkLabel = associatedGame?.sourceType === 'local-file' && associatedGame.title.trim().length > 0
     ? `Reconnect ${associatedGame.title}`
-    : 'Or, click here to play a story file from your device';
+    : 'Or click here to play a story file from your device';
+
+  const enrichIfdbSearchResultsWithPlayability = useCallback(async (
+    results: readonly NormalizedIfdbSearchResult[],
+  ): Promise<readonly NormalizedIfdbSearchResult[]> => {
+    const enrichedResults = await Promise.all(results.map(async (result) => {
+      try {
+        const resolvedGame = await viewIfdbGame(result.tuid);
+        return {
+          ...result,
+          isPlayable: resolvedGame.storyUrl !== null,
+        };
+      } catch {
+        return {
+          ...result,
+          isPlayable: false,
+        };
+      }
+    }));
+
+    return enrichedResults;
+  }, []);
 
   const resetChooserState = useCallback((): void => {
     setIfdbSearchQuery('');
@@ -239,14 +266,15 @@ export function useParchmentPanel({
 
     try {
       const results = await searchIfdbGames(trimmedQuery);
-      setIfdbSearchResults(results);
+      const enrichedResults = await enrichIfdbSearchResultsWithPlayability(results);
+      setIfdbSearchResults(enrichedResults);
     } catch (error) {
       setIfdbSearchResults([]);
       setIfdbSearchError(error instanceof Error ? error.message : 'IFDB search failed.');
     } finally {
       setIsIfdbSearching(false);
     }
-  }, []);
+  }, [enrichIfdbSearchResultsWithPlayability]);
 
   const handleIfdbSearchSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -291,14 +319,30 @@ export function useParchmentPanel({
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
+      setIsAssociatedGameSyncSuppressed(false);
       return;
     }
 
-    if (associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
+    if (!isAssociatedGameSyncSuppressed && associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
       setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
       if (!isParchmentChooserForcedVisible && !isParchmentGameViewVisible) {
         setIsParchmentGameViewVisible(true);
       }
+      return;
+    }
+
+    if (
+      hasSwitchedMaps
+      && shouldLoadDefaultStoryForActiveMap
+      && associatedGame === null
+      && defaultStoryUrlForNewMap !== null
+    ) {
+      resetChooserState();
+      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+      setIsParchmentGameViewVisible(true);
+      setIsParchmentChooserForcedVisible(false);
+      setPendingLocalFile(null);
+      setIsAssociatedGameSyncSuppressed(false);
       return;
     }
 
@@ -308,19 +352,42 @@ export function useParchmentPanel({
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
+      setIsAssociatedGameSyncSuppressed(false);
     }
   }, [
     activeMapId,
     associatedGame?.sourceType,
     associatedGame?.storyUrl,
+    associatedGame,
+    defaultStoryUrlForNewMap,
+    isAssociatedGameSyncSuppressed,
     isParchmentChooserForcedVisible,
     isParchmentGameViewVisible,
     resetChooserState,
+    shouldLoadDefaultStoryForActiveMap,
   ]);
 
   const handleOpenParchmentFileChooser = useCallback((): void => {
     parchmentDeviceInputRef.current?.click();
   }, [parchmentDeviceInputRef]);
+
+  const handlePlayDefaultStory = useCallback((): void => {
+    if (defaultStoryUrlForNewMap === null) {
+      return;
+    }
+
+    if (pendingLocalFileRetryTimeoutRef.current !== null) {
+      window.clearTimeout(pendingLocalFileRetryTimeoutRef.current);
+      pendingLocalFileRetryTimeoutRef.current = null;
+    }
+
+    setIfdbSearchError(null);
+    setPendingLocalFile(null);
+    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+    setIsParchmentChooserForcedVisible(false);
+    setIsParchmentGameViewVisible(true);
+    setIsAssociatedGameSyncSuppressed(true);
+  }, [defaultStoryUrlForNewMap]);
 
   const tryLoadParchmentLocalFile = useCallback(async (
     selectedFile: File,
@@ -364,6 +431,7 @@ export function useParchmentPanel({
     setPendingLocalFile(selectedFile);
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
+    setIsAssociatedGameSyncSuppressed(false);
 
     await tryLoadParchmentLocalFile(selectedFile, false);
   }, [tryLoadParchmentLocalFile]);
@@ -378,6 +446,7 @@ export function useParchmentPanel({
     setParchmentSrc(buildParchmentSrc(null));
     setIsParchmentChooserForcedVisible(true);
     setIsParchmentGameViewVisible(false);
+    setIsAssociatedGameSyncSuppressed(false);
   }, []);
 
   const retryPendingParchmentLocalFileLoad = useCallback((selectedFile: File, attemptsRemaining: number): void => {
@@ -465,6 +534,7 @@ export function useParchmentPanel({
     handleIfdbAuthorSearch,
     handleIfdbGameSelected,
     handleOpenParchmentFileChooser,
+    handlePlayDefaultStory,
     handleParchmentDeviceFileChange,
     handleResetParchmentPanel,
     handleParchmentIframeLoad,

@@ -62,7 +62,7 @@ const CONNECTION_ANNOTATION_CHAR_WIDTH = 7;
 const CONNECTION_ANNOTATION_PADDING = 12;
 const CONNECTION_REROUTE_HANDLE_RADIUS = 8;
 const CONNECTION_REROUTE_HANDLE_INNER_RADIUS = 4;
-const PASS_THROUGH_TINY_GAP_PADDING = 2;
+const PASS_THROUGH_TINY_GAP_PADDING = 3;
 function applyDragOffset(
   room: Room,
   selectionDrag: { roomIds: readonly string[]; dx: number; dy: number } | null,

@@ -220,6 +220,7 @@ await jest.unstable_mockModule('../../src/hooks/use-parchment-panel', () => ({
     handleIfdbAuthorSearch: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleIfdbGameSelected: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleOpenParchmentFileChooser: mockHandleOpenParchmentFileChooser,
+    handlePlayDefaultStory: jest.fn<() => void>(),
     handleParchmentDeviceFileChange: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleResetParchmentPanel: mockHandleResetParchmentPanel,
     handleParchmentIframeLoad: jest.fn<() => void>(),
@@ -405,7 +406,7 @@ describe('App shell wiring', () => {
     });
   });
 
-  it('handles app-level keyboard shortcuts for map toggles, help, back, and story file chooser', async () => {
+  it('handles app-level keyboard shortcuts for map toggles, back, and story file chooser', async () => {
     render(<App />);
 
     const initialShowGrid = useEditorStore.getState().showGridEnabled;
@@ -421,17 +422,17 @@ describe('App shell wiring', () => {
     fireEvent.keyDown(window, { key: 'y', code: 'KeyY', altKey: true, shiftKey: true });
     fireEvent.keyDown(window, { key: 'f', code: 'KeyF', altKey: true, shiftKey: true });
     fireEvent.keyDown(window, { key: 'm', code: 'KeyM', altKey: true, shiftKey: true });
-    fireEvent.keyDown(window, { key: 'h', code: 'KeyH', altKey: true, shiftKey: true });
 
     expect(useEditorStore.getState().showGridEnabled).toBe(!initialShowGrid);
     expect(useEditorStore.getState().useBezierConnectionsEnabled).toBe(!initialUseBezierConnections);
     expect(useEditorStore.getState().snapToGridEnabled).toBe(!initialSnapToGrid);
     expect(useEditorStore.getState().mapVisualStyle).not.toBe(initialMapVisualStyle);
     expect(useEditorStore.getState().mapCanvasTheme).not.toBe(initialMapCanvasTheme);
-    expect(await screen.findByRole('dialog', { name: 'Help' })).toBeInTheDocument();
     expect(mockHandleOpenParchmentFileChooser).toHaveBeenCalled();
-    expect(mockFlushDocumentSave).toHaveBeenCalled();
-    expect(mockCloseMap).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockFlushDocumentSave).toHaveBeenCalled();
+      expect(mockCloseMap).toHaveBeenCalled();
+    });
   });
 
   it('routes the reset-game shortcut only when the game view is visible', () => {

@@ -1031,6 +1031,78 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId('map-canvas-selection-box')).not.toBeInTheDocument();
     });
 
+    it('auto-scrolls while dragging the marquee at the right edge of the visible map', () => {
+      jest.useFakeTimers();
+      loadDocumentAct(createEmptyMap('Test'));
+
+      renderMapCanvas({ visibleMapRightInset: 40 });
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 300,
+        bottom: 200,
+        width: 300,
+        height: 200,
+        toJSON: () => ({}),
+      });
+
+      fireEvent.mouseDown(canvas, { clientX: 40, clientY: 60, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 250, clientY: 100 });
+
+      const selectionBox = screen.getByTestId('map-canvas-selection-box');
+      expect(selectionBox.style.left).toBe('40px');
+
+      act(() => {
+        jest.advanceTimersByTime(64);
+      });
+
+      expect(content.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+      expect(Number.parseFloat(selectionBox.style.left)).toBeLessThan(40);
+
+      fireEvent.mouseUp(document, { clientX: 250, clientY: 100, button: 0 });
+      jest.useRealTimers();
+    });
+
+    it('auto-scrolls while dragging a selection at the parchment panel boundary', () => {
+      jest.useFakeTimers();
+      const room = { ...createRoom('Kitchen'), position: { x: 160, y: 120 } };
+      loadDocumentAct(addRoom(createEmptyMap('Test'), room));
+
+      renderMapCanvas({ visibleMapLeftInset: 80 });
+
+      const canvas = screen.getByTestId('map-canvas');
+      const content = screen.getByTestId('map-canvas-content');
+      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 320,
+        bottom: 240,
+        width: 320,
+        height: 240,
+        toJSON: () => ({}),
+      });
+
+      const roomNode = screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
+      fireEvent.mouseDown(roomNode, { clientX: 180, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 88, clientY: 140 });
+
+      act(() => {
+        jest.advanceTimersByTime(64);
+      });
+
+      expect(content.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+
+      fireEvent.mouseUp(document, { clientX: 88, clientY: 140, button: 0 });
+      jest.useRealTimers();
+    });
+
     it('selects rooms live as they enter the marquee selection region', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };

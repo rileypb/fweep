@@ -118,6 +118,7 @@ describe('normalizeIfdbSearchResults', () => {
         publishedDisplay: 'October 15, 2024',
         publishedYear: '2024',
         averageRating: 4.25,
+        isPlayable: null,
       },
       {
         tuid: 'def456',
@@ -129,6 +130,7 @@ describe('normalizeIfdbSearchResults', () => {
         publishedDisplay: null,
         publishedYear: null,
         averageRating: null,
+        isPlayable: null,
       },
     ]);
   });
@@ -161,6 +163,7 @@ describe('parseIfdbSearchResponse', () => {
         publishedDisplay: '2024-10-15',
         publishedYear: '2024',
         averageRating: 4.25,
+        isPlayable: null,
       },
     ]);
   });

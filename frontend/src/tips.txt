@@ -1,21 +1,17 @@
 fweep is meant to be used with your keyboard, though it will work with the mouse too.
-Pressing / from most places in the app will focus on the keyboard mapper.
+Entering \ before a command marks it as a map-making command.
 Using double quotes around a room name (e.g., "back room") will differentiate it from otherwise ambiguous rooms (e.g., "laundromat back room").
 Press R, then click empty canvas to place a new room at the pointer location.
+Press N, then click empty canvas to place a new sticky note at the pointer location.
 Drag from a room's directional handle to create a connection. Drop on empty space to create a new target room automatically.
-Press / in the CLI input to open command suggestions and discover supported commands.
-Type help in the CLI to see the main command list, or help rooms, help connections, and help items for focused topics.
-Use the Up and Down Arrow keys in the CLI input to walk through your command history.
-Press Tab while the CLI suggestion menu is open to accept the highlighted suggestion quickly.
-Commands like create Kitchen, connect Kitchen to Hallway, edit Kitchen, show Kitchen, and delete Kitchen all work directly from the CLI.
-Bare directions like north and south can navigate from the currently selected room when that exit exists.
-Use go to <room name> in the CLI to jump selection and center the map on a known room.
-Type notate <room name> to drop a sticky note linked to a room without leaving the keyboard.
-The CLI accepts arrange and prettify as layout commands to tidy the current map automatically.
-Type zoom in, zoom out, or zoom reset in the CLI to control the map zoom without leaving the keyboard.
-Type zoom 25, zoom 200, or zoom 200% in the CLI to jump straight to a specific zoom level between 25% and 300%.
-You can import a plain-text command script into the CLI and fweep will run it line by line.
-Press Ctrl+/ or Cmd+/ to switch keyboard focus between the interactive fiction game and the mapper.
+Use the Up and Down Arrow keys in the game input to walk through your command history.
+Commands like \create Kitchen, \connect Kitchen to Hallway, \edit Kitchen, \show Kitchen, and \delete Kitchen all work directly from the game input.
+Bare directions like \north and \south can navigate from the currently selected room when that exit exists.
+Use go to <room name> in the game to jump selection and center the map on a known room.
+Type \notate <room name> to drop a sticky note linked to a room without leaving the keyboard.
+The game accepts \arrange and \prettify as layout commands to tidy the current map automatically.
+Type \zoom in, \zoom out, or \zoom reset in the game input to control the map zoom without leaving the keyboard.
+Type \zoom 25, \zoom 200, or \zoom 200% in the game input to jump straight to a specific zoom level between 25% and 300%.
 Use Alt+Shift+M to jump back to the map list.
 Use Alt+Shift+G to toggle the background grid.
 Use Alt+Shift+S to toggle grid snapping.
@@ -23,27 +19,21 @@ Use Alt+Shift+C to switch between curved and straight connection styles.
 Use Alt+Shift+V to toggle the map's visual style.
 Use Alt+Shift+Y to cycle through the canvas themes.
 Use Alt+Shift+D to switch between light and dark app themes.
-Use Alt+Shift+H to open the help dialog.
 Use Alt+Shift+P to prettify the current layout.
 Use Alt+Shift+O to open the background image controls.
 Use Alt+Shift+J to export the current map as JSON.
 Use Alt+Shift+E to export the current map as a PNG image.
 Use Alt+Shift+R to reset the linked game panel when a game is running.
 Use Alt+Shift+F to open a story file from your device when no game is running yet.
-Press D to toggle draw mode on the map canvas.
-Press R to arm room placement from the keyboard.
-Press N to arm sticky-note placement from the keyboard.
 Press L to toggle the selected room's lock state.
 Use the arrow keys on the focused map canvas to move selection from room to room.
 Press Enter on the focused map canvas to open the selected room editor.
 Press Delete or Backspace on the focused map canvas to delete the current selection.
 Press +, -, and 0 on the focused map canvas to zoom in, zoom out, or reset zoom.
-Double-click a room to open its room editor.
+Double-click a room or connection to open its room editor.
 Shift-click rooms or connections to add them to the current selection.
 Use the Parchment panel to search IFDB, load a local story file, or play a linked game beside the map.
 The background image popup lets you import a reference image, adjust its zoom, and recenter it with Option-drag or Command-drag on the canvas.
-The CLI output log and the game transcript are both keyboard-focusable scroll regions.
-Resize the game and output splitters with the arrow keys after focusing them.
 The minimap overview helps you keep large maps navigable and shows where your current viewport sits.
 Export PNG supports entire-map, selection, and region capture modes.
 The map name chip also shows the linked game's title when a story is associated with the map.

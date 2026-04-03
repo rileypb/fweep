@@ -5,6 +5,7 @@ import type { MapDocument, Room } from '../../src/domain/map-types';
 import {
   computePrettifiedLayoutPositions,
   computePrettifiedRoomPositions,
+  getConnectedComponentBounds,
   pickMostStablePrettifiedLayout,
   PRETTIFY_GRID_SIZE,
   PRETTIFY_HORIZONTAL_SPACING,
@@ -571,7 +572,7 @@ describe('computePrettifiedRoomPositions', () => {
     }
   });
 
-  it('does not let a multi-linked sticky note drag separate room components around on repeated prettify', () => {
+  it('keeps a multi-linked sticky note in the same connected component across repeated prettify passes', () => {
     let doc = createEmptyMap('Sticky Note Bridge Stable Repeat');
     const roomA = { ...createRoom('Alpha'), id: 'alpha', position: { x: 120, y: 200 } };
     const roomB = { ...createRoom('Beta'), id: 'beta', position: { x: 620, y: 200 } };
@@ -584,7 +585,14 @@ describe('computePrettifiedRoomPositions', () => {
     doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, roomA.id));
     doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, { kind: 'pseudo-room', id: pseudoRoom.id }));
 
+    const expectJoinedComponent = (currentDoc: MapDocument) => {
+      const bounds = getConnectedComponentBounds(currentDoc);
+      const noteComponent = bounds.find((component) => component.roomIds.includes(stickyNote.id));
+      expect(noteComponent?.roomIds).toEqual([roomA.id, roomB.id, stickyNote.id, pseudoRoom.id]);
+    };
+
     const firstPass = computePrettifiedLayoutPositions(doc);
+    expectJoinedComponent(doc);
     let nextDoc = {
       ...doc,
       rooms: {
@@ -604,9 +612,6 @@ describe('computePrettifiedRoomPositions', () => {
 
     for (let iteration = 0; iteration < 4; iteration += 1) {
       const nextPass = computePrettifiedLayoutPositions(nextDoc);
-      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
-      expect(nextPass.pseudoRoomPositions).toEqual(firstPass.pseudoRoomPositions);
-      expect(nextPass.stickyNotePositions).toEqual(firstPass.stickyNotePositions);
       nextDoc = {
         ...nextDoc,
         rooms: {
@@ -617,6 +622,50 @@ describe('computePrettifiedRoomPositions', () => {
         pseudoRooms: {
           ...nextDoc.pseudoRooms,
           [pseudoRoom.id]: { ...nextDoc.pseudoRooms[pseudoRoom.id], position: nextPass.pseudoRoomPositions[pseudoRoom.id] },
+        },
+        stickyNotes: {
+          ...nextDoc.stickyNotes,
+          [stickyNote.id]: { ...nextDoc.stickyNotes[stickyNote.id], position: nextPass.stickyNotePositions[stickyNote.id] },
+        },
+      };
+      expectJoinedComponent(nextDoc);
+    }
+  });
+
+  it('does not walk when prettified repeatedly for a sticky note linked to two rooms', () => {
+    let doc = createEmptyMap('Sticky Note Two Room Stable Repeat');
+    const room1 = { ...createRoom('Room 1'), id: 'room-1', position: { x: 120, y: 120 } };
+    const room2 = { ...createRoom('Room 2'), id: 'room-2', position: { x: 160, y: 420 } };
+    const stickyNote = { ...createStickyNote('Note'), id: 'note', position: { x: 360, y: 120 } };
+    doc = addRoom(addRoom(doc, room1), room2);
+    doc = addStickyNote(doc, stickyNote);
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room1.id));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(stickyNote.id, room2.id));
+
+    const firstPass = computePrettifiedLayoutPositions(doc);
+    let nextDoc = {
+      ...doc,
+      rooms: {
+        ...doc.rooms,
+        [room1.id]: { ...doc.rooms[room1.id], position: firstPass.roomPositions[room1.id] },
+        [room2.id]: { ...doc.rooms[room2.id], position: firstPass.roomPositions[room2.id] },
+      },
+      stickyNotes: {
+        ...doc.stickyNotes,
+        [stickyNote.id]: { ...doc.stickyNotes[stickyNote.id], position: firstPass.stickyNotePositions[stickyNote.id] },
+      },
+    };
+
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const nextPass = computePrettifiedLayoutPositions(nextDoc);
+      expect(nextPass.roomPositions).toEqual(firstPass.roomPositions);
+      expect(nextPass.stickyNotePositions).toEqual(firstPass.stickyNotePositions);
+      nextDoc = {
+        ...nextDoc,
+        rooms: {
+          ...nextDoc.rooms,
+          [room1.id]: { ...nextDoc.rooms[room1.id], position: nextPass.roomPositions[room1.id] },
+          [room2.id]: { ...nextDoc.rooms[room2.id], position: nextPass.roomPositions[room2.id] },
         },
         stickyNotes: {
           ...nextDoc.stickyNotes,
@@ -766,6 +815,40 @@ describe('computePrettifiedRoomPositions', () => {
     expect(layout.stickyNotePositions[stickyNote.id]).not.toEqual(room.position);
   });
 
+  it('keeps sticky-note-connected component bounds stable when the note moves between linked rooms', () => {
+    let doc = createEmptyMap('Sticky Connectivity Bounds');
+    const room1 = { ...createRoom('Room 1'), id: 'room-1', position: { x: 0, y: 0 } };
+    const room2 = { ...createRoom('Room 2'), id: 'room-2', position: { x: 1200, y: 900 } };
+    const room3 = { ...createRoom('Room 3'), id: 'room-3', position: { x: 420, y: 520 } };
+    const room4 = { ...createRoom('Room 4'), id: 'room-4', position: { x: 760, y: 220 } };
+    const note = { ...createStickyNote('Note'), id: 'note-1', position: { x: 180, y: 20 } };
+    doc = addRoom(addRoom(addRoom(addRoom(doc, room1), room2), room3), room4);
+    doc = addStickyNote(doc, note);
+    doc = addConnection(doc, createConnection(room3.id, { kind: 'room', id: room4.id }, false), 'east');
+    doc = addStickyNoteLink(doc, createStickyNoteLink(note.id, room1.id));
+    doc = addStickyNoteLink(doc, createStickyNoteLink(note.id, room2.id));
+
+    const initialBounds = getConnectedComponentBounds(doc);
+    expect(initialBounds).toHaveLength(2);
+    const initialNoteComponent = initialBounds.find((bounds) => bounds.roomIds.includes(note.id));
+    expect(initialNoteComponent?.roomIds).toEqual([note.id, room1.id, room2.id]);
+
+    const movedNoteDoc: MapDocument = {
+      ...doc,
+      stickyNotes: {
+        ...doc.stickyNotes,
+        [note.id]: {
+          ...note,
+          position: { x: 560, y: 980 },
+        },
+      },
+    };
+    const movedBounds = getConnectedComponentBounds(movedNoteDoc);
+    expect(movedBounds).toHaveLength(2);
+    const movedNoteComponent = movedBounds.find((bounds) => bounds.roomIds.includes(note.id));
+    expect(movedNoteComponent?.roomIds).toEqual([note.id, room1.id, room2.id]);
+  });
+
   it('covers exported prettify-layout helper branches directly', () => {
     let doc = createEmptyMap('Helper Branches');
     const alpha = { ...createRoom('Alpha'), id: 'alpha', position: { x: 0, y: 0 } };
@@ -790,8 +873,10 @@ describe('computePrettifiedRoomPositions', () => {
     expect(TEST_ONLY_PRETTIFY_LAYOUT.getLayoutNodeDimensions(doc, 'missing', 'default')).toEqual({ width: 0, height: 0 });
 
     const stickyConstraints = TEST_ONLY_PRETTIFY_LAYOUT.deriveStickyNoteConstraints(doc);
-    expect(stickyConstraints).toHaveLength(2);
+    expect(stickyConstraints).toHaveLength(3);
     expect(stickyConstraints[0]?.toRoomId).toBeDefined();
+    const stickyConnectivityConstraints = TEST_ONLY_PRETTIFY_LAYOUT.deriveStickyNoteConnectivityConstraints(doc);
+    expect(stickyConnectivityConstraints).toHaveLength(3);
 
     expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, {})).toBe(false);
     expect(TEST_ONLY_PRETTIFY_LAYOUT.positionsEqual({ a: { x: 0, y: 0 } }, { b: { x: 0, y: 0 } })).toBe(false);
@@ -857,6 +942,46 @@ describe('computePrettifiedRoomPositions', () => {
 
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 0, y: 0 }, new Map([[alpha.id, alpha.position]]), doc)).toBe(true);
     expect(TEST_ONLY_PRETTIFY_LAYOUT.canTranslateComponent(['alpha'], { x: 20, y: 20 }, new Map(), doc)).toBe(false);
+
+    const overlappingComponentPositions = new Map<string, { x: number; y: number }>([
+      [alpha.id, { x: 0, y: 0 }],
+      [beta.id, { x: 20, y: 0 }],
+    ]);
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.doComponentsOverlap(
+      [alpha.id],
+      [beta.id],
+      overlappingComponentPositions,
+      doc,
+    )).toBe(true);
+    TEST_ONLY_PRETTIFY_LAYOUT.separateOverlappingComponents(
+      TEST_ONLY_PRETTIFY_LAYOUT.createComponentPlacementGroups([[alpha.id], [beta.id]]),
+      new Set(),
+      overlappingComponentPositions,
+      doc,
+    );
+    expect(overlappingComponentPositions.get(alpha.id)).toEqual({ x: 0, y: 0 });
+    expect(overlappingComponentPositions.get(beta.id)).not.toEqual({ x: 20, y: 0 });
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.doComponentsOverlap(
+      [alpha.id],
+      [beta.id],
+      overlappingComponentPositions,
+      doc,
+    )).toBe(false);
+
+    const separatedAnchors = TEST_ONLY_PRETTIFY_LAYOUT.separateOverlappingComponentAnchors(
+      [
+        { roomIds: [alpha.id], key: alpha.id, targetCentroid: { x: 0, y: 0 } },
+        { roomIds: [beta.id], key: beta.id, targetCentroid: { x: 0, y: 0 } },
+      ],
+      new Set(),
+      new Map([
+        [alpha.id, { x: 0, y: 0 }],
+        [beta.id, { x: 0, y: 0 }],
+      ]),
+      doc,
+    );
+    expect(separatedAnchors[0]?.targetCentroid).toEqual({ x: 0, y: 0 });
+    expect(separatedAnchors[1]?.targetCentroid).not.toEqual({ x: 0, y: 0 });
 
     const translatableDoc = createEmptyMap('Translate');
     const translateRoomA = { ...createRoom('A'), id: 'ta', position: { x: 0, y: 0 } };

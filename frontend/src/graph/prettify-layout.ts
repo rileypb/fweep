@@ -18,6 +18,7 @@ const REPULSION_STRENGTH = 18_000;
 const PSEUDO_ROOM_REPULSION_MULTIPLIER = 0.2;
 const MAX_STEP = 18;
 const MAX_STABILIZATION_PASSES = 6;
+const COMPONENT_JIGGLE_MAX_RADIUS = 120;
 
 interface Vector {
   x: number;
@@ -30,6 +31,17 @@ interface DirectionConstraint {
   readonly delta: Vector;
 }
 
+interface ComponentAnchor {
+  readonly roomIds: readonly string[];
+  readonly key: string;
+  readonly targetCentroid: Vector;
+}
+
+interface ComponentPlacementGroup {
+  readonly roomIds: readonly string[];
+  readonly key: string;
+}
+
 interface PrettifiedLayoutPositions {
   readonly roomPositions: Readonly<Record<string, Position>>;
   readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
@@ -40,6 +52,15 @@ interface PrettifiedRoomLayout {
   readonly roomPositions: Readonly<Record<string, Position>>;
   readonly pseudoRoomPositions: Readonly<Record<string, Position>>;
   readonly stickyNotePositions: Readonly<Record<string, Position>>;
+}
+
+export interface ConnectedComponentBounds {
+  readonly key: string;
+  readonly roomIds: readonly string[];
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
 }
 
 const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
@@ -215,10 +236,9 @@ function deriveStickyNoteConstraints(doc: MapDocument): DirectionConstraint[] {
       stickyNote,
       getPreferredStickyNotePosition(stickyNote.id, layoutPositions, doc),
     );
-    const noteCenter = toStickyNoteCenter(stickyNote, stickyNote.position);
-    const linkedTargets = Object.values(doc.stickyNoteLinks)
+    return Object.values(doc.stickyNoteLinks)
       .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNote.id)
-      .map((stickyNoteLink) => {
+      .map((stickyNoteLink): DirectionConstraint | null => {
         const targetPosition = layoutPositions[stickyNoteLink.target.id];
         const targetRoom = getLayoutRoom(doc, stickyNoteLink.target.id);
         if (!targetPosition || !targetRoom) {
@@ -227,41 +247,59 @@ function deriveStickyNoteConstraints(doc: MapDocument): DirectionConstraint[] {
 
         const targetCenter = toRoomCenter(targetRoom, targetPosition, doc.view.visualStyle);
         return {
-          id: stickyNoteLink.target.id,
-          center: targetCenter,
-          distanceToCurrentNote: ((noteCenter.x - targetCenter.x) ** 2) + ((noteCenter.y - targetCenter.y) ** 2),
-          isRealRoom: stickyNoteLink.target.kind === 'room',
-        };
+          fromRoomId: stickyNote.id,
+          toRoomId: stickyNoteLink.target.id,
+          delta: {
+            x: targetCenter.x - preferredCenter.x,
+            y: targetCenter.y - preferredCenter.y,
+          },
+        } satisfies DirectionConstraint;
       })
-      .filter((target): target is {
-        readonly id: string;
-        readonly center: Vector;
-        readonly distanceToCurrentNote: number;
-        readonly isRealRoom: boolean;
-      } => target !== null)
-      .sort((left, right) => {
-        if (left.distanceToCurrentNote !== right.distanceToCurrentNote) {
-          return left.distanceToCurrentNote - right.distanceToCurrentNote;
-        }
-        if (left.isRealRoom !== right.isRealRoom) {
-          return left.isRealRoom ? -1 : 1;
-        }
-        return left.id.localeCompare(right.id);
-      });
+      .filter((constraint): constraint is DirectionConstraint => constraint !== null);
+  });
+}
 
-    const primaryTarget = linkedTargets[0];
-    if (!primaryTarget) {
+function deriveStickyNoteConnectivityConstraints(doc: MapDocument): DirectionConstraint[] {
+  return Object.values(doc.stickyNoteLinks).flatMap((stickyNoteLink) => {
+    const stickyNote = doc.stickyNotes[stickyNoteLink.stickyNoteId];
+    const targetPosition = getLayoutPosition(doc, stickyNoteLink.target.id);
+    const targetRoom = getLayoutRoom(doc, stickyNoteLink.target.id);
+    if (!stickyNote || !targetPosition || !targetRoom) {
       return [];
     }
 
+    const noteCenter = toStickyNoteCenter(stickyNote, stickyNote.position);
+    const targetCenter = toRoomCenter(targetRoom, targetPosition, doc.view.visualStyle);
+
     return [{
       fromRoomId: stickyNote.id,
-      toRoomId: primaryTarget.id,
+      toRoomId: stickyNoteLink.target.id,
       delta: {
-        x: primaryTarget.center.x - preferredCenter.x,
-        y: primaryTarget.center.y - preferredCenter.y,
+        x: targetCenter.x - noteCenter.x,
+        y: targetCenter.y - noteCenter.y,
       },
     } satisfies DirectionConstraint];
+  });
+}
+
+function deriveStickyNoteTargetConnectivityConstraints(doc: MapDocument): DirectionConstraint[] {
+  return Object.values(doc.stickyNotes).flatMap((stickyNote) => {
+    const targetIds = Object.values(doc.stickyNoteLinks)
+      .filter((stickyNoteLink) => stickyNoteLink.stickyNoteId === stickyNote.id)
+      .map((stickyNoteLink) => stickyNoteLink.target.id)
+      .filter((targetId, index, ids) => ids.indexOf(targetId) === index)
+      .filter((targetId) => getLayoutRoom(doc, targetId) !== null);
+
+    const [primaryTargetId, ...otherTargetIds] = targetIds.sort((leftId, rightId) => leftId.localeCompare(rightId));
+    if (!primaryTargetId) {
+      return [];
+    }
+
+    return otherTargetIds.map((targetId) => ({
+      fromRoomId: primaryTargetId,
+      toRoomId: targetId,
+      delta: { x: 0, y: 0 },
+    } satisfies DirectionConstraint));
   });
 }
 
@@ -500,14 +538,8 @@ function computeSeedCentroid(roomIds: readonly string[], seedPositions: Readonly
   };
 }
 
-function getCentroidAnchorRoomIds(componentRoomIds: readonly string[], doc: MapDocument): readonly string[] {
-  const realRoomIds = componentRoomIds.filter((roomId) => roomId in doc.rooms);
-  if (realRoomIds.length > 0) {
-    return realRoomIds;
-  }
-
-  const nonStickyNoteIds = componentRoomIds.filter((roomId) => !isStickyNoteLayoutId(doc, roomId));
-  return nonStickyNoteIds.length > 0 ? nonStickyNoteIds : componentRoomIds;
+function getCentroidAnchorRoomIds(componentRoomIds: readonly string[], _doc: MapDocument): readonly string[] {
+  return componentRoomIds;
 }
 
 function computeComponentSeedOffset(
@@ -1064,7 +1096,11 @@ function getPreferredStickyNotePosition(
 
     const leftDistance = ((left.x - stickyNote.position.x) ** 2) + ((left.y - stickyNote.position.y) ** 2);
     const rightDistance = ((right.x - stickyNote.position.x) ** 2) + ((right.y - stickyNote.position.y) ** 2);
-    return leftDistance - rightDistance;
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance;
+    }
+
+    return (left.y - right.y) || (left.x - right.x);
   })[0];
 }
 
@@ -1214,6 +1250,7 @@ function computePrettifiedStickyNotePositions(
   doc: MapDocument,
   roomPositions: Readonly<Record<string, Position>>,
   pseudoRoomPositions: Readonly<Record<string, Position>>,
+  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
 ): Readonly<Record<string, Position>> {
   const layoutPositions = {
     ...roomPositions,
@@ -1239,11 +1276,17 @@ function computePrettifiedStickyNotePositions(
 
   for (const stickyNoteId of orderedStickyNoteIds) {
     const stickyNote = doc.stickyNotes[stickyNoteId];
+    if (extraLockedRoomIds.has(stickyNoteId)) {
+      placedStickyNotes.set(stickyNoteId, stickyNote.position);
+      continue;
+    }
+
     const relaxedCenter = relaxedCenters.get(stickyNoteId)!;
-    const preferredPosition = toStickyNoteTopLeft(stickyNote, {
-      x: snapCoordinate(relaxedCenter.x),
-      y: snapCoordinate(relaxedCenter.y),
-    });
+    const relaxedTopLeft = toStickyNoteTopLeft(stickyNote, relaxedCenter);
+    const preferredPosition = {
+      x: snapCoordinate(relaxedTopLeft.x),
+      y: snapCoordinate(relaxedTopLeft.y),
+    };
     placedStickyNotes.set(
       stickyNoteId,
       findNearestOpenStickyNotePosition(
@@ -1261,20 +1304,13 @@ function computePrettifiedStickyNotePositions(
 }
 
 function recenterUnlockedComponents(
-  components: readonly string[][],
-  targetCentroids: ReadonlyMap<string, Vector>,
+  componentAnchors: readonly ComponentAnchor[],
   lockedRoomIds: ReadonlySet<string>,
   placedPositions: Map<string, Position>,
   doc: MapDocument,
 ): void {
-  for (const componentRoomIds of components) {
+  for (const { roomIds: componentRoomIds, targetCentroid } of componentAnchors) {
     if (componentRoomIds.some((roomId) => lockedRoomIds.has(roomId))) {
-      continue;
-    }
-
-    const componentKey = componentRoomIds.join('\0');
-    const targetCentroid = targetCentroids.get(componentKey);
-    if (!targetCentroid) {
       continue;
     }
 
@@ -1299,24 +1335,320 @@ function recenterUnlockedComponents(
   }
 }
 
-function computePrettifiedRoomPositionsSinglePass(
-  doc: MapDocument,
-  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
-): PrettifiedRoomLayout {
-  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms), ...Object.keys(doc.stickyNotes)].sort();
-  if (roomIds.length === 0) {
-    return { roomPositions: {}, pseudoRoomPositions: {}, stickyNotePositions: {} };
-  }
-  const lockedRoomIds = new Set(roomIds.filter((roomId) => (doc.rooms[roomId]?.locked ?? false) || extraLockedRoomIds.has(roomId)));
-  const pseudoRoomIds = new Set(Object.keys(doc.pseudoRooms));
-  const stickyNoteIds = new Set(Object.keys(doc.stickyNotes));
-  const pseudoLikeIds = new Set([...pseudoRoomIds, ...stickyNoteIds]);
-  const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
+function getComponentJiggleCandidates(maxRadius: number): readonly Position[] {
+  const candidates: Position[] = [];
 
-  const constraints = [...deriveDirectionConstraints(doc), ...deriveStickyNoteConstraints(doc)];
-  const components = getConnectedComponents(roomIds, constraints);
+  for (let radius = 1; radius <= maxRadius; radius += 1) {
+    const offset = radius * PRETTIFY_GRID_SIZE;
+    candidates.push({ x: offset, y: 0 });
+    candidates.push({ x: -offset, y: 0 });
+    candidates.push({ x: 0, y: offset });
+    candidates.push({ x: 0, y: -offset });
+    candidates.push({ x: offset, y: offset });
+    candidates.push({ x: offset, y: -offset });
+    candidates.push({ x: -offset, y: offset });
+    candidates.push({ x: -offset, y: -offset });
+  }
+
+  return candidates;
+}
+
+function getComponentBoundsSpan(bounds: { left: number; top: number; right: number; bottom: number }): { width: number; height: number } {
+  return {
+    width: Math.max(0, bounds.right - bounds.left),
+    height: Math.max(0, bounds.bottom - bounds.top),
+  };
+}
+
+function getMaxComponentSearchRadius(
+  componentRoomIds: readonly string[],
+  overlappingComponentRoomIdsGroups: readonly (readonly string[])[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): number {
+  const componentBounds = getComponentBounds(componentRoomIds, placedPositions, doc);
+  if (componentBounds === null) {
+    return COMPONENT_JIGGLE_MAX_RADIUS;
+  }
+
+  return Math.min(
+    COMPONENT_JIGGLE_MAX_RADIUS,
+    Math.max(
+      1,
+      ...overlappingComponentRoomIdsGroups.map((otherComponentRoomIds) => {
+        const otherBounds = getComponentBounds(otherComponentRoomIds, placedPositions, doc);
+        if (!otherBounds) {
+          return 1;
+        }
+
+        const componentSpan = getComponentBoundsSpan(componentBounds);
+        const otherSpan = getComponentBoundsSpan(otherBounds);
+        return Math.ceil(
+          (Math.max(componentSpan.width, otherSpan.width, componentSpan.height, otherSpan.height) / PRETTIFY_GRID_SIZE) + 2,
+        );
+      }),
+    ),
+  );
+}
+
+function getComponentBounds(
+  componentRoomIds: readonly string[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): { left: number; top: number; right: number; bottom: number } | null {
+  const visualStyle = doc.view.visualStyle;
+  let bounds: { left: number; top: number; right: number; bottom: number } | null = null;
+
+  for (const roomId of componentRoomIds) {
+    const position = placedPositions.get(roomId);
+    if (!position) {
+      return null;
+    }
+
+    const stickyNote = doc.stickyNotes[roomId];
+    const nextBounds = stickyNote
+      ? getStickyNoteBounds(stickyNote, position)
+      : (() => {
+        const room = getLayoutRoom(doc, roomId);
+        return room ? getRoomBounds(room, position, visualStyle) : null;
+      })();
+
+    if (!nextBounds) {
+      return null;
+    }
+
+    bounds = bounds === null
+      ? nextBounds
+      : {
+        left: Math.min(bounds.left, nextBounds.left),
+        top: Math.min(bounds.top, nextBounds.top),
+        right: Math.max(bounds.right, nextBounds.right),
+        bottom: Math.max(bounds.bottom, nextBounds.bottom),
+      };
+  }
+
+  return bounds;
+}
+
+function doComponentsOverlap(
+  leftComponentRoomIds: readonly string[],
+  rightComponentRoomIds: readonly string[],
+  placedPositions: ReadonlyMap<string, Position>,
+  doc: MapDocument,
+): boolean {
+  const leftBounds = getComponentBounds(leftComponentRoomIds, placedPositions, doc);
+  const rightBounds = getComponentBounds(rightComponentRoomIds, placedPositions, doc);
+  if (!leftBounds || !rightBounds) {
+    return false;
+  }
+
+  return intersectsWithGap(leftBounds, rightBounds, 0);
+}
+
+function separateOverlappingComponents(
+  componentGroups: readonly (ComponentPlacementGroup | readonly string[])[],
+  lockedRoomIds: ReadonlySet<string>,
+  placedPositions: Map<string, Position>,
+  doc: MapDocument,
+): void {
+  const normalizedComponentGroups = normalizeComponentPlacementGroups(componentGroups);
+  const unlockedComponents = normalizedComponentGroups
+    .filter(({ roomIds }) => !roomIds.some((roomId) => lockedRoomIds.has(roomId)))
+    .sort((left, right) => {
+      const sizeDifference = right.roomIds.length - left.roomIds.length;
+      if (sizeDifference !== 0) {
+        return sizeDifference;
+      }
+      return left.key.localeCompare(right.key);
+    });
+
+  for (let index = 1; index < unlockedComponents.length; index += 1) {
+    const component = unlockedComponents[index];
+    const overlappingEarlierComponents = unlockedComponents
+      .slice(0, index)
+      .filter((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, placedPositions, doc));
+    if (overlappingEarlierComponents.length === 0) {
+      continue;
+    }
+
+    const maxSearchRadius = getMaxComponentSearchRadius(
+      component.roomIds,
+      overlappingEarlierComponents.map((otherComponent) => otherComponent.roomIds),
+      placedPositions,
+      doc,
+    );
+    const jiggleCandidates = getComponentJiggleCandidates(maxSearchRadius);
+
+    for (const candidate of jiggleCandidates) {
+      if (!canTranslateComponent(component.roomIds, candidate, placedPositions, doc)) {
+        continue;
+      }
+
+      const translatedPositions = new Map(placedPositions);
+      for (const roomId of component.roomIds) {
+        const currentPosition = translatedPositions.get(roomId)!;
+        translatedPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+
+      const stillOverlaps = unlockedComponents
+        .slice(0, index)
+        .some((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, translatedPositions, doc));
+      if (stillOverlaps) {
+        continue;
+      }
+
+      for (const roomId of component.roomIds) {
+        const currentPosition = placedPositions.get(roomId)!;
+        placedPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+      break;
+    }
+  }
+}
+
+function createComponentPlacementGroups(components: readonly string[][]): readonly ComponentPlacementGroup[] {
+  return components.map((componentRoomIds) => ({
+    roomIds: componentRoomIds,
+    key: componentRoomIds.join('\0'),
+  }));
+}
+
+function normalizeComponentPlacementGroups(
+  componentGroups: readonly (ComponentPlacementGroup | readonly string[])[],
+): readonly ComponentPlacementGroup[] {
+  const normalizedComponentGroups: ComponentPlacementGroup[] = [];
+
+  for (const componentGroup of componentGroups) {
+    if ('roomIds' in componentGroup) {
+      normalizedComponentGroups.push(componentGroup);
+      continue;
+    }
+
+    if (Array.isArray(componentGroup)) {
+      normalizedComponentGroups.push({
+        roomIds: [...componentGroup],
+        key: componentGroup.join('\0'),
+      });
+      continue;
+    }
+  }
+
+  return normalizedComponentGroups;
+}
+
+function separateOverlappingComponentAnchors(
+  componentAnchors: readonly ComponentAnchor[],
+  lockedRoomIds: ReadonlySet<string>,
+  normalizedPositions: ReadonlyMap<string, Vector>,
+  doc: MapDocument,
+): readonly ComponentAnchor[] {
+  const provisionalPositions = new Map<string, Position>();
+  for (const [roomId, center] of normalizedPositions.entries()) {
+    provisionalPositions.set(
+      roomId,
+      toLayoutNodeTopLeft(
+        doc,
+        roomId,
+        {
+          x: snapCoordinate(center.x),
+          y: snapCoordinate(center.y),
+        },
+        doc.view.visualStyle,
+      ),
+    );
+  }
+
+  const adjustedTargetCentroids = new Map(
+    componentAnchors.map((componentAnchor) => [
+      componentAnchor.key,
+      {
+        x: componentAnchor.targetCentroid.x,
+        y: componentAnchor.targetCentroid.y,
+      },
+    ] as const),
+  );
+
+  const unlockedComponents = componentAnchors
+    .filter(({ roomIds }) => !roomIds.some((roomId) => lockedRoomIds.has(roomId)))
+    .sort((left, right) => {
+      const sizeDifference = right.roomIds.length - left.roomIds.length;
+      if (sizeDifference !== 0) {
+        return sizeDifference;
+      }
+      return left.key.localeCompare(right.key);
+    });
+
+  for (let index = 1; index < unlockedComponents.length; index += 1) {
+    const component = unlockedComponents[index];
+    const overlappingEarlierComponents = unlockedComponents
+      .slice(0, index)
+      .filter((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, provisionalPositions, doc));
+    if (overlappingEarlierComponents.length === 0) {
+      continue;
+    }
+
+    const maxSearchRadius = getMaxComponentSearchRadius(
+      component.roomIds,
+      overlappingEarlierComponents.map((otherComponent) => otherComponent.roomIds),
+      provisionalPositions,
+      doc,
+    );
+    const jiggleCandidates = getComponentJiggleCandidates(maxSearchRadius);
+
+    for (const candidate of jiggleCandidates) {
+      const translatedPositions = new Map(provisionalPositions);
+      for (const roomId of component.roomIds) {
+        const currentPosition = translatedPositions.get(roomId)!;
+        translatedPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+
+      const stillOverlaps = unlockedComponents
+        .slice(0, index)
+        .some((otherComponent) => doComponentsOverlap(otherComponent.roomIds, component.roomIds, translatedPositions, doc));
+      if (stillOverlaps) {
+        continue;
+      }
+
+      for (const roomId of component.roomIds) {
+        const currentPosition = provisionalPositions.get(roomId)!;
+        provisionalPositions.set(roomId, {
+          x: currentPosition.x + candidate.x,
+          y: currentPosition.y + candidate.y,
+        });
+      }
+      const currentTargetCentroid = adjustedTargetCentroids.get(component.key)!;
+      adjustedTargetCentroids.set(component.key, {
+        x: currentTargetCentroid.x + candidate.x,
+        y: currentTargetCentroid.y + candidate.y,
+      });
+      break;
+    }
+  }
+
+  return componentAnchors.map((componentAnchor) => ({
+    ...componentAnchor,
+    targetCentroid: adjustedTargetCentroids.get(componentAnchor.key)!,
+  }));
+}
+
+function computeComponentAnchors(
+  components: readonly string[][],
+  constraints: readonly DirectionConstraint[],
+  doc: MapDocument,
+  lockedRoomIds: ReadonlySet<string>,
+  pseudoLikeIds: ReadonlySet<string>,
+): { readonly normalizedPositions: ReadonlyMap<string, Vector>; readonly componentAnchors: readonly ComponentAnchor[] } {
   const normalizedPositions = new Map<string, Vector>();
-  const componentTargetCentroids = new Map<string, Vector>();
+  const componentAnchors: ComponentAnchor[] = [];
 
   for (const componentRoomIds of components) {
     const relativeSeedPositions = computeSeedPositions(componentRoomIds, constraints);
@@ -1340,15 +1672,51 @@ function computePrettifiedRoomPositionsSinglePass(
 
     const relaxedPositions = relaxComponent(componentRoomIds, absoluteSeedPositions, constraints, lockedRoomIds, pseudoLikeIds);
     const centroidAnchorRoomIds = getCentroidAnchorRoomIds(componentRoomIds, doc);
-    componentTargetCentroids.set(
-      componentRoomIds.join('\0'),
-      computeSeedCentroid(centroidAnchorRoomIds, relaxedPositions),
-    );
+    componentAnchors.push({
+      roomIds: componentRoomIds,
+      key: componentRoomIds.join('\0'),
+      targetCentroid: computeSeedCentroid(centroidAnchorRoomIds, relaxedPositions),
+    });
 
     for (const roomId of componentRoomIds) {
       normalizedPositions.set(roomId, relaxedPositions.get(roomId)!);
     }
   }
+
+  return { normalizedPositions, componentAnchors };
+}
+
+function computePrettifiedRoomPositionsSinglePass(
+  doc: MapDocument,
+  extraLockedRoomIds: ReadonlySet<string> = new Set<string>(),
+): PrettifiedRoomLayout {
+  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms), ...Object.keys(doc.stickyNotes)].sort();
+  if (roomIds.length === 0 && Object.keys(doc.stickyNotes).length === 0) {
+    return { roomPositions: {}, pseudoRoomPositions: {}, stickyNotePositions: {} };
+  }
+  const lockedRoomIds = new Set(roomIds.filter((roomId) => (doc.rooms[roomId]?.locked ?? false) || extraLockedRoomIds.has(roomId)));
+  const pseudoRoomIds = new Set(Object.keys(doc.pseudoRooms));
+  const stickyNoteIds = new Set(Object.keys(doc.stickyNotes));
+  const pseudoLikeIds = new Set([...pseudoRoomIds, ...stickyNoteIds]);
+  const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
+
+  const constraints = [...deriveDirectionConstraints(doc), ...deriveStickyNoteConstraints(doc)];
+  const connectivityConstraints = constraints;
+  const components = getConnectedComponents(roomIds, connectivityConstraints);
+  const { normalizedPositions, componentAnchors } = computeComponentAnchors(
+    components,
+    constraints,
+    doc,
+    lockedRoomIds,
+    pseudoLikeIds,
+  );
+  const adjustedComponentAnchors = separateOverlappingComponentAnchors(
+    componentAnchors,
+    lockedRoomIds,
+    normalizedPositions,
+    doc,
+  );
+  const componentPlacementGroups = createComponentPlacementGroups(components);
 
   const placedPositions = new Map<string, Position>();
   for (const roomId of lockedRoomIds) {
@@ -1380,7 +1748,8 @@ function computePrettifiedRoomPositionsSinglePass(
     );
   }
 
-  recenterUnlockedComponents(components, componentTargetCentroids, lockedRoomIds, placedPositions, doc);
+  recenterUnlockedComponents(adjustedComponentAnchors, lockedRoomIds, placedPositions, doc);
+  separateOverlappingComponents(componentPlacementGroups, lockedRoomIds, placedPositions, doc);
 
   const roomPositions = Object.fromEntries(
     [...placedPositions.entries()].filter(([roomId]) => roomId in doc.rooms),
@@ -1455,16 +1824,56 @@ export function computePrettifiedLayoutPositions(
   return computeStablePrettifiedPositions(doc, extraLockedRoomIds);
 }
 
+export function getConnectedComponentBounds(doc: MapDocument): readonly ConnectedComponentBounds[] {
+  const roomIds = [...Object.keys(doc.rooms), ...Object.keys(doc.pseudoRooms), ...Object.keys(doc.stickyNotes)].sort();
+  if (roomIds.length === 0) {
+    return [];
+  }
+
+  const constraints = [...deriveDirectionConstraints(doc), ...deriveStickyNoteConstraints(doc)];
+  const components = getConnectedComponents(roomIds, constraints);
+  const componentPlacementGroups = createComponentPlacementGroups(components);
+  const placedPositions = new Map<string, Position>();
+
+  for (const roomId of roomIds) {
+    const position = getLayoutPosition(doc, roomId);
+    if (position) {
+      placedPositions.set(roomId, position);
+    }
+  }
+
+  return componentPlacementGroups.flatMap((componentGroup) => {
+    const bounds = getComponentBounds(componentGroup.roomIds, placedPositions, doc);
+    if (!bounds) {
+      return [];
+    }
+
+    return [{
+      key: componentGroup.key,
+      roomIds: componentGroup.roomIds,
+      left: bounds.left,
+      top: bounds.top,
+      right: bounds.right,
+      bottom: bounds.bottom,
+    }];
+  });
+}
+
 export const TEST_ONLY_PRETTIFY_LAYOUT = {
   estimateRoomWidth,
   getLayoutRoom,
   getLayoutPosition,
   getLayoutNodeDimensions,
   deriveStickyNoteConstraints,
+  deriveStickyNoteConnectivityConstraints,
+  deriveStickyNoteTargetConnectivityConstraints,
   positionsEqual,
   getLayoutMovementScore,
   computeSeedPositions,
   computePlacedCentroid,
+  getComponentBounds,
+  doComponentsOverlap,
+  separateOverlappingComponents,
   overlapsPlacedRooms,
   findNearestOpenPosition,
   canTranslateComponent,
@@ -1481,4 +1890,7 @@ export const TEST_ONLY_PRETTIFY_LAYOUT = {
   relaxStickyNotePositions,
   computePrettifiedStickyNotePositions,
   computeStablePrettifiedPositions,
+  computeComponentAnchors,
+  createComponentPlacementGroups,
+  separateOverlappingComponentAnchors,
 } as const;

@@ -435,6 +435,10 @@ const cliSuggestionGrammarStates = [
   ]),
   state('PSEUDO_IS', [
     keyword('unknown', 'PSEUDO_DONE'),
+    slot('ROOM_REF', 'PSEUDO_CONNECT_DONE'),
+  ]),
+  state('PSEUDO_CONNECT_DONE', [
+    end(),
   ]),
   state('PSEUDO_GOES', [
     keyword('on', 'PSEUDO_GOES_ON'),

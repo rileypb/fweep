@@ -106,7 +106,58 @@ describe('URL routing', () => {
 
     await renderAppWithOpenMap();
 
-    expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ right: '16px' });
+    expect(screen.getByRole('heading', { name: 'fweep' })).toHaveStyle({ left: '498px', right: 'auto' });
+  });
+
+  it('renders a collapsible CLI help panel framing beside the map', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Frame Map');
+
+    const panel = screen.getByTestId('cli-help-panel');
+    const toggle = screen.getByRole('button', { name: /expand cli help panel/i });
+
+    expect(panel).toHaveClass('cli-help-panel');
+    expect(panel).not.toHaveClass('cli-help-panel--open');
+    expect(screen.getByText('help')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(toggle);
+
+    expect(panel).toHaveClass('cli-help-panel--open');
+    expect(screen.getByRole('button', { name: /collapse cli help panel/i })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('renders the CLI help outline as a collapsed tree and ignores from/to lines', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Outline Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+
+    const creatingRooms = screen.getByText('Creating rooms', { selector: '.cli-help-panel__tree-label span' });
+    const creatingRoomsDetails = creatingRooms.closest('details');
+    expect(creatingRoomsDetails).not.toHaveAttribute('open');
+
+    expect(screen.getByText('Connecting rooms')).toBeInTheDocument();
+    expect(screen.queryByText(/from:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/to:/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText('Creating rooms'));
+    expect(creatingRoomsDetails).toHaveAttribute('open');
+    expect(screen.getByText('create kitchen', { selector: 'code' })).toBeInTheDocument();
+  });
+
+  it('shows from and to images in the help image panel when an image link is clicked', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Images Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+    await user.click(screen.getByText('Creating rooms', { selector: '.cli-help-panel__tree-label span' }));
+    await user.click(screen.getByRole('button', { name: /create kitchen/i }));
+
+    expect(screen.getByLabelText(/help image panel/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/create kitchen from state/i)).toBeInTheDocument();
+    expect(screen.getByAltText(/create kitchen to state/i)).toBeInTheDocument();
+    expect(screen.getByText('↓')).toBeInTheDocument();
   });
 
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
@@ -132,23 +183,22 @@ describe('URL routing', () => {
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^search$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /play a story file from your device/i })).toBeInTheDocument();
-    expect(screen.getByText('Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^reset$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /choose game/i })).not.toBeInTheDocument();
   });
 
   it('keeps the chooser tip visible while typing until search results appear', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('IFDB Tip Visibility Map');
 
-    const tipText = 'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.';
     const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
 
-    expect(screen.getByText(tipText)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
 
     await user.type(searchInput, 'exam');
 
-    expect(screen.getByText(tipText)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /or play the fweep intro game/i })).toBeInTheDocument();
   });
 
   it('shows the associated game title beneath the map name chip when a game is linked', async () => {
@@ -199,25 +249,82 @@ describe('URL routing', () => {
 
   it('searches IFDB on manual submit and renders matching results', async () => {
     const user = userEvent.setup();
-    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        games: [
-          {
-            tuid: 'abc123',
-            title: 'The Example Game',
-            author: 'Pat Example',
-            link: 'https://ifdb.org/viewgame?id=abc123',
-            coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
-            published: {
-              machine: '2024-10-15',
-              printable: 'October 15, 2024',
+    const fetchMock = jest.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.startsWith('/api/ifdb/search?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            games: [
+              {
+                tuid: 'abc123',
+                title: 'The Example Game',
+                author: 'Pat Example',
+                link: 'https://ifdb.org/viewgame?id=abc123',
+                coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
+                published: {
+                  machine: '2024-10-15',
+                  printable: 'October 15, 2024',
+                },
+                averageRating: 4.25,
+              },
+              {
+                tuid: 'def456',
+                title: 'Museum Piece',
+                author: 'Riley Archive',
+                link: 'https://ifdb.org/viewgame?id=def456',
+                coverArtLink: 'https://ifdb.org/coverart?id=def456&version=1',
+              },
+            ],
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/ifdb/viewgame?tuid=abc123') {
+        return {
+          ok: true,
+          json: async () => ({
+            bibliographic: {
+              title: 'The Example Game',
+              author: 'Pat Example',
             },
-            averageRating: 4.25,
-          },
-        ],
-      }),
-    } as Response);
+            ifdb: {
+              tuid: 'abc123',
+              downloads: {
+                links: [
+                  {
+                    title: 'Playable Glulx release',
+                    url: 'https://example.com/game.ulx',
+                    format: 'glulx',
+                    isGame: true,
+                  },
+                ],
+              },
+            },
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/ifdb/viewgame?tuid=def456') {
+        return {
+          ok: true,
+          json: async () => ({
+            bibliographic: {
+              title: 'Museum Piece',
+              author: 'Riley Archive',
+            },
+            ifdb: {
+              tuid: 'def456',
+              downloads: {
+                links: [],
+              },
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
       writable: true,
@@ -238,23 +345,58 @@ describe('URL routing', () => {
       'https://ifdb.org/coverart?id=abc123&version=4',
     );
     expect(coverArt).toHaveClass('app-parchment-panel__result-cover');
+    expect(screen.getByRole('button', { name: /^play the example game$/i })).toBeInTheDocument();
     const ifdbLink = screen.getByRole('link', { name: /view the example game on IFDB/i });
     expect(ifdbLink).toHaveAttribute('href', 'https://ifdb.org/viewgame?id=abc123');
+    expect(screen.getByText('Museum Piece')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /play museum piece/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /view museum piece on IFDB/i })).toHaveAttribute('href', 'https://ifdb.org/viewgame?id=def456');
   });
 
   it('clears IFDB results when the search is submitted with only whitespace', async () => {
     const user = userEvent.setup();
-    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        games: [
-          {
-            tuid: 'abc123',
-            title: 'The Example Game',
-          },
-        ],
-      }),
-    } as Response);
+    const fetchMock = jest.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.startsWith('/api/ifdb/search?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            games: [
+              {
+                tuid: 'abc123',
+                title: 'The Example Game',
+              },
+            ],
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/ifdb/viewgame?tuid=abc123') {
+        return {
+          ok: true,
+          json: async () => ({
+            bibliographic: {
+              title: 'The Example Game',
+            },
+            ifdb: {
+              tuid: 'abc123',
+              downloads: {
+                links: [
+                  {
+                    title: 'Playable Glulx release',
+                    url: 'https://example.com/game.ulx',
+                    format: 'glulx',
+                    isGame: true,
+                  },
+                ],
+              },
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
       writable: true,
@@ -274,7 +416,7 @@ describe('URL routing', () => {
 
     expect(screen.queryByText('The Example Game')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('shows IFDB search failures from manual submit', async () => {
@@ -296,17 +438,48 @@ describe('URL routing', () => {
 
   it('clears the chooser search state when leaving one map and opening another', async () => {
     const user = userEvent.setup();
-    const fetchMock = jest.fn<typeof fetch>().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        games: [
-          {
-            tuid: 'abc123',
-            title: 'The Example Game',
-          },
-        ],
-      }),
-    } as Response);
+    const fetchMock = jest.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.startsWith('/api/ifdb/search?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            games: [
+              {
+                tuid: 'abc123',
+                title: 'The Example Game',
+              },
+            ],
+          }),
+        } as Response;
+      }
+
+      if (url === '/api/ifdb/viewgame?tuid=abc123') {
+        return {
+          ok: true,
+          json: async () => ({
+            bibliographic: {
+              title: 'The Example Game',
+            },
+            ifdb: {
+              tuid: 'abc123',
+              downloads: {
+                links: [
+                  {
+                    title: 'Playable Glulx release',
+                    url: 'https://example.com/game.ulx',
+                    format: 'glulx',
+                    isGame: true,
+                  },
+                ],
+              },
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
       writable: true,
@@ -383,6 +556,31 @@ describe('URL routing', () => {
             },
           },
         }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
       } as Response);
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
@@ -394,15 +592,16 @@ describe('URL routing', () => {
 
     await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
-    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
+    await user.click(await screen.findByRole('button', { name: /^play the example game$/i }));
 
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await waitFor(() => {
       expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
       sourceType: 'ifdb',
@@ -433,6 +632,28 @@ describe('URL routing', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
           games: [
             {
               tuid: 'def456',
@@ -440,6 +661,28 @@ describe('URL routing', () => {
               author: 'Pat Example',
             },
           ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          bibliographic: {
+            title: 'Another Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'def456',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Z-code release',
+                  url: 'https://example.com/game.z8',
+                  format: 'zcode',
+                  isGame: true,
+                },
+              ],
+            },
+          },
         }),
       } as Response);
     Object.defineProperty(globalThis, 'fetch', {
@@ -453,14 +696,14 @@ describe('URL routing', () => {
     const searchInput = screen.getByRole('textbox', { name: /search IFDB for a game/i });
     await user.type(searchInput, 'example game');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
-    await screen.findByRole('button', { name: /play the example game/i });
+    await screen.findByRole('button', { name: /^play the example game$/i });
 
     await user.click(screen.getByRole('button', { name: /search IFDB for games by Pat Example/i }));
 
-    await screen.findByRole('button', { name: /play another example game/i });
+    await screen.findByRole('button', { name: /^play another example game$/i });
     expect(searchInput).toHaveValue('Pat Example');
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/ifdb/search?query=example+game');
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/ifdb/search?query=Pat+Example');
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/ifdb/search?query=Pat+Example');
   });
 
   it('loads the selected IFDB game when the cover art is clicked', async () => {
@@ -478,6 +721,31 @@ describe('URL routing', () => {
               coverArtLink: 'https://ifdb.org/coverart?id=abc123&version=4',
             },
           ],
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          identification: {
+            ifids: ['IFID-123'],
+          },
+          bibliographic: {
+            title: 'The Example Game',
+            author: 'Pat Example',
+          },
+          ifdb: {
+            tuid: 'abc123',
+            downloads: {
+              links: [
+                {
+                  title: 'Playable Glulx release',
+                  url: 'https://example.com/game.ulx',
+                  format: 'glulx',
+                  isGame: true,
+                },
+              ],
+            },
+          },
         }),
       } as Response)
       .mockResolvedValueOnce({
@@ -525,7 +793,6 @@ describe('URL routing', () => {
 
   it('alerts when an IFDB result has no supported downloadable story file', async () => {
     const user = userEvent.setup();
-    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
     const fetchMock = jest.fn<typeof fetch>()
       .mockResolvedValueOnce({
         ok: true,
@@ -567,9 +834,9 @@ describe('URL routing', () => {
 
     await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
-    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
-
-    expect(alertSpy).toHaveBeenCalledWith('No supported downloadable story file is available for The Example Game.');
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /play the example game/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /play the example game via cover art/i })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
   });
@@ -599,9 +866,9 @@ describe('URL routing', () => {
 
     await user.type(screen.getByRole('textbox', { name: /search IFDB for a game/i }), 'example game');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
-    await user.click(await screen.findByRole('button', { name: /play the example game/i }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Lookup failed');
+    expect(await screen.findByText('The Example Game')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /play the example game/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
   });
 
@@ -661,7 +928,7 @@ describe('URL routing', () => {
 
     expect(loadUploadedFile).toHaveBeenCalledTimes(1);
     expect(loadUploadedFile).toHaveBeenCalledWith(file);
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(useEditorStore.getState().doc?.metadata.associatedGame).toEqual({
@@ -748,7 +1015,7 @@ describe('URL routing', () => {
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await loadParchmentIframe(iframe);
 
-    expect(screen.getByRole('button', { name: /^reset$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(useEditorStore.getState().doc?.metadata.associatedGame?.storyUrl).toBe('https://example.com/game.ulx');
   });
 
@@ -776,7 +1043,7 @@ describe('URL routing', () => {
       });
 
       await loadParchmentIframe(iframe);
-      await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /^reset$/i }));
+      await userEvent.setup({ advanceTimers: jest.advanceTimersByTime }).click(screen.getByRole('button', { name: /choose game/i }));
       act(() => {
         jest.runOnlyPendingTimers();
       });
@@ -926,7 +1193,7 @@ describe('URL routing', () => {
     await renderAppWithSavedMap(linkedDoc);
 
     expect(await screen.findByTitle(/interactive fiction player/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^reset$/i }));
+    await user.click(screen.getByRole('button', { name: /choose game/i }));
 
     expect(screen.getByRole('textbox', { name: /search IFDB for a game/i })).toBeInTheDocument();
     expect(screen.queryByTitle(/interactive fiction player/i)).not.toBeInTheDocument();
@@ -1373,8 +1640,6 @@ describe('URL routing', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByText(/drag from a room's directional handle/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
-    expect(await screen.findByText(/press \/ in the cli input/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^done$/i }));
     expect(window.localStorage.getItem('fweep-startup-tip-index')).toBe('0');
   });

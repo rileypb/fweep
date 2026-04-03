@@ -37,6 +37,17 @@ export interface SelectionBox {
   readonly currentY: number;
 }
 
+export interface MapSelectionBox {
+  readonly start: {
+    readonly x: number;
+    readonly y: number;
+  };
+  readonly current: {
+    readonly x: number;
+    readonly y: number;
+  };
+}
+
 export interface RoomScreenGeometry {
   readonly left: number;
   readonly top: number;
@@ -83,6 +94,23 @@ export function getSelectionBounds(
   const height = Math.abs(selectionBox.currentY - selectionBox.startY);
 
   return { left, top, width, height };
+}
+
+export function getScreenSpaceSelectionBox(
+  selectionBox: MapSelectionBox,
+  panOffset: PanOffset,
+  canvasRect: DOMRect | null,
+  zoom: number = 1,
+): SelectionBox {
+  const canvasLeft = canvasRect?.left ?? 0;
+  const canvasTop = canvasRect?.top ?? 0;
+
+  return {
+    startX: ((selectionBox.start.x * zoom) + panOffset.x + canvasLeft) - canvasLeft,
+    startY: ((selectionBox.start.y * zoom) + panOffset.y + canvasTop) - canvasTop,
+    currentX: ((selectionBox.current.x * zoom) + panOffset.x + canvasLeft) - canvasLeft,
+    currentY: ((selectionBox.current.y * zoom) + panOffset.y + canvasTop) - canvasTop,
+  };
 }
 
 export function getRoomsWithinSelectionBox(

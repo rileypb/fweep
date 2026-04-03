@@ -22,6 +22,8 @@ export interface MapCanvasPseudoRoomNodeProps {
   isSelected: boolean;
   onOpenPseudoRoomEditor: (pseudoRoomId: string) => void;
   toMapPoint: (clientX: number, clientY: number) => PanOffset;
+  onDragPointerMove?: (clientX: number, clientY: number, onTick: (clientX: number, clientY: number) => void) => void;
+  onDragPointerEnd?: () => void;
 }
 
 export function MapCanvasPseudoRoomNode({
@@ -30,6 +32,8 @@ export function MapCanvasPseudoRoomNode({
   isSelected,
   onOpenPseudoRoomEditor,
   toMapPoint,
+  onDragPointerMove,
+  onDragPointerEnd,
 }: MapCanvasPseudoRoomNodeProps): React.JSX.Element {
   const visualRoom = toPseudoRoomVisualRoom(pseudoRoom);
   const moveSelection = useEditorStore((s) => s.moveSelection);
@@ -67,13 +71,18 @@ export function MapCanvasPseudoRoomNode({
     startPseudoRoomDrag(pseudoRoom.id);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const cursorPoint = toMapPoint(moveEvent.clientX, moveEvent.clientY);
-      updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+      const updateDrag = (clientX: number, clientY: number) => {
+        const cursorPoint = toMapPoint(clientX, clientY);
+        updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
+      };
+      onDragPointerMove?.(moveEvent.clientX, moveEvent.clientY, updateDrag);
+      updateDrag(moveEvent.clientX, moveEvent.clientY);
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      onDragPointerEnd?.();
 
       const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
       const dx = endPoint.x - startPoint.x;
@@ -141,7 +150,7 @@ export function MapCanvasPseudoRoomNode({
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  }, [addPseudoRoomToSelection, endRoomDrag, interactionsDisabled, moveSelection, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, toMapPoint, updateRoomDrag]);
+  }, [addPseudoRoomToSelection, endRoomDrag, interactionsDisabled, moveSelection, onDragPointerEnd, onDragPointerMove, pseudoRoom.id, selectPseudoRoom, startPseudoRoomDrag, toMapPoint, updateRoomDrag]);
 
   const handleKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
     if (interactionsDisabled) {

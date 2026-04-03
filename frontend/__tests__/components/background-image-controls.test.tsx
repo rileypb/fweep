@@ -50,6 +50,11 @@ describe('BackgroundImageControls', () => {
 
   it('opens the panel and imports an uploaded image', async () => {
     const user = userEvent.setup();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    useEditorStore.getState().setMapPanOffset({ x: -200, y: 40 });
+    useEditorStore.getState().setMapZoom(2);
+
     render(<BackgroundImageControls />);
 
     await user.click(screen.getByRole('button', { name: 'Background image' }));
@@ -67,7 +72,7 @@ describe('BackgroundImageControls', () => {
         width: 640,
         height: 480,
         zoom: 1,
-        position: { x: 0, y: 0 },
+        position: { x: 400, y: 180 },
       });
     });
 

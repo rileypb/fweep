@@ -1,40 +1,44 @@
 body=$(printf '%s\n' \
-  "This PR releases fweep v7 from v7 to main." \
+  "This PR releases fweep v8 from v8 to main." \
   "" \
-  "v7 tightens the embedded-command workflow with restored shared history in Parchment, better parser-command suggestions, and more reliable viewport/session restoration when moving between maps." \
+  "v8 expands in-app command guidance, improves embedded mapper/game help flows, and polishes canvas-side interactions around background images, overlays, and layout behavior." \
   "" \
   "## What's included" \
   "" \
-  "- Restored ArrowUp / ArrowDown history navigation inside the embedded Parchment command input." \
-  "- Unified command recall so interactive-fiction commands and \\-prefixed mapper commands share one interleaved history." \
-  "- Added parser and suggestion improvements for select, selected-room pseudo-room exits, and notate follow-up keywords." \
-  "- Improved map-view session restoration so pan and zoom state are reapplied more reliably while moving between maps." \
-  "- Added focused regression coverage for Parchment shell/history behavior, CLI hooks, viewport persistence, room focus, and suggestion-helper flows." \
-  "- Fixed branch-local TypeScript drift in tests so the production build passes again during release prep." \
+  "- Added a collapsible CLI help panel with structured command guidance and linked visual examples." \
+  "- Added richer help assets and image-backed command examples for the embedded mapper/game workflow." \
+  "- Improved background-image placement and popup behavior, including a fix for the popup appearing behind the game panel." \
+  "- Polished canvas and layout behavior around edge scrolling, marquee pan, and map-name / panel overlap." \
+  "- Removed dead layout helper code and cleaned up obsolete help affordances, including the old `?` button and `Alt+Shift+H` shortcut path." \
+  "- Added broad regression coverage for CLI help rendering, help-image scripting, parser/suggestion behavior, background-image controls, and app-shell layout flows." \
   "" \
   "## Compatibility / persistence" \
   "" \
-  "- v7 does not change the persisted map schema." \
-  "- schema version remains unchanged from v6" \
+  "- v8 does not change the persisted map schema." \
+  "- schema version remains unchanged from v7." \
   "- no migration or schema-version bump is required for this release" \
   "- existing saved maps continue to load and save under the existing schema-4 behavior" \
-  "- pan/zoom session restoration is cached per map within the active browser session only; it does not rewrite saved documents" \
+  "- persisted-data review for main...v8 found no new migration requirements" \
   "" \
   "## Validation" \
   "" \
   "- npm run build passes" \
-  "- automated test suite passes: 83 suites, 1447 tests" \
-  "- manual smoke checklist is recorded in smoke-tests/smoke-v7.md" \
-  "- manual branch smoke pass is recorded in smoke-tests/smoke-v7.md" \
+  "- automated test suite passes: 84 suites, 1478 tests" \
+  "- release notes are updated in release-notes.md" \
+  "- manual smoke checklist is recorded in smoke-tests/smoke-v8.md" \
+  "- release-blocker follow-ups addressed on branch:" \
+  "  - removed the old Alt+Shift+H shortcut to the hidden legacy help dialog" \
+  "  - fixed background-image popup stacking above the game panel" \
+  "- note: the production build still emits a non-blocking Vite chunk-size warning for the main JS bundle" \
   "" \
   "## Notes" \
   "" \
   "- Long-form release notes are recorded in release-notes.md." \
-  "- Smoke-test results are recorded in smoke-tests/smoke-v7.md." \
+  "- Smoke-test results are recorded in smoke-tests/smoke-v8.md." \
 )
 
 gh pr create \
   --base main \
-  --head v7 \
-  --title "Release v7" \
+  --head v8 \
+  --title "Release v8" \
   --body "$body"

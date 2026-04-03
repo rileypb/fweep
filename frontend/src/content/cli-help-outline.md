@@ -1,0 +1,101 @@
+- Creating rooms
+	- `create kitchen`
+		- from:blank.png
+		- to:kitchen.png
+	- `create pantry west of kitchen` 
+		- from:kitchen.png
+		- to:pantrykitchen.png
+	- `west of kitchen is Pantry`
+		- from:kitchen.png
+		- to:pantrykitchen.png
+	- `create kitchen, which is dark`
+		- from:blank.png
+		- to:kitchendark.png
+	- `create Pantry, which is dark, west of kitchen`
+		- from:kitchen.png
+		- to:pantrykitchendark.png
+- Connecting rooms
+	- `connect pantry...`
+		- `...east to kitchen`
+			- from:pantrykitchennoconnect.png
+			- to:pantrykitchen.png
+		- `...east to kitchen south`
+			- from:pantrykitchennoconnect.png
+			- to:pantryeasttokitchensouth.png 
+	- `west of kitchen is pantry`
+		- from:pantrykitchennoconnect.png
+		- to:pantrykitchen.png
+	- `connect pantry east to kitchen south`
+		- from:pantrykitchennoconnect.png
+		- to:pantryeasttokitchensouth.png
+	- `create and connect pantry east to kitchen south`
+		- from:kitchen.png
+		- to:pantryeasttokitchensouth.png
+	- `kitchen to pantry...`
+		- `...is a door`
+			- from:pantrykitchen.png
+			- to:pantrykitchendoor.png
+		- `...is locked`
+			- from:pantrykitchendoor.png
+			- to:pantrykitchenlocked.png
+		- `...is open`
+			- from:pantrykitchenlocked.png
+			- to:pantrykitchen.png
+- `delete pantry`
+	- from:pantrykitchen.png
+	- to:kitchen.png
+- `edit pantry`: bring up the edit window for Pantry
+- Adjectives
+	- `Kitchen is dark`
+		- from:kitchen.png
+		- to:kitchendark.png
+	- `Kitchen is lit`
+		- from:kitchendark.png
+		- to:kitchen.png
+- Special "rooms"
+	- `north of kitchen...`
+		- `...is unknown`
+			- from:pantrykitchen.png
+			- to:pantrykitchenunknown.png
+		- `...goes on forever`
+			- from:pantrykitchen.png
+			- to:pantrykitchenforever.png
+		- `...lies death`
+			- from:pantrykitchen.png
+			- to:pantrykitchendeath.png
+		- `...leads nowhere`
+			- from:pantrykitchen.png
+			- to:pantrykitchennowhere.png
+		- `...leads to somewhere else`
+			- from:pantrykitchen.png
+			- to:pantrykitchensomewhereelse.png
+	- also try `north, south, and east of kitchen is unknown` to make many at once.
+- Above/below
+	- `above kitchen is Attic`
+		- from:kitchen.png
+		- to:kitchenattic.png
+	- `below kitchen is death`
+		- from:kitchen.png
+		- to:kitchenbasementdeath.png
+- Navigation
+	- You can select a single room on the map using `show kitchen`.
+	- If you've selected a single room on the map, you can use directions to move around on the map.
+- If you've selected a single room on the map, you can leave its name out of most commands: e.g., `edit` or `west is Pantry`.
+- `annotate kitchen with filled with delicious smells`
+	- from:kitchen.png
+	- to:kitchennote.png
+- Items
+	- `put knife in kitchen`
+		- from:kitchen.png
+		- to:kitchenknife.png
+	- `take knife from kitchen`
+		- from:kitchenknifepan.png
+		- to:kitchenpan.png
+	- `take all from kitchen`
+		- from:kitchenknifepan.png
+		- to:kitchen.png
+- Arrange: layout the map in a pretty manner
+- Zoom in/out/reset
+- Zoom 25-300
+- Undo
+- Redo

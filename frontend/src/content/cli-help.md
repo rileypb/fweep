@@ -13,7 +13,9 @@
 ## special
 
 - `<direction> of <room name> is unknown`
+- `<direction> of <room name> is <room name>`
 - `above/below <room name> is unknown`
+- `above/below <room name> is <room name>`
 - `<direction> of <room name> goes on forever`
 - `above/below <room name> goes on forever`
 - `<direction> of <room name> lies death`
@@ -32,7 +34,7 @@
 - `create/c <room name> above/below <room name>`
 - `<room name> to <room name> is a door`
 - `<room name> to <room name> is locked`
-- `<room name> to <room name> is clear`
+- `<room name> to <room name> is open`
 
 ## navigation
 

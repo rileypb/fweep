@@ -7,6 +7,7 @@ const PARCHMENT_PANEL_MAX_VIEWPORT_RATIO = 0.48;
 export const PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY = 'Slash';
 export const PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS = 100;
 export const PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS = 10;
+export const DEFAULT_NEW_MAP_PARCHMENT_STORY_URL = '/fweep.gblorb';
 
 export function getDefaultParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(PARCHMENT_PANEL_DEFAULT_WIDTH_PX, viewportWidth);

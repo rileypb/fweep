@@ -28,6 +28,7 @@
 
 ## Testing
 
+- TEST OFTEN: during long-running tasks or refactors with multiple file writes, find safe points at which you can run targeted tests.
 - Write unit tests for utility functions and core logic.
 - Test files should be named `*.test.ts`, `*.spec.ts`, `*.test.tsx`, or `*.spec.tsx` as appropriate.
 - Write test-first when adding new features or fixing bugs. 

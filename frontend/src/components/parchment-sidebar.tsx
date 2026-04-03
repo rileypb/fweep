@@ -1,14 +1,5 @@
-import { useState } from 'react';
 import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
 import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
-
-const PARCHMENT_PANEL_TIPS = [
-  'Use Ctrl+/ or Cmd+/ to switch the keyboard focus between the game and the mapper.',
-] as const;
-
-function getRandomParchmentPanelTip(): string {
-  return PARCHMENT_PANEL_TIPS[Math.floor(Math.random() * PARCHMENT_PANEL_TIPS.length)] ?? PARCHMENT_PANEL_TIPS[0];
-}
 
 interface ParchmentSidebarProps {
   readonly deviceInputRef: React.RefObject<HTMLInputElement | null>;
@@ -33,6 +24,7 @@ interface ParchmentSidebarProps {
   readonly onIfdbAuthorSearch: (author: string) => void;
   readonly onIfdbGameSelected: (tuid: string) => void;
   readonly onOpenParchmentFileChooser: () => void;
+  readonly onPlayDefaultStory: () => void;
   readonly onParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly onResetParchmentPanel: () => void;
   readonly onParchmentIframeLoad: () => void;
@@ -65,6 +57,7 @@ export function ParchmentSidebar({
   onIfdbAuthorSearch,
   onIfdbGameSelected,
   onOpenParchmentFileChooser,
+  onPlayDefaultStory,
   onParchmentDeviceFileChange,
   onResetParchmentPanel,
   onParchmentIframeLoad,
@@ -73,9 +66,6 @@ export function ParchmentSidebar({
   onWidthResizePointerDown,
   onWidthResizeKeyDown,
 }: ParchmentSidebarProps): React.JSX.Element {
-  const [emptyStateTip] = useState(getRandomParchmentPanelTip);
-  const shouldShowEmptyStateTip = !isGameViewVisible && ifdbSearchResults.length === 0;
-
   return (
     <div
       className="app-parchment-panel"
@@ -136,11 +126,10 @@ export function ParchmentSidebar({
                 type="button"
                 className="app-parchment-panel__reset-button"
                 aria-keyshortcuts={UI_SHORTCUTS.resetGamePanel.ariaKeyShortcuts}
-                data-shortcut={UI_SHORTCUTS.resetGamePanel.display}
-                title={getShortcutTitle('Reset game panel', UI_SHORTCUTS.resetGamePanel)}
+                title={getShortcutTitle('Choose game', UI_SHORTCUTS.resetGamePanel)}
                 onClick={onResetParchmentPanel}
               >
-                reset
+                Choose game
               </button>
             </div>
             {ifdbSearchError ? (
@@ -184,65 +173,85 @@ export function ParchmentSidebar({
             >
               {deviceLinkLabel}
             </button>
+            <button
+              type="button"
+              className="app-parchment-panel__device-link"
+              onClick={onPlayDefaultStory}
+            >
+              Or play the fweep intro game
+            </button>
             {ifdbSearchError ? (
               <p className="app-parchment-panel__search-status" role="alert">{ifdbSearchError}</p>
-            ) : null}
-            {shouldShowEmptyStateTip ? (
-              <div className="app-parchment-panel__empty-state" aria-live="polite">
-                <p className="app-parchment-panel__empty-state-label">Tip</p>
-                <p className="app-parchment-panel__empty-state-tip">{emptyStateTip}</p>
-              </div>
             ) : null}
             {ifdbSearchResults.length > 0 ? (
               <div className="app-parchment-panel__results" aria-label="IFDB search results">
                 {ifdbSearchResults.map((result) => (
-                  <article key={result.tuid} className="app-parchment-panel__result">
+                  <article
+                    key={result.tuid}
+                    className={`app-parchment-panel__result${result.isPlayable ? ' app-parchment-panel__result--playable' : ' app-parchment-panel__result--nonplayable'}`}
+                  >
                     {result.coverArtUrl ? (
-                      <button
-                        type="button"
-                        className="app-parchment-panel__result-cover-button"
-                        aria-label={`Play ${result.title} via cover art`}
-                        disabled={loadingIfdbGameTuid === result.tuid}
-                        onClick={() => {
-                          onIfdbGameSelected(result.tuid);
-                        }}
-                      >
-                        <img
-                          className="app-parchment-panel__result-cover"
-                          src={result.coverArtUrl}
-                          alt={`Cover art for ${result.title}`}
-                        />
-                      </button>
+                      result.isPlayable ? (
+                        <button
+                          type="button"
+                          className="app-parchment-panel__result-cover-button"
+                          aria-label={`Play ${result.title} via cover art`}
+                          disabled={loadingIfdbGameTuid === result.tuid}
+                          onClick={() => {
+                            onIfdbGameSelected(result.tuid);
+                          }}
+                        >
+                          <img
+                            className="app-parchment-panel__result-cover"
+                            src={result.coverArtUrl}
+                            alt={`Cover art for ${result.title}`}
+                          />
+                        </button>
+                      ) : (
+                        <div className="app-parchment-panel__result-cover-static">
+                          <img
+                            className="app-parchment-panel__result-cover"
+                            src={result.coverArtUrl}
+                            alt={`Cover art for ${result.title}`}
+                          />
+                        </div>
+                      )
                     ) : null}
                     <h2 className="app-parchment-panel__result-title">
-                      <button
-                        type="button"
-                        className="app-parchment-panel__result-button"
-                        aria-label={`Play ${result.title}`}
-                        disabled={loadingIfdbGameTuid === result.tuid}
-                        onClick={() => {
-                          onIfdbGameSelected(result.tuid);
-                        }}
-                      >
-                        {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
-                      </button>
+                      {result.isPlayable ? (
+                        <button
+                          type="button"
+                          className="app-parchment-panel__result-button app-parchment-panel__result-button--playable"
+                          aria-label={`Play ${result.title}`}
+                          disabled={loadingIfdbGameTuid === result.tuid}
+                          onClick={() => {
+                            onIfdbGameSelected(result.tuid);
+                          }}
+                        >
+                          {loadingIfdbGameTuid === result.tuid ? `Loading ${result.title}...` : result.title}
+                        </button>
+                      ) : (
+                        <span className="app-parchment-panel__result-text">{result.title}</span>
+                      )}
                     </h2>
                     <p className="app-parchment-panel__result-meta">
                       {result.author ? (() => {
                         const author = result.author;
-                        return (
-                          <button
-                            type="button"
-                            className="app-parchment-panel__result-link"
-                            aria-label={`Search IFDB for games by ${author}`}
-                            disabled={isIfdbSearching}
-                            onClick={() => {
-                              onIfdbAuthorSearch(author);
-                            }}
-                          >
-                            {author}
-                          </button>
-                        );
+                        return result.isPlayable
+                          ? (
+                            <button
+                              type="button"
+                              className="app-parchment-panel__result-link app-parchment-panel__result-link--playable"
+                              aria-label={`Search IFDB for games by ${author}`}
+                              disabled={isIfdbSearching}
+                              onClick={() => {
+                                onIfdbAuthorSearch(author);
+                              }}
+                            >
+                              {author}
+                            </button>
+                          )
+                          : <span className="app-parchment-panel__result-text">{author}</span>;
                       })() : 'Unknown author'}
                     </p>
                     {result.publishedDisplay ? (
@@ -251,7 +260,7 @@ export function ParchmentSidebar({
                     {result.ifdbLink ? (
                       <p className="app-parchment-panel__result-meta">
                         <a
-                          className="app-parchment-panel__result-link"
+                          className={`app-parchment-panel__result-link${result.isPlayable ? ' app-parchment-panel__result-link--playable' : ''}`}
                           href={result.ifdbLink}
                           target="_blank"
                           rel="noreferrer"

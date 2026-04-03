@@ -5,6 +5,7 @@ import {
   getConnectionsWithinSelectionBox,
   getPanDeltaToRevealRoom,
   getRoomScreenGeometry,
+  getScreenSpaceSelectionBox,
   getStickyNoteLinksWithinSelectionBox,
   getStickyNotesWithinSelectionBox,
   getRoomsWithinSelectionBox,
@@ -49,6 +50,21 @@ describe('map-canvas-helpers', () => {
       top: 20,
       width: 60,
       height: 70,
+    });
+
+    expect(getScreenSpaceSelectionBox(
+      {
+        start: { x: 100, y: 90 },
+        current: { x: 40, y: 20 },
+      },
+      { x: -10, y: 15 },
+      makeRect(300, 200),
+      2,
+    )).toEqual({
+      startX: 190,
+      startY: 195,
+      currentX: 70,
+      currentY: 55,
     });
   });
 

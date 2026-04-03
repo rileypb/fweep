@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ifindex version="1.0" xmlns="http://babel.ifarchive.org/protocol/iFiction/">
+    <story>
+        <identification>
+            <ifid>06BED5A7-DBC3-4F9C-B7B3-C7B6B80A3E26</ifid>
+            <format>glulx</format>
+        </identification>
+        <bibliographic>
+            <title>fweep</title>
+            <author>Phil Riley</author>
+            <headline>A map creator</headline>
+            <genre>Fiction</genre>
+            <firstpublished>2026</firstpublished>
+            <language>en</language>
+            <group>Inform</group>
+        </bibliographic>
+        <releases>
+            <attached>
+                <release>
+                    <releasedate>2026-04-02</releasedate>
+                    <version>1</version>
+                    <compiler>Inform 7</compiler>
+                    <compilerversion>Inform 10.1.2 (build )</compilerversion>
+                </release>
+            </attached>
+        </releases>
+        <colophon>
+            <generator>Inform 7</generator>
+            <generatorversion>Inform 10.1.2 (build )</generatorversion>
+            <originated>2026-04-02</originated>
+        </colophon>
+        <glulx>
+            <serial>260402</serial>
+            <release>1</release>
+            <compiler>Inform Inform 10.1.2 (build )</compiler>
+        </glulx>
+    </story>
+</ifindex>

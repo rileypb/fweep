@@ -57,6 +57,7 @@ export interface NormalizedIfdbSearchResult {
   readonly publishedDisplay: string | null;
   readonly publishedYear: string | null;
   readonly averageRating: number | null;
+  readonly isPlayable: boolean | null;
 }
 
 export interface IfdbSearchResponsePayload {
@@ -197,6 +198,7 @@ export function normalizeIfdbSearchResults(
       publishedDisplay: published.display,
       publishedYear: getPublishedYear(published.machine),
       averageRating: result.averageRating ?? null,
+      isPlayable: null,
     };
   });
 }

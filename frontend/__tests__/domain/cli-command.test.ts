@@ -14,6 +14,13 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('prettify')).toBe('rearrange the map layout');
   });
 
+  it('describes choose-game commands', () => {
+    expect(parseCliCommand('choose game')).toEqual({ kind: 'choose-game' });
+    expect(parseCliCommand('choose a game')).toEqual({ kind: 'choose-game' });
+    expect(parseCliCommandDescription('choose game')).toBe('open the game chooser');
+    expect(parseCliCommandDescription('choose a game')).toBe('open the game chooser');
+  });
+
   it('describes zoom commands', () => {
     expect(parseCliCommandDescription('zoom in')).toBe('zoom the map in');
     expect(parseCliCommandDescription('zoom out')).toBe('zoom the map out');
@@ -33,6 +40,9 @@ describe('parseCliCommandDescription', () => {
   it('describes pseudo-room unknown commands', () => {
     expect(parseCliCommandDescription('west of Bedroom is unknown')).toBe(
       'mark the west exit from Bedroom as unknown',
+    );
+    expect(parseCliCommandDescription('west of Bedroom is Kitchen')).toBe(
+      'connect Bedroom going west to Kitchen, creating it if needed',
     );
     expect(parseCliCommandDescription('west is unknown')).toBe(
       'mark the west exit from the selected room as unknown',
@@ -147,6 +157,18 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('above is Attic')).toBe(
       'connect the selected room going up to Attic, creating it if needed',
     );
+    expect(parseCliCommandDescription('north of Bedroom is Kitchen')).toBe(
+      'connect Bedroom going north to Kitchen, creating it if needed',
+    );
+    expect(parseCliCommandDescription('below Bedroom is Cellar')).toBe(
+      'connect Bedroom going down to Cellar, creating it if needed',
+    );
+    expect(parseCliCommandDescription('above Bedroom is Attic, which is dark')).toBe(
+      'connect Bedroom going up to Attic, creating it if needed, and mark Attic as dark',
+    );
+    expect(parseCliCommandDescription('north is Hallway, which is lit')).toBe(
+      'connect the selected room going north to Hallway, creating it if needed, and mark Hallway as lit',
+    );
   });
 
   it('describes connection annotation commands', () => {
@@ -165,8 +187,11 @@ describe('parseCliCommandDescription', () => {
     expect(parseCliCommandDescription('Bedroom to Bathroom is locked door')).toBe(
       'mark all connections between Bedroom and Bathroom as locked doors',
     );
+    expect(parseCliCommandDescription('Bedroom to Bathroom is open')).toBe(
+      'mark all connections between Bedroom and Bathroom as open',
+    );
     expect(parseCliCommandDescription('Bedroom to Bathroom is clear')).toBe(
-      'clear all connection annotations between Bedroom and Bathroom',
+      'mark all connections between Bedroom and Bathroom as open',
     );
   });
 
@@ -478,6 +503,13 @@ describe('parseCliCommand', () => {
       annotation: 'locked door',
     });
 
+    expect(parseCliCommand('Bedroom to Bathroom is open')).toEqual({
+      kind: 'set-connection-annotation',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      targetRoom: { text: 'Bathroom', exact: false },
+      annotation: null,
+    });
+
     expect(parseCliCommand('Bedroom to Bathroom is clear')).toEqual({
       kind: 'set-connection-annotation',
       sourceRoom: { text: 'Bedroom', exact: false },
@@ -574,14 +606,46 @@ describe('parseCliCommand', () => {
   it('parses selected-room relative connect commands', () => {
     expect(parseCliCommand('north is Kitchen')).toEqual({
       kind: 'selected-room-relative-connect',
+      sourceRoom: null,
       sourceDirection: 'north',
       targetRoom: { text: 'Kitchen', exact: false },
+      adjective: null,
     });
 
     expect(parseCliCommand('below is Cellar')).toEqual({
       kind: 'selected-room-relative-connect',
+      sourceRoom: null,
       sourceDirection: 'down',
       targetRoom: { text: 'Cellar', exact: false },
+      adjective: null,
+    });
+    expect(parseCliCommand('north of Bedroom is Kitchen')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'north',
+      targetRoom: { text: 'Kitchen', exact: false },
+      adjective: null,
+    });
+    expect(parseCliCommand('above Bedroom is Attic')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'up',
+      targetRoom: { text: 'Attic', exact: false },
+      adjective: null,
+    });
+    expect(parseCliCommand('above Bedroom is Attic, which is dark')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: { text: 'Bedroom', exact: false },
+      sourceDirection: 'up',
+      targetRoom: { text: 'Attic', exact: false },
+      adjective: { kind: 'lighting', text: 'dark', isDark: true },
+    });
+    expect(parseCliCommand('below is Cellar, which is lit')).toEqual({
+      kind: 'selected-room-relative-connect',
+      sourceRoom: null,
+      sourceDirection: 'down',
+      targetRoom: { text: 'Cellar', exact: false },
+      adjective: { kind: 'lighting', text: 'lit', isDark: false },
     });
   });
 

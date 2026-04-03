@@ -11,6 +11,10 @@ function normalizeParserTokenValues(tokens: readonly string[]): readonly string[
     return ['show', ...tokens.slice(1)];
   }
 
+  if (tokens[0] === 'select') {
+    return ['show', ...tokens.slice(1)];
+  }
+
   if (tokens[0] === 'e' || tokens[0] === 'ed') {
     return ['edit', ...tokens.slice(1)];
   }

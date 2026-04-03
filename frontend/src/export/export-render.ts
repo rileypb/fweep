@@ -69,7 +69,7 @@ const CONNECTION_ANNOTATION_OFFSET = 8;
 const CONNECTION_ANNOTATION_TEXT_OFFSET = 12;
 const CONNECTION_ICON_VIEWBOX_SIZE = 640;
 const ROOM_ITEM_LABEL_RIGHT_INSET = 7;
-const PASS_THROUGH_TINY_GAP_PADDING = 2;
+const PASS_THROUGH_TINY_GAP_PADDING = 3;
 
 function getSelfVerticalAnnotationSegment(points: readonly Point[]): { start: Point; end: Point } | null {
   const firstPeak = points[1];

@@ -12,6 +12,8 @@ function createOptions(activeMap: MapDocument | null = createEmptyMap('CLI Map')
     activeMap,
     loadDocument: jest.fn<(doc: MapDocument) => void>(),
     unloadDocument: jest.fn<() => void>(),
+    chooseGame: jest.fn<() => void>(),
+    onOpenCliHelpPanel: jest.fn<() => void>(),
     routeCrossInputCommandToParchment: jest.fn<(command: string) => boolean>().mockReturnValue(false),
     requestedRoomEditorRequest: null,
     requestedRoomRevealRequest: null,
@@ -172,6 +174,25 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toEqual([
       '>\\look',
       'No interactive fiction game is ready to receive commands.',
+      '',
+    ]);
+  });
+
+  it('opens the game chooser from the choose-game CLI command', () => {
+    const options = createOptions(null);
+    const { result } = renderHook(() => useAppCli(options));
+
+    act(() => {
+      result.current.submitCliCommandText('choose a game', {
+        clearInputState: false,
+        selectCliInput: false,
+      });
+    });
+
+    expect(options.chooseGame).toHaveBeenCalledTimes(1);
+    expect(result.current.gameOutputLines).toEqual([
+      '>choose a game',
+      'Opened the game chooser.',
       '',
     ]);
   });
@@ -401,7 +422,7 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Zoomed to 150%.');
   });
 
-  it('lists help topics and emits relative zoom requests', async () => {
+  it('opens the CLI help panel and emits relative zoom requests', async () => {
     const doc = createEmptyMap('Help And Relative Zoom Map');
     const options = createStoreBackedOptions(doc);
     const { result } = renderHook(() => useAppCli(options));
@@ -417,8 +438,8 @@ describe('useAppCli', () => {
       result.current.submitCliCommandText('zoom reset', { clearInputState: false });
     });
 
-    expect(result.current.gameOutputLines).toContain('help rooms');
-    expect(result.current.gameOutputLines).toContain('help connect');
+    expect(options.onOpenCliHelpPanel).toHaveBeenCalledTimes(1);
+    expect(result.current.gameOutputLines).toContain('Opened the CLI help panel.');
     expect(options.setRequestedMapZoomRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
       mode: 'relative',
       direction: 'in',
@@ -733,6 +754,58 @@ describe('useAppCli', () => {
       result.current.submitCliCommandText('north is Observatory', { clearInputState: false });
     });
     expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('Observatory');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
+  it('creates missing rooms for explicit-source relative connect commands', async () => {
+    let doc = createEmptyMap('Explicit Relative Connect Map');
+    const foyer = { ...createRoom('Foo'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, foyer);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('below foo is bar', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('bar');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+
+    act(() => {
+      result.current.submitCliCommandText('north of foo is baz', { clearInputState: false });
+    });
+    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('baz');
+    expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
+  it('applies adjectives to the target room for relative connect commands', async () => {
+    let doc = createEmptyMap('Relative Connect Adjectives Map');
+    const foyer = { ...createRoom('Foyer'), position: { x: 10, y: 20 } };
+    const attic = { ...createRoom('Attic'), position: { x: 10, y: -80 } };
+    doc = addRoom(doc, foyer);
+    doc = addRoom(doc, attic);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('above foyer is attic, which is dark', { clearInputState: false });
+    });
+    const darkenedAttic = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'Attic');
+    expect(darkenedAttic?.isDark).toBe(true);
+    expect(result.current.gameOutputLines).toContain('Connected.');
+
+    act(() => {
+      result.current.submitCliCommandText('below foyer is cellar, which is lit', { clearInputState: false });
+    });
+    const cellar = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'cellar');
+    expect(cellar?.isDark).toBe(false);
     expect(result.current.gameOutputLines).toContain('Created and connected.');
   });
 
@@ -1059,7 +1132,7 @@ describe('useAppCli', () => {
     });
 
     expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
-    expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'help rooms']));
+    expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'Opened the CLI help panel.']));
     expect(selectSpy).not.toHaveBeenCalled();
     expect(result.current.cliCommand).toBe('');
     expect(result.current.cliHistory).toContain('help');

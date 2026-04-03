@@ -7,6 +7,7 @@ import {
   shouldIgnoreUiShortcut,
   UI_SHORTCUTS,
 } from './ui-shortcuts';
+import type { Position } from '../domain/map-types';
 
 const IMAGE_REGULAR_FULL_PATH = 'M160 144C151.2 144 144 151.2 144 160L144 480C144 488.8 151.2 496 160 496L480 496C488.8 496 496 488.8 496 480L496 160C496 151.2 488.8 144 480 144L160 144zM96 160C96 124.7 124.7 96 160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160zM224 192C241.7 192 256 206.3 256 224C256 241.7 241.7 256 224 256C206.3 256 192 241.7 192 224C192 206.3 206.3 192 224 192zM360 264C368.5 264 376.4 268.5 380.7 275.8L460.7 411.8C465.1 419.2 465.1 428.4 460.8 435.9C456.5 443.4 448.6 448 440 448L200 448C191.1 448 182.8 443 178.7 435.1C174.6 427.2 175.2 417.6 180.3 410.3L236.3 330.3C240.8 323.9 248.1 320.1 256 320.1C263.9 320.1 271.2 323.9 275.7 330.3L292.9 354.9L339.4 275.9C343.7 268.6 351.6 264.1 360.1 264.1z';
 
@@ -32,6 +33,7 @@ async function createBackgroundReferenceImage(
   blob: Blob,
   name: string,
   sourceUrl: string | null,
+  position: Position,
 ): Promise<BackgroundReferenceImage> {
   const dataUrl = await readFileAsDataUrl(blob);
   const dimensions = await loadImageDimensions(dataUrl);
@@ -45,12 +47,28 @@ async function createBackgroundReferenceImage(
     width: dimensions.width,
     height: dimensions.height,
     zoom: 1,
-    position: { x: 0, y: 0 },
+    position,
+  };
+}
+
+function getCurrentViewportCenterPosition(
+  panOffset: Position,
+  zoom: number,
+): Position {
+  const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
+  const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+  const safeZoom = zoom > 0 ? zoom : 1;
+
+  return {
+    x: ((viewportWidth / 2) - panOffset.x) / safeZoom,
+    y: ((viewportHeight / 2) - panOffset.y) / safeZoom,
   };
 }
 
 export function BackgroundImageControls(): React.JSX.Element {
   const referenceImage = useEditorStore((state) => state.doc?.background.referenceImage ?? null);
+  const mapPanOffset = useEditorStore((state) => state.mapPanOffset);
+  const mapZoom = useEditorStore((state) => state.mapZoom);
   const setBackgroundReferenceImage = useEditorStore((state) => state.setBackgroundReferenceImage);
   const clearBackgroundReferenceImage = useEditorStore((state) => state.clearBackgroundReferenceImage);
   const setBackgroundReferenceImageZoom = useEditorStore((state) => state.setBackgroundReferenceImageZoom);
@@ -156,7 +174,12 @@ export function BackgroundImageControls(): React.JSX.Element {
     setErrorMessage(null);
 
     try {
-      const image = await createBackgroundReferenceImage(blob, name, sourceUrl);
+      const image = await createBackgroundReferenceImage(
+        blob,
+        name,
+        sourceUrl,
+        getCurrentViewportCenterPosition(mapPanOffset, mapZoom),
+      );
       setBackgroundReferenceImage(image);
       setIsOpen(true);
     } catch (error) {

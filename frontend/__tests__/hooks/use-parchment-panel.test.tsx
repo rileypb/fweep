@@ -51,6 +51,8 @@ function createPointerEvent(type: string, pointerId: number, coords: { clientX?:
 function createOptions(overrides?: Partial<{
   activeMapId: string | null;
   associatedGame: AssociatedGameMetadata | null;
+  defaultStoryUrlForNewMap: string | null;
+  shouldLoadDefaultStoryForActiveMap: boolean;
   setAssociatedGameMetadata: (associatedGame: AssociatedGameMetadata | null) => void;
   heightTopInsetPx: number;
   heightBottomInsetPx: number;
@@ -59,6 +61,8 @@ function createOptions(overrides?: Partial<{
   return {
     activeMapId: 'map-1',
     associatedGame: null,
+    defaultStoryUrlForNewMap: null,
+    shouldLoadDefaultStoryForActiveMap: false,
     setAssociatedGameMetadata: jest.fn<(associatedGame: AssociatedGameMetadata | null) => void>(),
     heightTopInsetPx: 16,
     heightBottomInsetPx: 16,
@@ -91,6 +95,7 @@ describe('useParchmentPanel', () => {
         publishedDisplay: null,
         publishedYear: null,
         averageRating: null,
+        isPlayable: null,
       },
     ];
     const secondResults: readonly NormalizedIfdbSearchResult[] = [
@@ -104,8 +109,28 @@ describe('useParchmentPanel', () => {
         publishedDisplay: null,
         publishedYear: null,
         averageRating: null,
+        isPlayable: null,
       },
     ];
+    mockViewIfdbGame
+      .mockResolvedValueOnce({
+        sourceType: 'ifdb',
+        tuid: 'abc123',
+        ifid: 'IFID-123',
+        title: 'The Example Game',
+        author: 'Pat Example',
+        storyUrl: 'https://example.com/game.ulx',
+        format: 'glulx',
+      })
+      .mockResolvedValueOnce({
+        sourceType: 'ifdb',
+        tuid: 'def456',
+        ifid: 'IFID-456',
+        title: 'Another Example Game',
+        author: 'Pat Example',
+        storyUrl: null,
+        format: null,
+      });
     mockSearchIfdbGames
       .mockResolvedValueOnce(firstResults)
       .mockResolvedValueOnce(secondResults)
@@ -123,7 +148,12 @@ describe('useParchmentPanel', () => {
     });
 
     expect(mockSearchIfdbGames).toHaveBeenNthCalledWith(1, 'example game');
-    expect(result.current.ifdbSearchResults).toEqual(firstResults);
+    expect(result.current.ifdbSearchResults).toEqual([
+      {
+        ...firstResults[0],
+        isPlayable: true,
+      },
+    ]);
     expect(result.current.ifdbSearchError).toBeNull();
 
     await act(async () => {
@@ -132,7 +162,12 @@ describe('useParchmentPanel', () => {
 
     expect(mockSearchIfdbGames).toHaveBeenNthCalledWith(2, 'Pat Example');
     expect(result.current.ifdbSearchQuery).toBe('Pat Example');
-    expect(result.current.ifdbSearchResults).toEqual(secondResults);
+    expect(result.current.ifdbSearchResults).toEqual([
+      {
+        ...secondResults[0],
+        isPlayable: false,
+      },
+    ]);
 
     await act(async () => {
       result.current.setIfdbSearchQuery('broken');
@@ -248,6 +283,89 @@ describe('useParchmentPanel', () => {
     }));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
     expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+  });
+
+  it('loads the bundled default story for a newly created map without associated game metadata', async () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-new',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: true,
+    })));
+
+    await waitFor(() => {
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    });
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
+  it('can switch the chooser to the bundled intro game on demand', () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-existing',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    act(() => {
+      result.current.handlePlayDefaultStory();
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
+  it('keeps the bundled intro game selected after resetting an IFDB-loaded game', async () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+    const associatedGame: AssociatedGameMetadata = {
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    };
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-ifdb',
+      associatedGame,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    await waitFor(() => {
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+    });
+
+    act(() => {
+      result.current.handleResetParchmentPanel();
+    });
+
+    act(() => {
+      result.current.handlePlayDefaultStory();
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+  });
+
+  it('does not load the bundled default story for existing maps unless requested', () => {
+    const defaultStoryUrl = '/fweep.gblorb';
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      activeMapId: 'map-existing',
+      associatedGame: null,
+      defaultStoryUrlForNewMap: defaultStoryUrl,
+      shouldLoadDefaultStoryForActiveMap: false,
+    })));
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.isParchmentGameViewVisible).toBe(false);
   });
 
   it('opens the device chooser and loads a local file when parchment is ready', async () => {
@@ -474,5 +592,35 @@ describe('useParchmentPanel', () => {
 
     expect(result.current.parchmentPanelWidth).toBeLessThanOrEqual(initialWidth);
     expect(result.current.parchmentPanelHeight).toBeLessThanOrEqual(initialHeight);
+  });
+
+  it('clamps panel height to stay below the protected top area', () => {
+    window.localStorage.setItem('fweep-parchment-panel-height', '880');
+
+    const { result } = renderHook(() => useParchmentPanel(createOptions({
+      heightTopInsetPx: 84,
+      heightBottomInsetPx: 16,
+    })));
+
+    expect(result.current.parchmentPanelHeight).toBe(800);
+
+    act(() => {
+      result.current.beginParchmentPanelHeightResize(7, 500);
+      window.dispatchEvent(createPointerEvent('pointermove', 7, { clientY: -200 }));
+      window.dispatchEvent(createPointerEvent('pointerup', 7, { clientY: -200 }));
+    });
+
+    expect(result.current.parchmentPanelHeight).toBe(800);
+
+    const preventDefault = jest.fn();
+    act(() => {
+      result.current.handleParchmentPanelHeightResizeKeyDown({
+        key: 'ArrowUp',
+        preventDefault,
+      } as unknown as React.KeyboardEvent<HTMLElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(result.current.parchmentPanelHeight).toBe(800);
   });
 });
