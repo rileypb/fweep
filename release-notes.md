@@ -339,3 +339,54 @@
   - no schema-version bump or migration required
 - Production build emits a Vite chunk-size warning for the main JS bundle; this is non-blocking for the release unless performance review decides otherwise.
 - Manual smoke-test confirmation is still pending before release.
+
+## v9
+
+`v9` improves the mapper CLI around pseudo-room exit commands, fixes an explicit-direction connection bug, and makes IFDB proxy failures report more clearly in production.
+
+### Highlights
+- Added multi-direction pseudo-room CLI forms such as `north and south are unknown`.
+- Fixed explicit-source relative connections so target rooms bind the opposite direction correctly.
+- Improved the hosted IFDB proxy so upstream failures surface as normal `502` responses instead of confusing browser-level CORS errors.
+
+### User-visible changes
+- The CLI now supports batching pseudo-room terminal commands across multiple directions in a single line for:
+  - `is/are unknown`
+  - `go/goes on forever`
+  - `lie/lies death`
+  - `lead/leads nowhere`
+  - `lead/leads to somewhere else`
+- Supported multi-direction forms include:
+  - `north, south is unknown`
+  - `north and south are unknown`
+  - `north, south, and east go on forever`
+  - explicit-source forms such as `north and south of Kitchen are unknown`
+  - vertical combinations such as `above and below are unknown`
+- Explicit-source relative-connect commands such as `west of Carnival is Foobar` now bind the created or connected target room on the opposite side as intended:
+  - source room uses `west`
+  - target room uses `east`
+- Production IFDB proxy failures now return clearer API errors while preserving CORS headers, so real upstream failures are easier to diagnose from the browser and app logs.
+
+### Compatibility and persistence
+- `v9` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- `CURRENT_SCHEMA_VERSION` remains `4`.
+- Persisted-data review of `main...v9` found no new map-document migration requirements.
+
+### Notable fixes
+- Added regression coverage for:
+  - multi-direction pseudo-room parsing and descriptions
+  - batched pseudo-room execution through the CLI hook
+  - explicit-source relative-connect target-direction behavior
+  - IFDB proxy CORS-safe upstream failure handling
+- Fixed the explicit-source relative-connect execution path so it no longer reuses the source direction on the target room.
+- Tightened both shared proxy and Vercel proxy error paths so exceptions still emit expected CORS headers.
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `84` suites, `1483` tests.
+- Persisted-data / migration review passed:
+  - no schema changes detected in `main...v9`
+  - no schema-version bump or migration required
+- Production build emits a Vite chunk-size warning for the main JS bundle; this remains non-blocking for the release unless performance review decides otherwise.
+- Manual smoke-test confirmation: pending
