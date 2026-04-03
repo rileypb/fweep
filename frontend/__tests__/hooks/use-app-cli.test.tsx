@@ -610,6 +610,28 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Marked exit as unknown.');
   });
 
+  it('creates multiple pseudo-room exits from the selected room with one command', async () => {
+    let doc = createEmptyMap('Batch Pseudo Room Map');
+    const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
+    doc = addRoom(doc, kitchen);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      useEditorStore.getState().selectRoom(kitchen.id);
+      result.current.submitCliCommandText('north and south are unknown', { clearInputState: false });
+    });
+
+    expect(Object.keys(useEditorStore.getState().doc?.pseudoRooms ?? {})).toHaveLength(2);
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.north).toBeDefined();
+    expect(useEditorStore.getState().doc?.rooms[kitchen.id]?.directions.south).toBeDefined();
+    expect(result.current.gameOutputLines).toContain('Marked exits as unknown.');
+  });
+
   it('reports pseudo-room creation errors when no room is selected', async () => {
     let doc = createEmptyMap('Pseudo Room Error Map');
     const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
@@ -796,14 +818,45 @@ describe('useAppCli', () => {
     act(() => {
       result.current.submitCliCommandText('below foo is bar', { clearInputState: false });
     });
-    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('bar');
+    const bar = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'bar');
+    expect(bar).toBeDefined();
+    expect(useEditorStore.getState().doc?.rooms[foyer.id]?.directions.down).toBeDefined();
+    expect(useEditorStore.getState().doc?.rooms[bar!.id]?.directions.up).toBeDefined();
     expect(result.current.gameOutputLines).toContain('Created and connected.');
 
     act(() => {
       result.current.submitCliCommandText('north of foo is baz', { clearInputState: false });
     });
-    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name)).toContain('baz');
+    const baz = Object.values(useEditorStore.getState().doc?.rooms ?? {}).find((room) => room.name === 'baz');
+    expect(baz).toBeDefined();
+    expect(useEditorStore.getState().doc?.rooms[foyer.id]?.directions.north).toBeDefined();
+    expect(useEditorStore.getState().doc?.rooms[baz!.id]?.directions.south).toBeDefined();
     expect(result.current.gameOutputLines).toContain('Created and connected.');
+  });
+
+  it('uses the opposite direction on the target room for explicit-source relative connects', async () => {
+    let doc = createEmptyMap('Explicit Relative Direction Map');
+    const carnival = { ...createRoom('Carnival'), position: { x: 10, y: 20 } };
+    const foobar = { ...createRoom('Foobar'), position: { x: -90, y: 20 } };
+    doc = addRoom(doc, carnival);
+    doc = addRoom(doc, foobar);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('west of carnival is foobar', { clearInputState: false });
+    });
+
+    const nextDoc = useEditorStore.getState().doc;
+    const connectionId = nextDoc?.rooms[carnival.id]?.directions.west;
+    expect(connectionId).toBeDefined();
+    expect(nextDoc?.rooms[foobar.id]?.directions.east).toBe(connectionId);
+    expect(nextDoc?.rooms[foobar.id]?.directions.west).toBeUndefined();
+    expect(result.current.gameOutputLines).toContain('Connected.');
   });
 
   it('applies adjectives to the target room for relative connect commands', async () => {

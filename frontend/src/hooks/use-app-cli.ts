@@ -229,6 +229,20 @@ function describeCliOutcome(command: CliCommand): string {
         return 'Marked exit as leading to somewhere else.';
       }
       return 'Marked exit as leading nowhere.';
+    case 'create-pseudo-rooms':
+      if (command.pseudoKind === 'unknown') {
+        return 'Marked exits as unknown.';
+      }
+      if (command.pseudoKind === 'infinite') {
+        return 'Marked exits as going on forever.';
+      }
+      if (command.pseudoKind === 'death') {
+        return 'Marked exits as death.';
+      }
+      if (command.pseudoKind === 'elsewhere') {
+        return 'Marked exits as leading to somewhere else.';
+      }
+      return 'Marked exits as leading nowhere.';
     case 'delete':
       return 'Deleted.';
     case 'edit':
@@ -758,6 +772,8 @@ export function useAppCli({
         return command.sourceRoom === null ? [command.targetRoom] : [command.sourceRoom, command.targetRoom];
       case 'create-pseudo-room':
         return command.sourceRoom === null ? [] : [command.sourceRoom];
+      case 'create-pseudo-rooms':
+        return command.sourceRoom === null ? [] : [command.sourceRoom];
       default:
         return [];
     }
@@ -909,6 +925,7 @@ export function useAppCli({
         || command.kind === 'take-items'
         || command.kind === 'take-all-items'
         || command.kind === 'create-pseudo-room'
+        || command.kind === 'create-pseudo-rooms'
         || command.kind === 'delete'
         || command.kind === 'show'
         || command.kind === 'set-room-adjective'
@@ -994,6 +1011,18 @@ export function useAppCli({
         }
 
         if (command.kind === 'create-pseudo-room') {
+          const roomId = nextState.pronounRoomId;
+          if (roomId !== null) {
+            setRequestedRoomRevealRequest({
+              roomId,
+              requestId: issueUiRequestId(),
+            });
+          }
+          appendGameOutput([formatCliEcho(trimmedInput), describeCliOutcome(command)]);
+          return { ok: true, shouldSelectCliInput };
+        }
+
+        if (command.kind === 'create-pseudo-rooms') {
           const roomId = nextState.pronounRoomId;
           if (roomId !== null) {
             setRequestedRoomRevealRequest({

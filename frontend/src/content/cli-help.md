@@ -13,16 +13,22 @@
 ## special
 
 - `<direction> of <room name> is unknown`
+- `<direction>, <direction>, [and] <direction> of <room name> is/are unknown`
 - `<direction> of <room name> is <room name>`
 - `above/below <room name> is unknown`
 - `above/below <room name> is <room name>`
+- `<direction>, <direction>, [and] <direction> is/are unknown`
 - `<direction> of <room name> goes on forever`
+- `<direction>, <direction>, [and] <direction> go/goes on forever`
 - `above/below <room name> goes on forever`
 - `<direction> of <room name> lies death`
+- `<direction>, <direction>, [and] <direction> lie/lies death`
 - `above/below <room name> lies death`
 - `<direction> of <room name> leads nowhere`
+- `<direction>, <direction>, [and] <direction> lead/leads nowhere`
 - `above/below <room name> leads nowhere`
 - `<direction> of <room name> leads to somewhere else`
+- `<direction>, <direction>, [and] <direction> lead/leads to somewhere else`
 - `above/below <room name> leads to somewhere else`
 
 ## connect
