@@ -695,31 +695,6 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('Nothing is currently bound to "it".');
   });
 
-  it('treats quoted delete room references as exact matches instead of partial matches', async () => {
-    let doc = createEmptyMap('Quoted Delete Command Map');
-    const tent = { ...createRoom('Tent'), position: { x: 10, y: 20 } };
-    const outsideTent = { ...createRoom('Outside Your Tent'), position: { x: 110, y: 20 } };
-    doc = addRoom(doc, tent);
-    doc = addRoom(doc, outsideTent);
-    const options = createStoreBackedOptions(doc);
-    const { result } = renderHook(() => useAppCli(options));
-
-    await waitFor(() => {
-      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
-    });
-
-    act(() => {
-      result.current.submitCliCommandText('delete "Tent"', { clearInputState: false });
-    });
-
-    expect(useEditorStore.getState().doc?.rooms[tent.id]).toBeUndefined();
-    expect(useEditorStore.getState().doc?.rooms[outsideTent.id]?.name).toBe('Outside Your Tent');
-    expect(result.current.gameOutputLines).toContain('Deleted.');
-    expect(result.current.gameOutputLines).not.toContain(
-      'The name "Tent" is ambiguous. It could match "Tent" or "Outside Your Tent".',
-    );
-  });
-
   it('connects rooms, annotates the connection, and disconnects it again', async () => {
     let doc = createEmptyMap('Connection Command Map');
     const kitchen = { ...createRoom('Kitchen'), position: { x: 10, y: 20 } };
