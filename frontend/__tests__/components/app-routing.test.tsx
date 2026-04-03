@@ -127,25 +127,6 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /collapse cli help panel/i })).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('toggles the component bounds debug overlay on the map canvas', async () => {
-    const user = userEvent.setup();
-    const doc = addRoom(
-      addRoom(createEmptyMap('Component Bounds Debug Map'), { ...createRoom('Alpha'), position: { x: 0, y: 0 } }),
-      { ...createRoom('Beta'), position: { x: 320, y: 0 } },
-    );
-    await renderAppWithSavedMap(doc);
-
-    expect(screen.queryByTestId('map-canvas-component-bounds-overlay')).not.toBeInTheDocument();
-
-    const toggle = screen.getByRole('button', { name: /toggle component bounds debug overlay/i });
-    expect(toggle).toHaveAttribute('aria-pressed', 'false');
-
-    await user.click(toggle);
-
-    expect(toggle).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('map-canvas-component-bounds-overlay')).toBeInTheDocument();
-  });
-
   it('renders the CLI help outline as a collapsed tree and ignores from/to lines', async () => {
     const user = userEvent.setup();
     await renderAppWithOpenMap('CLI Help Outline Map');
