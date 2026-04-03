@@ -3,6 +3,7 @@ import {
   parseCliCommand,
   parseCliCommandDescription,
   type CliCommand,
+  type CliRoomReference,
 } from '../domain/cli-command';
 import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
 import { parseCliScript } from '../domain/cli-script';
