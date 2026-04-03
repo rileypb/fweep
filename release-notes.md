@@ -282,3 +282,59 @@
   - no schema changes detected in `main...v7`
   - no schema-version bump or migration required
 - Manual smoke-test confirmation passed.
+
+## v8
+
+`v8` expands in-app command guidance, improves embedded mapper/game help flows, and polishes canvas-side interactions around background images, overlays, and layout behavior.
+
+### Highlights
+- Added a collapsible CLI help panel with structured command guidance and visual examples.
+- Added richer embedded help content, including generated image sequences for command examples.
+- Improved background-image positioning and related canvas layout behavior.
+- Tightened parser/suggestion behavior for pseudo-room, note, and room-selection flows.
+
+### User-visible changes
+- A new collapsible CLI help panel now sits beside the map and provides:
+  - a tree view of CLI topics
+  - linked visual examples for selected command flows
+  - richer command-discovery content for map-editing actions
+- The in-map help content is clearer and more visual:
+  - CLI help outline content is expanded
+  - command examples now include image-backed transitions
+  - startup tips were refreshed to better match the current keyboard-first workflow
+- Background-image controls and placement behavior are more polished:
+  - new background images center more reliably on the current map view
+  - the background-image popup is positioned more consistently
+  - recentering and related interactions are easier to understand
+- Canvas/layout polish includes:
+  - better protection of the map-name chip from the Parchment panel
+  - improved edge-scroll and marquee-pan behavior while interacting with the canvas
+  - removal of the old `?` help button in favor of keyboard help flows and the dedicated help surfaces
+
+### Compatibility and persistence
+- `v8` does not change the persisted map schema.
+- No schema-version bump or migration is required for this release.
+- `CURRENT_SCHEMA_VERSION` remains `4`.
+- Persisted-data review of `main...v8` found no new map-document migration requirements.
+
+### Notable fixes
+- Removed dead layout helper code that was no longer part of the live app layout path.
+- Updated release-branch tests to match current tips and IFDB normalization behavior.
+- Kept the help dialog and help command paths intact while removing only the obsolete help button.
+- Removed the old `Alt+Shift+H` shortcut so the legacy help dialog is no longer reachable through the keyboard while that surface stays hidden.
+- Fixed the background-image popup stacking order so it renders above the embedded game panel instead of behind it.
+- Added regression coverage for:
+  - CLI help panel rendering
+  - help-image script behavior
+  - parser/suggestion flows
+  - background-image controls
+  - app-shell and routing layout behavior
+
+### Validation summary
+- Production build passes.
+- Automated test suite passes: `84` suites, `1478` tests.
+- Persisted-data / migration review passed:
+  - no schema changes detected in `main...v8`
+  - no schema-version bump or migration required
+- Production build emits a Vite chunk-size warning for the main JS bundle; this is non-blocking for the release unless performance review decides otherwise.
+- Manual smoke-test confirmation is still pending before release.

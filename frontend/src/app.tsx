@@ -717,12 +717,6 @@ export function App(): React.JSX.Element {
         return;
       }
 
-      if (isUiShortcutPressed(event, UI_SHORTCUTS.openHelp)) {
-        event.preventDefault();
-        setIsHelpOpen(true);
-        return;
-      }
-
       if (isUiShortcutPressed(event, UI_SHORTCUTS.resetGamePanel) && isParchmentGameViewVisible) {
         event.preventDefault();
         handleResetParchmentPanel();
