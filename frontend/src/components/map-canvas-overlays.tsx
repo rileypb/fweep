@@ -60,16 +60,12 @@ function ColorChipGroup({
 
 export interface ConnectionEditorOverlayProps {
   connectionId: string;
-  visibleMapLeftInset?: number;
-  visibleMapRightInset?: number;
   onClose: () => void;
   onBackdropClose: () => void;
 }
 
 export function ConnectionEditorOverlay({
   connectionId,
-  visibleMapLeftInset = 0,
-  visibleMapRightInset = 0,
   onClose,
   onBackdropClose,
 }: ConnectionEditorOverlayProps): React.JSX.Element | null {
@@ -143,18 +139,6 @@ export function ConnectionEditorOverlay({
     return null;
   }
 
-  const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
-  const panelWidth = Math.min(42 * 16, Math.max(viewportWidth - 32, 0));
-  const visibleViewportWidth = Math.max(viewportWidth - visibleMapLeftInset - visibleMapRightInset, 0);
-  const visiblePanelCenterX = viewportWidth === 0
-    ? panelWidth / 2
-    : visibleMapLeftInset + (visibleViewportWidth / 2);
-  const desiredPanelLeft = viewportWidth === 0
-    ? 16
-    : Math.min(
-      Math.max(visiblePanelCenterX - (panelWidth / 2), 16),
-      Math.max(viewportWidth - visibleMapRightInset - 16 - panelWidth, 16),
-    );
   const selectedAnnotationKind = draft.annotation?.kind ?? null;
   const annotationText = draft.annotation?.kind === 'text' ? draft.annotation.text ?? '' : '';
   const presetAnnotationKinds = CONNECTION_ANNOTATION_KINDS.filter((kind) => kind !== 'text');
@@ -170,10 +154,6 @@ export function ConnectionEditorOverlay({
         aria-label="Connection editor"
         data-testid="connection-editor-dialog"
         tabIndex={-1}
-        style={{
-          justifySelf: 'start',
-          marginLeft: `${desiredPanelLeft}px`,
-        }}
       >
         <form
           className="connection-editor-content"
@@ -325,8 +305,6 @@ export interface RoomEditorOverlayProps {
   roomId?: string;
   pseudoRoomId?: string;
   initialPosition?: Position;
-  visibleMapLeftInset?: number;
-  visibleMapRightInset?: number;
   theme: ThemeMode;
   onClose: (savedRoomId?: string) => void;
   onBackdropClose: () => void;
@@ -336,8 +314,6 @@ export function RoomEditorOverlay({
   roomId,
   pseudoRoomId,
   initialPosition,
-  visibleMapLeftInset = 0,
-  visibleMapRightInset = 0,
   theme,
   onClose,
   onBackdropClose,
@@ -457,20 +433,6 @@ export function RoomEditorOverlay({
     strokeColorIndex: draft.strokeColorIndex,
     strokeStyle: draft.strokeStyle,
   };
-  const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
-  const panelWidth = Math.min(42 * 16, Math.max(viewportWidth - 32, 0));
-  const panelHalfWidth = panelWidth / 2;
-  const visibleViewportWidth = Math.max(viewportWidth - visibleMapLeftInset - visibleMapRightInset, 0);
-  const visiblePanelCenterX = viewportWidth === 0
-    ? panelHalfWidth + 16
-    : visibleMapLeftInset + (visibleViewportWidth / 2);
-  const desiredPanelLeft = viewportWidth === 0
-    ? visiblePanelCenterX
-    : Math.min(
-      Math.max(visiblePanelCenterX - panelHalfWidth, 16),
-      Math.max(viewportWidth - visibleMapRightInset - 16 - panelWidth, 16),
-    );
-
   return (
     <div className="room-editor-overlay" data-testid="room-editor-overlay">
       <div className="room-editor-backdrop" aria-hidden="true" onClick={onBackdropClose} />
@@ -482,10 +444,6 @@ export function RoomEditorOverlay({
         aria-label="Room editor"
         data-testid="room-editor-dialog"
         tabIndex={-1}
-        style={{
-          justifySelf: 'start',
-          marginLeft: `${desiredPanelLeft}px`,
-        }}
       >
         <form
           className="room-editor-content"

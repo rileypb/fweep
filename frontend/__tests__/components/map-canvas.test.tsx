@@ -2183,6 +2183,7 @@ describe('MapCanvas', () => {
 
       expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
       expect(content).not.toHaveClass('map-canvas-content--animated');
+      expect(screen.getByTestId('room-editor-dialog')).not.toHaveAttribute('style');
     });
 
     it('opens the room editor overlay on double-click', async () => {
@@ -4041,7 +4042,7 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().selectedConnectionIds).toEqual([conn.id]);
     });
 
-    it('positions the connection editor in the visible horizontal center', () => {
+    it('does not offset the connection editor away from the true viewport center', () => {
       const doc = createEmptyMap('Test');
       const kitchen = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
       const hallway = { ...createRoom('Hallway'), position: { x: 240, y: 120 } };
@@ -4055,10 +4056,7 @@ describe('MapCanvas', () => {
 
       fireEvent.doubleClick(screen.getByTestId(`connection-hit-target-${conn.id}`));
 
-      expect(screen.getByTestId('connection-editor-dialog')).toHaveStyle({
-        justifySelf: 'start',
-        marginLeft: '296px',
-      });
+      expect(screen.getByTestId('connection-editor-dialog')).not.toHaveAttribute('style');
     });
 
     it('cancels the connection editor from the cancel button', async () => {

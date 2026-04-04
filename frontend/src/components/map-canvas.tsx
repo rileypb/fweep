@@ -2049,8 +2049,6 @@ export function MapCanvas({
           roomId={roomEditorId ?? undefined}
           pseudoRoomId={roomEditorState?.pseudoRoomId}
           initialPosition={roomEditorState.initialPosition}
-          visibleMapLeftInset={visibleMapLeftInset}
-          visibleMapRightInset={visibleMapRightInset}
           theme={theme}
           onClose={(savedRoomId) => {
             closeRoomEditor();
@@ -2065,8 +2063,6 @@ export function MapCanvas({
         <ConnectionEditorOverlay
           key={connectionEditorId}
           connectionId={connectionEditorId}
-          visibleMapLeftInset={visibleMapLeftInset}
-          visibleMapRightInset={visibleMapRightInset}
           onClose={closeConnectionEditor}
           onBackdropClose={closeConnectionEditorFromBackdrop}
         />
