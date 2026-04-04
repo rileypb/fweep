@@ -72,16 +72,6 @@ body {
   background-color: #111827;
 }
 
-body.app-shell--resizing-side-panel {
-  cursor: ew-resize;
-  user-select: none;
-}
-
-body.app-shell--resizing-side-panel-height {
-  cursor: ns-resize;
-  user-select: none;
-}
-
 .app-parchment-panel {
   position: fixed;
   left: var(--app-left-panel-offset);
@@ -92,62 +82,35 @@ body.app-shell--resizing-side-panel-height {
   pointer-events: none;
 }
 
-.app-parchment-panel__resize-handle {
+body.app-shell--resizing-side-panel-corner {
+  cursor: nesw-resize;
+  user-select: none;
+}
+
+.app-parchment-panel__resize-corner {
   pointer-events: auto;
   position: absolute;
-  left: -1rem;
+  right: 0;
   top: 0;
-  bottom: 0;
-  width: 1.4rem;
-  cursor: ew-resize;
+  width: 0.75rem;
+  height: 0.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: rgba(148, 163, 184, 0.95);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 1px -1px 0 rgba(15, 23, 42, 0.08);
+  color: inherit;
+  cursor: nesw-resize;
   outline: none;
   touch-action: none;
   user-select: none;
 }
 
-.app-parchment-panel__resize-handle--right {
-  left: auto;
-  right: -1rem;
-}
-
-.app-parchment-panel__resize-handle--height {
-  left: 0;
-  right: 0;
-  top: -1rem;
-  bottom: auto;
-  width: auto;
-  height: 1.4rem;
-  cursor: ns-resize;
-}
-
-.app-parchment-panel__resize-handle::before {
-  content: '';
-  position: absolute;
-  left: 0.4rem;
-  top: 50%;
-  width: 0.28rem;
-  height: 4rem;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 24%, transparent);
-}
-
-.app-parchment-panel__resize-handle--right::before {
-  left: auto;
-  right: 0.4rem;
-}
-
-.app-parchment-panel__resize-handle--height::before {
-  left: 50%;
-  top: 0.4rem;
-  width: 4rem;
-  height: 0.28rem;
-  transform: translateX(-50%);
-}
-
-.app-parchment-panel__resize-handle:hover::before,
-.app-parchment-panel__resize-handle:focus-visible::before {
-  background: color-mix(in srgb, currentColor 40%, transparent);
+.app-parchment-panel__resize-corner:hover,
+.app-parchment-panel__resize-corner:focus-visible {
+  background: rgba(100, 116, 139, 0.98);
 }
 
 .app-parchment-panel__frame {
@@ -480,11 +443,7 @@ body.app-shell--resizing-side-panel-height {
   background: #ffffff;
 }
 
-body.app-shell--resizing-side-panel .app-parchment-panel__iframe {
-  pointer-events: none;
-}
-
-body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
+body.app-shell--resizing-side-panel-corner .app-parchment-panel__iframe {
   pointer-events: none;
 }
 

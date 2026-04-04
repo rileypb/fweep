@@ -11,10 +11,13 @@ const mockSubmitCliCommandText = jest.fn<(command: string, options: {
   onOutputAppended?: (lines: readonly string[]) => void;
 }) => void>();
 const mockFlushDocumentSave = jest.fn<() => Promise<void>>();
-const mockBeginParchmentPanelResize = jest.fn<(pointerId: number, clientX: number, edge: 'left' | 'right') => void>();
-const mockBeginParchmentPanelHeightResize = jest.fn<(pointerId: number, clientY: number) => void>();
-const mockHandleParchmentPanelWidthResizeKeyDown = jest.fn<(event: KeyboardEvent, edge: 'left' | 'right') => void>();
-const mockHandleParchmentPanelHeightResizeKeyDown = jest.fn<(event: KeyboardEvent) => void>();
+const mockBeginParchmentPanelCornerResize = jest.fn<(
+  pointerId: number,
+  clientX: number,
+  clientY: number,
+  edge: 'left' | 'right',
+) => void>();
+const mockHandleParchmentPanelCornerResizeKeyDown = jest.fn<(event: KeyboardEvent, edge: 'left' | 'right') => void>();
 const mockHandleResetParchmentPanel = jest.fn<() => void>();
 const mockHandleOpenParchmentFileChooser = jest.fn<() => void>();
 const mockStartIfdbProxyHeartbeat = jest.fn<(ping: () => Promise<void>, target: Window) => () => void>();
@@ -126,10 +129,8 @@ await jest.unstable_mockModule('../../src/components/parchment-sidebar', async (
     deviceInputRef: { current: HTMLInputElement | null };
     iframeRef: { current: HTMLIFrameElement | null };
     searchInputRef: { current: HTMLInputElement | null };
-    onHeightResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
-    onHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
-    onWidthResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
-    onWidthResizeKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
+    onCornerResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
+    onCornerResizeKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
   }): React.JSX.Element {
     React.useEffect(() => {
       const iframe = document.createElement('iframe');
@@ -155,11 +156,8 @@ await jest.unstable_mockModule('../../src/components/parchment-sidebar', async (
 
     return (
       <div>
-        <button type="button" aria-label="Resize game panel height" onPointerDown={props.onHeightResizePointerDown} onKeyDown={props.onHeightResizeKeyDown}>
-          Height
-        </button>
-        <button type="button" aria-label="Resize game panel width" onPointerDown={props.onWidthResizePointerDown} onKeyDown={props.onWidthResizeKeyDown}>
-          Width
+        <button type="button" aria-label="Resize game panel" onPointerDown={props.onCornerResizePointerDown} onKeyDown={props.onCornerResizeKeyDown}>
+          Corner
         </button>
       </div>
     );
@@ -212,10 +210,8 @@ await jest.unstable_mockModule('../../src/hooks/use-parchment-panel', () => ({
     isParchmentGameViewVisible: mockParchmentGameViewVisible,
     deviceLinkLabel: 'Choose file',
     setIfdbSearchQuery: jest.fn<(value: string) => void>(),
-    beginParchmentPanelResize: mockBeginParchmentPanelResize,
-    beginParchmentPanelHeightResize: mockBeginParchmentPanelHeightResize,
-    handleParchmentPanelWidthResizeKeyDown: mockHandleParchmentPanelWidthResizeKeyDown,
-    handleParchmentPanelHeightResizeKeyDown: mockHandleParchmentPanelHeightResizeKeyDown,
+    beginParchmentPanelCornerResize: mockBeginParchmentPanelCornerResize,
+    handleParchmentPanelCornerResizeKeyDown: mockHandleParchmentPanelCornerResizeKeyDown,
     handleIfdbSearchSubmit: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleIfdbAuthorSearch: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     handleIfdbGameSelected: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
@@ -289,10 +285,8 @@ beforeEach(() => {
   mockCloseMap.mockReset();
   mockSubmitCliCommandText.mockReset();
   mockFlushDocumentSave.mockReset().mockResolvedValue(undefined);
-  mockBeginParchmentPanelResize.mockReset();
-  mockBeginParchmentPanelHeightResize.mockReset();
-  mockHandleParchmentPanelWidthResizeKeyDown.mockReset();
-  mockHandleParchmentPanelHeightResizeKeyDown.mockReset();
+  mockBeginParchmentPanelCornerResize.mockReset();
+  mockHandleParchmentPanelCornerResizeKeyDown.mockReset();
   mockHandleResetParchmentPanel.mockReset();
   mockHandleOpenParchmentFileChooser.mockReset();
   mockStartIfdbProxyHeartbeat.mockReset().mockReturnValue(() => undefined);
@@ -448,40 +442,24 @@ describe('App shell wiring', () => {
   it('forwards parchment resize pointer and keyboard handlers from the shell', () => {
     render(<App />);
 
-    const heightHandle = screen.getByRole('button', { name: /resize game panel height/i });
-    const widthHandle = screen.getByRole('button', { name: /resize game panel width/i });
-    const setHeightPointerCapture = jest.fn<(pointerId: number) => void>();
-    const setWidthPointerCapture = jest.fn<(pointerId: number) => void>();
-    Object.defineProperty(heightHandle, 'setPointerCapture', {
+    const cornerHandle = screen.getByRole('button', { name: /resize game panel/i });
+    const setPointerCapture = jest.fn<(pointerId: number) => void>();
+    Object.defineProperty(cornerHandle, 'setPointerCapture', {
       configurable: true,
-      value: setHeightPointerCapture,
-    });
-    Object.defineProperty(widthHandle, 'setPointerCapture', {
-      configurable: true,
-      value: setWidthPointerCapture,
+      value: setPointerCapture,
     });
 
-    const heightPointerDown = new Event('pointerdown', { bubbles: true, cancelable: true });
-    Object.defineProperties(heightPointerDown, {
+    const cornerPointerDown = new Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.defineProperties(cornerPointerDown, {
       pointerId: { configurable: true, value: 7 },
+      clientX: { configurable: true, value: 360 },
       clientY: { configurable: true, value: 280 },
     });
-    fireEvent(heightHandle, heightPointerDown);
+    fireEvent(cornerHandle, cornerPointerDown);
+    fireEvent.keyDown(cornerHandle, { key: 'ArrowUp' });
 
-    const widthPointerDown = new Event('pointerdown', { bubbles: true, cancelable: true });
-    Object.defineProperties(widthPointerDown, {
-      pointerId: { configurable: true, value: 9 },
-      clientX: { configurable: true, value: 360 },
-    });
-    fireEvent(widthHandle, widthPointerDown);
-    fireEvent.keyDown(heightHandle, { key: 'ArrowUp' });
-    fireEvent.keyDown(widthHandle, { key: 'ArrowLeft' });
-
-    expect(setHeightPointerCapture).toHaveBeenCalled();
-    expect(setWidthPointerCapture).toHaveBeenCalled();
-    expect(mockBeginParchmentPanelHeightResize).toHaveBeenCalledWith(7, 280);
-    expect(mockBeginParchmentPanelResize).toHaveBeenCalledWith(9, 360, 'left');
-    expect(mockHandleParchmentPanelHeightResizeKeyDown).toHaveBeenCalled();
-    expect(mockHandleParchmentPanelWidthResizeKeyDown).toHaveBeenCalledWith(expect.any(Object), 'left');
+    expect(setPointerCapture).toHaveBeenCalledWith(7);
+    expect(mockBeginParchmentPanelCornerResize).toHaveBeenCalledWith(7, 360, 280, 'left');
+    expect(mockHandleParchmentPanelCornerResizeKeyDown).toHaveBeenCalledWith(expect.any(Object), 'left');
   });
 });

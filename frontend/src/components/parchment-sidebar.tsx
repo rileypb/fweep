@@ -28,10 +28,8 @@ interface ParchmentSidebarProps {
   readonly onParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly onResetParchmentPanel: () => void;
   readonly onParchmentIframeLoad: () => void;
-  readonly onHeightResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
-  readonly onHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
-  readonly onWidthResizePointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
-  readonly onWidthResizeKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  readonly onCornerResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  readonly onCornerResizeKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
 }
 
 export function ParchmentSidebar({
@@ -61,47 +59,30 @@ export function ParchmentSidebar({
   onParchmentDeviceFileChange,
   onResetParchmentPanel,
   onParchmentIframeLoad,
-  onHeightResizePointerDown,
-  onHeightResizeKeyDown,
-  onWidthResizePointerDown,
-  onWidthResizeKeyDown,
+  onCornerResizePointerDown,
+  onCornerResizeKeyDown,
 }: ParchmentSidebarProps): React.JSX.Element {
   return (
     <div
       className="app-parchment-panel"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
-      <span id="parchment-panel-height-resize-help" className="sr-only">
-        Use Up and Down Arrow keys to resize the game panel height.
+      <span id="parchment-panel-corner-resize-help" className="sr-only">
+        Use Left and Right Arrow keys to resize the game panel width, and Up and Down Arrow keys to resize the game panel height.
       </span>
-      <span id="parchment-panel-width-resize-help" className="sr-only">
-        Use Left and Right Arrow keys to resize the game panel width.
-      </span>
-      <div
-        className="app-parchment-panel__resize-handle app-parchment-panel__resize-handle--height"
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label="Resize game panel height"
-        aria-describedby="parchment-panel-height-resize-help"
-        aria-valuemin={Math.round(minHeight)}
-        aria-valuemax={Math.round(maxHeight)}
-        aria-valuenow={Math.round(height)}
-        tabIndex={0}
-        onPointerDown={onHeightResizePointerDown}
-        onKeyDown={onHeightResizeKeyDown}
-      />
-      <div
-        className="app-parchment-panel__resize-handle app-parchment-panel__resize-handle--right"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize game panel width"
-        aria-describedby="parchment-panel-width-resize-help"
-        aria-valuemin={Math.round(minWidth)}
-        aria-valuemax={Math.round(maxWidth)}
-        aria-valuenow={Math.round(width)}
-        tabIndex={0}
-        onPointerDown={onWidthResizePointerDown}
-        onKeyDown={onWidthResizeKeyDown}
+      <button
+        type="button"
+        className="app-parchment-panel__resize-corner"
+        aria-label="Resize game panel"
+        aria-describedby="parchment-panel-corner-resize-help"
+        data-width-min={Math.round(minWidth)}
+        data-width-max={Math.round(maxWidth)}
+        data-width-now={Math.round(width)}
+        data-height-min={Math.round(minHeight)}
+        data-height-max={Math.round(maxHeight)}
+        data-height-now={Math.round(height)}
+        onPointerDown={onCornerResizePointerDown}
+        onKeyDown={onCornerResizeKeyDown}
       />
       <div className="app-parchment-panel__frame">
         <input

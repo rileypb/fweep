@@ -310,10 +310,8 @@ export function App(): React.JSX.Element {
     isParchmentGameViewVisible,
     deviceLinkLabel,
     setIfdbSearchQuery,
-    beginParchmentPanelResize,
-    beginParchmentPanelHeightResize,
-    handleParchmentPanelWidthResizeKeyDown,
-    handleParchmentPanelHeightResizeKeyDown,
+    beginParchmentPanelCornerResize,
+    handleParchmentPanelCornerResizeKeyDown,
     handleIfdbSearchSubmit,
     handleIfdbAuthorSearch,
     handleIfdbGameSelected,
@@ -931,23 +929,18 @@ export function App(): React.JSX.Element {
             }}
             onResetParchmentPanel={handleResetParchmentPanel}
             onParchmentIframeLoad={handleParchmentIframeLoad}
-            onHeightResizePointerDown={(event) => {
+            onCornerResizePointerDown={(event) => {
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
-              beginParchmentPanelHeightResize(event.pointerId, event.clientY);
-            }}
-            onHeightResizeKeyDown={handleParchmentPanelHeightResizeKeyDown}
-            onWidthResizePointerDown={(event) => {
-              event.preventDefault();
-              event.currentTarget.setPointerCapture(event.pointerId);
-              beginParchmentPanelResize(
+              beginParchmentPanelCornerResize(
                 event.pointerId,
                 event.clientX,
+                event.clientY,
                 'left',
               );
             }}
-            onWidthResizeKeyDown={(event) => {
-              handleParchmentPanelWidthResizeKeyDown(event, 'left');
+            onCornerResizeKeyDown={(event) => {
+              handleParchmentPanelCornerResizeKeyDown(event, 'left');
             }}
           />
         </>

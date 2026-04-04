@@ -511,46 +511,36 @@ describe('useParchmentPanel', () => {
     expect(result.current.ifdbSearchError).toBe('Parchment is not ready to open a local file yet.');
   });
 
-  it('resizes the panel with pointer and keyboard controls', () => {
+  it('resizes the panel with the corner pointer and keyboard controls', () => {
     const { result } = renderHook(() => useParchmentPanel(createOptions()));
     const startingWidth = result.current.parchmentPanelWidth;
     const startingHeight = result.current.parchmentPanelHeight;
 
     act(() => {
-      result.current.beginParchmentPanelResize(5, 500, 'right');
+      result.current.beginParchmentPanelCornerResize(5, 500, 500, 'right');
     });
-    expect(document.body.classList.contains('app-shell--resizing-side-panel')).toBe(true);
+    expect(document.body.classList.contains('app-shell--resizing-side-panel-corner')).toBe(true);
 
     act(() => {
       window.dispatchEvent(createPointerEvent('pointermove', 9, { clientX: 200 }));
     });
     expect(result.current.parchmentPanelWidth).toBe(startingWidth);
+    expect(result.current.parchmentPanelHeight).toBe(startingHeight);
 
     act(() => {
-      window.dispatchEvent(createPointerEvent('pointermove', 5, { clientX: 450 }));
+      window.dispatchEvent(createPointerEvent('pointermove', 5, { clientX: 450, clientY: 550 }));
     });
     expect(result.current.parchmentPanelWidth).not.toBe(startingWidth);
-
-    act(() => {
-      window.dispatchEvent(createPointerEvent('pointerup', 5, { clientX: 450 }));
-    });
-    expect(document.body.classList.contains('app-shell--resizing-side-panel')).toBe(false);
-
-    act(() => {
-      result.current.beginParchmentPanelHeightResize(7, 500);
-    });
-    expect(document.body.classList.contains('app-shell--resizing-side-panel-height')).toBe(true);
-
-    act(() => {
-      window.dispatchEvent(createPointerEvent('pointermove', 7, { clientY: 550 }));
-      window.dispatchEvent(createPointerEvent('pointerup', 7, { clientY: 550 }));
-    });
-    expect(document.body.classList.contains('app-shell--resizing-side-panel-height')).toBe(false);
     expect(result.current.parchmentPanelHeight).not.toBe(startingHeight);
+
+    act(() => {
+      window.dispatchEvent(createPointerEvent('pointerup', 5, { clientX: 450, clientY: 550 }));
+    });
+    expect(document.body.classList.contains('app-shell--resizing-side-panel-corner')).toBe(false);
 
     const preventWidthDefault = jest.fn();
     act(() => {
-      result.current.handleParchmentPanelWidthResizeKeyDown({
+      result.current.handleParchmentPanelCornerResizeKeyDown({
         key: 'ArrowLeft',
         preventDefault: preventWidthDefault,
       } as unknown as React.KeyboardEvent<HTMLElement>, 'left');
@@ -559,7 +549,7 @@ describe('useParchmentPanel', () => {
 
     const preventHeightDefault = jest.fn();
     act(() => {
-      result.current.handleParchmentPanelHeightResizeKeyDown({
+      result.current.handleParchmentPanelCornerResizeKeyDown({
         key: 'ArrowUp',
         preventDefault: preventHeightDefault,
       } as unknown as React.KeyboardEvent<HTMLElement>);
@@ -568,11 +558,7 @@ describe('useParchmentPanel', () => {
 
     const preventIgnoredDefault = jest.fn();
     act(() => {
-      result.current.handleParchmentPanelWidthResizeKeyDown({
-        key: 'Enter',
-        preventDefault: preventIgnoredDefault,
-      } as unknown as React.KeyboardEvent<HTMLElement>);
-      result.current.handleParchmentPanelHeightResizeKeyDown({
+      result.current.handleParchmentPanelCornerResizeKeyDown({
         key: 'Enter',
         preventDefault: preventIgnoredDefault,
       } as unknown as React.KeyboardEvent<HTMLElement>);
@@ -605,16 +591,16 @@ describe('useParchmentPanel', () => {
     expect(result.current.parchmentPanelHeight).toBe(800);
 
     act(() => {
-      result.current.beginParchmentPanelHeightResize(7, 500);
-      window.dispatchEvent(createPointerEvent('pointermove', 7, { clientY: -200 }));
-      window.dispatchEvent(createPointerEvent('pointerup', 7, { clientY: -200 }));
+      result.current.beginParchmentPanelCornerResize(7, 500, 500);
+      window.dispatchEvent(createPointerEvent('pointermove', 7, { clientX: 500, clientY: -200 }));
+      window.dispatchEvent(createPointerEvent('pointerup', 7, { clientX: 500, clientY: -200 }));
     });
 
     expect(result.current.parchmentPanelHeight).toBe(800);
 
     const preventDefault = jest.fn();
     act(() => {
-      result.current.handleParchmentPanelHeightResizeKeyDown({
+      result.current.handleParchmentPanelCornerResizeKeyDown({
         key: 'ArrowUp',
         preventDefault,
       } as unknown as React.KeyboardEvent<HTMLElement>);

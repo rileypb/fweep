@@ -5,15 +5,11 @@ import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
 import type { AssociatedGameMetadata } from '../domain/map-types';
 import {
   buildParchmentSrc,
-  clampParchmentPanelHeight,
   clampParchmentPanelHeightWithinInsets,
   clampParchmentPanelWidth,
-  getDefaultParchmentPanelHeight,
-  getNextParchmentPanelHeightFromKey,
   getNextParchmentPanelHeightFromKeyWithinInsets,
   getNextParchmentPanelWidthFromKey,
   getParchmentInstance,
-  loadStoredParchmentPanelHeight,
   loadStoredParchmentPanelHeightWithinInsets,
   loadStoredParchmentPanelWidth,
   PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS,
@@ -47,13 +43,16 @@ interface UseParchmentPanelResult {
   readonly isParchmentGameViewVisible: boolean;
   readonly deviceLinkLabel: string;
   readonly setIfdbSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  readonly beginParchmentPanelResize: (pointerId: number, pointerStartX: number, dockEdge?: 'left' | 'right') => void;
-  readonly beginParchmentPanelHeightResize: (pointerId: number, pointerStartY: number) => void;
-  readonly handleParchmentPanelWidthResizeKeyDown: (
+  readonly beginParchmentPanelCornerResize: (
+    pointerId: number,
+    pointerStartX: number,
+    pointerStartY: number,
+    dockEdge?: 'left' | 'right',
+  ) => void;
+  readonly handleParchmentPanelCornerResizeKeyDown: (
     event: React.KeyboardEvent<HTMLElement>,
     dockEdge?: 'left' | 'right',
   ) => void;
-  readonly handleParchmentPanelHeightResizeKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
   readonly handleIfdbSearchSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
   readonly handleIfdbAuthorSearch: (author: string) => Promise<void>;
   readonly handleIfdbGameSelected: (tuid: string) => Promise<void>;
@@ -161,8 +160,14 @@ export function useParchmentPanel({
     };
   }, [heightBottomInsetPx, heightTopInsetPx]);
 
-  const beginParchmentPanelResize = useCallback((pointerId: number, pointerStartX: number, dockEdge: 'left' | 'right' = 'right') => {
+  const beginParchmentPanelCornerResize = useCallback((
+    pointerId: number,
+    pointerStartX: number,
+    pointerStartY: number,
+    dockEdge: 'left' | 'right' = 'right',
+  ) => {
     const startWidth = parchmentPanelWidth;
+    const startHeight = parchmentPanelHeight;
     const directionMultiplier = dockEdge === 'left' ? -1 : 1;
 
     const handlePointerMove = (event: PointerEvent): void => {
@@ -174,7 +179,14 @@ export function useParchmentPanel({
         startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
         window.innerWidth,
       );
+      const nextHeight = clampParchmentPanelHeightWithinInsets(
+        startHeight + (pointerStartY - event.clientY),
+        window.innerHeight,
+        heightTopInsetPx,
+        heightBottomInsetPx,
+      );
       setParchmentPanelWidth(nextWidth);
+      setParchmentPanelHeight(nextHeight);
     };
 
     const finishResize = (event: PointerEvent): void => {
@@ -186,65 +198,30 @@ export function useParchmentPanel({
         startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
         window.innerWidth,
       );
+      const nextHeight = clampParchmentPanelHeightWithinInsets(
+        startHeight + (pointerStartY - event.clientY),
+        window.innerHeight,
+        heightTopInsetPx,
+        heightBottomInsetPx,
+      );
       setParchmentPanelWidth(nextWidth);
+      setParchmentPanelHeight(nextHeight);
       persistParchmentPanelWidth(nextWidth);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', finishResize);
-      window.removeEventListener('pointercancel', finishResize);
-      document.body.classList.remove('app-shell--resizing-side-panel');
-    };
-
-    document.body.classList.add('app-shell--resizing-side-panel');
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', finishResize);
-    window.addEventListener('pointercancel', finishResize);
-  }, [parchmentPanelWidth]);
-
-  const beginParchmentPanelHeightResize = useCallback((pointerId: number, pointerStartY: number) => {
-    const startHeight = parchmentPanelHeight;
-
-    const handlePointerMove = (event: PointerEvent): void => {
-      if (event.pointerId !== pointerId) {
-        return;
-      }
-
-      const nextHeight = clampParchmentPanelHeightWithinInsets(
-        startHeight + (pointerStartY - event.clientY),
-        window.innerHeight,
-        heightTopInsetPx,
-        heightBottomInsetPx,
-      );
-      setParchmentPanelHeight(nextHeight);
-    };
-
-    const finishResize = (event: PointerEvent): void => {
-      if (event.pointerId !== pointerId) {
-        return;
-      }
-
-      const nextHeight = clampParchmentPanelHeightWithinInsets(
-        startHeight + (pointerStartY - event.clientY),
-        window.innerHeight,
-        heightTopInsetPx,
-        heightBottomInsetPx,
-      );
-      setParchmentPanelHeight(nextHeight);
       persistParchmentPanelHeight(nextHeight);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', finishResize);
       window.removeEventListener('pointercancel', finishResize);
-      document.body.classList.remove('app-shell--resizing-side-panel-height');
+      document.body.classList.remove('app-shell--resizing-side-panel-corner');
     };
 
-    document.body.classList.add('app-shell--resizing-side-panel-height');
+    document.body.classList.add('app-shell--resizing-side-panel-corner');
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', finishResize);
     window.addEventListener('pointercancel', finishResize);
-  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight]);
+  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight, parchmentPanelWidth]);
 
   useEffect(() => () => {
-    document.body.classList.remove('app-shell--resizing-side-panel');
-    document.body.classList.remove('app-shell--resizing-side-panel-height');
+    document.body.classList.remove('app-shell--resizing-side-panel-corner');
   }, []);
 
   useEffect(() => () => {
@@ -476,7 +453,10 @@ export function useParchmentPanel({
     retryPendingParchmentLocalFileLoad(pendingLocalFile, PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS);
   }, [pendingLocalFile, retryPendingParchmentLocalFileLoad]);
 
-  const handleParchmentPanelHeightResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>): void => {
+  const handleParchmentPanelCornerResizeKeyDown = useCallback((
+    event: React.KeyboardEvent<HTMLElement>,
+    dockEdge: 'left' | 'right' = 'right',
+  ): void => {
     const nextHeight = getNextParchmentPanelHeightFromKeyWithinInsets(
       event.key,
       parchmentPanelHeight,
@@ -484,19 +464,13 @@ export function useParchmentPanel({
       heightTopInsetPx,
       heightBottomInsetPx,
     );
-    if (nextHeight === null) {
+    if (nextHeight !== null) {
+      event.preventDefault();
+      setParchmentPanelHeight(nextHeight);
+      persistParchmentPanelHeight(nextHeight);
       return;
     }
 
-    event.preventDefault();
-    setParchmentPanelHeight(nextHeight);
-    persistParchmentPanelHeight(nextHeight);
-  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight]);
-
-  const handleParchmentPanelWidthResizeKeyDown = useCallback((
-    event: React.KeyboardEvent<HTMLElement>,
-    dockEdge: 'left' | 'right' = 'right',
-  ): void => {
     const effectiveKey = dockEdge === 'left'
       ? event.key === 'ArrowLeft'
         ? 'ArrowRight'
@@ -512,7 +486,7 @@ export function useParchmentPanel({
     event.preventDefault();
     setParchmentPanelWidth(nextWidth);
     persistParchmentPanelWidth(nextWidth);
-  }, [parchmentPanelWidth]);
+  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight, parchmentPanelWidth]);
 
   return {
     parchmentPanelWidth,
@@ -526,10 +500,8 @@ export function useParchmentPanel({
     isParchmentGameViewVisible,
     deviceLinkLabel,
     setIfdbSearchQuery,
-    beginParchmentPanelResize,
-    beginParchmentPanelHeightResize,
-    handleParchmentPanelWidthResizeKeyDown,
-    handleParchmentPanelHeightResizeKeyDown,
+    beginParchmentPanelCornerResize,
+    handleParchmentPanelCornerResizeKeyDown,
     handleIfdbSearchSubmit,
     handleIfdbAuthorSearch,
     handleIfdbGameSelected,
