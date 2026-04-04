@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { applyThemePreference } from '../../src/domain/theme-mode';
 import { createEmptyMap } from '../../src/domain/map-types';
 import { useEditorStore } from '../../src/state/editor-store';
 
@@ -437,6 +438,29 @@ describe('App shell wiring', () => {
 
     expect(mockHandleResetParchmentPanel).toHaveBeenCalled();
     expect(mockHandleOpenParchmentFileChooser).not.toHaveBeenCalled();
+  });
+
+  it('syncs live theme changes into the parchment iframe document', async () => {
+    mockIframeContentDocument = document.implementation.createHTMLDocument('parchment');
+    render(<App />);
+
+    expect(mockIframeContentDocument).not.toBeNull();
+
+    act(() => {
+      applyThemePreference('dark');
+    });
+
+    await waitFor(() => {
+      expect(mockIframeContentDocument?.documentElement.getAttribute('data-theme')).toBe('dark');
+    });
+
+    act(() => {
+      applyThemePreference('light');
+    });
+
+    await waitFor(() => {
+      expect(mockIframeContentDocument?.documentElement.getAttribute('data-theme')).toBe('light');
+    });
   });
 
   it('forwards parchment resize pointer and keyboard handlers from the shell', () => {

@@ -8,6 +8,7 @@ import { ParchmentSidebar } from './components/parchment-sidebar';
 import { SnapToggle } from './components/snap-toggle';
 import { ThemeToggle } from './components/theme-toggle';
 import { STARTUP_TIPS, TipsDialog } from './components/tips-dialog';
+import { useDocumentTheme } from './components/map-canvas-helpers';
 import {
   getShortcutTitle,
   isUiShortcutPressed,
@@ -291,6 +292,7 @@ export function App(): React.JSX.Element {
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
+  const documentTheme = useDocumentTheme();
   const mapActionsContainerRef = useRef<HTMLDivElement | null>(null);
   const handleMapActionsContainerRef = useCallback((element: HTMLDivElement | null) => {
     mapActionsContainerRef.current = element;
@@ -355,6 +357,10 @@ export function App(): React.JSX.Element {
       window.location.origin,
     );
   }, [parchmentIframeRef]);
+  const syncParchmentTheme = useCallback((): void => {
+    const iframeDocument = parchmentIframeRef.current?.contentDocument;
+    iframeDocument?.documentElement?.setAttribute('data-theme', documentTheme);
+  }, [documentTheme]);
   const panelColumnLeft = hasOpenMap ? 68 : 16;
   const visibleMapLeftInset = typeof window === 'undefined'
     ? 0
@@ -379,6 +385,10 @@ export function App(): React.JSX.Element {
   const appShellStyle: CSSProperties = {
     '--app-left-panel-offset': `${panelColumnLeft}px`,
   } as CSSProperties;
+
+  useEffect(() => {
+    syncParchmentTheme();
+  }, [syncParchmentTheme]);
   const {
     submitCliCommandText,
     flushDocumentSave,
@@ -929,7 +939,10 @@ export function App(): React.JSX.Element {
               void handleParchmentDeviceFileChange(event);
             }}
             onResetParchmentPanel={handleResetParchmentPanel}
-            onParchmentIframeLoad={handleParchmentIframeLoad}
+            onParchmentIframeLoad={() => {
+              handleParchmentIframeLoad();
+              syncParchmentTheme();
+            }}
             onCornerResizePointerDown={(event) => {
               event.preventDefault();
               event.currentTarget.setPointerCapture(event.pointerId);
