@@ -170,25 +170,27 @@ describe('map-background-raster', () => {
   });
 
   it('returns an empty canvas from blobToCanvas when no 2d context is available', async () => {
-    const bitmap = { close: jest.fn<() => void>() };
+    const bitmap = { width: 512, height: 512, close: jest.fn<() => void>() };
     globalThis.createImageBitmap = (jest.fn(async () => bitmap) as unknown) as typeof createImageBitmap;
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 
     const canvas = await blobToCanvas(new Blob(['x'], { type: 'image/png' }));
-    expect(canvas.width).toBe(256);
-    expect(bitmap.close).not.toHaveBeenCalled();
+    expect(canvas.width).toBe(512);
+    expect(canvas.height).toBe(512);
+    expect(bitmap.close).toHaveBeenCalled();
   });
 
   it('draws and closes image bitmaps in blobToCanvas when a 2d context exists', async () => {
-    const bitmap = { close: jest.fn<() => void>() };
+    const bitmap = { width: 512, height: 512, close: jest.fn<() => void>() };
     const context = createMockContext();
     globalThis.createImageBitmap = (jest.fn(async () => bitmap) as unknown) as typeof createImageBitmap;
     jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
 
     const canvas = await blobToCanvas(new Blob(['x'], { type: 'image/png' }));
 
-    expect(canvas.width).toBe(256);
-    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 256, 256);
+    expect(canvas.width).toBe(512);
+    expect(canvas.height).toBe(512);
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 512, 512);
     expect(context.drawImage).toHaveBeenCalledWith(bitmap, 0, 0);
     expect(bitmap.close).toHaveBeenCalled();
   });

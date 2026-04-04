@@ -131,13 +131,14 @@ export function drawMapObstacleMask(
 }
 
 export async function blobToCanvas(blob: Blob): Promise<HTMLCanvasElement> {
-  const canvas = createRasterCanvas();
   if (typeof createImageBitmap !== 'function') {
-    return canvas;
+    return createRasterCanvas();
   }
   const bitmap = await createImageBitmap(blob);
+  const canvas = createSizedCanvas(bitmap.width, bitmap.height);
   const context = canvas.getContext('2d');
   if (!context) {
+    bitmap.close();
     return canvas;
   }
 
