@@ -128,7 +128,11 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("textarea.LineInput");
     expect(parchmentHtml).toContain("textarea.Input:not(.LineInput)");
     expect(parchmentHtml).toContain("Interactive fiction command input");
+    expect(parchmentHtml).toContain("var unfocusedLineInputPlaceholder = 'Press /';");
+    expect(parchmentHtml).toContain("var focusedLineInputPlaceholder = 'Start with \\\\ to map';");
     expect(parchmentHtml).toContain("setAttribute('aria-label', lineInputLabel)");
+    expect(parchmentHtml).toContain("updateLineInputPlaceholder(lineInput)");
+    expect(parchmentHtml).toContain("document.activeElement === lineInput");
     expect(parchmentHtml).toContain("[id^=\"window\"]");
     expect(parchmentHtml).toContain("target.focus()");
     expect(parchmentHtml).toContain("scrollOutputWindow");

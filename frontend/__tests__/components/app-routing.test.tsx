@@ -115,16 +115,19 @@ describe('URL routing', () => {
 
     const panel = screen.getByTestId('cli-help-panel');
     const toggle = screen.getByRole('button', { name: /expand cli help panel/i });
+    const body = document.getElementById('cli-help-panel-body');
 
     expect(panel).toHaveClass('cli-help-panel');
     expect(panel).not.toHaveClass('cli-help-panel--open');
     expect(screen.getByText('help')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(body).toHaveAttribute('inert');
 
     await user.click(toggle);
 
     expect(panel).toHaveClass('cli-help-panel--open');
     expect(screen.getByRole('button', { name: /collapse cli help panel/i })).toHaveAttribute('aria-expanded', 'true');
+    expect(body).not.toHaveAttribute('inert');
   });
 
   it('renders the CLI help outline as a collapsed tree and ignores from/to lines', async () => {

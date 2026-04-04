@@ -495,6 +495,7 @@ export function App(): React.JSX.Element {
     isParchmentGameViewVisible,
     parchmentIframeRef,
     parchmentSearchInputRef,
+    restoreParchmentGameInputFocus,
   });
 
   useEffect(() => {

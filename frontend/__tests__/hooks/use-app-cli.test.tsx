@@ -82,36 +82,7 @@ describe('useAppCli', () => {
     expect(result.current.hasUsedCliInput).toBe(false);
   });
 
-  it('focuses the CLI input on slash outside text editors and suppresses the paired slash toggle once', () => {
-    const options = createOptions(null);
-    const queuedMicrotasks: Array<() => void> = [];
-    const queueMicrotaskSpy = jest.spyOn(globalThis, 'queueMicrotask').mockImplementation((callback: VoidFunction) => {
-      queuedMicrotasks.push(callback);
-    });
-
-    const { result } = renderHook(() => useAppCli(options));
-    const cliInput = document.createElement('input');
-    cliInput.value = 'look';
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-
-    act(() => {
-      fireEvent.keyDown(window, { key: '/' });
-    });
-
-    expect(document.activeElement).toBe(cliInput);
-    expect(result.current.consumeCliSlashFocusSuppression()).toBe(true);
-    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
-
-    act(() => {
-      queuedMicrotasks.forEach((callback) => callback());
-    });
-
-    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
-    queueMicrotaskSpy.mockRestore();
-  });
-
-  it('does not hijack slash when focus is already inside a text-editing control', () => {
+  it('does not hijack slash or report slash suppression anymore', () => {
     const options = createOptions(null);
     const { result } = renderHook(() => useAppCli(options));
     const cliInput = document.createElement('input');
@@ -121,7 +92,7 @@ describe('useAppCli', () => {
     otherInput.focus();
 
     act(() => {
-      fireEvent.keyDown(otherInput, { key: '/' });
+      fireEvent.keyDown(window, { key: '/' });
     });
 
     expect(document.activeElement).toBe(otherInput);

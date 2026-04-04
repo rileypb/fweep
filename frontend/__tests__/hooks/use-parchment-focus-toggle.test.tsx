@@ -7,11 +7,13 @@ import { useParchmentFocusToggle } from '../../src/hooks/use-parchment-focus-tog
 interface HarnessProps {
   hasOpenMap?: boolean;
   isParchmentGameViewVisible?: boolean;
+  restoreParchmentGameInputFocus?: () => void;
 }
 
 function FocusHarness({
   hasOpenMap = true,
   isParchmentGameViewVisible = false,
+  restoreParchmentGameInputFocus,
 }: HarnessProps): ReactElement {
   const parchmentIframeRef = useRef<HTMLIFrameElement | null>(null);
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
@@ -21,6 +23,7 @@ function FocusHarness({
     isParchmentGameViewVisible,
     parchmentIframeRef,
     parchmentSearchInputRef,
+    restoreParchmentGameInputFocus,
   });
 
   return (
@@ -61,7 +64,13 @@ describe('useParchmentFocusToggle', () => {
   });
 
   it('focuses the parchment iframe when the game view is visible', () => {
-    render(<FocusHarness isParchmentGameViewVisible />);
+    const restoreParchmentGameInputFocus = jest.fn<() => void>();
+    render(
+      <FocusHarness
+        isParchmentGameViewVisible
+        restoreParchmentGameInputFocus={restoreParchmentGameInputFocus}
+      />,
+    );
 
     const iframe = screen.getByTitle(/interactive fiction player/i);
     const mapCanvas = screen.getByTestId('map-canvas');
@@ -72,6 +81,28 @@ describe('useParchmentFocusToggle', () => {
     });
 
     expect(document.activeElement).toBe(iframe);
+    expect(restoreParchmentGameInputFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses the parchment game input on plain slash from anywhere in the app', () => {
+    const restoreParchmentGameInputFocus = jest.fn<() => void>();
+    render(
+      <FocusHarness
+        isParchmentGameViewVisible
+        restoreParchmentGameInputFocus={restoreParchmentGameInputFocus}
+      />,
+    );
+
+    const outsideButton = screen.getByTestId('outside-button');
+    const iframe = screen.getByTitle(/interactive fiction player/i);
+    outsideButton.focus();
+
+    act(() => {
+      fireEvent.keyDown(window, { key: '/', code: 'Slash' });
+    });
+
+    expect(document.activeElement).toBe(iframe);
+    expect(restoreParchmentGameInputFocus).toHaveBeenCalledTimes(1);
   });
 
   it('registers the shortcut inside the iframe and returns focus to the main app', () => {

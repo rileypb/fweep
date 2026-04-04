@@ -265,6 +265,7 @@ export function CliHelpPanel({ isOpen, onToggle, onClose }: CliHelpPanelProps): 
         id="cli-help-panel-body"
         className="cli-help-panel__body"
         aria-hidden={!isOpen}
+        inert={!isOpen}
       >
         <section className="cli-help-panel__section cli-help-panel__section--tree" aria-label="Help tree panel">
           <ul className="cli-help-panel__tree-list">

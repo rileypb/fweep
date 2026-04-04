@@ -402,18 +402,15 @@ export function useAppCli({
   const [highlightedCliSuggestionIndex, setHighlightedCliSuggestionIndex] = useState(0);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
-  const suppressNextCliSlashToggleRef = useRef(false);
   const latestGameOutputLinesRef = useRef<readonly string[]>([]);
   const latestStoreDocRef = useRef<MapDocument | null>(null);
   const latestActiveMapRef = useRef<MapDocument | null>(activeMap);
-  const latestAreCliSuggestionsEnabledRef = useRef(areCliSuggestionsEnabled);
   const outputAppendListenerRef = useRef<((lines: readonly string[]) => void) | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSelectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   latestGameOutputLinesRef.current = gameOutputLines;
   latestStoreDocRef.current = storeDoc;
   latestActiveMapRef.current = activeMap;
-  latestAreCliSuggestionsEnabledRef.current = areCliSuggestionsEnabled;
   const hasOpenMap = activeMap !== null;
   const cliSuggestionResult = getCliSuggestions(cliCommand, cliCaretIndex, storeDoc);
   const cliSuggestions = cliSuggestionResult?.suggestions ?? [];
@@ -567,34 +564,6 @@ export function useAppCli({
 
     queueSave(currentDoc);
   }, [gameOutputLines]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== '/') {
-        return;
-      }
-
-      if (event.altKey || event.ctrlKey || event.metaKey) {
-        return;
-      }
-
-      if (isTextEditingElement(event.target)) {
-        return;
-      }
-
-      event.preventDefault();
-      suppressNextCliSlashToggleRef.current = true;
-      queueMicrotask(() => {
-        suppressNextCliSlashToggleRef.current = false;
-      });
-      focusCliInput(latestAreCliSuggestionsEnabledRef.current);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -1268,12 +1237,7 @@ export function useAppCli({
   };
 
   const consumeCliSlashFocusSuppression = () => {
-    if (!suppressNextCliSlashToggleRef.current) {
-      return false;
-    }
-
-    suppressNextCliSlashToggleRef.current = false;
-    return true;
+    return false;
   };
 
   const handleCliCaretChange = (caretIndex: number | null) => {

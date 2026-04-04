@@ -6,6 +6,7 @@ interface UseParchmentFocusToggleOptions {
   readonly isParchmentGameViewVisible: boolean;
   readonly parchmentIframeRef: React.RefObject<HTMLIFrameElement | null>;
   readonly parchmentSearchInputRef: React.RefObject<HTMLInputElement | null>;
+  readonly restoreParchmentGameInputFocus?: () => void;
 }
 
 export function useParchmentFocusToggle({
@@ -13,8 +14,17 @@ export function useParchmentFocusToggle({
   isParchmentGameViewVisible,
   parchmentIframeRef,
   parchmentSearchInputRef,
+  restoreParchmentGameInputFocus,
 }: UseParchmentFocusToggleOptions): void {
   const lastFocusedFweepElementRef = useRef<HTMLElement | null>(null);
+
+  const isPlainParchmentGameFocusShortcut = useCallback((event: KeyboardEvent): boolean => (
+    !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && !event.shiftKey
+    && event.code === PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY
+  ), []);
 
   const isParchmentFocusToggleShortcut = useCallback((event: KeyboardEvent): boolean => (
     (event.ctrlKey || event.metaKey)
@@ -56,10 +66,12 @@ export function useParchmentFocusToggle({
     }
 
     nextPanelTarget.focus();
-    if (!(nextPanelTarget instanceof HTMLIFrameElement)) {
+    if (nextPanelTarget instanceof HTMLIFrameElement) {
+      restoreParchmentGameInputFocus?.();
+    } else {
       nextPanelTarget.select();
     }
-  }, [isParchmentGameViewVisible, parchmentIframeRef, parchmentSearchInputRef]);
+  }, [isParchmentGameViewVisible, parchmentIframeRef, parchmentSearchInputRef, restoreParchmentGameInputFocus]);
 
   const handleParchmentFocusToggle = useCallback((event: KeyboardEvent): void => {
     if (!isParchmentFocusToggleShortcut(event)) {
@@ -95,6 +107,16 @@ export function useParchmentFocusToggle({
     }
 
     const handleKeyDown = (event: KeyboardEvent): void => {
+      if (isPlainParchmentGameFocusShortcut(event)) {
+        if (!isParchmentGameViewVisible) {
+          return;
+        }
+
+        event.preventDefault();
+        focusParchmentPanel();
+        return;
+      }
+
       if (!isParchmentFocusToggleShortcut(event)) {
         return;
       }
@@ -117,7 +139,15 @@ export function useParchmentFocusToggle({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [focusFweepMain, focusParchmentPanel, hasOpenMap, isParchmentFocusToggleShortcut, parchmentIframeRef]);
+  }, [
+    focusFweepMain,
+    focusParchmentPanel,
+    hasOpenMap,
+    isParchmentFocusToggleShortcut,
+    isPlainParchmentGameFocusShortcut,
+    isParchmentGameViewVisible,
+    parchmentIframeRef,
+  ]);
 
   useEffect(() => {
     if (!hasOpenMap) {
