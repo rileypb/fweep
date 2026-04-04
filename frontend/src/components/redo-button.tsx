@@ -1,4 +1,5 @@
 import { useEditorStore } from '../state/editor-store';
+import { getShortcutTitle, UI_SHORTCUTS } from './ui-shortcuts';
 
 const ARROW_ROTATE_RIGHT_PATH = 'M500.7 138.7L512 149.4L512 96C512 78.3 526.3 64 544 64C561.7 64 576 78.3 576 96L576 224C576 241.7 561.7 256 544 256L416 256C398.3 256 384 241.7 384 224C384 206.3 398.3 192 416 192L463.9 192L456.3 184.8C456.1 184.6 455.9 184.4 455.7 184.2C380.7 109.2 259.2 109.2 184.2 184.2C109.2 259.2 109.2 380.7 184.2 455.7C259.2 530.7 380.7 530.7 455.7 455.7C463.9 447.5 471.2 438.8 477.6 429.6C487.7 415.1 507.7 411.6 522.2 421.7C536.7 431.8 540.2 451.8 530.1 466.3C521.6 478.5 511.9 490.1 501 501C401 601 238.9 601 139 501C39.1 401 39 239 139 139C238.9 39.1 400.7 39 500.7 138.7z';
 
@@ -11,7 +12,9 @@ export function RedoButton(): React.JSX.Element {
       className={`app-control-button${canRedo ? ' app-control-button--active-history' : ''}`}
       onClick={redo}
       aria-label="Redo"
-      title="Redo"
+      aria-keyshortcuts={UI_SHORTCUTS.redo.ariaKeyShortcuts}
+      data-shortcut={UI_SHORTCUTS.redo.display}
+      title={getShortcutTitle('Redo', UI_SHORTCUTS.redo)}
       type="button"
       disabled={!canRedo}
     >

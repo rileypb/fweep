@@ -31,10 +31,22 @@ export const UI_SHORTCUTS = {
   exportPng: createAltShiftShortcut('e'),
   resetGamePanel: createAltShiftShortcut('r'),
   openStoryFile: createAltShiftShortcut('f'),
+  undo: {
+    key: 'z',
+    code: 'KeyZ',
+    display: 'Cmd/Ctrl+Z',
+    ariaKeyShortcuts: 'Meta+Z Control+Z',
+  },
+  redo: {
+    key: 'z',
+    code: 'KeyZ',
+    display: 'Cmd+Shift+Z / Ctrl+Y',
+    ariaKeyShortcuts: 'Meta+Shift+Z Control+Shift+Z Control+Y',
+  },
 } as const satisfies Record<string, UiShortcutSpec>;
 
-export function getShortcutTitle(label: string, shortcut: UiShortcutSpec): string {
-  return label;
+export function getShortcutTitle(_label: string, _shortcut: UiShortcutSpec): string | undefined {
+  return undefined;
 }
 
 export function isUiShortcutPressed(
@@ -75,4 +87,6 @@ export const HELP_SHORTCUT_ITEMS = [
   `Export PNG: \`${UI_SHORTCUTS.exportPng.display}\``,
   `Reset game panel: \`${UI_SHORTCUTS.resetGamePanel.display}\``,
   `Open story file: \`${UI_SHORTCUTS.openStoryFile.display}\``,
+  `Undo: \`${UI_SHORTCUTS.undo.display}\``,
+  `Redo: \`${UI_SHORTCUTS.redo.display}\``,
 ] as const;

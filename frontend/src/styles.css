@@ -200,14 +200,38 @@ body.app-shell--resizing-side-panel-corner {
   position: relative;
 }
 
+.app-control-button[data-shortcut]::before,
+.app-parchment-panel__reset-button[data-shortcut]::before,
+.app-parchment-panel__device-link[data-shortcut]::before {
+  content: attr(aria-label);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 1.85rem);
+  bottom: auto;
+  transform: translate(-50%, -0.2rem);
+  padding: 0.28rem 0.5rem;
+  border-radius: 0.5rem;
+  background: rgba(17, 24, 39, 0.96);
+  color: #f9fafb;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 60;
+}
+
 .app-control-button[data-shortcut]::after,
 .app-parchment-panel__reset-button[data-shortcut]::after,
 .app-parchment-panel__device-link[data-shortcut]::after {
   content: attr(data-shortcut);
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 0.45rem);
-  transform: translate(-50%, 0.2rem);
+  top: calc(100% + 0.45rem);
+  bottom: auto;
+  transform: translate(-50%, -0.2rem);
   padding: 0.2rem 0.45rem;
   border-radius: 0.45rem;
   background: rgba(17, 24, 39, 0.92);
@@ -220,9 +244,15 @@ body.app-shell--resizing-side-panel-corner {
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms ease, transform 140ms ease;
-  z-index: 40;
+  z-index: 60;
 }
 
+.app-control-button[data-shortcut]:hover::before,
+.app-control-button[data-shortcut]:focus-visible::before,
+.app-parchment-panel__reset-button[data-shortcut]:hover::before,
+.app-parchment-panel__reset-button[data-shortcut]:focus-visible::before,
+.app-parchment-panel__device-link[data-shortcut]:hover::before,
+.app-parchment-panel__device-link[data-shortcut]:focus-visible::before,
 .app-control-button[data-shortcut]:hover::after,
 .app-control-button[data-shortcut]:focus-visible::after,
 .app-parchment-panel__reset-button[data-shortcut]:hover::after,
@@ -231,6 +261,33 @@ body.app-shell--resizing-side-panel-corner {
 .app-parchment-panel__device-link[data-shortcut]:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+.app-top-bar--left .app-control-button[data-shortcut]::before,
+.app-controls--settings .app-control-button[data-shortcut]::before {
+  left: calc(100% + 0.45rem);
+  top: calc(50% - 0.7rem);
+  bottom: auto;
+  transform: translate(0, -50%);
+}
+
+.app-top-bar--left .app-control-button[data-shortcut]::after,
+.app-controls--settings .app-control-button[data-shortcut]::after {
+  left: calc(100% + 0.45rem);
+  top: calc(50% + 0.7rem);
+  bottom: auto;
+  transform: translate(0, -50%);
+}
+
+.app-top-bar--left .app-control-button[data-shortcut]:hover::before,
+.app-top-bar--left .app-control-button[data-shortcut]:focus-visible::before,
+.app-controls--settings .app-control-button[data-shortcut]:hover::before,
+.app-controls--settings .app-control-button[data-shortcut]:focus-visible::before,
+.app-top-bar--left .app-control-button[data-shortcut]:hover::after,
+.app-top-bar--left .app-control-button[data-shortcut]:focus-visible::after,
+.app-controls--settings .app-control-button[data-shortcut]:hover::after,
+.app-controls--settings .app-control-button[data-shortcut]:focus-visible::after {
+  transform: translate(0, -50%);
 }
 
 .app-parchment-panel__device-input {
@@ -1064,7 +1121,7 @@ body.app-shell--resizing-side-panel-corner .app-parchment-panel__iframe {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.5rem;
-  z-index: 7;
+  z-index: 12;
 }
 
 .app-top-bar {

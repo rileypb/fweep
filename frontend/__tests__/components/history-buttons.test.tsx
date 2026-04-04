@@ -24,6 +24,8 @@ describe('history buttons', () => {
 
     expect(screen.getByRole('button', { name: /undo/i })).not.toHaveClass('app-control-button--active-history');
     expect(screen.getByRole('button', { name: /redo/i })).not.toHaveClass('app-control-button--active-history');
+    expect(screen.getByRole('button', { name: /undo/i })).toHaveAttribute('data-shortcut', 'Cmd/Ctrl+Z');
+    expect(screen.getByRole('button', { name: /redo/i })).toHaveAttribute('data-shortcut', 'Cmd+Shift+Z / Ctrl+Y');
   });
 
   it('highlights undo when there is undo history', () => {
