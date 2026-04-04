@@ -3018,7 +3018,7 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   padding: 1.25rem;
   border: 1px solid rgba(99, 102, 241, 0.25);
   border-radius: 0.875rem;
-  background: rgba(255, 255, 255, 0.55);
+  background: #ffffff;
   color: #111827;
   box-shadow: 6px 6px 6px rgba(15, 23, 42, 0.22);
 }
@@ -3033,20 +3033,20 @@ body.app-shell--resizing-side-panel-height .app-parchment-panel__iframe {
   padding: 1.25rem;
   border: 1px solid rgba(99, 102, 241, 0.25);
   border-radius: 0.875rem;
-  background: rgba(255, 255, 255, 0.72);
+  background: #ffffff;
   color: #111827;
   box-shadow: 6px 6px 6px rgba(15, 23, 42, 0.22);
 }
 
 :root[data-theme='dark'] .room-editor-panel {
-  background: rgba(15, 23, 42, 0.55);
+  background: #0f172a;
   color: #f3f4f6;
   border-color: rgba(129, 140, 248, 0.28);
   box-shadow: 6px 6px 6px rgba(0, 0, 0, 0.42);
 }
 
 :root[data-theme='dark'] .connection-editor-panel {
-  background: rgba(15, 23, 42, 0.72);
+  background: #0f172a;
   color: #f3f4f6;
   border-color: rgba(129, 140, 248, 0.28);
   box-shadow: 6px 6px 6px rgba(0, 0, 0, 0.42);

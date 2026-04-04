@@ -283,6 +283,7 @@ export function App(): React.JSX.Element {
   const [startupTipIndex, setStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [nextStartupTipIndex, setNextStartupTipIndex] = useState(() => loadStartupTipIndex(STARTUP_TIPS.length));
   const [hasDesktopViewport, setHasDesktopViewport] = useState(isDesktopViewport);
+  const [mapActionsContainer, setMapActionsContainer] = useState<HTMLDivElement | null>(null);
   const [requestedRoomEditorRequest, setRequestedRoomEditorRequest] = useState<RoomUiRequest | null>(null);
   const [requestedRoomRevealRequest, setRequestedRoomRevealRequest] = useState<RoomUiRequest | null>(null);
   const [requestedViewportFocusRequest, setRequestedViewportFocusRequest] = useState<ViewportFocusRequest | null>(null);
@@ -291,6 +292,10 @@ export function App(): React.JSX.Element {
   const parchmentSearchInputRef = useRef<HTMLInputElement | null>(null);
   const parchmentDeviceInputRef = useRef<HTMLInputElement | null>(null);
   const mapActionsContainerRef = useRef<HTMLDivElement | null>(null);
+  const handleMapActionsContainerRef = useCallback((element: HTMLDivElement | null) => {
+    mapActionsContainerRef.current = element;
+    setMapActionsContainer(element);
+  }, []);
   const previousTipsMapIdRef = useRef<string | null>(null);
   const hasOpenMap = activeMap !== null;
   const {
@@ -805,7 +810,7 @@ export function App(): React.JSX.Element {
                 <span className="app-map-name-chip__game-title">{associatedGame.title}</span>
               ) : null}
             </div>
-            <div ref={mapActionsContainerRef} className="app-top-bar__actions" />
+            <div ref={handleMapActionsContainerRef} className="app-top-bar__actions" />
           </div>
         </>
       )}
@@ -976,7 +981,7 @@ export function App(): React.JSX.Element {
         <MapCanvas
           key={activeMap.metadata.id}
           mapName={activeMap.metadata.name}
-          actionsContainer={mapActionsContainerRef.current}
+          actionsContainer={mapActionsContainer}
           onBack={() => {
             void handleCloseMap();
           }}

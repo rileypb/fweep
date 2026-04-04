@@ -211,6 +211,31 @@ describe('URL routing', () => {
     expect(screen.getByRole('button', { name: /import from file/i })).toBeInTheDocument();
   });
 
+  it('restores the top action row to the top bar after returning from the desktop-only screen', async () => {
+    await renderAppWithOpenMap('Resize Return Map');
+
+    expect(document.querySelector('.app-top-bar__actions [aria-label="Export PNG"]')).not.toBeNull();
+    expect(document.querySelector('.map-canvas-actions:not(.map-canvas-actions--top-bar)')).toBeNull();
+
+    act(() => {
+      setViewportWidth(959);
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(screen.getByRole('heading', { name: /optimized for desktop/i })).toBeInTheDocument();
+
+    act(() => {
+      setViewportWidth(1024);
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    await screen.findByLabelText('Map name: Resize Return Map');
+    await waitFor(() => {
+      expect(document.querySelector('.app-top-bar__actions [aria-label="Export PNG"]')).not.toBeNull();
+    });
+    expect(document.querySelector('.map-canvas-actions:not(.map-canvas-actions--top-bar)')).toBeNull();
+  });
+
   it('shows only the chooser/search panel when no game is active', async () => {
     await renderAppWithOpenMap('IFDB Panel Map');
 
