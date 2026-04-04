@@ -1840,8 +1840,8 @@ describe('MapCanvas', () => {
       fireEvent.keyDown(canvas, { key: 'Enter' });
 
       expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
-      expect(content.style.transform).toBe('translate(368px, -120px) scale(1)');
-      expect(content).toHaveClass('map-canvas-content--animated');
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+      expect(content).not.toHaveClass('map-canvas-content--animated');
     });
 
     it('opens the room editor from the window Enter handler when focus has moved to the minimap', () => {
@@ -2143,7 +2143,7 @@ describe('MapCanvas', () => {
       return screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement;
     }
 
-    it('pans the map to place the edited room in the visible horizontal center and about one third from the top', async () => {
+    it('does not pan the map when opening the editor for an existing room', async () => {
       const user = userEvent.setup();
       const room = { ...createRoom('Kitchen'), position: { x: 40, y: 320 } };
       const doc = addRoom(createEmptyMap('Test'), room);
@@ -2181,12 +2181,8 @@ describe('MapCanvas', () => {
 
       await user.dblClick(roomNode);
 
-      expect(content.style.transform).toBe('translate(488px, -120px) scale(1)');
-      expect(content).toHaveClass('map-canvas-content--animated');
-      expect(screen.getByTestId('room-editor-dialog')).toHaveStyle({
-        justifySelf: 'start',
-        marginLeft: '296px',
-      });
+      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
+      expect(content).not.toHaveClass('map-canvas-content--animated');
     });
 
     it('opens the room editor overlay on double-click', async () => {

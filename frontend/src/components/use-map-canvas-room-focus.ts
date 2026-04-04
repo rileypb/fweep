@@ -99,21 +99,11 @@ export function useMapCanvasRoomFocus({
     }));
   }, [canvasRef, mapVisualStyle, panOffsetRef, setPanOffset, startAutoPanAnimation, visibleMapLeftInset, visibleMapRightInset, zoomRef]);
 
-  const panToRoomEditorPosition = useCallback((roomId: string) => {
-    const room = useEditorStore.getState().doc?.rooms[roomId];
-    if (!room) {
-      return;
-    }
-
-    panToRoomEditorPositionForRoom(room);
-  }, [panToRoomEditorPositionForRoom]);
-
   const openRoomEditor = useCallback((roomId: string) => {
     setStickyNoteEditorId(null);
     setConnectionEditorId(null);
-    panToRoomEditorPosition(roomId);
     setRoomEditorState({ roomId });
-  }, [panToRoomEditorPosition, setConnectionEditorId, setRoomEditorState, setStickyNoteEditorId]);
+  }, [setConnectionEditorId, setRoomEditorState, setStickyNoteEditorId]);
 
   const openPseudoRoomEditor = useCallback((pseudoRoomId: string) => {
     setStickyNoteEditorId(null);

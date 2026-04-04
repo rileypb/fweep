@@ -111,8 +111,8 @@ describe('useMapCanvasRoomFocus', () => {
 
     expect(options.setStickyNoteEditorId).toHaveBeenCalledWith(null);
     expect(options.setConnectionEditorId).toHaveBeenCalledWith(null);
-    expect(options.startAutoPanAnimation).toHaveBeenCalled();
-    expect(options.setPanOffset).toHaveBeenCalledWith(expect.any(Function));
+    expect(options.startAutoPanAnimation).not.toHaveBeenCalled();
+    expect(options.setPanOffset).not.toHaveBeenCalled();
     expect(options.setRoomEditorState).toHaveBeenCalledWith({ roomId: room.id });
 
     act(() => {
@@ -123,22 +123,22 @@ describe('useMapCanvasRoomFocus', () => {
     act(() => {
       result.current.openNewRoomEditor({ x: 240, y: 300 });
     });
+    expect(options.startAutoPanAnimation).toHaveBeenCalledTimes(1);
+    expect(options.setPanOffset).toHaveBeenCalledWith(expect.any(Function));
     expect(options.setRoomEditorState).toHaveBeenCalledWith({ initialPosition: { x: 240, y: 300 } });
   });
 
-  it('does not pan room editors when the canvas or room is unavailable', () => {
-    const options = createHookOptions({
-      canvasRef: { current: null },
-    });
+  it('does not pan existing-room editors', () => {
+    const options = createHookOptions();
     const { result } = renderHook(() => useMapCanvasRoomFocus(options));
 
     act(() => {
-      result.current.openRoomEditor('missing-room');
+      result.current.openRoomEditor('kitchen');
     });
 
     expect(options.startAutoPanAnimation).not.toHaveBeenCalled();
     expect(options.setPanOffset).not.toHaveBeenCalled();
-    expect(options.setRoomEditorState).toHaveBeenCalledWith({ roomId: 'missing-room' });
+    expect(options.setRoomEditorState).toHaveBeenCalledWith({ roomId: 'kitchen' });
   });
 
   it('centers a single room on screen and syncs both pan setters', () => {
@@ -228,11 +228,14 @@ describe('useMapCanvasRoomFocus', () => {
       },
     );
 
+    expect(useEditorStore.getState().doc?.rooms[room.id]).toBeDefined();
+
     const revealOptions = createHookOptions({
       requestedRoomRevealRequest: { roomId: room.id, requestId: 12 },
     });
     rerender(revealOptions);
 
+    expect(revealOptions.onRequestedRoomEditorHandled).not.toHaveBeenCalled();
     expect(revealOptions.onRequestedRoomRevealHandled).toHaveBeenCalledWith(12);
     expect(revealOptions.setMapPanOffset).toHaveBeenCalledWith({ x: 120, y: 110 });
 
@@ -243,6 +246,30 @@ describe('useMapCanvasRoomFocus', () => {
 
     expect(missingRevealOptions.onRequestedRoomRevealHandled).toHaveBeenCalledWith(13);
     expect(missingRevealOptions.setMapPanOffset).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges room-editor requests without panning the viewport', () => {
+    const doc = createEmptyMap('Request Map');
+    const room = { ...createRoom('Kitchen'), id: 'kitchen', position: { x: 100, y: 80 } };
+    useEditorStore.setState((state) => ({
+      ...state,
+      doc: {
+        ...doc,
+        rooms: { [room.id]: room },
+      },
+    }));
+
+    const options = createHookOptions({
+      requestedRoomEditorRequest: { roomId: room.id, requestId: 11 },
+    });
+
+    renderHook(() => useMapCanvasRoomFocus(options));
+
+    expect(options.onRequestedRoomEditorHandled).toHaveBeenCalledWith(11);
+    expect(options.startAutoPanAnimation).not.toHaveBeenCalled();
+    expect(options.setPanOffset).not.toHaveBeenCalled();
+    expect(options.setMapPanOffset).not.toHaveBeenCalled();
+    expect(options.setRoomEditorState).toHaveBeenCalledWith({ roomId: room.id });
   });
 
   it('focuses one or many requested rooms and ignores missing ones', () => {
