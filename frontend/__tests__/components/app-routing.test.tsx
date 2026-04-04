@@ -160,6 +160,42 @@ describe('URL routing', () => {
     expect(screen.getByText('↓')).toBeInTheDocument();
   });
 
+  it('collapses the CLI help panel when Escape is pressed from a focused descendant', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Escape Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+    await user.click(screen.getByText('Creating rooms', { selector: '.cli-help-panel__tree-label span' }));
+
+    const exampleButton = screen.getByRole('button', { name: /create kitchen/i });
+    exampleButton.focus();
+    expect(exampleButton).toHaveFocus();
+
+    fireEvent.keyDown(exampleButton, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cli-help-panel')).not.toHaveClass('cli-help-panel--open');
+    });
+    expect(screen.getByRole('button', { name: /expand cli help panel/i })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('collapses the CLI help panel when Escape is pressed while the panel itself is focused', async () => {
+    const user = userEvent.setup();
+    await renderAppWithOpenMap('CLI Help Panel Focus Map');
+
+    await user.click(screen.getByRole('button', { name: /expand cli help panel/i }));
+
+    const panel = screen.getByTestId('cli-help-panel');
+    panel.focus();
+    expect(panel).toHaveFocus();
+
+    fireEvent.keyDown(panel, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(panel).not.toHaveClass('cli-help-panel--open');
+    });
+  });
+
   it('returns to the normal app when the viewport grows back to desktop width', async () => {
     setViewportWidth(959);
     renderApp();

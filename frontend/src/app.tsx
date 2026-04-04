@@ -889,6 +889,7 @@ export function App(): React.JSX.Element {
           <CliHelpPanel
             isOpen={isCliHelpPanelOpen}
             onToggle={() => setIsCliHelpPanelOpen((current) => !current)}
+            onClose={() => setIsCliHelpPanelOpen(false)}
           />
           <ParchmentSidebar
             deviceInputRef={parchmentDeviceInputRef}

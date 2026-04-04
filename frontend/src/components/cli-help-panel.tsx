@@ -191,9 +191,10 @@ function CliHelpTreeNode(
 interface CliHelpPanelProps {
   readonly isOpen: boolean;
   readonly onToggle: () => void;
+  readonly onClose: () => void;
 }
 
-export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX.Element {
+export function CliHelpPanel({ isOpen, onToggle, onClose }: CliHelpPanelProps): React.JSX.Element {
   const outlineTree = useMemo(() => parseCliHelpOutline(cliHelpOutlineMarkdown), []);
   const [selectedImageNodeId, setSelectedImageNodeId] = useState<string | null>(null);
   const selectedImageNode = useMemo(() => {
@@ -225,6 +226,16 @@ export function CliHelpPanel({ isOpen, onToggle }: CliHelpPanelProps): React.JSX
       className={`cli-help-panel${isOpen ? ' cli-help-panel--open' : ''}`}
       aria-label="CLI help panel"
       data-testid="cli-help-panel"
+      tabIndex={-1}
+      onKeyDownCapture={(event) => {
+        if (!isOpen || event.key !== 'Escape') {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }}
     >
       <div className="cli-help-panel__header">
         <button
