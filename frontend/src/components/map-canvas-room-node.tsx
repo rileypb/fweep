@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import { normalizeDirection } from '../domain/directions';
 import { type Item, type MapVisualStyle, type Room, type RoomShape } from '../domain/map-types';
+import { getCollapsedRoomItemNames } from '../domain/room-item-display';
 import { getHandleOffset } from '../graph/connection-geometry';
 import { getRoomLabelLayout } from '../graph/room-label-geometry';
 import { getRoomNodeDimensions } from '../graph/room-label-geometry';
@@ -183,7 +184,7 @@ export function MapCanvasRoomNode({
   const roomLabelColor = getRoomLabelColor(theme);
   const roomFill = getRoomFillColor(room.fillColorIndex, theme);
   const roomStroke = getRoomStrokeColor(room.strokeColorIndex, theme);
-  const visibleItemNames = roomItems.slice(0, 3).map((item) => item.name);
+  const visibleItemNames = getCollapsedRoomItemNames(roomItems);
   const hiddenItemCount = Math.max(0, roomItems.length - visibleItemNames.length);
   const shownItemNames = areItemsExpanded ? roomItems.map((item) => item.name) : visibleItemNames;
   const showRoomName = zoom > ROOM_NAME_VISIBILITY_THRESHOLD;

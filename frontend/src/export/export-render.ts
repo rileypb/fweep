@@ -1,4 +1,5 @@
 import { BACKGROUND_LAYER_CHUNK_SIZE, type Connection, type Item, type Room, type StickyNote, type StickyNoteLink } from '../domain/map-types';
+import { getCollapsedRoomItemNames } from '../domain/room-item-display';
 import {
   CONNECTION_DOOR_ICON_SIZE,
   CONNECTION_LOCKED_DOOR_ICON_SIZE,
@@ -270,7 +271,7 @@ function drawRoomItems(
   }
 
   const dimensions = getRoomNodeDimensions(room, visualStyle);
-  const visibleItemNames = roomItems.slice(0, 3).map((item) => item.name);
+  const visibleItemNames = getCollapsedRoomItemNames(roomItems);
   const hiddenItemCount = Math.max(0, roomItems.length - visibleItemNames.length);
   const itemLabelLines = hiddenItemCount > 0
     ? [...visibleItemNames, `+${hiddenItemCount} more`]

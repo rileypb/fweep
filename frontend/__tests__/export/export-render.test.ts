@@ -836,6 +836,28 @@ describe('renderExportCanvas', () => {
     expect(context.fillText).toHaveBeenCalledWith('key', expect.any(Number), expect.any(Number));
   });
 
+  it('renders the fourth exported room item instead of a +1 more label', async () => {
+    const context = createFakeContext();
+    const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;
+    mockCreateSizedCanvas.mockReturnValue(canvas);
+
+    const room = { ...createRoom('Kitchen'), id: 'room-kitchen', position: { x: 40, y: 60 } };
+    let doc = createEmptyMap('Export Four Items');
+    doc = addRoom(doc, room);
+    doc = addItem(doc, { ...createItem('lantern', room.id), id: 'item-lantern' });
+    doc = addItem(doc, { ...createItem('key', room.id), id: 'item-key' });
+    doc = addItem(doc, { ...createItem('rope', room.id), id: 'item-rope' });
+    doc = addItem(doc, { ...createItem('apple', room.id), id: 'item-apple' });
+
+    await renderExportCanvas({
+      ...createBaseInput(),
+      doc,
+    });
+
+    expect(context.fillText).toHaveBeenCalledWith('apple', expect.any(Number), expect.any(Number));
+    expect(context.fillText).not.toHaveBeenCalledWith('+1 more', expect.any(Number), expect.any(Number));
+  });
+
   it('renders a padlock glyph for locked rooms and uses light-theme keyhole colors', async () => {
     const context = createFakeContext();
     const canvas = { getContext: jest.fn().mockReturnValue(context) } as unknown as HTMLCanvasElement;

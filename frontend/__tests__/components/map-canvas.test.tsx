@@ -281,25 +281,28 @@ describe('MapCanvas', () => {
     doc = addItem(doc, createItem('Brass Key', room.id));
     doc = addItem(doc, createItem('Rope', room.id));
     doc = addItem(doc, createItem('Apple', room.id));
+    doc = addItem(doc, createItem('Map', room.id));
     loadDocumentAct(doc);
 
     renderMapCanvas();
 
     expect(screen.queryByText('Apple')).not.toBeInTheDocument();
+    expect(screen.queryByText('Map')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '+1 more' }));
+    await user.click(screen.getByRole('button', { name: '+2 more' }));
 
     expect(screen.getByText('Apple')).toBeInTheDocument();
+    expect(screen.getByText('Map')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show fewer' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Show fewer' }));
 
     expect(screen.queryByText('Apple')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '+1 more' })).toBeInTheDocument();
+    expect(screen.queryByText('Map')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
   });
 
-  it('collapses expanded room items when clicking elsewhere', async () => {
-    const user = userEvent.setup();
+  it('shows the fourth room item instead of rendering a +1 more toggle', () => {
     const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
     let doc = addRoom(createEmptyMap('Test'), room);
     doc = addItem(doc, createItem('Lantern', room.id));
@@ -310,13 +313,32 @@ describe('MapCanvas', () => {
 
     renderMapCanvas();
 
-    await user.click(screen.getByRole('button', { name: '+1 more' }));
     expect(screen.getByText('Apple')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+1 more' })).not.toBeInTheDocument();
+  });
+
+  it('collapses expanded room items when clicking elsewhere', async () => {
+    const user = userEvent.setup();
+    const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+    let doc = addRoom(createEmptyMap('Test'), room);
+    doc = addItem(doc, createItem('Lantern', room.id));
+    doc = addItem(doc, createItem('Brass Key', room.id));
+    doc = addItem(doc, createItem('Rope', room.id));
+    doc = addItem(doc, createItem('Apple', room.id));
+    doc = addItem(doc, createItem('Map', room.id));
+    loadDocumentAct(doc);
+
+    renderMapCanvas();
+
+    await user.click(screen.getByRole('button', { name: '+2 more' }));
+    expect(screen.getByText('Apple')).toBeInTheDocument();
+    expect(screen.getByText('Map')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('map-canvas'));
 
     expect(screen.queryByText('Apple')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '+1 more' })).toBeInTheDocument();
+    expect(screen.queryByText('Map')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
   });
 
   it('hides room item labels and uses the low-zoom room-name treatment when zoomed out', () => {
