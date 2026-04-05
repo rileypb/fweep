@@ -371,6 +371,30 @@ describe('useAppCli', () => {
     expect(Object.values(useEditorStore.getState().doc?.items ?? {})).toHaveLength(0);
   });
 
+  it('treats quoted room names as exact matches for item transfer commands', async () => {
+    let doc = createEmptyMap('Quoted Item Transfer Map');
+    const storageRoom = { ...createRoom('Storage Room'), id: 'storage-room', position: { x: 10, y: 20 } };
+    const farStorage = { ...createRoom('Far end of the storage room'), id: 'far-storage', position: { x: 110, y: 20 } };
+    doc = addRoom(doc, storageRoom);
+    doc = addRoom(doc, farStorage);
+    const options = createStoreBackedOptions(doc);
+    const { result } = renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
+    });
+
+    act(() => {
+      result.current.submitCliCommandText('put lantern in "Storage Room"', { clearInputState: false });
+    });
+
+    const storedItems = Object.values(useEditorStore.getState().doc?.items ?? {});
+    expect(storedItems).toHaveLength(1);
+    expect(storedItems[0]?.roomId).toBe(storageRoom.id);
+    expect(result.current.gameOutputLines).not.toContain('Room reference "Storage Room" is ambiguous.');
+    expect(result.current.gameOutputLines).toContain('Dropped.');
+  });
+
   it('reports missing items on take commands', async () => {
     let doc = createEmptyMap('Missing Item Map');
     const cellar = { ...createRoom('Cellar'), position: { x: 10, y: 20 } };

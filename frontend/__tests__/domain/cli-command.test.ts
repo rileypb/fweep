@@ -612,6 +612,12 @@ describe('parseCliCommand', () => {
       itemNames: ['lantern', 'key', 'sword'],
       room: { text: 'Kitchen', exact: false },
     });
+
+    expect(parseCliCommand('put lantern in "Storage Room"')).toEqual({
+      kind: 'put-items',
+      itemNames: ['lantern'],
+      room: { text: 'Storage Room', exact: true },
+    });
   });
 
   it('parses take-item lists', () => {
@@ -631,6 +637,12 @@ describe('parseCliCommand', () => {
       kind: 'take-items',
       itemNames: ['lantern', 'key', 'sword'],
       room: { text: 'Kitchen', exact: false },
+    });
+
+    expect(parseCliCommand('take lantern from "Storage Room"')).toEqual({
+      kind: 'take-items',
+      itemNames: ['lantern'],
+      room: { text: 'Storage Room', exact: true },
     });
 
     expect(parseCliCommand('take all from Kitchen')).toEqual({
