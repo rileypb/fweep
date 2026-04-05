@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { act, renderHook, waitFor, fireEvent } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { addConnection, addItem, addRoom } from '../../src/domain/map-operations';
 import { createConnection, createEmptyMap, createItem, createRoom } from '../../src/domain/map-types';
 import { useAppCli } from '../../src/hooks/use-app-cli';
@@ -62,7 +62,6 @@ describe('useAppCli', () => {
     });
 
     expect(result.current.gameOutputLines).toEqual(cachedLines);
-    expect(result.current.hasUsedCliInput).toBe(true);
   });
 
   it('ignores malformed cached CLI output snapshots', async () => {
@@ -79,24 +78,6 @@ describe('useAppCli', () => {
     });
 
     expect(result.current.gameOutputLines).toEqual(doc.cliOutputLines);
-    expect(result.current.hasUsedCliInput).toBe(false);
-  });
-
-  it('does not hijack slash or report slash suppression anymore', () => {
-    const options = createOptions(null);
-    const { result } = renderHook(() => useAppCli(options));
-    const cliInput = document.createElement('input');
-    const otherInput = document.createElement('input');
-    document.body.append(cliInput, otherInput);
-    result.current.cliInputRef.current = cliInput;
-    otherInput.focus();
-
-    act(() => {
-      fireEvent.keyDown(window, { key: '/' });
-    });
-
-    expect(document.activeElement).toBe(otherInput);
-    expect(result.current.consumeCliSlashFocusSuppression()).toBe(false);
   });
 
   it('routes backslash-prefixed commands to parchment when available', () => {
@@ -168,125 +149,6 @@ describe('useAppCli', () => {
     ]);
   });
 
-  it('navigates CLI history up and down after routed submissions', () => {
-    const options = createOptions(null);
-    options.routeCrossInputCommandToParchment.mockReturnValue(true);
-    const { result } = renderHook(() => useAppCli(options));
-
-    act(() => {
-      result.current.submitCliCommandText('\\look', {
-        clearInputState: false,
-        selectCliInput: false,
-      });
-      result.current.submitCliCommandText('\\wait', {
-        clearInputState: false,
-        selectCliInput: false,
-      });
-      result.current.handleCliCommandChange('draft');
-    });
-
-    act(() => {
-      result.current.handleCliHistoryNavigate('up');
-    });
-    expect(result.current.cliCommand).toBe('\\wait');
-
-    act(() => {
-      result.current.handleCliHistoryNavigate('up');
-    });
-    expect(result.current.cliCommand).toBe('\\look');
-
-    act(() => {
-      result.current.handleCliHistoryNavigate('down');
-    });
-    expect(result.current.cliCommand).toBe('\\wait');
-
-    act(() => {
-      result.current.handleCliHistoryNavigate('down');
-    });
-    expect(result.current.cliCommand).toBe('draft');
-  });
-
-  it('applies the highlighted command suggestion into the CLI input', () => {
-    const options = createOptions(null);
-    const { result } = renderHook(() => useAppCli(options));
-    const cliInput = document.createElement('input');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-
-    act(() => {
-      result.current.handleCliCommandChange('sh');
-      result.current.handleCliCaretChange(2);
-      result.current.toggleCliSuggestions();
-    });
-
-    expect(result.current.isCliSuggestionMenuOpen).toBe(true);
-
-    let applied = false;
-    act(() => {
-      applied = result.current.applyHighlightedCliSuggestion();
-    });
-
-    expect(applied).toBe(true);
-    expect(result.current.cliCommand).toBe('show ');
-  });
-
-  it('imports CLI scripts and reports the number of executed commands', async () => {
-    const doc = createEmptyMap('Script Import Map');
-    const options = createStoreBackedOptions(doc);
-    const { result } = renderHook(() => useAppCli(options));
-
-    await waitFor(() => {
-      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
-    });
-
-    const cliInput = document.createElement('input');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-    const file = new File(['create Kitchen\ncreate Hallway'], 'commands.txt', { type: 'text/plain' });
-    const event = {
-      target: {
-        files: [file],
-        value: 'commands.txt',
-      },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
-
-    await act(async () => {
-      await result.current.handleImportScriptChange(event);
-    });
-
-    expect(Object.values(useEditorStore.getState().doc?.rooms ?? {}).map((room) => room.name).sort()).toEqual(['Hallway', 'Kitchen']);
-    expect(result.current.gameOutputLines).toContain('Imported 2 commands from "commands.txt".');
-    expect(event.target.value).toBe('');
-  });
-
-  it('rolls back CLI script imports when a later command fails', async () => {
-    const doc = createEmptyMap('Script Rollback Map');
-    const options = createStoreBackedOptions(doc);
-    const { result } = renderHook(() => useAppCli(options));
-
-    await waitFor(() => {
-      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
-    });
-
-    const cliInput = document.createElement('input');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-    const file = new File(['create Kitchen\nshow Missing Room'], 'broken-commands.txt', { type: 'text/plain' });
-    const event = {
-      target: {
-        files: [file],
-        value: 'broken-commands.txt',
-      },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
-
-    await act(async () => {
-      await result.current.handleImportScriptChange(event);
-    });
-
-    expect(Object.keys(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(0);
-    expect(result.current.gameOutputLines).toContain('Import aborted on line 2. Rolled back 1 successful command.');
-    expect(event.target.value).toBe('');
-  });
 
   it('opens the room editor request for edit commands', async () => {
     let doc = createEmptyMap('Edit Command Map');
@@ -427,33 +289,6 @@ describe('useAppCli', () => {
     }));
   });
 
-  it('reports when an imported script contains no commands', async () => {
-    const doc = createEmptyMap('Empty Script Map');
-    const options = createStoreBackedOptions(doc);
-    const { result } = renderHook(() => useAppCli(options));
-
-    await waitFor(() => {
-      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
-    });
-
-    const cliInput = document.createElement('input');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-    const file = new File(['   \n\n'], 'empty-commands.txt', { type: 'text/plain' });
-    const event = {
-      target: {
-        files: [file],
-        value: 'empty-commands.txt',
-      },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
-
-    await act(async () => {
-      await result.current.handleImportScriptChange(event);
-    });
-
-    expect(result.current.gameOutputLines).toContain('No commands found in "empty-commands.txt".');
-    expect(event.target.value).toBe('');
-  });
 
   it('navigates from the selected room and reveals the destination', async () => {
     let doc = createEmptyMap('Navigate Command Map');
@@ -1096,39 +931,6 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toContain('create a room called Kitchen');
   });
 
-  it('surfaces file read failures during script import', async () => {
-    const doc = createEmptyMap('Import Failure Map');
-    const options = createStoreBackedOptions(doc);
-    const { result } = renderHook(() => useAppCli(options));
-
-    await waitFor(() => {
-      expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
-    });
-
-    const cliInput = document.createElement('input');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
-
-    const file = new File(['ignored'], 'broken.txt', { type: 'text/plain' });
-    Object.defineProperty(file, 'text', {
-      value: jest.fn<() => Promise<string>>().mockRejectedValue(new Error('disk exploded')),
-    });
-
-    const event = {
-      target: {
-        files: [file],
-        value: 'broken.txt',
-      },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
-
-    await act(async () => {
-      await result.current.handleImportScriptChange(event);
-    });
-
-    expect(result.current.gameOutputLines).toContain('Unable to import "broken.txt": disk exploded');
-    expect(event.target.value).toBe('');
-  });
-
   it('mirrors appended output batches to the submit callback and respects selection flags', async () => {
     const doc = createEmptyMap('Submit Callback Map');
     const options = createStoreBackedOptions(doc);
@@ -1138,16 +940,10 @@ describe('useAppCli', () => {
       expect(useEditorStore.getState().doc?.metadata.id).toBe(doc.metadata.id);
     });
 
-    const cliInput = document.createElement('input');
-    cliInput.value = 'seed';
-    const selectSpy = jest.spyOn(cliInput, 'select');
-    document.body.appendChild(cliInput);
-    result.current.cliInputRef.current = cliInput;
     const onOutputAppended = jest.fn<(lines: readonly string[]) => void>();
 
     let submission: ReturnType<typeof result.current.submitCliCommandText> | null = null;
     act(() => {
-      result.current.handleCliCommandChange('draft');
       submission = result.current.submitCliCommandText('help', {
         clearInputState: true,
         selectCliInput: false,
@@ -1157,25 +953,5 @@ describe('useAppCli', () => {
 
     expect(submission).toEqual({ ok: true, shouldSelectCliInput: false });
     expect(onOutputAppended).toHaveBeenCalledWith(expect.arrayContaining(['>help', 'Opened the CLI help panel.']));
-    expect(selectSpy).not.toHaveBeenCalled();
-    expect(result.current.cliCommand).toBe('');
-    expect(result.current.cliHistory).toContain('help');
-  });
-
-  it('handles empty history navigation and closed-suggestion controls safely', () => {
-    const options = createOptions(null);
-    const { result } = renderHook(() => useAppCli(options));
-
-    act(() => {
-      result.current.handleCliHistoryNavigate('up');
-      result.current.handleCliHistoryNavigate('down');
-      result.current.moveCliSuggestionHighlight('up');
-      result.current.moveCliSuggestionHighlight('down');
-      result.current.setCliSuggestionHighlight(10);
-      result.current.closeCliSuggestions();
-    });
-
-    expect(result.current.cliHistoryIndex).toBeNull();
-    expect(result.current.isCliSuggestionMenuOpen).toBe(false);
   });
 });

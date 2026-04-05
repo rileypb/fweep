@@ -5,8 +5,6 @@ import {
   type CliCommand,
   type CliRoomReference,
 } from '../domain/cli-command';
-import { getCliSuggestions, type CliSuggestion } from '../domain/cli-suggestions';
-import { parseCliScript } from '../domain/cli-script';
 import { describeRoomForCliLines } from '../domain/cli-room-description';
 import {
   createAmbiguousRoomCliError,
@@ -60,20 +58,7 @@ interface UseAppCliOptions {
 }
 
 interface UseAppCliResult {
-  readonly cliInputRef: React.RefObject<HTMLInputElement | null>;
-  readonly cliImportInputRef: React.RefObject<HTMLInputElement | null>;
-  readonly gameOutputRef: React.RefObject<HTMLDivElement | null>;
-  readonly cliCommand: string;
-  readonly hasUsedCliInput: boolean;
-  readonly cliHistory: readonly string[];
-  readonly cliHistoryIndex: number | null;
-  readonly cliHistoryDraft: string;
-  readonly cliSuggestions: readonly CliSuggestion[];
-  readonly highlightedCliSuggestionIndex: number;
-  readonly isCliSuggestionMenuOpen: boolean;
   readonly gameOutputLines: readonly string[];
-  readonly isImportingScript: boolean;
-  readonly handleCliSubmit: () => void;
   readonly submitCliCommandText: (
     submittedInput: string,
     options?: {
@@ -82,19 +67,6 @@ interface UseAppCliResult {
       readonly onOutputAppended?: (lines: readonly string[]) => void;
     },
   ) => { ok: boolean; shouldSelectCliInput: boolean };
-  readonly handleCliCommandChange: (value: string) => void;
-  readonly handleCliInputFocus: () => void;
-  readonly handleCliInputBlur: () => void;
-  readonly handleCliCaretChange: (caretIndex: number | null) => void;
-  readonly toggleCliSuggestions: () => void;
-  readonly consumeCliSlashFocusSuppression: () => boolean;
-  readonly handleCliHistoryNavigate: (direction: 'up' | 'down') => void;
-  readonly moveCliSuggestionHighlight: (direction: 'up' | 'down') => void;
-  readonly setCliSuggestionHighlight: (index: number) => void;
-  readonly applyHighlightedCliSuggestion: () => boolean;
-  readonly closeCliSuggestions: () => void;
-  readonly handleImportScriptChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  readonly handleGameOutputClick: () => void;
   readonly flushDocumentSave: () => Promise<void>;
 }
 
@@ -126,14 +98,6 @@ function formatCliError(error: CliError): string {
 
 function formatCliEcho(input: string): string {
   return `>${input}`;
-}
-
-function hasPersistedCliUsage(cliOutputLines: readonly string[]): boolean {
-  if (cliOutputLines.length <= DEFAULT_CLI_OUTPUT_LINES.length) {
-    return false;
-  }
-
-  return true;
 }
 
 function getCliOutputStorageKey(mapId: string): string {
@@ -169,23 +133,6 @@ function saveCachedCliOutputLines(mapId: string, cliOutputLines: readonly string
 const FWEEP_EASTER_EGG_LINES = [
   'With keen disappointment, you note that nothing has changed. Then, you slowly realize that you are black, have two wing-like appendages, and are flying a few feet above the ground. Thanks to your sonar-like bat senses, you can tell that there are surfaces above you, below you, to the south and to the east.',
 ] as const;
-
-function scrollCliInputSelectionIntoView(input: HTMLInputElement): void {
-  const selectionStart = input.selectionStart;
-  const selectionEnd = input.selectionEnd;
-  if (selectionStart === null || selectionEnd === null) {
-    return;
-  }
-
-  if (selectionStart === 0 && selectionEnd === input.value.length) {
-    input.scrollLeft = 0;
-    return;
-  }
-
-  if (selectionStart === selectionEnd) {
-    input.scrollLeft = input.scrollWidth;
-  }
-}
 
 function describeCliOutcome(command: CliCommand): string {
   switch (command.kind) {
@@ -287,71 +234,6 @@ function intersperseBlankOutputLines(lines: readonly string[]): readonly string[
   return output;
 }
 
-function shouldKeepSuggestionsEnabledAfterSubmit(
-  wereSuggestionsEnabled: boolean,
-  submittedInput: string,
-): boolean {
-  if (!wereSuggestionsEnabled) {
-    return false;
-  }
-
-  const command = parseCliCommand(submittedInput.trim());
-  if (command?.kind === 'help' || command?.kind === 'describe') {
-    return false;
-  }
-
-  return true;
-}
-
-function isTextEditingElement(element: EventTarget | null): boolean {
-  if (!(element instanceof HTMLElement)) {
-    return false;
-  }
-
-  if (element.isContentEditable) {
-    return true;
-  }
-
-  if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
-    return true;
-  }
-
-  if (element instanceof HTMLInputElement) {
-    const nonTextInputTypes = new Set([
-      'button',
-      'checkbox',
-      'color',
-      'file',
-      'hidden',
-      'image',
-      'radio',
-      'range',
-      'reset',
-      'submit',
-    ]);
-    return !nonTextInputTypes.has(element.type);
-  }
-
-  return false;
-}
-
-async function readTextFile(file: File): Promise<string> {
-  if (typeof file.text === 'function') {
-    return file.text();
-  }
-
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => {
-      reject(reader.error ?? new Error(`Unable to read "${file.name}".`));
-    };
-    reader.onload = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : '');
-    };
-    reader.readAsText(file);
-  });
-}
-
 function getSelectionSnapshotFromEditorState(state: ReturnType<typeof useEditorStore.getState>): SelectionSnapshot {
   return createSelectionSnapshot({
     roomIds: state.selectedRoomIds,
@@ -369,10 +251,6 @@ export function useAppCli({
   chooseGame,
   onOpenCliHelpPanel,
   routeCrossInputCommandToParchment,
-  requestedRoomEditorRequest,
-  requestedRoomRevealRequest,
-  requestedViewportFocusRequest,
-  requestedMapZoomRequest,
   setRequestedRoomEditorRequest,
   setRequestedRoomRevealRequest,
   setRequestedViewportFocusRequest,
@@ -385,21 +263,8 @@ export function useAppCli({
   const undo = useEditorStore((s) => s.undo);
   const shouldSkipNextDocumentSaveRef = useRef(false);
   const pendingInitialGameOutputSkipRef = useRef<readonly string[] | null>(null);
-  const cliInputRef = useRef<HTMLInputElement | null>(null);
-  const cliImportInputRef = useRef<HTMLInputElement | null>(null);
-  const gameOutputRef = useRef<HTMLDivElement | null>(null);
-  const [cliCommand, setCliCommand] = useState('');
-  const [cliHistory, setCliHistory] = useState<string[]>([]);
-  const [cliHistoryIndex, setCliHistoryIndex] = useState<number | null>(null);
-  const [cliHistoryDraft, setCliHistoryDraft] = useState('');
-  const [cliCaretIndex, setCliCaretIndex] = useState(0);
-  const [hasUsedCliInput, setHasUsedCliInput] = useState(false);
   const [gameOutputLines, setGameOutputLines] = useState<string[]>([]);
   const [_cliPronounRoomId, setCliPronounRoomId] = useState<string | null>(null);
-  const [isImportingScript, setIsImportingScript] = useState(false);
-  const [isCliInputFocused, setIsCliInputFocused] = useState(false);
-  const [areCliSuggestionsEnabled, setAreCliSuggestionsEnabled] = useState(false);
-  const [highlightedCliSuggestionIndex, setHighlightedCliSuggestionIndex] = useState(0);
   const cliPronounRoomIdRef = useRef<string | null>(null);
   const nextUiRequestIdRef = useRef(1);
   const latestGameOutputLinesRef = useRef<readonly string[]>([]);
@@ -407,47 +272,9 @@ export function useAppCli({
   const latestActiveMapRef = useRef<MapDocument | null>(activeMap);
   const outputAppendListenerRef = useRef<((lines: readonly string[]) => void) | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const pendingSelectionRangeRef = useRef<{ start: number; end: number } | null>(null);
   latestGameOutputLinesRef.current = gameOutputLines;
   latestStoreDocRef.current = storeDoc;
   latestActiveMapRef.current = activeMap;
-  const hasOpenMap = activeMap !== null;
-  const cliSuggestionResult = getCliSuggestions(cliCommand, cliCaretIndex, storeDoc);
-  const cliSuggestions = cliSuggestionResult?.suggestions ?? [];
-  const isCliSuggestionMenuOpen = cliHistoryIndex === null && areCliSuggestionsEnabled && cliSuggestions.length > 0;
-  const highlightedCliSuggestion = isCliSuggestionMenuOpen
-    ? cliSuggestions[Math.min(highlightedCliSuggestionIndex, cliSuggestions.length - 1)] ?? null
-    : null;
-
-  const focusCliInput = (openSuggestions = false) => {
-    setAreCliSuggestionsEnabled(openSuggestions);
-    cliInputRef.current?.focus();
-    cliInputRef.current?.select();
-  };
-
-  const scrollGameOutputToEnd = () => {
-    if (gameOutputRef.current === null) {
-      return;
-    }
-
-    gameOutputRef.current.scrollTop = gameOutputRef.current.scrollHeight;
-  };
-
-  useEffect(() => {
-    if (pendingSelectionRangeRef.current === null || cliInputRef.current === null) {
-      return;
-    }
-
-    const nextSelectionRange = pendingSelectionRangeRef.current;
-    pendingSelectionRangeRef.current = null;
-    cliInputRef.current.focus();
-    cliInputRef.current.setSelectionRange(nextSelectionRange.start, nextSelectionRange.end);
-    scrollCliInputSelectionIntoView(cliInputRef.current);
-  }, [cliCommand]);
-
-  useEffect(() => {
-    setHighlightedCliSuggestionIndex(0);
-  }, [cliCommand, storeDoc, cliCaretIndex]);
 
   const queueSaveSnapshot = (doc: MapDocument, cliOutputLines: readonly string[]) => {
     saveCachedCliOutputLines(doc.metadata.id, cliOutputLines);
@@ -485,7 +312,6 @@ export function useAppCli({
         : restoredActiveMap.cliOutputLines;
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
-      setHasUsedCliInput(hasPersistedCliUsage(restoredCliOutputLines));
       shouldSkipNextDocumentSaveRef.current = true;
       pendingInitialGameOutputSkipRef.current = restoredCliOutputLines;
       setGameOutputLines(
@@ -502,7 +328,6 @@ export function useAppCli({
     } else {
       cliPronounRoomIdRef.current = null;
       setCliPronounRoomId(null);
-      setHasUsedCliInput(false);
       shouldSkipNextDocumentSaveRef.current = false;
       pendingInitialGameOutputSkipRef.current = null;
       setGameOutputLines([]);
@@ -565,16 +390,6 @@ export function useAppCli({
     queueSave(currentDoc);
   }, [gameOutputLines]);
 
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      scrollGameOutputToEnd();
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [gameOutputLines, hasOpenMap]);
-
   const appendGameOutput = (lines: readonly string[]) => {
     outputAppendListenerRef.current?.(lines);
     let nextLines: readonly string[] = [];
@@ -596,7 +411,6 @@ export function useAppCli({
 
   const reportCliError = (submittedInput: string, error: CliError) => {
     appendGameOutput([formatCliEcho(submittedInput), formatCliError(error)]);
-    cliInputRef.current?.select();
   };
 
   const issueUiRequestId = (): number => {
@@ -1100,7 +914,6 @@ export function useAppCli({
     if (command.kind === 'undo') {
       if (!currentCanUndo) {
         appendGameOutput([formatCliEcho(trimmedInput), 'Nothing to undo.']);
-        cliInputRef.current?.select();
         return { ok: false, shouldSelectCliInput };
       }
       void undo();
@@ -1111,7 +924,6 @@ export function useAppCli({
     if (command.kind === 'redo') {
       if (!currentCanRedo) {
         appendGameOutput([formatCliEcho(trimmedInput), 'Nothing to redo.']);
-        cliInputRef.current?.select();
         return { ok: false, shouldSelectCliInput };
       }
       void redo();
@@ -1146,37 +958,19 @@ export function useAppCli({
     const selectCliInput = options?.selectCliInput ?? true;
     const onOutputAppended = options?.onOutputAppended;
 
-    if (clearInputState) {
-      setHasUsedCliInput(true);
-      setCliHistoryIndex(null);
-      setCliHistoryDraft('');
-      setCliCommand('');
-      setCliCaretIndex(0);
-      setHighlightedCliSuggestionIndex(0);
-    }
-
-    if (submittedInput.trim().length > 0) {
-      setCliHistory((previousHistory) => [...previousHistory, submittedInput]);
-    }
+    void clearInputState;
 
     const routedSubmission = getCrossInputRoutedSubmission(submittedInput);
     if (routedSubmission.kind === 'route-to-parchment') {
       const routed = routeCrossInputCommandToParchment(routedSubmission.parchmentInput);
-      setAreCliSuggestionsEnabled(false);
       if (!routed) {
         appendGameOutput([
           formatCliEcho(submittedInput),
           'No interactive fiction game is ready to receive commands.',
         ]);
-        if (selectCliInput) {
-          cliInputRef.current?.select();
-        }
         return { ok: false, shouldSelectCliInput: selectCliInput };
       }
 
-      if (selectCliInput) {
-        cliInputRef.current?.select();
-      }
       return { ok: true, shouldSelectCliInput: selectCliInput };
     }
 
@@ -1192,269 +986,12 @@ export function useAppCli({
         onOutputAppended(flattenedLines);
       }
     }
-    const shouldKeepSuggestionsEnabled = ok && shouldKeepSuggestionsEnabledAfterSubmit(
-      areCliSuggestionsEnabled,
-      submittedInput,
-    );
-    setAreCliSuggestionsEnabled(shouldKeepSuggestionsEnabled);
-    const shouldSelectCliInput = selectCliInput && shouldSelectCliInputAfterRun;
-    if (shouldSelectCliInput) {
-      cliInputRef.current?.select();
-    }
-    return { ok, shouldSelectCliInput };
-  };
-
-  const handleCliSubmit = () => {
-    void submitCliCommandText(cliCommand, {
-      clearInputState: true,
-      selectCliInput: true,
-    });
-  };
-
-  const handleCliCommandChange = (value: string) => {
-    if (!hasUsedCliInput && value.trim().length > 0) {
-      setHasUsedCliInput(true);
-    }
-    if (cliHistoryIndex !== null) {
-      setCliHistoryIndex(null);
-      setCliHistoryDraft(value);
-    }
-    setCliCommand(value);
-  };
-
-  const handleCliInputFocus = () => {
-    setIsCliInputFocused(true);
-    setCliCaretIndex(cliInputRef.current?.selectionStart ?? cliCommand.length);
-  };
-
-  const handleCliInputBlur = () => {
-    setIsCliInputFocused(false);
-  };
-
-  const toggleCliSuggestions = () => {
-    setAreCliSuggestionsEnabled((current) => !current);
-    setHighlightedCliSuggestionIndex(0);
-  };
-
-  const consumeCliSlashFocusSuppression = () => {
-    return false;
-  };
-
-  const handleCliCaretChange = (caretIndex: number | null) => {
-    setCliCaretIndex(caretIndex ?? cliCommand.length);
-  };
-
-  const handleCliHistoryNavigate = (direction: 'up' | 'down') => {
-    if (cliHistory.length === 0) {
-      return;
-    }
-
-    if (direction === 'up') {
-      if (cliHistoryIndex === null) {
-        setCliHistoryDraft(cliCommand);
-        const nextIndex = cliHistory.length - 1;
-        setCliHistoryIndex(nextIndex);
-        setCliCommand(cliHistory[nextIndex]);
-        setCliCaretIndex(cliHistory[nextIndex].length);
-        return;
-      }
-
-      const nextIndex = Math.max(cliHistoryIndex - 1, 0);
-      setCliHistoryIndex(nextIndex);
-      setCliCommand(cliHistory[nextIndex]);
-      setCliCaretIndex(cliHistory[nextIndex].length);
-      return;
-    }
-
-    if (cliHistoryIndex === null) {
-      return;
-    }
-
-    if (cliHistoryIndex >= cliHistory.length - 1) {
-      setCliHistoryIndex(null);
-      setCliCommand(cliHistoryDraft);
-      setCliCaretIndex(cliHistoryDraft.length);
-      return;
-    }
-
-    const nextIndex = cliHistoryIndex + 1;
-    setCliHistoryIndex(nextIndex);
-    setCliCommand(cliHistory[nextIndex]);
-    setCliCaretIndex(cliHistory[nextIndex].length);
-  };
-
-  const closeCliSuggestions = () => {
-    setAreCliSuggestionsEnabled(false);
-    setHighlightedCliSuggestionIndex(0);
-  };
-
-  const moveCliSuggestionHighlight = (direction: 'up' | 'down') => {
-    if (!isCliSuggestionMenuOpen || cliSuggestions.length === 0) {
-      return;
-    }
-
-    setHighlightedCliSuggestionIndex((currentIndex) => {
-      if (direction === 'up') {
-        return currentIndex <= 0 ? cliSuggestions.length - 1 : currentIndex - 1;
-      }
-
-      return currentIndex >= cliSuggestions.length - 1 ? 0 : currentIndex + 1;
-    });
-  };
-
-  const setCliSuggestionHighlight = (index: number) => {
-    if (!isCliSuggestionMenuOpen || cliSuggestions.length === 0) {
-      return;
-    }
-
-    setHighlightedCliSuggestionIndex(Math.max(0, Math.min(index, cliSuggestions.length - 1)));
-  };
-
-  const applyHighlightedCliSuggestion = (): boolean => {
-    if (!isCliSuggestionMenuOpen || highlightedCliSuggestion === null || cliSuggestionResult === null) {
-      return false;
-    }
-
-    if (highlightedCliSuggestion.kind === 'placeholder') {
-      cliInputRef.current?.focus();
-      return true;
-    }
-
-    let replaceStart = highlightedCliSuggestion.replaceStart ?? cliSuggestionResult.replaceStart;
-    const replaceEnd = highlightedCliSuggestion.replaceEnd ?? cliSuggestionResult.replaceEnd;
-    const shouldReuseExistingComma = (
-      highlightedCliSuggestion.insertText.startsWith(',')
-      || highlightedCliSuggestion.label.trimStart().startsWith(',')
-    );
-    let foundExistingComma = false;
-    if (shouldReuseExistingComma) {
-      let scanIndex = replaceStart;
-      while (scanIndex > 0 && cliCommand[scanIndex - 1] === ' ') {
-        scanIndex -= 1;
-      }
-      if (scanIndex > 0 && cliCommand[scanIndex - 1] === ',') {
-        replaceStart = scanIndex - 1;
-        foundExistingComma = true;
-      } else if (scanIndex !== replaceStart) {
-        replaceStart = scanIndex;
-      }
-    }
-
-    const replacementText = cliCommand.slice(replaceStart, replaceEnd);
-    const shouldWrapInsertedTextInQuotes = replacementText.startsWith('"')
-      && !highlightedCliSuggestion.insertText.startsWith('"');
-    const unquotedInsertedText = shouldWrapInsertedTextInQuotes
-      ? `"${highlightedCliSuggestion.insertText.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-      : highlightedCliSuggestion.insertText;
-    const baseInsertedText = shouldReuseExistingComma && !unquotedInsertedText.startsWith(',')
-      ? `${foundExistingComma ? ',' : ', '}${unquotedInsertedText}`
-      : unquotedInsertedText;
-    const suffixNeedsSpace = replaceEnd >= cliCommand.length
-      || /\s|,/.test(cliCommand[replaceEnd] ?? '');
-    const insertedText = suffixNeedsSpace
-      ? `${baseInsertedText} `
-      : baseInsertedText;
-    const nextValue = `${cliCommand.slice(0, replaceStart)}${insertedText}${cliCommand.slice(replaceEnd)}`;
-    const nextCaretIndex = replaceStart + insertedText.length;
-    pendingSelectionRangeRef.current = { start: nextCaretIndex, end: nextCaretIndex };
-    setCliCommand(nextValue);
-    setCliCaretIndex(nextCaretIndex);
-    setHighlightedCliSuggestionIndex(0);
-    setAreCliSuggestionsEnabled(true);
-    return true;
-  };
-
-  const handleImportScriptChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    setIsImportingScript(true);
-    try {
-      const scriptText = await readTextFile(file);
-      const commands = parseCliScript(scriptText);
-
-      if (commands.length === 0) {
-        appendGameOutput([`No commands found in "${file.name}".`]);
-        cliInputRef.current?.select();
-        return;
-      }
-
-      const importSnapshot = {
-        editorState: useEditorStore.getState(),
-        cliPronounRoomId: cliPronounRoomIdRef.current,
-        requestedRoomEditorRequest,
-        requestedRoomRevealRequest,
-        requestedViewportFocusRequest,
-        requestedMapZoomRequest,
-        nextUiRequestId: nextUiRequestIdRef.current,
-      };
-
-      let successfulCommands = 0;
-      for (const command of commands) {
-        const result = runCliCommand(command.commandText);
-        if (!result.ok) {
-          useEditorStore.setState(importSnapshot.editorState, true);
-          setCliPronounRoomReference(importSnapshot.cliPronounRoomId);
-          setRequestedRoomEditorRequest(importSnapshot.requestedRoomEditorRequest);
-          setRequestedRoomRevealRequest(importSnapshot.requestedRoomRevealRequest);
-          setRequestedViewportFocusRequest(importSnapshot.requestedViewportFocusRequest);
-          setRequestedMapZoomRequest(importSnapshot.requestedMapZoomRequest);
-          nextUiRequestIdRef.current = importSnapshot.nextUiRequestId;
-          appendGameOutput([
-            `Import aborted on line ${command.lineNumber}. Rolled back ${successfulCommands} successful command${successfulCommands === 1 ? '' : 's'}.`,
-          ]);
-          cliInputRef.current?.select();
-          return;
-        }
-        successfulCommands += 1;
-      }
-
-      appendGameOutput([
-        `Imported ${successfulCommands} command${successfulCommands === 1 ? '' : 's'} from "${file.name}".`,
-      ]);
-      cliInputRef.current?.select();
-    } catch (error: unknown) {
-      appendGameOutput([
-        `Unable to import "${file.name}": ${error instanceof Error ? error.message : String(error)}`,
-      ]);
-      cliInputRef.current?.select();
-    } finally {
-      event.target.value = '';
-      setIsImportingScript(false);
-    }
+    return { ok, shouldSelectCliInput: selectCliInput && shouldSelectCliInputAfterRun };
   };
 
   return {
-    cliInputRef,
-    cliImportInputRef,
-    gameOutputRef,
-    cliCommand,
-    hasUsedCliInput,
-    cliHistory,
-    cliHistoryIndex,
-    cliHistoryDraft,
-    cliSuggestions,
-    highlightedCliSuggestionIndex,
-    isCliSuggestionMenuOpen,
     gameOutputLines,
-    isImportingScript,
-    handleCliSubmit,
     submitCliCommandText,
-    handleCliCommandChange,
-    handleCliInputFocus,
-    handleCliInputBlur,
-    handleCliCaretChange,
-    toggleCliSuggestions,
-    consumeCliSlashFocusSuppression,
-    handleCliHistoryNavigate,
-    moveCliSuggestionHighlight,
-    setCliSuggestionHighlight,
-    applyHighlightedCliSuggestion,
-    closeCliSuggestions,
-    handleImportScriptChange,
-    handleGameOutputClick: () => focusCliInput(areCliSuggestionsEnabled),
     flushDocumentSave,
   };
 }
