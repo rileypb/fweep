@@ -1,0 +1,3 @@
+[submodule "upstream/quixe"]
+	path = upstream/quixe
+	url = https://github.com/rileypb/quixe.git
