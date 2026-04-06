@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Quixe</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
+  <link rel="stylesheet" href="/quixe/media/glkote.css" type="text/css">
+  <link rel="stylesheet" href="/quixe/media/dialog.css" type="text/css">
+  <style>
+    body {
+      margin: 0;
+      height: 100%;
+    }
+
+    #gameport {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #ccaa88;
+      margin: 0;
+    }
+
+    .fweep-cli-output-line {
+      color: #b42318;
+    }
+
+    .fweep-cli-output-text {
+      font-weight: 400;
+      white-space: pre-wrap;
+    }
+
+    .fweep-cli-output-text--strong {
+      font-weight: 700;
+    }
+
+    .fweep-cli-suggestions {
+      position: fixed;
+      z-index: 9999;
+      min-width: 16rem;
+      max-width: min(28rem, calc(100vw - 1rem));
+      max-height: min(18rem, calc(100vh - 1rem));
+      overflow-y: auto;
+      padding: 0.25rem;
+      border: 1px solid rgba(18, 18, 18, 0.18);
+      border-radius: 0.5rem;
+      background: rgba(250, 245, 232, 0.98);
+      box-shadow: 0 0.5rem 1.5rem rgba(18, 18, 18, 0.18);
+      color: #2a2418;
+    }
+
+    .fweep-cli-suggestions[hidden] {
+      display: none;
+    }
+
+    .fweep-cli-suggestion {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      width: 100%;
+      margin: 0;
+      padding: 0.45rem 0.6rem;
+      border: 0;
+      border-radius: 0.375rem;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .fweep-cli-suggestion:hover,
+    .fweep-cli-suggestion:focus-visible,
+    .fweep-cli-suggestion--active {
+      background: rgba(145, 98, 28, 0.16);
+      outline: none;
+    }
+
+    .fweep-cli-suggestion-label {
+      white-space: pre-wrap;
+    }
+
+    .fweep-cli-suggestion-detail {
+      flex: 0 0 auto;
+      opacity: 0.7;
+      font-size: 0.85em;
+    }
+
+    input.LineInput::placeholder,
+    textarea.LineInput::placeholder {
+      color: #1034a6;
+      opacity: 1;
+    }
+
+    html[data-theme='dark'] .fweep-cli-output-line {
+      color: #fca5a5;
+    }
+
+    html[data-theme='dark'] input.LineInput::placeholder,
+    html[data-theme='dark'] textarea.LineInput::placeholder {
+      color: #93c5fd;
+    }
+
+    html[data-theme='dark'] .fweep-cli-suggestions {
+      border-color: rgba(255, 255, 255, 0.12);
+      background: rgba(38, 32, 24, 0.98);
+      box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.4);
+      color: #f6ead7;
+    }
+
+    html[data-theme='dark'] .fweep-cli-suggestion:hover,
+    html[data-theme='dark'] .fweep-cli-suggestion:focus-visible,
+    html[data-theme='dark'] .fweep-cli-suggestion--active {
+      background: rgba(255, 214, 153, 0.16);
+    }
+  </style>
+  <script>
+    window.addEventListener('keydown', function (event) {
+      if ((!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) {
+        return;
+      }
+
+      if (event.code !== 'Slash' && event.key !== '/') {
+        return;
+      }
+
+      event.preventDefault();
+      window.parent.postMessage({ type: 'fweep:toggle-focus-from-parchment' }, window.location.origin);
+    }, true);
+  </script>
+  <script src="/quixe/lib/jquery-1.12.4.min.js" type="text/javascript"></script>
+  <script src="/quixe/lib/glkote.min.js" type="text/javascript"></script>
+  <script src="/quixe/lib/quixe.min.js" type="text/javascript"></script>
+  <script>
+    (function () {
+      var queryParams = new URLSearchParams(window.location.search);
+      var mapId = queryParams.get('mapId');
+      var storyUrl = queryParams.get('story');
+      var pendingUploadStorageKey = 'fweep-quixe-upload:' + (mapId || 'global');
+      var pendingStoryLoader = null;
+      var indexedDb = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.msIndexedDB;
+      var autosaveDbPromise = null;
+      var autosaveCache = Object.create(null);
+      var AUTOSAVE_DB_NAME = 'fweep-quixe-autosaves';
+      var AUTOSAVE_STORE_NAME = 'autosaves';
+
+      function decodeBase64ToUint8Array(base64) {
+        var binary = window.atob(base64);
+        var bytes = new Uint8Array(binary.length);
+        for (var index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
+      }
+
+      function encodeUint8ArrayToBase64(bytes) {
+        var chunkSize = 0x8000;
+        var parts = [];
+        for (var offset = 0; offset < bytes.length; offset += chunkSize) {
+          var chunk = bytes.subarray(offset, offset + chunkSize);
+          parts.push(String.fromCharCode.apply(null, chunk));
+        }
+        return window.btoa(parts.join(''));
+      }
+
+      function getPendingUploadedStory() {
+        var encodedStory = window.sessionStorage.getItem(pendingUploadStorageKey);
+        if (encodedStory === null) {
+          return null;
+        }
+
+        window.sessionStorage.removeItem(pendingUploadStorageKey);
+        return decodeBase64ToUint8Array(encodedStory);
+      }
+
+      function getScopedAutosaveSignature(signature) {
+        return 'fweep:' + (mapId || 'global') + ':' + signature;
+      }
+
+      function openAutosaveDatabase() {
+        if (autosaveDbPromise !== null) {
+          return autosaveDbPromise;
+        }
+
+        if (!indexedDb) {
+          autosaveDbPromise = Promise.resolve(null);
+          return autosaveDbPromise;
+        }
+
+        autosaveDbPromise = new Promise(function (resolve) {
+          try {
+            var request = indexedDb.open(AUTOSAVE_DB_NAME, 1);
+            request.onupgradeneeded = function () {
+              var db = request.result;
+              if (!db.objectStoreNames.contains(AUTOSAVE_STORE_NAME)) {
+                db.createObjectStore(AUTOSAVE_STORE_NAME, { keyPath: 'key' });
+              }
+            };
+            request.onsuccess = function () {
+              resolve(request.result);
+            };
+            request.onerror = function () {
+              console.warn('fweep Quixe autosave DB open failed:', request.error);
+              resolve(null);
+            };
+          } catch (error) {
+            console.warn('fweep Quixe autosave DB open threw:', error);
+            resolve(null);
+          }
+        });
+
+        return autosaveDbPromise;
+      }
+
+      function loadAutosaveCache(db) {
+        if (!db || mapId === null) {
+          autosaveCache = Object.create(null);
+          return Promise.resolve();
+        }
+
+        return new Promise(function (resolve) {
+          autosaveCache = Object.create(null);
+          try {
+            var transaction = db.transaction(AUTOSAVE_STORE_NAME, 'readonly');
+            var store = transaction.objectStore(AUTOSAVE_STORE_NAME);
+            var cursorRequest = store.openCursor();
+            var prefix = 'fweep:' + mapId + ':';
+            cursorRequest.onsuccess = function () {
+              var cursor = cursorRequest.result;
+              if (!cursor) {
+                resolve();
+                return;
+              }
+
+              var entry = cursor.value;
+              if (entry && typeof entry.key === 'string' && entry.key.indexOf(prefix) === 0) {
+                autosaveCache[entry.key] = entry.snapshot;
+              }
+              cursor.continue();
+            };
+            cursorRequest.onerror = function () {
+              console.warn('fweep Quixe autosave preload failed:', cursorRequest.error);
+              resolve();
+            };
+          } catch (error) {
+            console.warn('fweep Quixe autosave preload threw:', error);
+            resolve();
+          }
+        });
+      }
+
+      function persistAutosaveSnapshot(db, key, snapshot) {
+        if (!db) {
+          return;
+        }
+
+        try {
+          var transaction = db.transaction(AUTOSAVE_STORE_NAME, 'readwrite');
+          var store = transaction.objectStore(AUTOSAVE_STORE_NAME);
+          if (snapshot === null) {
+            store.delete(key);
+          } else {
+            store.put({
+              key: key,
+              snapshot: snapshot,
+              updatedAt: Date.now()
+            });
+          }
+        } catch (error) {
+          console.warn('fweep Quixe autosave persist failed:', error);
+        }
+      }
+
+      var pendingUploadedStory = getPendingUploadedStory();
+      var scopedDialog = window.DialogClass ? new window.DialogClass() : window.Dialog;
+      if (scopedDialog && typeof scopedDialog.autosave_write === 'function' && typeof scopedDialog.autosave_read === 'function') {
+        var baseAutosaveWrite = scopedDialog.autosave_write.bind(scopedDialog);
+        var baseAutosaveRead = scopedDialog.autosave_read.bind(scopedDialog);
+        scopedDialog.autosave_write = function (signature, snapshot) {
+          var key = getScopedAutosaveSignature(signature);
+          if (snapshot === null) {
+            delete autosaveCache[key];
+          } else {
+            autosaveCache[key] = snapshot;
+          }
+
+          openAutosaveDatabase().then(function (db) {
+            if (db) {
+              persistAutosaveSnapshot(db, key, snapshot === undefined ? null : snapshot);
+              return;
+            }
+
+            baseAutosaveWrite(key, snapshot);
+          });
+        };
+        scopedDialog.autosave_read = function (signature) {
+          var key = getScopedAutosaveSignature(signature);
+          if (Object.prototype.hasOwnProperty.call(autosaveCache, key)) {
+            return autosaveCache[key];
+          }
+
+          return baseAutosaveRead(key);
+        };
+      }
+
+      window.quixePlayer = {
+        load_uploaded_file: async function (file) {
+          var bytes = new Uint8Array(await file.arrayBuffer());
+          if (typeof pendingStoryLoader === 'function') {
+            var startStory = pendingStoryLoader;
+            pendingStoryLoader = null;
+            startStory(bytes);
+            return;
+          }
+
+          window.sessionStorage.setItem(pendingUploadStorageKey, encodeUint8ArrayToBase64(bytes));
+          var nextUrl = new URL(window.location.href);
+          nextUrl.searchParams.delete('story');
+          if (mapId !== null) {
+            nextUrl.searchParams.set('mapId', mapId);
+          }
+          nextUrl.searchParams.set('autoplay', '1');
+          nextUrl.searchParams.set('do_vm_autosave', queryParams.get('do_vm_autosave') === '0' ? '0' : '1');
+          window.location.href = nextUrl.toString();
+        }
+      };
+
+      window.game_options = {
+        use_query_story: pendingUploadedStory === null,
+        default_story: pendingUploadedStory === null ? storyUrl : null,
+        log_execution_time: true,
+        set_page_title: true,
+        do_vm_autosave: queryParams.get('do_vm_autosave') === '0' ? false : true,
+        Dialog: scopedDialog,
+        story_loader: function (startGame) {
+          if (pendingUploadedStory !== null) {
+            var uploadedStory = pendingUploadedStory;
+            pendingUploadedStory = null;
+            startGame(uploadedStory);
+            return;
+          }
+
+          pendingStoryLoader = startGame;
+        }
+      };
+
+      window.fweepBootQuixe = async function () {
+        await loadAutosaveCache(await openAutosaveDatabase());
+        GiLoad.load_run();
+      };
+    })();
+  </script>
+  <script>
+    (function () {
+      var lineInputSelector = 'input.LineInput, textarea.LineInput';
+      var charInputSelector = 'input.Input:not(.LineInput), textarea.Input:not(.LineInput)';
+      var lineInputLabel = 'Interactive fiction command input';
+      var unfocusedLineInputPlaceholder = 'Press /';
+      var focusedLineInputPlaceholder = 'Start with \\ to map';
+      var outputViewportSelector = '#windowport';
+      var outputWindowSelector = '[id^="window"]:not(#windowport)';
+      var outputWindowLabelPrefix = 'Interactive fiction output';
+      var allowLineInputFocusUntil = 0;
+      var cliSuggestionKeyboardShortcutEnabled = false;
+      var pendingGameCommand = null;
+      var pendingGameCommandTimer = null;
+      var pendingGameCommandAttempts = 0;
+      var cliSuggestionsEnabled = false;
+      var cliSuggestionsRequestId = 0;
+      var cliSuggestionsRequestInput = null;
+      var cliSuggestionsReplaceStart = 0;
+      var cliSuggestionsReplaceEnd = 0;
+      var cliSuggestionsHighlightedIndex = 0;
+      var cliSuggestions = [];
+      var cliSuggestionsMenu = null;
+      var sharedCommandHistory = [];
+      var sharedCommandHistoryIndex = null;
+      var sharedCommandHistoryDraft = '';
+      var isApplyingSharedCommandHistory = false;
+      var suppressNextNativeLineHistoryRecord = false;
+
+      function isTextEntryElement(element) {
+        return element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+      }
+
+      function getCliSuggestionsMenu() {
+        if (cliSuggestionsMenu instanceof HTMLElement) {
+          return cliSuggestionsMenu;
+        }
+
+        cliSuggestionsMenu = document.createElement('div');
+        cliSuggestionsMenu.className = 'fweep-cli-suggestions';
+        cliSuggestionsMenu.setAttribute('role', 'listbox');
+        cliSuggestionsMenu.setAttribute('aria-label', 'Map command suggestions');
+        cliSuggestionsMenu.hidden = true;
+        document.body.appendChild(cliSuggestionsMenu);
+        return cliSuggestionsMenu;
+      }
+
+      function isMapCommandSuggestionEligible(value) {
+        return typeof value === 'string' && value.startsWith('\\') && !value.startsWith('\\\\');
+      }
+
+      function getLineInputCaret(lineInput) {
+        if (!isTextEntryElement(lineInput)) {
+          return 0;
+        }
+
+        return typeof lineInput.selectionStart === 'number' ? lineInput.selectionStart : lineInput.value.length;
+      }
+
+      function positionCliSuggestionsMenu(lineInput) {
+        var menu = getCliSuggestionsMenu();
+        if (!(lineInput instanceof HTMLElement)) {
+          menu.hidden = true;
+          return;
+        }
+
+        var rect = lineInput.getBoundingClientRect();
+        var minimumMenuHeight = 160;
+        var preferredMenuHeight = 288;
+        var availableAbove = rect.top - 8;
+        var availableBelow = window.innerHeight - rect.bottom - 8;
+        var shouldPlaceBelow = availableBelow >= preferredMenuHeight || availableBelow >= availableAbove;
+        var availableOnChosenSide = shouldPlaceBelow ? availableBelow : availableAbove;
+        menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+        menu.style.minWidth = Math.max(220, rect.width) + 'px';
+        menu.style.maxHeight = Math.max(minimumMenuHeight, availableOnChosenSide) + 'px';
+
+        if (shouldPlaceBelow) {
+          menu.style.top = Math.min(window.innerHeight - 8, rect.bottom + 4) + 'px';
+          menu.style.bottom = 'auto';
+          return;
+        }
+
+        menu.style.top = 'auto';
+        menu.style.bottom = Math.min(window.innerHeight - 8, window.innerHeight - rect.top + 4) + 'px';
+      }
+
+      function closeCliSuggestions() {
+        cliSuggestionsEnabled = false;
+        cliSuggestionsRequestInput = null;
+        cliSuggestions = [];
+        cliSuggestionsReplaceStart = 0;
+        cliSuggestionsReplaceEnd = 0;
+        cliSuggestionsHighlightedIndex = 0;
+        var menu = getCliSuggestionsMenu();
+        menu.hidden = true;
+        menu.replaceChildren();
+      }
+
+      function resetSharedCommandHistoryNavigation() {
+        sharedCommandHistoryIndex = null;
+        sharedCommandHistoryDraft = '';
+      }
+
+      function recordSharedCommandHistoryEntry(command) {
+        if (typeof command !== 'string' || command.length === 0) {
+          resetSharedCommandHistoryNavigation();
+          return;
+        }
+
+        if (sharedCommandHistory[sharedCommandHistory.length - 1] === command) {
+          resetSharedCommandHistoryNavigation();
+          return;
+        }
+
+        sharedCommandHistory.push(command);
+        resetSharedCommandHistoryNavigation();
+      }
+
+      function maybeRecordNativeLineInputHistory(event) {
+        if (!isLineInput(event.target) || event.key !== 'Enter') {
+          return;
+        }
+
+        if (suppressNextNativeLineHistoryRecord) {
+          suppressNextNativeLineHistoryRecord = false;
+          return;
+        }
+
+        var currentValue = event.target.value;
+        if (typeof currentValue !== 'string' || currentValue.length === 0) {
+          return;
+        }
+
+        if (currentValue.startsWith('\\\\')) {
+          recordSharedCommandHistoryEntry(currentValue.slice(1));
+          return;
+        }
+
+        if (currentValue.startsWith('\\')) {
+          return;
+        }
+
+        recordSharedCommandHistoryEntry(currentValue);
+      }
+
+      function setLineInputValue(lineInput, nextValue) {
+        var prototype = lineInput instanceof HTMLInputElement
+          ? window.HTMLInputElement.prototype
+          : window.HTMLTextAreaElement.prototype;
+        var valueSetter = Object.getOwnPropertyDescriptor(prototype, 'value');
+        if (valueSetter && typeof valueSetter.set === 'function') {
+          valueSetter.set.call(lineInput, nextValue);
+        } else {
+          lineInput.value = nextValue;
+        }
+
+        lineInput.dispatchEvent(new Event('input', { bubbles: true }));
+        lineInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      function applySharedCommandHistory(lineInput, nextValue) {
+        isApplyingSharedCommandHistory = true;
+        setLineInputValue(lineInput, nextValue);
+        isApplyingSharedCommandHistory = false;
+        lineInput.focus();
+        if (typeof lineInput.setSelectionRange === 'function') {
+          lineInput.setSelectionRange(nextValue.length, nextValue.length);
+        }
+      }
+
+      function navigateSharedCommandHistory(lineInput, direction) {
+        if (!isTextEntryElement(lineInput) || sharedCommandHistory.length === 0) {
+          return false;
+        }
+
+        if (direction === 'up') {
+          if (sharedCommandHistoryIndex === null) {
+            sharedCommandHistoryDraft = lineInput.value;
+            sharedCommandHistoryIndex = sharedCommandHistory.length - 1;
+          } else if (sharedCommandHistoryIndex > 0) {
+            sharedCommandHistoryIndex -= 1;
+          }
+
+          applySharedCommandHistory(lineInput, sharedCommandHistory[sharedCommandHistoryIndex] || '');
+          return true;
+        }
+
+        if (direction === 'down') {
+          if (sharedCommandHistoryIndex === null) {
+            return false;
+          }
+
+          if (sharedCommandHistoryIndex < sharedCommandHistory.length - 1) {
+            sharedCommandHistoryIndex += 1;
+            applySharedCommandHistory(lineInput, sharedCommandHistory[sharedCommandHistoryIndex] || '');
+            return true;
+          }
+
+          sharedCommandHistoryIndex = null;
+          applySharedCommandHistory(lineInput, sharedCommandHistoryDraft);
+          sharedCommandHistoryDraft = '';
+          return true;
+        }
+
+        return false;
+      }
+
+      function renderCliSuggestions(lineInput) {
+        var menu = getCliSuggestionsMenu();
+        menu.replaceChildren();
+
+        if (!isTextEntryElement(lineInput) || cliSuggestions.length === 0) {
+          menu.hidden = true;
+          return;
+        }
+
+        cliSuggestions.forEach(function (suggestion, index) {
+          var option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'fweep-cli-suggestion' + (index === cliSuggestionsHighlightedIndex ? ' fweep-cli-suggestion--active' : '');
+          option.setAttribute('role', 'option');
+          option.setAttribute('aria-selected', index === cliSuggestionsHighlightedIndex ? 'true' : 'false');
+          option.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            applyHighlightedCliSuggestion(lineInput, index);
+          });
+
+          var label = document.createElement('span');
+          label.className = 'fweep-cli-suggestion-label';
+          label.textContent = suggestion.label;
+          option.appendChild(label);
+
+          if (typeof suggestion.detail === 'string' && suggestion.detail.length > 0) {
+            var detail = document.createElement('span');
+            detail.className = 'fweep-cli-suggestion-detail';
+            detail.textContent = suggestion.detail;
+            option.appendChild(detail);
+          }
+
+          menu.appendChild(option);
+        });
+
+        positionCliSuggestionsMenu(lineInput);
+        menu.hidden = false;
+      }
+
+      function shouldReserveArrowKeysForCliSuggestions(lineInput) {
+        return isTextEntryElement(lineInput)
+          && cliSuggestionsEnabled
+          && isMapCommandSuggestionEligible(lineInput.value);
+      }
+
+      function applyHighlightedCliSuggestion(lineInput, explicitIndex) {
+        if (!isTextEntryElement(lineInput) || cliSuggestions.length === 0) {
+          return false;
+        }
+
+        var suggestionIndex = typeof explicitIndex === 'number' ? explicitIndex : cliSuggestionsHighlightedIndex;
+        var suggestion = cliSuggestions[suggestionIndex];
+        if (!suggestion || suggestion.kind === 'placeholder') {
+          lineInput.focus();
+          return true;
+        }
+
+        var currentCommand = lineInput.value.slice(1);
+        var replaceStart = typeof suggestion.replaceStart === 'number' ? suggestion.replaceStart : cliSuggestionsReplaceStart;
+        var replaceEnd = typeof suggestion.replaceEnd === 'number' ? suggestion.replaceEnd : cliSuggestionsReplaceEnd;
+        var shouldReuseExistingComma = suggestion.insertText.startsWith(',') || suggestion.label.trimStart().startsWith(',');
+        var foundExistingComma = false;
+        if (shouldReuseExistingComma) {
+          var scanIndex = replaceStart;
+          while (scanIndex > 0 && currentCommand[scanIndex - 1] === ' ') {
+            scanIndex -= 1;
+          }
+          if (scanIndex > 0 && currentCommand[scanIndex - 1] === ',') {
+            replaceStart = scanIndex - 1;
+            foundExistingComma = true;
+          } else if (scanIndex !== replaceStart) {
+            replaceStart = scanIndex;
+          }
+        }
+
+        var replacementText = currentCommand.slice(replaceStart, replaceEnd);
+        var shouldWrapInsertedTextInQuotes = replacementText.startsWith('"') && !suggestion.insertText.startsWith('"');
+        var unquotedInsertedText = shouldWrapInsertedTextInQuotes
+          ? '"' + suggestion.insertText.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
+          : suggestion.insertText;
+        var baseInsertedText = shouldReuseExistingComma && !unquotedInsertedText.startsWith(',')
+          ? (foundExistingComma ? ',' : ', ') + unquotedInsertedText
+          : unquotedInsertedText;
+        var suffixNeedsSpace = replaceEnd >= currentCommand.length || /\s|,/.test(currentCommand[replaceEnd] || '');
+        var insertedText = suffixNeedsSpace ? baseInsertedText + ' ' : baseInsertedText;
+        var nextCommand = currentCommand.slice(0, replaceStart) + insertedText + currentCommand.slice(replaceEnd);
+        var nextValue = '\\' + nextCommand;
+        var nextCaretIndex = replaceStart + insertedText.length + 1;
+
+        setLineInputValue(lineInput, nextValue);
+        lineInput.focus();
+        if (typeof lineInput.setSelectionRange === 'function') {
+          lineInput.setSelectionRange(nextCaretIndex, nextCaretIndex);
+        }
+        cliSuggestionsHighlightedIndex = 0;
+        requestCliSuggestions(lineInput);
+        return true;
+      }
+
+      function requestCliSuggestions(lineInput) {
+        if (!isTextEntryElement(lineInput)) {
+          closeCliSuggestions();
+          return;
+        }
+
+        var currentValue = lineInput.value;
+        if (!cliSuggestionsEnabled || !isMapCommandSuggestionEligible(currentValue)) {
+          closeCliSuggestions();
+          return;
+        }
+
+        var command = currentValue.slice(1);
+        var caretPosition = Math.max(0, getLineInputCaret(lineInput) - 1);
+        cliSuggestionsRequestId += 1;
+        cliSuggestionsRequestInput = currentValue;
+        window.parent.postMessage(
+          {
+            type: 'fweep:request-cli-suggestions',
+            requestId: cliSuggestionsRequestId,
+            command: command,
+            caretPosition: caretPosition,
+          },
+          window.location.origin
+        );
+      }
+
+      function isLineInput(element) {
+        return element instanceof HTMLElement && element.matches(lineInputSelector);
+      }
+
+      function getCurrentEnabledTextarea(selector) {
+        var textareas = document.querySelectorAll(selector);
+        for (var index = 0; index < textareas.length; index += 1) {
+          var textarea = textareas[index];
+          if (
+            isTextEntryElement(textarea)
+            && !textarea.disabled
+            && textarea.getAttribute('aria-hidden') !== 'true'
+          ) {
+            return textarea;
+          }
+        }
+
+        return null;
+      }
+
+      function getCurrentLineInput() {
+        var lineInput = getCurrentEnabledTextarea(lineInputSelector);
+        return isLineInput(lineInput) ? lineInput : null;
+      }
+
+      function getCurrentCharInput() {
+        return getCurrentEnabledTextarea(charInputSelector);
+      }
+
+      function updateLineInputPlaceholder(lineInput) {
+        if (!isTextEntryElement(lineInput)) {
+          return;
+        }
+
+        lineInput.placeholder = document.activeElement === lineInput
+          ? focusedLineInputPlaceholder
+          : unfocusedLineInputPlaceholder;
+      }
+
+      function labelLineInputs(root) {
+        var scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+        var lineInputs = scope.querySelectorAll(lineInputSelector);
+        lineInputs.forEach(function (lineInput) {
+          if (!lineInput.getAttribute('aria-label')) {
+            lineInput.setAttribute('aria-label', lineInputLabel);
+          }
+          updateLineInputPlaceholder(lineInput);
+        });
+      }
+
+      function isOutputWindow(element) {
+        return element instanceof HTMLElement && /^window\d+$/.test(element.id);
+      }
+
+      function isOutputViewport(element) {
+        return element instanceof HTMLElement && element.matches(outputViewportSelector);
+      }
+
+      function enhanceOutputWindows(root) {
+        var scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+        var outputWindows = scope.querySelectorAll(outputWindowSelector);
+        outputWindows.forEach(function (outputWindow) {
+          if (!outputWindow.hasAttribute('tabindex')) {
+            outputWindow.setAttribute('tabindex', '0');
+          }
+
+          if (!outputWindow.getAttribute('aria-label')) {
+            outputWindow.setAttribute('aria-label', outputWindowLabelPrefix + ' ' + outputWindow.id.replace(/^window/, 'window '));
+          }
+        });
+      }
+
+      function getPreferredOutputWindow() {
+        var activeElement = document.activeElement;
+        if (isOutputWindow(activeElement)) {
+          return activeElement;
+        }
+
+        var visibleOutputWindows = Array.from(document.querySelectorAll(outputWindowSelector)).filter(function (outputWindow) {
+          if (!(outputWindow instanceof HTMLElement)) {
+            return false;
+          }
+
+          if (outputWindow.classList.contains('hidden') || outputWindow.getAttribute('aria-hidden') === 'true') {
+            return false;
+          }
+
+          if (outputWindow.offsetParent === null || outputWindow.getClientRects().length === 0) {
+            return false;
+          }
+
+          return true;
+        });
+
+        if (visibleOutputWindows.length === 0) {
+          return null;
+        }
+
+        visibleOutputWindows.sort(function (left, right) {
+          var leftScore = 0;
+          var rightScore = 0;
+
+          if (!left.classList.contains('GridWindow')) {
+            leftScore += 4;
+          }
+          if (!right.classList.contains('GridWindow')) {
+            rightScore += 4;
+          }
+
+          if (left.scrollHeight > left.clientHeight) {
+            leftScore += 2;
+          }
+          if (right.scrollHeight > right.clientHeight) {
+            rightScore += 2;
+          }
+
+          if (left.scrollHeight >= right.scrollHeight) {
+            leftScore += 1;
+          } else {
+            rightScore += 1;
+          }
+
+          return rightScore - leftScore;
+        });
+
+        return visibleOutputWindows[0] || null;
+      }
+
+      function scrollOutputWindow(element, key) {
+        var lineHeight = parseFloat(window.getComputedStyle(element).lineHeight) || 20;
+        var smallStep = Math.max(lineHeight * 3, 40);
+        var pageStep = Math.max(element.clientHeight - lineHeight * 2, smallStep);
+
+        switch (key) {
+          case 'ArrowUp':
+            element.scrollTop -= smallStep;
+            return true;
+          case 'ArrowDown':
+            element.scrollTop += smallStep;
+            return true;
+          case 'PageUp':
+            element.scrollTop -= pageStep;
+            return true;
+          case 'PageDown':
+            element.scrollTop += pageStep;
+            return true;
+          case 'Home':
+            element.scrollTop = 0;
+            return true;
+          case 'End':
+            element.scrollTop = element.scrollHeight;
+            return true;
+          default:
+            return false;
+        }
+      }
+
+      function getOutputAppendTarget() {
+        var lineInput = getCurrentLineInput();
+        if (isLineInput(lineInput)) {
+          var lineInputContainer = lineInput.closest('.BufferWindowInner');
+          if (lineInputContainer instanceof HTMLElement) {
+            return lineInputContainer;
+          }
+        }
+
+        var visibleBufferWindows = Array.from(document.querySelectorAll('.BufferWindow')).filter(function (bufferWindow) {
+          return (
+            bufferWindow instanceof HTMLElement
+            && !bufferWindow.classList.contains('hidden')
+            && bufferWindow.getAttribute('aria-hidden') !== 'true'
+            && bufferWindow.offsetParent !== null
+            && bufferWindow.getClientRects().length > 0
+          );
+        });
+
+        visibleBufferWindows.sort(function (left, right) {
+          return (right.clientWidth * right.clientHeight) - (left.clientWidth * left.clientHeight);
+        });
+
+        var preferredBufferWindow = visibleBufferWindows[0];
+        if (!(preferredBufferWindow instanceof HTMLElement)) {
+          return null;
+        }
+
+        var inner = preferredBufferWindow.querySelector('.BufferWindowInner');
+        return inner instanceof HTMLElement ? inner : preferredBufferWindow;
+      }
+
+      function appendCliOutput(lines) {
+        if (!Array.isArray(lines) || lines.length === 0) {
+          return;
+        }
+
+        var target = getOutputAppendTarget();
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        var promptLines = target.querySelectorAll(':scope > .BufferLine');
+        var insertionBefore = promptLines.length > 0 ? promptLines[promptLines.length - 1] : getCurrentLineInput();
+        if (insertionBefore instanceof HTMLElement) {
+          insertionBefore = insertionBefore.closest('.BufferLine') || insertionBefore;
+        }
+
+        if (!(insertionBefore instanceof HTMLElement) || !target.contains(insertionBefore)) {
+          insertionBefore = null;
+        }
+
+        var fragment = document.createDocumentFragment();
+        lines.forEach(function (line) {
+          var bufferLine = document.createElement('div');
+          bufferLine.className = 'BufferLine fweep-cli-output-line';
+          if (line.length === 0) {
+            var emptyRun = document.createElement('span');
+            emptyRun.className = 'fweep-cli-output-text';
+            emptyRun.textContent = '\u00A0';
+            bufferLine.appendChild(emptyRun);
+          } else {
+            line.split(/(\*\*.+?\*\*)/g).filter(function (part) {
+              return part.length > 0;
+            }).forEach(function (part) {
+              var isBold = part.startsWith('**') && part.endsWith('**') && part.length >= 4;
+              var textRun = document.createElement('span');
+              textRun.className = 'fweep-cli-output-text';
+              textRun.textContent = isBold ? part.slice(2, -2) : part;
+              if (isBold) {
+                textRun.classList.add('fweep-cli-output-text--strong');
+              }
+              bufferLine.appendChild(textRun);
+            });
+          }
+          fragment.appendChild(bufferLine);
+        });
+
+        var spacerLine = document.createElement('div');
+        spacerLine.className = 'BufferLine fweep-cli-output-line';
+        var spacerText = document.createElement('span');
+        spacerText.className = 'fweep-cli-output-text';
+        spacerText.textContent = '\u00A0';
+        spacerLine.appendChild(spacerText);
+        fragment.appendChild(spacerLine);
+
+        if (insertionBefore) {
+          target.insertBefore(fragment, insertionBefore);
+        } else {
+          target.appendChild(fragment);
+        }
+
+        var preferredOutputWindow = getPreferredOutputWindow();
+        if (isOutputWindow(preferredOutputWindow)) {
+          preferredOutputWindow.scrollTop = preferredOutputWindow.scrollHeight;
+        }
+      }
+
+      function postRestoreCliFocus() {
+        window.parent.postMessage({ type: 'fweep:restore-cli-focus' }, window.location.origin);
+      }
+
+      function dispatchCharacterCommand(target, command) {
+        if (!(target instanceof HTMLElement) || command.length !== 1) {
+          return false;
+        }
+
+        var keyCode = command.charCodeAt(0);
+        target.focus();
+        target.dispatchEvent(new KeyboardEvent('keydown', {
+          key: command,
+          code: command === ' ' ? 'Space' : '',
+          keyCode: keyCode,
+          which: keyCode,
+          bubbles: true,
+          cancelable: true
+        }));
+        target.dispatchEvent(new KeyboardEvent('keypress', {
+          key: command,
+          code: command === ' ' ? 'Space' : '',
+          charCode: keyCode,
+          keyCode: keyCode,
+          which: keyCode,
+          bubbles: true,
+          cancelable: true
+        }));
+        target.dispatchEvent(new KeyboardEvent('keyup', {
+          key: command,
+          code: command === ' ' ? 'Space' : '',
+          keyCode: keyCode,
+          which: keyCode,
+          bubbles: true,
+          cancelable: true
+        }));
+        return true;
+      }
+
+      function getWindowObjectForInput(input) {
+        if (!(input instanceof HTMLElement) || typeof window.jQuery !== 'function') {
+          return null;
+        }
+
+        var windowData = window.jQuery(input).data('window');
+        return windowData && typeof windowData === 'object' ? windowData : null;
+      }
+
+      function submitCharacterCommand(target, command) {
+        if (!(target instanceof HTMLElement) || command.length !== 1) {
+          return false;
+        }
+
+        var windowObject = getWindowObjectForInput(target);
+        if (
+          windowObject
+          && windowObject.inputel
+          && windowObject.input
+          && windowObject.input.type === 'char'
+        ) {
+          return dispatchCharacterCommand(target, command);
+        }
+
+        return dispatchCharacterCommand(target, command);
+      }
+
+      function clearPendingGameCommandTimer() {
+        if (pendingGameCommandTimer !== null) {
+          window.clearTimeout(pendingGameCommandTimer);
+          pendingGameCommandTimer = null;
+        }
+      }
+
+      function schedulePendingGameCommandFlush(delayMs) {
+        clearPendingGameCommandTimer();
+        pendingGameCommandTimer = window.setTimeout(function () {
+          pendingGameCommandTimer = null;
+          flushPendingGameCommand();
+        }, delayMs);
+      }
+
+      function flushPendingGameCommand() {
+        if (pendingGameCommand === null) {
+          return false;
+        }
+
+        var queuedCommand = pendingGameCommand;
+        var lineInput = getCurrentLineInput();
+        if (isLineInput(lineInput)) {
+          pendingGameCommand = null;
+          pendingGameCommandAttempts = 0;
+          return submitGameCommand(queuedCommand.command, {
+            restoreCliFocus: queuedCommand.restoreCliFocus
+          });
+        }
+
+        var charInput = getCurrentCharInput();
+        if (!isTextEntryElement(charInput)) {
+          return false;
+        }
+
+        if (pendingGameCommandAttempts >= 64) {
+          pendingGameCommand = null;
+          pendingGameCommandAttempts = 0;
+          return false;
+        }
+
+        pendingGameCommandAttempts += 1;
+        if (!submitCharacterCommand(charInput, ' ')) {
+          return false;
+        }
+
+        schedulePendingGameCommandFlush(0);
+        return true;
+      }
+
+      function submitGameCommand(command, options) {
+        var shouldRestoreCliFocus = !!(options && options.restoreCliFocus);
+        var charInput = command.length === 1 ? getCurrentCharInput() : null;
+
+        if (isTextEntryElement(charInput) && submitCharacterCommand(charInput, command)) {
+          recordSharedCommandHistoryEntry(command);
+          if (shouldRestoreCliFocus) {
+            window.setTimeout(function () {
+              postRestoreCliFocus();
+            }, 0);
+          }
+          return true;
+        }
+
+        if (command.length === 1) {
+          var activeElement = document.activeElement;
+          if (submitCharacterCommand(activeElement, command)) {
+            recordSharedCommandHistoryEntry(command);
+            if (shouldRestoreCliFocus) {
+              window.setTimeout(function () {
+                postRestoreCliFocus();
+              }, 0);
+            }
+            return true;
+          }
+        }
+
+        var lineInput = getCurrentLineInput();
+        if (isLineInput(lineInput)) {
+          recordSharedCommandHistoryEntry(command);
+          setLineInputValue(lineInput, command);
+          suppressNextNativeLineHistoryRecord = true;
+          lineInput.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+          }));
+          lineInput.dispatchEvent(new KeyboardEvent('keypress', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+          }));
+          lineInput.dispatchEvent(new KeyboardEvent('keyup', {
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+          }));
+          if (shouldRestoreCliFocus) {
+            window.setTimeout(function () {
+              postRestoreCliFocus();
+            }, 0);
+          }
+          return true;
+        }
+
+        if (command.length > 1) {
+          var pagingCharInput = getCurrentCharInput();
+          if (isTextEntryElement(pagingCharInput)) {
+            pendingGameCommand = {
+              command: command,
+              restoreCliFocus: shouldRestoreCliFocus
+            };
+            pendingGameCommandAttempts = 0;
+            return flushPendingGameCommand();
+          }
+        }
+
+        return false;
+      }
+
+      function interceptCrossInputCommand(event) {
+        if (!isLineInput(event.target) || event.key !== 'Enter') {
+          return false;
+        }
+
+        var currentValue = event.target.value;
+        if (typeof currentValue === 'string' && currentValue.startsWith('\\\\')) {
+          setLineInputValue(event.target, currentValue.slice(1));
+          return false;
+        }
+
+        if (typeof currentValue !== 'string' || !currentValue.startsWith('\\')) {
+          return false;
+        }
+
+        recordSharedCommandHistoryEntry(currentValue);
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') {
+          event.stopImmediatePropagation();
+        }
+        setLineInputValue(event.target, '');
+        window.parent.postMessage(
+          { type: 'fweep:submit-cli-from-parchment', command: currentValue.slice(1), rawInput: currentValue },
+          window.location.origin
+        );
+        return true;
+      }
+
+      function startLineInputLabeling() {
+        labelLineInputs(document);
+        enhanceOutputWindows(document);
+
+        var observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (mutation) {
+            mutation.addedNodes.forEach(function (node) {
+              if (!(node instanceof Element)) {
+                return;
+              }
+
+              if (node.matches(lineInputSelector)) {
+                labelLineInputs(node.parentElement || document);
+                return;
+              }
+
+              labelLineInputs(node);
+              enhanceOutputWindows(node);
+            });
+          });
+        });
+
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+
+        document.addEventListener('pointerdown', function (event) {
+          if (isLineInput(event.target)) {
+            allowLineInputFocusUntil = Date.now() + 750;
+          }
+
+          var target = event.target instanceof Element ? event.target.closest(outputWindowSelector) : null;
+          if (isOutputWindow(target)) {
+            target.focus();
+          }
+        }, true);
+
+        document.addEventListener('focusin', function (event) {
+          if (isLineInput(event.target)) {
+            updateLineInputPlaceholder(event.target);
+          }
+        }, true);
+
+        document.addEventListener('focusout', function (event) {
+          if (isLineInput(event.target)) {
+            window.setTimeout(function () {
+              updateLineInputPlaceholder(event.target);
+            }, 0);
+          }
+        }, true);
+
+        window.addEventListener('message', function (event) {
+          if (event.origin !== window.location.origin) {
+            return;
+          }
+
+          var data = event.data;
+          if (data && data.type === 'fweep:restore-game-input-focus') {
+            var lineInput = getCurrentLineInput();
+            if (isLineInput(lineInput)) {
+              lineInput.focus();
+              updateLineInputPlaceholder(lineInput);
+            }
+            return;
+          }
+
+          if (data && data.type === 'fweep:render-cli-suggestions') {
+            if (typeof data.command !== 'string' || typeof data.caretPosition !== 'number') {
+              closeCliSuggestions();
+              return;
+            }
+
+            if (typeof data.requestId === 'number' && data.requestId !== cliSuggestionsRequestId) {
+              return;
+            }
+
+            var currentLineInput = getCurrentLineInput();
+            var expectedInputValue = '\\' + data.command;
+            if (!isLineInput(currentLineInput) || currentLineInput.value !== expectedInputValue) {
+              return;
+            }
+
+            var suggestionResult = data.suggestionResult;
+            if (
+              !cliSuggestionsEnabled
+              || !suggestionResult
+              || !Array.isArray(suggestionResult.suggestions)
+              || suggestionResult.suggestions.length === 0
+            ) {
+              var emptyMenu = getCliSuggestionsMenu();
+              emptyMenu.hidden = true;
+              emptyMenu.replaceChildren();
+              cliSuggestions = [];
+              return;
+            }
+
+            cliSuggestions = suggestionResult.suggestions;
+            cliSuggestionsReplaceStart = typeof suggestionResult.replaceStart === 'number' ? suggestionResult.replaceStart : 0;
+            cliSuggestionsReplaceEnd = typeof suggestionResult.replaceEnd === 'number' ? suggestionResult.replaceEnd : cliSuggestionsReplaceStart;
+            cliSuggestionsHighlightedIndex = Math.max(
+              0,
+              Math.min(
+                typeof suggestionResult.highlightedIndex === 'number' ? suggestionResult.highlightedIndex : 0,
+                cliSuggestions.length - 1
+              )
+            );
+            renderCliSuggestions(currentLineInput);
+            return;
+          }
+
+          if (data && data.type === 'fweep:append-cli-output' && Array.isArray(data.lines)) {
+            appendCliOutput(data.lines);
+            return;
+          }
+
+          if (!data || data.type !== 'fweep:submit-game-command' || typeof data.command !== 'string') {
+            return;
+          }
+
+          submitGameCommand(data.command, {
+            restoreCliFocus: !!data.restoreCliFocus
+          });
+        });
+
+        document.addEventListener('keydown', function (event) {
+          maybeRecordNativeLineInputHistory(event);
+          var currentLineInput = isLineInput(event.target) ? event.target : getCurrentLineInput();
+
+          if (
+            isLineInput(currentLineInput)
+            && cliSuggestionKeyboardShortcutEnabled
+            && event.key === ' '
+            && event.code === 'Space'
+            && event.ctrlKey
+            && !event.metaKey
+            && !event.altKey
+            && !event.shiftKey
+          ) {
+            event.preventDefault();
+            if (cliSuggestionsEnabled) {
+              closeCliSuggestions();
+            } else {
+              cliSuggestionsEnabled = true;
+              requestCliSuggestions(currentLineInput);
+            }
+            return;
+          }
+
+          if (isLineInput(currentLineInput) && cliSuggestionsEnabled && !isMapCommandSuggestionEligible(currentLineInput.value)) {
+            closeCliSuggestions();
+          }
+
+          if (shouldReserveArrowKeysForCliSuggestions(currentLineInput)) {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              if (cliSuggestions.length > 0) {
+                cliSuggestionsHighlightedIndex = event.key === 'ArrowDown'
+                  ? (cliSuggestionsHighlightedIndex + 1) % cliSuggestions.length
+                  : (cliSuggestionsHighlightedIndex <= 0 ? cliSuggestions.length - 1 : cliSuggestionsHighlightedIndex - 1);
+                renderCliSuggestions(currentLineInput);
+              } else {
+                requestCliSuggestions(currentLineInput);
+              }
+              return;
+            }
+
+            if (!getCliSuggestionsMenu().hidden && event.key === 'Tab') {
+              if (applyHighlightedCliSuggestion(currentLineInput)) {
+                event.preventDefault();
+              }
+              return;
+            }
+
+            if (!getCliSuggestionsMenu().hidden && event.key === 'Escape') {
+              event.preventDefault();
+              closeCliSuggestions();
+              return;
+            }
+          }
+
+          if (isLineInput(currentLineInput) && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+            if (navigateSharedCommandHistory(currentLineInput, event.key === 'ArrowUp' ? 'up' : 'down')) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (typeof event.stopImmediatePropagation === 'function') {
+                event.stopImmediatePropagation();
+              }
+            }
+            return;
+          }
+
+          if (interceptCrossInputCommand(event)) {
+            closeCliSuggestions();
+            return;
+          }
+
+          var activeElement = document.activeElement;
+          if (
+            isLineInput(activeElement)
+            && (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+          ) {
+            return;
+          }
+
+          var outputWindow = isOutputWindow(activeElement)
+            ? activeElement
+            : ((activeElement === document.body
+                || activeElement === document.documentElement
+                || activeElement === null
+                || isLineInput(activeElement)
+                || isOutputViewport(activeElement))
+              ? getPreferredOutputWindow()
+              : null);
+
+          if (!isOutputWindow(outputWindow)) {
+            return;
+          }
+
+          if (!scrollOutputWindow(outputWindow, event.key)) {
+            return;
+          }
+
+          if (document.activeElement !== outputWindow) {
+            outputWindow.focus();
+          }
+          event.preventDefault();
+          event.stopPropagation();
+        }, true);
+
+        document.addEventListener('keypress', function (event) {
+          interceptCrossInputCommand(event);
+        }, true);
+
+        document.addEventListener('input', function (event) {
+          if (!isLineInput(event.target)) {
+            return;
+          }
+
+          if (!isApplyingSharedCommandHistory) {
+            resetSharedCommandHistoryNavigation();
+          }
+
+          if (!cliSuggestionsEnabled) {
+            return;
+          }
+
+          if (!isMapCommandSuggestionEligible(event.target.value)) {
+            closeCliSuggestions();
+            return;
+          }
+
+          requestCliSuggestions(event.target);
+        }, true);
+
+        document.addEventListener('click', function (event) {
+          if (!isLineInput(event.target)) {
+            return;
+          }
+
+          if (!cliSuggestionsEnabled) {
+            return;
+          }
+
+          var target = event.target;
+          window.setTimeout(function () {
+            requestCliSuggestions(target);
+          }, 0);
+        }, true);
+
+        document.addEventListener('keyup', function (event) {
+          if (!isLineInput(event.target) || !cliSuggestionsEnabled) {
+            return;
+          }
+
+          if (
+            event.key === 'ArrowLeft'
+            || event.key === 'ArrowRight'
+            || event.key === 'Home'
+            || event.key === 'End'
+          ) {
+            requestCliSuggestions(event.target);
+          }
+        }, true);
+
+        window.addEventListener('resize', function () {
+          if (getCliSuggestionsMenu().hidden) {
+            return;
+          }
+
+          positionCliSuggestionsMenu(getCurrentLineInput());
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startLineInputLabeling, { once: true });
+      } else {
+        startLineInputLabeling();
+      }
+    })();
+  </script>
+</head>
+<body onload="fweepBootQuixe();">
+  <div id="gameport">
+    <div id="windowport">
+      <noscript><hr><p>You'll need to turn on Javascript in your web browser to play this game.</p><hr></noscript>
+    </div>
+    <div id="loadingpane">
+      <img src="/quixe/media/waiting.gif" alt="LOADING"><br>
+      <em>&nbsp;&nbsp;&nbsp;Loading...</em>
+    </div>
+    <div id="errorpane" style="display:none;"><div id="errorcontent">...</div></div>
+  </div>
+</body>
+</html>

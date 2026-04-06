@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { NormalizedIfdbSearchResult } from '../../src/domain/ifdb';
 import type { AssociatedGameMetadata } from '../../src/domain/map-types';
 import {
+  buildEmbeddedPlayerSrc,
   buildParchmentSrc,
   PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS,
   PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS,
@@ -262,7 +263,7 @@ describe('useParchmentPanel', () => {
     );
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildEmbeddedPlayerSrc(associatedGame.storyUrl, associatedGame.format, 'map-1'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
 
@@ -296,7 +297,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+      expect(result.current.parchmentSrc).toBe(buildEmbeddedPlayerSrc(defaultStoryUrl, 'glulx', 'map-new'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
@@ -315,7 +316,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildEmbeddedPlayerSrc(defaultStoryUrl, 'glulx', 'map-existing'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -339,7 +340,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildEmbeddedPlayerSrc(associatedGame.storyUrl, associatedGame.format, 'map-ifdb'));
     });
 
     act(() => {
@@ -350,7 +351,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildEmbeddedPlayerSrc(defaultStoryUrl, 'glulx', 'map-ifdb'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -377,7 +378,7 @@ describe('useParchmentPanel', () => {
     Object.defineProperty(options.parchmentIframeRef.current, 'contentWindow', {
       configurable: true,
       value: {
-        parchment: {
+        quixePlayer: {
           load_uploaded_file: loadUploadedFile,
         },
       },
@@ -417,7 +418,7 @@ describe('useParchmentPanel', () => {
     Object.defineProperty(options.parchmentIframeRef.current, 'contentWindow', {
       configurable: true,
       value: {
-        parchment: {
+        quixePlayer: {
           load_uploaded_file: loadUploadedFile,
         },
       },
@@ -508,7 +509,7 @@ describe('useParchmentPanel', () => {
       await jest.advanceTimersByTimeAsync((PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS + 2) * PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS);
     });
 
-    expect(result.current.ifdbSearchError).toBe('Parchment is not ready to open a local file yet.');
+    expect(result.current.ifdbSearchError).toBe('Quixe is not ready to open a local file yet.');
   });
 
   it('resizes the panel with the corner pointer and keyboard controls', () => {

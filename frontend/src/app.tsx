@@ -27,10 +27,15 @@ import { useParchmentPanel } from './hooks/use-parchment-panel';
 import { useEditorStore } from './state/editor-store';
 import { MAP_CANVAS_THEMES, type MapCanvasTheme } from './domain/map-types';
 import {
+  buildEmbeddedPlayerSrc,
   DEFAULT_NEW_MAP_PARCHMENT_STORY_URL,
   buildParchmentSrc,
+  buildQuixeSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
+  getEmbeddedPlayerBranding,
+  getEmbeddedPlayerIdForSrc,
+  getEmbeddedPlayerIdForFormat,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
   getNextParchmentPanelHeightFromKey,
@@ -57,9 +62,12 @@ const PARCHMENT_PANEL_TOP_PROTECTED_INSET_PX = 84;
 const batImage = new URL('../bat.png', import.meta.url).href;
 
 export {
+  buildEmbeddedPlayerSrc,
   buildParchmentSrc,
+  buildQuixeSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
+  getEmbeddedPlayerIdForFormat,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
   getNextParchmentPanelHeightFromKey,
@@ -334,6 +342,7 @@ export function App(): React.JSX.Element {
     heightBottomInsetPx: 16,
   });
   const shouldWarnAboutLeavingActiveGame = shouldWarnAboutLeavingParchmentGame(hasOpenMap, isParchmentGameViewVisible);
+  const playerBranding = getEmbeddedPlayerBranding(getEmbeddedPlayerIdForSrc(parchmentSrc));
   const routeCrossInputCommandToParchment = useCallback((command: string): boolean => {
     const iframeWindow = parchmentIframeRef.current?.contentWindow;
     if (iframeWindow === null || iframeWindow === undefined) {
@@ -916,6 +925,8 @@ export function App(): React.JSX.Element {
             minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
             maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
             isGameViewVisible={isParchmentGameViewVisible}
+            playerAttributionHref={playerBranding.attributionHref}
+            playerAttributionLabel={playerBranding.attributionLabel}
             parchmentSrc={parchmentSrc}
             ifdbSearchQuery={ifdbSearchQuery}
             ifdbSearchResults={ifdbSearchResults}
