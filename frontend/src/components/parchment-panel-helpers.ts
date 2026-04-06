@@ -8,6 +8,33 @@ export const PARCHMENT_FOCUS_TOGGLE_SHORTCUT_KEY = 'Slash';
 export const PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS = 100;
 export const PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS = 10;
 export const DEFAULT_NEW_MAP_PARCHMENT_STORY_URL = '/fweep.gblorb';
+export type EmbeddedPlayerId = 'parchment' | 'quixe';
+export interface EmbeddedPlayerBranding {
+  readonly attributionHref: string;
+  readonly attributionLabel: string;
+}
+
+export function getEmbeddedPlayerIdForFormat(format: string | null): EmbeddedPlayerId {
+  return format === 'glulx' ? 'quixe' : 'parchment';
+}
+
+export function getEmbeddedPlayerIdForSrc(src: string): EmbeddedPlayerId {
+  return src.startsWith('/quixe.html?') ? 'quixe' : 'parchment';
+}
+
+export function getEmbeddedPlayerBranding(playerId: EmbeddedPlayerId): EmbeddedPlayerBranding {
+  if (playerId === 'quixe') {
+    return {
+      attributionHref: 'http://eblong.com/zarf/glulx/quixe/',
+      attributionLabel: 'Quixe by Andrew Plotkin',
+    };
+  }
+
+  return {
+    attributionHref: 'https://github.com/curiousdannii/parchment',
+    attributionLabel: 'Parchment by Dannii Willis',
+  };
+}
 
 export function getDefaultParchmentPanelWidth(viewportWidth: number): number {
   return clampParchmentPanelWidth(PARCHMENT_PANEL_DEFAULT_WIDTH_PX, viewportWidth);
@@ -168,18 +195,62 @@ export function buildParchmentSrc(storyUrl: string | null): string {
   return `/parchment.html?${params.toString()}`;
 }
 
+export function buildQuixeSrc(storyUrl: string | null, mapId: string | null): string {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    do_vm_autosave: '1',
+  });
+
+  if (mapId !== null) {
+    params.set('mapId', mapId);
+  }
+
+  if (storyUrl !== null) {
+    params.set('story', storyUrl);
+  }
+
+  return `/quixe.html?${params.toString()}`;
+}
+
+export function buildEmbeddedPlayerSrc(
+  storyUrl: string | null,
+  format: string | null,
+  mapId: string | null,
+): string {
+  return getEmbeddedPlayerIdForFormat(format) === 'quixe'
+    ? buildQuixeSrc(storyUrl, mapId)
+    : buildParchmentSrc(storyUrl);
+}
+
 type ParchmentWindow = Window & {
   parchment?: {
+    load_uploaded_file?: (file: File) => Promise<void> | void;
+  };
+  quixePlayer?: {
     load_uploaded_file?: (file: File) => Promise<void> | void;
   };
 };
 
 type ParchmentInstance = NonNullable<ParchmentWindow['parchment']>;
+type QuixeInstance = NonNullable<ParchmentWindow['quixePlayer']>;
+export type EmbeddedPlayerInstance = ParchmentInstance | QuixeInstance;
 
 export function getParchmentInstance(iframeElement: HTMLIFrameElement | null): ParchmentInstance | null {
   const iframeWindow = iframeElement?.contentWindow as ParchmentWindow | null;
   const parchment = iframeWindow?.parchment;
   return parchment !== undefined ? parchment : null;
+}
+
+export function getEmbeddedPlayerInstance(
+  iframeElement: HTMLIFrameElement | null,
+  format: string | null,
+): EmbeddedPlayerInstance | null {
+  const iframeWindow = iframeElement?.contentWindow as ParchmentWindow | null;
+  if (getEmbeddedPlayerIdForFormat(format) === 'quixe') {
+    return iframeWindow?.quixePlayer ?? null;
+  }
+
+  return iframeWindow?.parchment ?? null;
 }
 
 export function shouldWarnAboutLeavingParchmentGame(hasOpenMap: boolean, isParchmentGameViewVisible: boolean): boolean {

@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createLocalFileAssociatedGameMetadata } from '../domain/associated-game';
+import { createLocalFileAssociatedGameMetadata, inferLocalFileGameFormat } from '../domain/associated-game';
 import { searchIfdbGames, viewIfdbGame } from '../domain/ifdb-client';
 import type { NormalizedIfdbSearchResult } from '../domain/ifdb';
 import type { AssociatedGameMetadata } from '../domain/map-types';
 import {
+  buildEmbeddedPlayerSrc,
   buildParchmentSrc,
   clampParchmentPanelHeightWithinInsets,
   clampParchmentPanelWidth,
+  getEmbeddedPlayerIdForFormat,
+  getEmbeddedPlayerInstance,
   getNextParchmentPanelHeightFromKeyWithinInsets,
   getNextParchmentPanelWidthFromKey,
-  getParchmentInstance,
   loadStoredParchmentPanelHeightWithinInsets,
   loadStoredParchmentPanelWidth,
   PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS,
@@ -301,7 +303,7 @@ export function useParchmentPanel({
     }
 
     if (!isAssociatedGameSyncSuppressed && associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
-      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
+      setParchmentSrc(buildEmbeddedPlayerSrc(associatedGame.storyUrl, associatedGame.format, activeMapId));
       if (!isParchmentChooserForcedVisible && !isParchmentGameViewVisible) {
         setIsParchmentGameViewVisible(true);
       }
@@ -315,7 +317,11 @@ export function useParchmentPanel({
       && defaultStoryUrlForNewMap !== null
     ) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+      setParchmentSrc(buildEmbeddedPlayerSrc(
+        defaultStoryUrlForNewMap,
+        inferLocalFileGameFormat(defaultStoryUrlForNewMap),
+        activeMapId,
+      ));
       setIsParchmentGameViewVisible(true);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -360,20 +366,26 @@ export function useParchmentPanel({
 
     setIfdbSearchError(null);
     setPendingLocalFile(null);
-    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+    setParchmentSrc(buildEmbeddedPlayerSrc(
+      defaultStoryUrlForNewMap,
+      inferLocalFileGameFormat(defaultStoryUrlForNewMap),
+      activeMapId,
+    ));
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(true);
-  }, [defaultStoryUrlForNewMap]);
+  }, [activeMapId, defaultStoryUrlForNewMap]);
 
   const tryLoadParchmentLocalFile = useCallback(async (
     selectedFile: File,
     reportUnavailable: boolean,
   ): Promise<boolean> => {
-    const parchment = getParchmentInstance(parchmentIframeRef.current);
-    if (parchment === null || typeof parchment.load_uploaded_file !== 'function') {
+    const selectedFormat = inferLocalFileGameFormat(selectedFile.name);
+    const embeddedPlayer = getEmbeddedPlayerInstance(parchmentIframeRef.current, selectedFormat);
+    if (embeddedPlayer === null || typeof embeddedPlayer.load_uploaded_file !== 'function') {
       if (reportUnavailable) {
-        setIfdbSearchError('Parchment is not ready to open a local file yet.');
+        const playerName = getEmbeddedPlayerIdForFormat(selectedFormat) === 'quixe' ? 'Quixe' : 'Parchment';
+        setIfdbSearchError(`${playerName} is not ready to open a local file yet.`);
         setPendingLocalFile(null);
       }
       return false;
@@ -382,7 +394,7 @@ export function useParchmentPanel({
     setIfdbSearchError(null);
 
     try {
-      await parchment.load_uploaded_file(selectedFile);
+      await embeddedPlayer.load_uploaded_file(selectedFile);
       setAssociatedGameMetadata(createLocalFileAssociatedGameMetadata(selectedFile));
       setPendingLocalFile(null);
       return true;
@@ -404,14 +416,14 @@ export function useParchmentPanel({
     }
 
     setIfdbSearchError(null);
-    setParchmentSrc(buildParchmentSrc(null));
+    setParchmentSrc(buildEmbeddedPlayerSrc(null, inferLocalFileGameFormat(selectedFile.name), activeMapId));
     setPendingLocalFile(selectedFile);
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(false);
 
     await tryLoadParchmentLocalFile(selectedFile, false);
-  }, [tryLoadParchmentLocalFile]);
+  }, [activeMapId, tryLoadParchmentLocalFile]);
 
   const handleResetParchmentPanel = useCallback((): void => {
     if (pendingLocalFileRetryTimeoutRef.current !== null) {

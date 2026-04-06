@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   areStartupTipsEnabled,
+  buildEmbeddedPlayerSrc,
   buildParchmentSrc,
+  buildQuixeSrc,
   clampParchmentPanelHeight,
   clampParchmentPanelWidth,
+  getEmbeddedPlayerIdForFormat,
   getDefaultParchmentPanelHeight,
   getDefaultParchmentPanelWidth,
   getNextCanvasTheme,
@@ -105,7 +108,7 @@ describe('app helpers', () => {
     expect(loadStoredParchmentPanelHeight(700)).toBe(355);
   });
 
-  it('cycles canvas themes and builds parchment sources', () => {
+  it('cycles canvas themes and builds player sources', () => {
     expect(getNextCanvasTheme('default')).toBe('paper');
     expect(getNextCanvasTheme('contour')).toBe('default');
     expect(getNextCanvasTheme('not-a-theme' as never)).toBe('default');
@@ -115,8 +118,15 @@ describe('app helpers', () => {
     expect(getNextParchmentPanelHeightFromKey('Enter', 300, 700)).toBeNull();
     expect(getNextParchmentPanelWidthFromKey('ArrowLeft', 420, 1000)).toBe(452);
     expect(getNextParchmentPanelWidthFromKey('Enter', 420, 1000)).toBeNull();
+    expect(getEmbeddedPlayerIdForFormat('glulx')).toBe('quixe');
+    expect(getEmbeddedPlayerIdForFormat('zcode')).toBe('parchment');
+    expect(getEmbeddedPlayerIdForFormat(null)).toBe('parchment');
     expect(buildParchmentSrc(null)).toBe('/parchment.html?autoplay=1&do_vm_autosave=1');
     expect(buildParchmentSrc('https://example.com/story.ulx')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+    expect(buildQuixeSrc(null, 'map-1')).toBe('/quixe.html?autoplay=1&do_vm_autosave=1&mapId=map-1');
+    expect(buildQuixeSrc('https://example.com/story.ulx', 'map-1')).toBe('/quixe.html?autoplay=1&do_vm_autosave=1&mapId=map-1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+    expect(buildEmbeddedPlayerSrc('https://example.com/story.ulx', 'glulx', 'map-1')).toBe('/quixe.html?autoplay=1&do_vm_autosave=1&mapId=map-1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+    expect(buildEmbeddedPlayerSrc('https://example.com/story.z8', 'zcode', 'map-1')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fstory.z8');
   });
 
   it('ships an accessibility patch for the generated parchment command input', () => {
@@ -171,6 +181,36 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("event.key === 'ArrowUp' || event.key === 'ArrowDown'");
     expect(parchmentHtml).toContain("resetSharedCommandHistoryNavigation()");
     expect(parchmentHtml).not.toContain("window.requestAnimationFrame(focusPreferredOutputWindow)");
+  });
+
+  it('ships a quixe wrapper with the fweep bridge and map-scoped autosave', () => {
+    const quixeHtml = readFileSync(
+      path.resolve(process.cwd(), 'public/quixe.html'),
+      'utf8',
+    );
+
+    expect(quixeHtml).toContain('window.quixePlayer');
+    expect(quixeHtml).toContain('load_uploaded_file');
+    expect(quixeHtml).toContain("input.LineInput, textarea.LineInput");
+    expect(quixeHtml).toContain("input.Input:not(.LineInput), textarea.Input:not(.LineInput)");
+    expect(quixeHtml).toContain("input.LineInput::placeholder");
+    expect(quixeHtml).toContain("fweep-quixe-upload:");
+    expect(quixeHtml).toContain("new window.DialogClass()");
+    expect(quixeHtml).toContain("Dialog: scopedDialog");
+    expect(quixeHtml).toContain("getScopedAutosaveSignature");
+    expect(quixeHtml).toContain("indexedDB");
+    expect(quixeHtml).toContain("fweep-quixe-autosaves");
+    expect(quixeHtml).toContain("loadAutosaveCache");
+    expect(quixeHtml).toContain("persistAutosaveSnapshot");
+    expect(quixeHtml).toContain("scopedDialog.autosave_write");
+    expect(quixeHtml).toContain("scopedDialog.autosave_read");
+    expect(quixeHtml).toContain("fweepBootQuixe");
+    expect(quixeHtml).toContain("isTextEntryElement");
+    expect(quixeHtml).toContain("fweep:submit-game-command");
+    expect(quixeHtml).toContain("fweep:request-cli-suggestions");
+    expect(quixeHtml).toContain("fweep:restore-game-input-focus");
+    expect(quixeHtml).toContain("sharedCommandHistory");
+    expect(quixeHtml).toContain("GiLoad.load_run()");
   });
 
   it('detects the desktop viewport threshold', () => {
