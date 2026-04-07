@@ -80,6 +80,21 @@ describe('useAppCli', () => {
     expect(result.current.gameOutputLines).toEqual(doc.cliOutputLines);
   });
 
+  it('prefers the live store document over a stale activeMap snapshot for the same map id', async () => {
+    const activeMap = createEmptyMap('Live Store Map');
+    const storeDoc = addRoom(activeMap, { ...createRoom('Kitchen'), position: { x: 10, y: 20 } });
+    const options = createStoreBackedOptions(activeMap);
+    useEditorStore.getState().loadDocument(storeDoc);
+
+    renderHook(() => useAppCli(options));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().doc?.rooms).toEqual(storeDoc.rooms);
+    });
+
+    expect(Object.keys(useEditorStore.getState().doc?.rooms ?? {})).toHaveLength(1);
+  });
+
   it('routes backslash-prefixed commands to parchment when available', () => {
     const options = createOptions(null);
     options.routeCrossInputCommandToParchment.mockReturnValue(true);

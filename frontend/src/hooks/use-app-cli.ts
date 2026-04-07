@@ -305,7 +305,11 @@ export function useAppCli({
 
   useLayoutEffect(() => {
     if (activeMap) {
-      const restoredActiveMap = applyCachedMapViewSession(activeMap);
+      const liveStoreDoc = latestStoreDocRef.current;
+      const sourceDoc = liveStoreDoc?.metadata.id === activeMap.metadata.id
+        ? liveStoreDoc
+        : activeMap;
+      const restoredActiveMap = applyCachedMapViewSession(sourceDoc);
       const cachedCliOutputLines = loadCachedCliOutputLines(activeMap.metadata.id);
       const restoredCliOutputLines = cachedCliOutputLines !== null && cachedCliOutputLines.length > restoredActiveMap.cliOutputLines.length
         ? cachedCliOutputLines

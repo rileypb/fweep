@@ -13,6 +13,7 @@ import {
   toPseudoRoomVisualRoom,
 } from '../../src/domain/pseudo-room-helpers';
 import { addPseudoRoom, addRoom } from '../../src/domain/map-operations';
+import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
 
 describe('pseudo-room-helpers', () => {
   it('recognizes pseudo-room targets', () => {
@@ -52,11 +53,12 @@ describe('pseudo-room-helpers', () => {
     expect(getPseudoRoomSymbolLayout(pseudoRoom, 'default').size).toBe(26);
   });
 
-  it('scales pseudo-room dimensions down from normal room size', () => {
+  it('uses the same dimensions for pseudo-rooms as normal rooms', () => {
     const pseudoRoom = { ...createPseudoRoom('unknown'), position: { x: 0, y: 0 } };
+    const visualRoom = toPseudoRoomVisualRoom(pseudoRoom);
 
-    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'default')).toEqual({ width: 51, height: 29 });
-    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'square-classic')).toEqual({ width: 42, height: 42 });
+    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'default')).toEqual(getRoomNodeDimensions(visualRoom, 'default'));
+    expect(getPseudoRoomNodeDimensions(pseudoRoom, 'square-classic')).toEqual(getRoomNodeDimensions(visualRoom, 'square-classic'));
   });
 
   it('resolves connection targets and positions for rooms and pseudo-rooms', () => {
@@ -98,7 +100,7 @@ describe('pseudo-room-helpers', () => {
     ]);
     expect(insetPseudoRoomConnectionEndpoint(pseudoConnection, [{ x: 0, y: 0 }, { x: 100, y: 0 }])).toEqual([
       { x: 0, y: 0 },
-      { x: 79, y: 0 },
+      { x: 58, y: 0 },
     ]);
   });
 });

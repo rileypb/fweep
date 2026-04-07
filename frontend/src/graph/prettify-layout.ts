@@ -318,6 +318,18 @@ function toComponentStep(force: Vector): Position {
   };
 }
 
+function addComponentForce(
+  componentForces: Map<string, Vector>,
+  componentKey: string,
+  delta: Vector,
+): void {
+  const currentForce = componentForces.get(componentKey) ?? { x: 0, y: 0 };
+  componentForces.set(componentKey, {
+    x: currentForce.x + delta.x,
+    y: currentForce.y + delta.y,
+  });
+}
+
 function attractComponentsAlongConstraints(
   componentGroups: readonly ComponentPlacementGroup[],
   constraints: readonly DirectionConstraint[],
@@ -326,7 +338,6 @@ function attractComponentsAlongConstraints(
   doc: MapDocument,
 ): void {
   const roomToComponentKey = new Map<string, string>();
-  const componentsByKey = new Map(componentGroups.map((componentGroup) => [componentGroup.key, componentGroup] as const));
   const lockedComponentKeys = new Set<string>();
 
   for (const componentGroup of componentGroups) {
@@ -350,9 +361,10 @@ function attractComponentsAlongConstraints(
   }
 
   for (let iteration = 0; iteration < COMPONENT_ATTRACTION_ITERATIONS; iteration += 1) {
-    const componentForces = new Map(
-      componentGroups.map((componentGroup) => [componentGroup.key, { x: 0, y: 0 }] as const),
-    );
+    const componentForces = new Map<string, Vector>();
+    for (const componentGroup of componentGroups) {
+      componentForces.set(componentGroup.key, { x: 0, y: 0 });
+    }
 
     for (const constraint of crossComponentConstraints) {
       const fromComponentKey = roomToComponentKey.get(constraint.fromRoomId)!;
@@ -372,16 +384,24 @@ function attractComponentsAlongConstraints(
       const toLocked = lockedComponentKeys.has(toComponentKey);
 
       if (!fromLocked && !toLocked) {
-        componentForces.get(fromComponentKey)!.x += errorX * springStrength * 0.5;
-        componentForces.get(fromComponentKey)!.y += errorY * springStrength * 0.5;
-        componentForces.get(toComponentKey)!.x -= errorX * springStrength * 0.5;
-        componentForces.get(toComponentKey)!.y -= errorY * springStrength * 0.5;
+        addComponentForce(componentForces, fromComponentKey, {
+          x: errorX * springStrength * 0.5,
+          y: errorY * springStrength * 0.5,
+        });
+        addComponentForce(componentForces, toComponentKey, {
+          x: -errorX * springStrength * 0.5,
+          y: -errorY * springStrength * 0.5,
+        });
       } else if (!fromLocked) {
-        componentForces.get(fromComponentKey)!.x += errorX * springStrength;
-        componentForces.get(fromComponentKey)!.y += errorY * springStrength;
+        addComponentForce(componentForces, fromComponentKey, {
+          x: errorX * springStrength,
+          y: errorY * springStrength,
+        });
       } else if (!toLocked) {
-        componentForces.get(toComponentKey)!.x -= errorX * springStrength;
-        componentForces.get(toComponentKey)!.y -= errorY * springStrength;
+        addComponentForce(componentForces, toComponentKey, {
+          x: -errorX * springStrength,
+          y: -errorY * springStrength,
+        });
       }
     }
 

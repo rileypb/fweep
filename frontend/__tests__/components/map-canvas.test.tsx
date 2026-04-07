@@ -2283,6 +2283,49 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId('room-editor-description-input')).not.toBeInTheDocument();
     });
 
+    it('shows existing room items in the room editor', async () => {
+      const user = userEvent.setup();
+      const baseDoc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      let doc = addRoom(baseDoc, room);
+      doc = addItem(doc, createItem('Lantern', room.id));
+      doc = addItem(doc, createItem('Bell rope', room.id));
+      loadDocumentAct(doc);
+      renderMapCanvas();
+
+      await user.dblClick(screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement);
+
+      const itemsList = screen.getByRole('list', { name: /room items/i });
+      expect(itemsList).toBeInTheDocument();
+      expect(within(itemsList).getByText('Lantern')).toBeInTheDocument();
+      expect(within(itemsList).getByText('Bell rope')).toBeInTheDocument();
+    });
+
+    it('keeps item edits local until saved, then applies adds and removals', async () => {
+      const user = userEvent.setup();
+      const baseDoc = createEmptyMap('Test');
+      const room = { ...createRoom('Kitchen'), position: { x: 80, y: 120 } };
+      let doc = addRoom(baseDoc, room);
+      doc = addItem(doc, createItem('Lantern', room.id));
+      loadDocumentAct(doc);
+      renderMapCanvas();
+
+      await user.dblClick(screen.getByText('Kitchen').closest('[data-testid="room-node"]') as HTMLElement);
+
+      await user.type(screen.getByLabelText('New item name'), 'Bell rope');
+      await user.click(screen.getByRole('button', { name: /add item/i }));
+      await user.click(screen.getByRole('button', { name: /remove item lantern/i }));
+      const itemsList = screen.getByRole('list', { name: /room items/i });
+
+      expect(Object.values(useEditorStore.getState().doc!.items).map((item) => item.name)).toEqual(['Lantern']);
+      expect(within(itemsList).queryByText('Lantern')).not.toBeInTheDocument();
+      expect(within(itemsList).getByText('Bell rope')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /save room editor/i }));
+
+      expect(Object.values(useEditorStore.getState().doc!.items).map((item) => item.name)).toEqual(['Bell rope']);
+    });
+
     it('applies room draft edits when saved', async () => {
       const user = userEvent.setup();
       const roomNode = setupRoom('default');

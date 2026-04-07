@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useEditorStore } from '../state/editor-store';
 import {
   CONNECTION_ANNOTATION_KINDS,
@@ -320,12 +320,25 @@ export function RoomEditorOverlay({
 }: RoomEditorOverlayProps): React.JSX.Element | null {
   const room = useEditorStore((s) => (roomId === undefined ? null : (s.doc?.rooms[roomId] ?? null)));
   const pseudoRoom = useEditorStore((s) => (pseudoRoomId === undefined ? null : (s.doc?.pseudoRooms[pseudoRoomId] ?? null)));
+  const itemsById = useEditorStore((s) => s.doc?.items ?? null);
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
   const convertPseudoRoomToRoom = useEditorStore((s) => s.convertPseudoRoomToRoom);
+  const addItemsToRoom = useEditorStore((s) => s.addItemsToRoom);
+  const removeItemsFromRoom = useEditorStore((s) => s.removeItemsFromRoom);
   const dialogRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isNewRoomDraft = roomId === undefined && pseudoRoomId === undefined;
+  const existingRoomItems = useMemo(
+    () => roomId === undefined || itemsById === null
+      ? []
+      : Object.values(itemsById).filter((item) => item.roomId === roomId),
+    [itemsById, roomId],
+  );
+  const initialItemNames = useMemo(
+    () => existingRoomItems.map((item) => item.name),
+    [existingRoomItems],
+  );
   const [draft, setDraft] = useState(() => (
     room === null
       ? {
@@ -345,6 +358,93 @@ export function RoomEditorOverlay({
         strokeStyle: room.strokeStyle,
       }
   ));
+  const [draftItemNames, setDraftItemNames] = useState<string[]>(initialItemNames);
+  const [newItemName, setNewItemName] = useState('');
+
+  useEffect(() => {
+    setDraftItemNames(initialItemNames);
+  }, [roomId, initialItemNames]);
+
+  const addDraftItem = useCallback(() => {
+    const trimmedItemName = newItemName.trim();
+    if (trimmedItemName.length === 0) {
+      return;
+    }
+
+    setDraftItemNames((current) => [...current, trimmedItemName]);
+    setNewItemName('');
+  }, [newItemName]);
+
+  const removeDraftItem = useCallback((indexToRemove: number) => {
+    setDraftItemNames((current) => current.filter((_, index) => index !== indexToRemove));
+  }, []);
+
+  const saveRoomEditor = useCallback(() => {
+    const historyMergeKey = `room-editor:${roomId ?? pseudoRoomId ?? initialPosition?.x ?? 'new'}:${initialPosition?.y ?? 'existing'}`;
+    const initialItemCounts = new Map<string, number>();
+    for (const itemName of initialItemNames) {
+      initialItemCounts.set(itemName, (initialItemCounts.get(itemName) ?? 0) + 1);
+    }
+
+    const draftItemCounts = new Map<string, number>();
+    for (const itemName of draftItemNames) {
+      draftItemCounts.set(itemName, (draftItemCounts.get(itemName) ?? 0) + 1);
+    }
+
+    const addedItemNames: string[] = [];
+    for (const [itemName, count] of draftItemCounts.entries()) {
+      const initialCount = initialItemCounts.get(itemName) ?? 0;
+      for (let index = initialCount; index < count; index += 1) {
+        addedItemNames.push(itemName);
+      }
+    }
+
+    const removedItemNames: string[] = [];
+    for (const [itemName, count] of initialItemCounts.entries()) {
+      const draftCount = draftItemCounts.get(itemName) ?? 0;
+      for (let index = draftCount; index < count; index += 1) {
+        removedItemNames.push(itemName);
+      }
+    }
+
+    let savedRoomId: string | undefined;
+    if (room !== null) {
+      applyRoomEditorDraft(room.id, draft, { historyMergeKey });
+      savedRoomId = room.id;
+    } else if (pseudoRoom !== null) {
+      savedRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft, { historyMergeKey });
+    } else if (initialPosition) {
+      savedRoomId = createRoomFromEditorDraft(initialPosition, draft, { historyMergeKey });
+    }
+
+    if (savedRoomId !== undefined) {
+      if (removedItemNames.length > 0) {
+        removeItemsFromRoom(savedRoomId, removedItemNames, { historyMergeKey });
+      }
+      if (addedItemNames.length > 0) {
+        addItemsToRoom(savedRoomId, addedItemNames, { historyMergeKey });
+      }
+      onClose(savedRoomId);
+      return;
+    }
+
+    onClose();
+  }, [
+    addItemsToRoom,
+    applyRoomEditorDraft,
+    convertPseudoRoomToRoom,
+    createRoomFromEditorDraft,
+    draft,
+    draftItemNames,
+    initialItemNames,
+    initialPosition,
+    onClose,
+    pseudoRoom,
+    removeItemsFromRoom,
+    room,
+    roomId,
+    pseudoRoomId,
+  ]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
@@ -370,26 +470,7 @@ export function RoomEditorOverlay({
         }
 
         event.preventDefault();
-        if (draft !== null) {
-          if (room !== null) {
-            applyRoomEditorDraft(room.id, draft);
-            onClose(room.id);
-            return;
-          }
-
-          if (pseudoRoom !== null) {
-            const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
-            onClose(createdRoomId);
-            return;
-          }
-
-          if (initialPosition) {
-            const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
-            onClose(createdRoomId);
-            return;
-          }
-        }
-        onClose();
+        saveRoomEditor();
       }
     }
 
@@ -397,7 +478,7 @@ export function RoomEditorOverlay({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [applyRoomEditorDraft, convertPseudoRoomToRoom, createRoomFromEditorDraft, draft, initialPosition, onBackdropClose, onClose, pseudoRoom, room]);
+  }, [draft, onBackdropClose, saveRoomEditor]);
 
   useLayoutEffect(() => {
     if (nameInputRef.current) {
@@ -449,25 +530,7 @@ export function RoomEditorOverlay({
           className="room-editor-content"
           onSubmit={(event) => {
             event.preventDefault();
-            if (room !== null) {
-              applyRoomEditorDraft(room.id, draft);
-              onClose(room.id);
-              return;
-            }
-
-            if (pseudoRoom !== null) {
-              const createdRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft);
-              onClose(createdRoomId);
-              return;
-            }
-
-            if (initialPosition) {
-              const createdRoomId = createRoomFromEditorDraft(initialPosition, draft);
-              onClose(createdRoomId);
-              return;
-            }
-
-            onClose();
+            saveRoomEditor();
           }}
         >
           <aside className="room-editor-sidebar">
@@ -566,6 +629,56 @@ export function RoomEditorOverlay({
               />
               <span>Dark room</span>
             </label>
+
+            <div className="room-editor-field room-editor-items-field">
+              <div className="room-editor-items-header">
+                <span className="room-editor-label">Items</span>
+                <span className="room-editor-items-count" aria-live="polite">
+                  {draftItemNames.length === 0 ? 'No items yet' : `${draftItemNames.length} item${draftItemNames.length === 1 ? '' : 's'}`}
+                </span>
+              </div>
+              <div className="room-editor-items-entry">
+                <input
+                  className="room-editor-input"
+                  type="text"
+                  aria-label="New item name"
+                  placeholder="Add an item"
+                  value={newItemName}
+                  onChange={(event) => setNewItemName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    addDraftItem();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="room-editor-item-add"
+                  aria-label="Add item"
+                  onClick={addDraftItem}
+                >
+                  Add
+                </button>
+              </div>
+              <ul className="room-editor-items-list" aria-label="Room items">
+                {draftItemNames.map((itemName, index) => (
+                  <li key={`${itemName}-${index}`} className="room-editor-items-list-item">
+                    <span className="room-editor-item-name">{itemName}</span>
+                    <button
+                      type="button"
+                      className="room-editor-item-remove"
+                      aria-label={`Remove item ${itemName}`}
+                      onClick={() => removeDraftItem(index)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
 
             <div className="room-editor-actions">
               <button

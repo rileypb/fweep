@@ -419,6 +419,7 @@ export interface EditorState {
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
     },
+    options?: HistoryOptions,
   ) => string;
 
   /** Create a pseudo-room and connect it from an existing room in a single history step. */
@@ -448,6 +449,7 @@ export interface EditorState {
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
     },
+    options?: HistoryOptions,
   ) => string;
 
   /** Create a new sticky note at the given canvas position (snapped to grid). Returns the note ID. */
@@ -534,6 +536,7 @@ export interface EditorState {
       strokeColorIndex: number;
       strokeStyle: RoomStrokeStyle;
     },
+    options?: HistoryOptions,
   ) => void;
 
   /** Apply a connection editor draft in a single history step. */
@@ -1141,7 +1144,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return room.id;
   },
 
-  createRoomFromEditorDraft: (position, draft) => {
+  createRoomFromEditorDraft: (position, draft, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot create a room from the editor: no document is loaded.');
@@ -1159,7 +1162,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
     const updatedDoc = addRoom(doc, room);
     set((state) => ({
-      ...commitDocumentChange(state, doc, updatedDoc),
+      ...commitDocumentChange(state, doc, updatedDoc, options),
       selectedRoomIds: [room.id],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
@@ -1246,7 +1249,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return { pseudoRoomId: pseudoRoom.id, connectionId: connection.id };
   },
 
-  convertPseudoRoomToRoom: (pseudoRoomId, draft) => {
+  convertPseudoRoomToRoom: (pseudoRoomId, draft, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot convert a pseudo-room: no document is loaded.');
@@ -1269,7 +1272,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
     const updatedDoc = domainConvertPseudoRoomToRoom(doc, pseudoRoomId, room);
     set((state) => ({
-      ...commitDocumentChange(state, doc, updatedDoc),
+      ...commitDocumentChange(state, doc, updatedDoc, options),
       selectedRoomIds: [room.id],
       selectedStickyNoteIds: [],
       selectedConnectionIds: [],
@@ -1555,7 +1558,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => commitDocumentChange(state, doc, updatedDoc));
   },
 
-  applyRoomEditorDraft: (roomId, draft) => {
+  applyRoomEditorDraft: (roomId, draft, options) => {
     const { doc } = get();
     if (!doc) {
       throw new Error('Cannot apply room editor draft: no document is loaded.');
@@ -1570,7 +1573,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       strokeColorIndex: draft.strokeColorIndex,
       strokeStyle: draft.strokeStyle,
     });
-    set((state) => commitDocumentChange(state, doc, updatedDoc));
+    set((state) => commitDocumentChange(state, doc, updatedDoc, options));
   },
 
   applyConnectionEditorDraft: (connectionId, draft) => {
