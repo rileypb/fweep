@@ -12,8 +12,6 @@ interface ParchmentSidebarProps {
   readonly minHeight: number;
   readonly maxHeight: number;
   readonly isGameViewVisible: boolean;
-  readonly playerAttributionHref: string;
-  readonly playerAttributionLabel: string;
   readonly parchmentSrc: string;
   readonly ifdbSearchQuery: string;
   readonly ifdbSearchResults: readonly NormalizedIfdbSearchResult[];
@@ -45,8 +43,6 @@ export function ParchmentSidebar({
   minHeight,
   maxHeight,
   isGameViewVisible,
-  playerAttributionHref,
-  playerAttributionLabel,
   parchmentSrc,
   ifdbSearchQuery,
   ifdbSearchResults,
@@ -101,11 +97,11 @@ export function ParchmentSidebar({
             <div className="app-parchment-panel__game-header">
               <a
                 className="app-parchment-panel__source-link"
-                href={playerAttributionHref}
+                href="https://github.com/curiousdannii/parchment"
                 target="_blank"
                 rel="noreferrer"
               >
-                {playerAttributionLabel}
+                Parchment by Dannii Willis
               </a>
               <button
                 type="button"

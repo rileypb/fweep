@@ -661,9 +661,8 @@ describe('URL routing', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/ifdb/viewgame?tuid=abc123');
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    const activeMapId = useEditorStore.getState().doc?.metadata.id;
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe(`/quixe.html?autoplay=1&do_vm_autosave=1&mapId=${activeMapId}&story=https%3A%2F%2Fexample.com%2Fgame.ulx`);
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
     expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
@@ -850,9 +849,8 @@ describe('URL routing', () => {
     await user.click(await screen.findByRole('button', { name: /play the example game via cover art/i }));
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    const activeMapId = useEditorStore.getState().doc?.metadata.id;
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe(`/quixe.html?autoplay=1&do_vm_autosave=1&mapId=${activeMapId}&story=https%3A%2F%2Fexample.com%2Fgame.ulx`);
+      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
     });
   });
 
@@ -984,7 +982,7 @@ describe('URL routing', () => {
     Object.defineProperty(iframe, 'contentWindow', {
       configurable: true,
       value: {
-        quixePlayer: {
+        parchment: {
           load_uploaded_file: loadUploadedFile,
         },
       },
@@ -1028,7 +1026,7 @@ describe('URL routing', () => {
     Object.defineProperty(iframe, 'contentWindow', {
       configurable: true,
       value: {
-        quixePlayer: {
+        parchment: {
           load_uploaded_file: loadUploadedFile,
         },
       },
@@ -1120,7 +1118,7 @@ describe('URL routing', () => {
     }
   });
 
-  it('calls the player uploader with the player instance as this', async () => {
+  it('calls the parchment uploader with the parchment instance as this', async () => {
     await renderAppWithOpenMap('Parchment Bound Method Map');
 
     const chooserInput = document.querySelector('.app-parchment-panel__device-input') as HTMLInputElement | null;
@@ -1136,7 +1134,7 @@ describe('URL routing', () => {
     });
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
-    const quixePlayer = {
+    const parchmentInstance = {
       seenFile: null as File | null,
       async load_uploaded_file(this: { seenFile: File | null }, file: File) {
         this.seenFile = file;
@@ -1145,12 +1143,12 @@ describe('URL routing', () => {
     Object.defineProperty(iframe, 'contentWindow', {
       configurable: true,
       value: {
-        quixePlayer,
+        parchment: parchmentInstance,
       },
     });
     await loadParchmentIframe(iframe);
 
-    expect(quixePlayer.seenFile).toBe(file);
+    expect(parchmentInstance.seenFile).toBe(file);
   });
 
   it('retries opening a local file until parchment becomes ready after iframe load', async () => {
@@ -1182,7 +1180,7 @@ describe('URL routing', () => {
       Object.defineProperty(iframe, 'contentWindow', {
         configurable: true,
         value: {
-          quixePlayer: {
+          parchment: {
             load_uploaded_file: loadUploadedFile,
           },
         },
@@ -1230,7 +1228,7 @@ describe('URL routing', () => {
       await jest.advanceTimersByTimeAsync(1200);
     });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/quixe is not ready to open a local file/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/parchment is not ready to open a local file/i);
     } finally {
       jest.useRealTimers();
     }
