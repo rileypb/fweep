@@ -27,6 +27,7 @@ interface ParchmentSidebarProps {
   readonly onPlayDefaultStory: () => void;
   readonly onParchmentDeviceFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   readonly onResetParchmentPanel: () => void;
+  readonly onClearParchmentAutosave: () => void;
   readonly onParchmentIframeLoad: () => void;
   readonly onCornerResizePointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
   readonly onCornerResizeKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
@@ -58,6 +59,7 @@ export function ParchmentSidebar({
   onPlayDefaultStory,
   onParchmentDeviceFileChange,
   onResetParchmentPanel,
+  onClearParchmentAutosave,
   onParchmentIframeLoad,
   onCornerResizePointerDown,
   onCornerResizeKeyDown,
@@ -111,6 +113,13 @@ export function ParchmentSidebar({
                 onClick={onResetParchmentPanel}
               >
                 Choose game
+              </button>
+              <button
+                type="button"
+                className="app-parchment-panel__reset-button"
+                onClick={onClearParchmentAutosave}
+              >
+                Clear autosave
               </button>
             </div>
             {ifdbSearchError ? (

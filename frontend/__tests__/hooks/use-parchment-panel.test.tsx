@@ -262,7 +262,7 @@ describe('useParchmentPanel', () => {
     );
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl, 'map-1'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
 
@@ -282,7 +282,7 @@ describe('useParchmentPanel', () => {
       associatedGame: null,
     }));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-2'));
   });
 
   it('loads the bundled default story for a newly created map without associated game metadata', async () => {
@@ -296,7 +296,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-new'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
@@ -315,7 +315,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-existing'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -339,7 +339,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl, 'map-ifdb'));
     });
 
     act(() => {
@@ -350,7 +350,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-ifdb'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -364,7 +364,7 @@ describe('useParchmentPanel', () => {
       shouldLoadDefaultStoryForActiveMap: false,
     })));
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-existing'));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
   });
 

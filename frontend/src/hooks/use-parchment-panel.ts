@@ -89,7 +89,7 @@ export function useParchmentPanel({
   const [ifdbSearchError, setIfdbSearchError] = useState<string | null>(null);
   const [isIfdbSearching, setIsIfdbSearching] = useState(false);
   const [loadingIfdbGameTuid, setLoadingIfdbGameTuid] = useState<string | null>(null);
-  const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null));
+  const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null, activeMapId));
   const [isParchmentGameViewVisible, setIsParchmentGameViewVisible] = useState(false);
   const [isParchmentChooserForcedVisible, setIsParchmentChooserForcedVisible] = useState(false);
   const [pendingLocalFile, setPendingLocalFile] = useState<File | null>(null);
@@ -292,7 +292,7 @@ export function useParchmentPanel({
 
     if (activeMapId === null) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(null));
+      setParchmentSrc(buildParchmentSrc(null, null));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -301,7 +301,7 @@ export function useParchmentPanel({
     }
 
     if (!isAssociatedGameSyncSuppressed && associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
-      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
+      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl, activeMapId));
       if (!isParchmentChooserForcedVisible && !isParchmentGameViewVisible) {
         setIsParchmentGameViewVisible(true);
       }
@@ -315,7 +315,7 @@ export function useParchmentPanel({
       && defaultStoryUrlForNewMap !== null
     ) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap, activeMapId));
       setIsParchmentGameViewVisible(true);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -325,7 +325,7 @@ export function useParchmentPanel({
 
     if (hasSwitchedMaps) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(null));
+      setParchmentSrc(buildParchmentSrc(null, activeMapId));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -360,7 +360,7 @@ export function useParchmentPanel({
 
     setIfdbSearchError(null);
     setPendingLocalFile(null);
-    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap, activeMapId));
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(true);
@@ -404,14 +404,14 @@ export function useParchmentPanel({
     }
 
     setIfdbSearchError(null);
-    setParchmentSrc(buildParchmentSrc(null));
+    setParchmentSrc(buildParchmentSrc(null, activeMapId));
     setPendingLocalFile(selectedFile);
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(false);
 
     await tryLoadParchmentLocalFile(selectedFile, false);
-  }, [tryLoadParchmentLocalFile]);
+  }, [activeMapId, tryLoadParchmentLocalFile]);
 
   const handleResetParchmentPanel = useCallback((): void => {
     if (pendingLocalFileRetryTimeoutRef.current !== null) {
@@ -420,11 +420,11 @@ export function useParchmentPanel({
     }
     setIfdbSearchError(null);
     setPendingLocalFile(null);
-    setParchmentSrc(buildParchmentSrc(null));
+    setParchmentSrc(buildParchmentSrc(null, activeMapId));
     setIsParchmentChooserForcedVisible(true);
     setIsParchmentGameViewVisible(false);
     setIsAssociatedGameSyncSuppressed(false);
-  }, []);
+  }, [activeMapId]);
 
   const retryPendingParchmentLocalFileLoad = useCallback((selectedFile: File, attemptsRemaining: number): void => {
     void (async () => {

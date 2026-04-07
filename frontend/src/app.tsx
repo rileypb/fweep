@@ -357,6 +357,21 @@ export function App(): React.JSX.Element {
       window.location.origin,
     );
   }, [parchmentIframeRef]);
+  const clearParchmentAutosave = useCallback((): void => {
+    const iframeWindow = parchmentIframeRef.current?.contentWindow;
+    if (iframeWindow === null || iframeWindow === undefined) {
+      return;
+    }
+
+    if (!window.confirm('Clear the autosave for this game in the current map?')) {
+      return;
+    }
+
+    iframeWindow.postMessage(
+      { type: 'fweep:clear-autosave' },
+      window.location.origin,
+    );
+  }, [parchmentIframeRef]);
   const syncParchmentTheme = useCallback((): void => {
     const iframeDocument = parchmentIframeRef.current?.contentDocument;
     iframeDocument?.documentElement?.setAttribute('data-theme', documentTheme);
@@ -939,6 +954,7 @@ export function App(): React.JSX.Element {
               void handleParchmentDeviceFileChange(event);
             }}
             onResetParchmentPanel={handleResetParchmentPanel}
+            onClearParchmentAutosave={clearParchmentAutosave}
             onParchmentIframeLoad={() => {
               handleParchmentIframeLoad();
               syncParchmentTheme();
