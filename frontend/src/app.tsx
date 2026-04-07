@@ -922,6 +922,8 @@ export function App(): React.JSX.Element {
             height={parchmentPanelHeight}
             minWidth={PARCHMENT_PANEL_MIN_WIDTH_PX}
             maxWidth={clampParchmentPanelWidth(window.innerWidth, window.innerWidth)}
+            minHeight={PARCHMENT_PANEL_MIN_HEIGHT_PX}
+            maxHeight={clampParchmentPanelHeight(window.innerHeight, window.innerHeight)}
             isGameViewVisible={isParchmentGameViewVisible}
             playerAttributionHref={playerBranding.attributionHref}
             playerAttributionLabel={playerBranding.attributionLabel}

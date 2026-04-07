@@ -9,6 +9,8 @@ interface ParchmentSidebarProps {
   readonly height: number;
   readonly minWidth: number;
   readonly maxWidth: number;
+  readonly minHeight: number;
+  readonly maxHeight: number;
   readonly isGameViewVisible: boolean;
   readonly playerAttributionHref: string;
   readonly playerAttributionLabel: string;
@@ -40,6 +42,8 @@ export function ParchmentSidebar({
   height,
   minWidth,
   maxWidth,
+  minHeight,
+  maxHeight,
   isGameViewVisible,
   playerAttributionHref,
   playerAttributionLabel,
@@ -67,17 +71,20 @@ export function ParchmentSidebar({
       className="app-parchment-panel"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
-      <span id="parchment-panel-edge-resize-help" className="sr-only">
-        Use Left and Right Arrow keys to resize the game panel width.
+      <span id="parchment-panel-corner-resize-help" className="sr-only">
+        Use Left and Right Arrow keys to resize the game panel width, and Up and Down Arrow keys to resize the game panel height.
       </span>
       <button
         type="button"
-        className="app-parchment-panel__resize-handle"
+        className="app-parchment-panel__resize-corner"
         aria-label="Resize game panel"
-        aria-describedby="parchment-panel-edge-resize-help"
+        aria-describedby="parchment-panel-corner-resize-help"
         data-width-min={Math.round(minWidth)}
         data-width-max={Math.round(maxWidth)}
         data-width-now={Math.round(width)}
+        data-height-min={Math.round(minHeight)}
+        data-height-max={Math.round(maxHeight)}
+        data-height-now={Math.round(height)}
         onPointerDown={onCornerResizePointerDown}
         onKeyDown={onCornerResizeKeyDown}
       />

@@ -1053,40 +1053,6 @@ describe('MapCanvas', () => {
       expect(screen.queryByTestId('map-canvas-selection-box')).not.toBeInTheDocument();
     });
 
-    it('does not start marquee auto-scroll from a tiny background pointer jitter near the parchment panel boundary', () => {
-      jest.useFakeTimers();
-      loadDocumentAct(createEmptyMap('Test'));
-
-      renderMapCanvas({ visibleMapLeftInset: 80 });
-
-      const canvas = screen.getByTestId('map-canvas');
-      const content = screen.getByTestId('map-canvas-content');
-      jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        right: 320,
-        bottom: 240,
-        width: 320,
-        height: 240,
-        toJSON: () => ({}),
-      });
-
-      fireEvent.mouseDown(canvas, { clientX: 82, clientY: 140, button: 0 });
-      fireEvent.mouseMove(document, { clientX: 84, clientY: 141 });
-
-      act(() => {
-        jest.advanceTimersByTime(64);
-      });
-
-      expect(screen.queryByTestId('map-canvas-selection-box')).not.toBeInTheDocument();
-      expect(content.style.transform).toBe('translate(0px, 0px) scale(1)');
-
-      fireEvent.mouseUp(document, { clientX: 84, clientY: 141, button: 0 });
-      jest.useRealTimers();
-    });
-
     it('auto-scrolls while dragging the marquee at the right edge of the visible map', () => {
       jest.useFakeTimers();
       loadDocumentAct(createEmptyMap('Test'));

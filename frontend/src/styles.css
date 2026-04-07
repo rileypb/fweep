@@ -83,35 +83,33 @@ body {
 }
 
 body.app-shell--resizing-side-panel-corner {
-  cursor: ew-resize;
+  cursor: nesw-resize;
   user-select: none;
 }
 
-.app-parchment-panel__resize-handle {
+.app-parchment-panel__resize-corner {
   pointer-events: auto;
   position: absolute;
-  right: -0.9rem;
-  top: 50%;
-  width: 0.9rem;
-  height: 4rem;
+  right: 0;
+  top: 0;
+  width: 0.75rem;
+  height: 0.75rem;
   padding: 0;
   border: none;
-  transform: translateY(-50%);
-  border-radius: 0 999px 999px 0;
+  border-radius: 0;
   background: rgba(148, 163, 184, 0.95);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset -1px -1px 0 rgba(15, 23, 42, 0.08),
-    0 10px 22px rgba(15, 23, 42, 0.16);
+    inset 1px -1px 0 rgba(15, 23, 42, 0.08);
   color: inherit;
-  cursor: ew-resize;
+  cursor: nesw-resize;
   outline: none;
   touch-action: none;
   user-select: none;
 }
 
-.app-parchment-panel__resize-handle:hover,
-.app-parchment-panel__resize-handle:focus-visible {
+.app-parchment-panel__resize-corner:hover,
+.app-parchment-panel__resize-corner:focus-visible {
   background: rgba(100, 116, 139, 0.98);
 }
 

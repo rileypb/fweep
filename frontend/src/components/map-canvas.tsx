@@ -87,7 +87,6 @@ const DRAG_EDGE_AUTO_PAN_TRIGGER_PX = 48;
 const DRAG_EDGE_AUTO_PAN_MAX_STEP_PX = 18;
 const DRAG_EDGE_AUTO_PAN_MIN_STEP_PX = 4;
 const DRAG_EDGE_AUTO_PAN_INTERVAL_MS = 16;
-const MARQUEE_SELECTION_DRAG_THRESHOLD_PX = 4;
 import {
   deleteBackgroundChunks,
   loadBackgroundChunk,
@@ -1219,9 +1218,12 @@ export function MapCanvas({
       e.preventDefault();
 
       const startPoint = toMapPoint(e.clientX, e.clientY);
-      const startClientX = e.clientX;
-      const startClientY = e.clientY;
-      let hasStartedSelectionDrag = false;
+      const initialSelectionBox: MapSelectionBox = {
+        start: startPoint,
+        current: startPoint,
+      };
+
+      setSelectionBox(initialSelectionBox);
 
       const updateSelection = (nextSelectionBox: MapSelectionBox) => {
         const nextScreenSpaceSelectionBox = getScreenSpaceSelectionBox(
@@ -1243,7 +1245,7 @@ export function MapCanvas({
 
       const updateSelectionFromPointer = (clientX: number, clientY: number) => {
         const nextSelectionBox: MapSelectionBox = {
-          start: startPoint,
+          start: initialSelectionBox.start,
           current: toMapPoint(clientX, clientY),
         };
 
@@ -1252,15 +1254,6 @@ export function MapCanvas({
       };
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!hasStartedSelectionDrag) {
-          const distanceX = moveEvent.clientX - startClientX;
-          const distanceY = moveEvent.clientY - startClientY;
-          if (Math.hypot(distanceX, distanceY) < MARQUEE_SELECTION_DRAG_THRESHOLD_PX) {
-            return;
-          }
-          hasStartedSelectionDrag = true;
-        }
-
         updateDragEdgeAutoPan(moveEvent.clientX, moveEvent.clientY, updateSelectionFromPointer);
         updateSelectionFromPointer(moveEvent.clientX, moveEvent.clientY);
       };
@@ -1270,13 +1263,8 @@ export function MapCanvas({
         document.removeEventListener('mouseup', handleMouseUp);
         stopDragEdgeAutoPan();
 
-        if (!hasStartedSelectionDrag) {
-          setSelectionBox(null);
-          return;
-        }
-
         const finalSelectionBox: MapSelectionBox = {
-          start: startPoint,
+          start: initialSelectionBox.start,
           current: toMapPoint(upEvent.clientX, upEvent.clientY),
         };
         const bounds = getSelectionBounds(
