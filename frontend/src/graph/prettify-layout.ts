@@ -12,6 +12,7 @@ export const PRETTIFY_VERTICAL_SPACING = 160;
 
 const RELAXATION_ITERATIONS = 80;
 const SPRING_STRENGTH = 0.14;
+const VERTICAL_PROXIMITY_SPRING_MULTIPLIER = 0.45;
 const ANCHOR_STRENGTH = 0.035;
 const PSEUDO_ROOM_ANCHOR_STRENGTH = 0.08;
 const REPULSION_STRENGTH = 18_000;
@@ -29,6 +30,7 @@ interface DirectionConstraint {
   readonly fromRoomId: string;
   readonly toRoomId: string;
   readonly delta: Vector;
+  readonly springMultiplier?: number;
 }
 
 interface ComponentAnchor {
@@ -72,8 +74,6 @@ const COMPASS_DIRECTION_VECTORS: Readonly<Record<string, Vector>> = {
   southwest: { x: -1, y: 1 },
   west: { x: -1, y: 0 },
   northwest: { x: -1, y: -1 },
-  up: { x: 0, y: -1 },
-  down: { x: 0, y: 1 },
 };
 
 function snapCoordinate(value: number): number {
@@ -218,6 +218,73 @@ function deriveDirectionConstraints(doc: MapDocument): DirectionConstraint[] {
         fromRoomId: room.id,
         toRoomId: otherRoomId,
         delta,
+      });
+    }
+  }
+
+  return constraints;
+}
+
+function deriveVerticalProximityConstraints(doc: MapDocument): DirectionConstraint[] {
+  const constraints: DirectionConstraint[] = [];
+
+  for (const room of Object.values(doc.rooms)) {
+    for (const [direction, connectionId] of Object.entries(room.directions)) {
+      if (direction !== 'up' && direction !== 'down') {
+        continue;
+      }
+
+      const connection = doc.connections[connectionId];
+      if (!connection) {
+        continue;
+      }
+
+      const otherRoomId = connection.sourceRoomId === room.id
+        ? connection.target.id
+        : connection.target.kind === 'room' && connection.target.id === room.id
+          ? connection.sourceRoomId
+          : undefined;
+
+      if (!otherRoomId || otherRoomId === room.id || !getLayoutRoom(doc, otherRoomId)) {
+        continue;
+      }
+
+      constraints.push({
+        fromRoomId: room.id,
+        toRoomId: otherRoomId,
+        delta: { x: 0, y: 0 },
+        springMultiplier: VERTICAL_PROXIMITY_SPRING_MULTIPLIER,
+      });
+    }
+  }
+
+  return constraints;
+}
+
+function deriveConnectionConnectivityConstraints(doc: MapDocument): DirectionConstraint[] {
+  const constraints: DirectionConstraint[] = [];
+
+  for (const room of Object.values(doc.rooms)) {
+    for (const connectionId of Object.values(room.directions)) {
+      const connection = doc.connections[connectionId];
+      if (!connection) {
+        continue;
+      }
+
+      const otherRoomId = connection.sourceRoomId === room.id
+        ? connection.target.id
+        : connection.target.kind === 'room' && connection.target.id === room.id
+          ? connection.sourceRoomId
+          : undefined;
+
+      if (!otherRoomId || otherRoomId === room.id || !getLayoutRoom(doc, otherRoomId)) {
+        continue;
+      }
+
+      constraints.push({
+        fromRoomId: room.id,
+        toRoomId: otherRoomId,
+        delta: { x: 0, y: 0 },
       });
     }
   }
@@ -612,20 +679,21 @@ function relaxComponent(
       const toPosition = positions.get(constraint.toRoomId)!;
       const errorX = (toPosition.x - fromPosition.x) - constraint.delta.x;
       const errorY = (toPosition.y - fromPosition.y) - constraint.delta.y;
+      const springStrength = SPRING_STRENGTH * (constraint.springMultiplier ?? 1);
       const fromLocked = lockedRoomIds.has(constraint.fromRoomId);
       const toLocked = lockedRoomIds.has(constraint.toRoomId);
 
       if (!fromLocked && !toLocked) {
-        forces.get(constraint.fromRoomId)!.x += errorX * SPRING_STRENGTH * 0.5;
-        forces.get(constraint.fromRoomId)!.y += errorY * SPRING_STRENGTH * 0.5;
-        forces.get(constraint.toRoomId)!.x -= errorX * SPRING_STRENGTH * 0.5;
-        forces.get(constraint.toRoomId)!.y -= errorY * SPRING_STRENGTH * 0.5;
+        forces.get(constraint.fromRoomId)!.x += errorX * springStrength * 0.5;
+        forces.get(constraint.fromRoomId)!.y += errorY * springStrength * 0.5;
+        forces.get(constraint.toRoomId)!.x -= errorX * springStrength * 0.5;
+        forces.get(constraint.toRoomId)!.y -= errorY * springStrength * 0.5;
       } else if (!fromLocked) {
-        forces.get(constraint.fromRoomId)!.x += errorX * SPRING_STRENGTH;
-        forces.get(constraint.fromRoomId)!.y += errorY * SPRING_STRENGTH;
+        forces.get(constraint.fromRoomId)!.x += errorX * springStrength;
+        forces.get(constraint.fromRoomId)!.y += errorY * springStrength;
       } else if (!toLocked) {
-        forces.get(constraint.toRoomId)!.x -= errorX * SPRING_STRENGTH;
-        forces.get(constraint.toRoomId)!.y -= errorY * SPRING_STRENGTH;
+        forces.get(constraint.toRoomId)!.x -= errorX * springStrength;
+        forces.get(constraint.toRoomId)!.y -= errorY * springStrength;
       }
     }
 
@@ -1700,8 +1768,12 @@ function computePrettifiedRoomPositionsSinglePass(
   const pseudoLikeIds = new Set([...pseudoRoomIds, ...stickyNoteIds]);
   const unlockedRoomIds = roomIds.filter((roomId) => !lockedRoomIds.has(roomId));
 
-  const constraints = [...deriveDirectionConstraints(doc), ...deriveStickyNoteConstraints(doc)];
-  const connectivityConstraints = constraints;
+  const constraints = [
+    ...deriveDirectionConstraints(doc),
+    ...deriveVerticalProximityConstraints(doc),
+    ...deriveStickyNoteConstraints(doc),
+  ];
+  const connectivityConstraints = [...deriveConnectionConnectivityConstraints(doc), ...deriveStickyNoteConnectivityConstraints(doc)];
   const components = getConnectedComponents(roomIds, connectivityConstraints);
   const { normalizedPositions, componentAnchors } = computeComponentAnchors(
     components,
@@ -1864,6 +1936,8 @@ export const TEST_ONLY_PRETTIFY_LAYOUT = {
   getLayoutRoom,
   getLayoutPosition,
   getLayoutNodeDimensions,
+  deriveDirectionConstraints,
+  deriveVerticalProximityConstraints,
   deriveStickyNoteConstraints,
   deriveStickyNoteConnectivityConstraints,
   deriveStickyNoteTargetConnectivityConstraints,

@@ -9,6 +9,7 @@ import {
   pickMostStablePrettifiedLayout,
   PRETTIFY_GRID_SIZE,
   PRETTIFY_HORIZONTAL_SPACING,
+  PRETTIFY_VERTICAL_SPACING,
   TEST_ONLY_PRETTIFY_LAYOUT,
 } from '../../src/graph/prettify-layout';
 import { getRoomNodeDimensions } from '../../src/graph/room-label-geometry';
@@ -135,26 +136,83 @@ describe('computePrettifiedRoomPositions', () => {
     expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
   });
 
-  it('treats a bidirectional up-down connection like a north-south constraint', () => {
+  it('does not create preferred-direction constraints for up/down exits', () => {
+    let doc = createEmptyMap('Vertical Freedom');
+    const foyer = { ...createRoom('Foyer'), id: 'foyer', position: { x: 0, y: 0 } };
+    const garden = { ...createRoom('Garden'), id: 'garden', position: { x: 0, y: 0 } };
+    const cellar = { ...createRoom('Cellar'), id: 'cellar', position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(addRoom(doc, foyer), garden), cellar);
+    doc = addConnection(doc, createConnection(foyer.id, garden.id, true), 'south', 'north');
+    doc = addConnection(doc, createConnection(foyer.id, cellar.id, true), 'down', 'up');
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.deriveDirectionConstraints(doc)).toEqual([
+      {
+        fromRoomId: foyer.id,
+        toRoomId: garden.id,
+        delta: { x: 0, y: PRETTIFY_VERTICAL_SPACING },
+      },
+      {
+        fromRoomId: garden.id,
+        toRoomId: foyer.id,
+        delta: { x: 0, y: -PRETTIFY_VERTICAL_SPACING },
+      },
+    ]);
+  });
+
+  it('creates proximity constraints for up/down exits without assigning them compass placement', () => {
+    let doc = createEmptyMap('Vertical Proximity');
+    const foyer = { ...createRoom('Foyer'), id: 'foyer', position: { x: 0, y: 0 } };
+    const cellar = { ...createRoom('Cellar'), id: 'cellar', position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(doc, foyer), cellar);
+    doc = addConnection(doc, createConnection(foyer.id, cellar.id, true), 'down', 'up');
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.deriveVerticalProximityConstraints(doc)).toEqual([
+      {
+        fromRoomId: foyer.id,
+        toRoomId: cellar.id,
+        delta: { x: 0, y: 0 },
+        springMultiplier: 0.45,
+      },
+      {
+        fromRoomId: cellar.id,
+        toRoomId: foyer.id,
+        delta: { x: 0, y: 0 },
+        springMultiplier: 0.45,
+      },
+    ]);
+  });
+
+  it('still places rooms connected only by up/down on distinct positions', () => {
     const { doc, roomA, roomB } = buildBaseDoc(['Cellar', 'Attic']);
     const connection = createConnection(roomA.id, roomB.id, true);
-    let connectedDoc = addConnection(doc, connection, 'up', 'down');
-    connectedDoc = {
-      ...connectedDoc,
-      view: {
-        ...connectedDoc.view,
-        visualStyle: 'default',
-      },
-    };
+    const connectedDoc = addConnection(doc, connection, 'up', 'down');
 
     const positions = computePrettifiedRoomPositions(connectedDoc);
 
-    expect(positions[roomB.id].x).toBe(positions[roomA.id].x);
-    expect(positions[roomB.id].y).toBeLessThan(positions[roomA.id].y);
-    expectSnappedToGrid(getRoomCenterX(roomA, positions[roomA.id].x));
-    expectSnappedToGrid(getRoomCenterY(positions[roomA.id].y));
-    expectSnappedToGrid(getRoomCenterX(roomB, positions[roomB.id].x));
-    expectSnappedToGrid(getRoomCenterY(positions[roomB.id].y));
+    expect(positions[roomA.id]).not.toEqual(positions[roomB.id]);
+  });
+
+  it('keeps up/down-connected rooms near their anchor room without forcing north-south placement', () => {
+    let doc = createEmptyMap('Vertical Nearby');
+    const quire = { ...createRoom('Quire'), id: 'quire', position: { x: 400, y: 240 } };
+    const nightStairs = { ...createRoom('Night Stairs'), id: 'night-stairs', position: { x: 440, y: 260 } };
+    const sanctuary = { ...createRoom('Sanctuary'), id: 'sanctuary', position: { x: 600, y: 240 } };
+    doc = addRoom(addRoom(addRoom(doc, quire), nightStairs), sanctuary);
+    doc = addConnection(doc, createConnection(quire.id, sanctuary.id, true), 'east', 'west');
+    doc = addConnection(doc, createConnection(quire.id, nightStairs.id, true), 'up', 'down');
+
+    const positions = computePrettifiedRoomPositions(doc);
+    const quireCenterX = getRoomCenterX(quire, positions[quire.id].x);
+    const quireCenterY = getRoomCenterY(positions[quire.id].y);
+    const nightStairsCenterX = getRoomCenterX(nightStairs, positions[nightStairs.id].x);
+    const nightStairsCenterY = getRoomCenterY(positions[nightStairs.id].y);
+    const sanctuaryCenterX = getRoomCenterX(sanctuary, positions[sanctuary.id].x);
+    const sanctuaryCenterY = getRoomCenterY(positions[sanctuary.id].y);
+
+    const nightStairsDistanceToQuire = Math.hypot(nightStairsCenterX - quireCenterX, nightStairsCenterY - quireCenterY);
+    const nightStairsDistanceToSanctuary = Math.hypot(nightStairsCenterX - sanctuaryCenterX, nightStairsCenterY - sanctuaryCenterY);
+
+    expect(nightStairsDistanceToQuire).toBeLessThan(nightStairsDistanceToSanctuary);
   });
 
   it('keeps an orthogonal chain aligned after relaxation', () => {
