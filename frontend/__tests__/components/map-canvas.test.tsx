@@ -3152,6 +3152,21 @@ describe('MapCanvas', () => {
       expect(room.position).toEqual({ x: 80, y: 120 });
     });
 
+    it('does not move a room when double-clicking with a slight pointer wobble', () => {
+      const { roomId, roomNode } = setupDraggableRoom(80, 120);
+
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseMove(document, { clientX: 102, clientY: 141 });
+      fireEvent.mouseUp(document, { clientX: 102, clientY: 141 });
+
+      fireEvent.mouseDown(roomNode, { clientX: 100, clientY: 140, button: 0 });
+      fireEvent.mouseUp(document, { clientX: 100, clientY: 140 });
+      fireEvent.doubleClick(roomNode, { clientX: 100, clientY: 140, button: 0 });
+
+      expect(screen.getByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(useEditorStore.getState().doc!.rooms[roomId].position).toEqual({ x: 80, y: 120 });
+    });
+
     it('does not fire background double-click room creation during drag', () => {
       setupDraggableRoom(80, 120);
       const roomNode = screen.getByTestId('room-node');

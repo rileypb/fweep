@@ -27,6 +27,7 @@ const ROOM_ITEM_LABEL_PANEL_WIDTH = 132;
 const ROOM_NAME_VISIBILITY_THRESHOLD = 0.5;
 const LOW_ZOOM_ROOM_NAME_THRESHOLD = 0.75;
 const ROOM_ITEM_LABEL_VISIBILITY_THRESHOLD = 0.8;
+const ROOM_DRAG_START_THRESHOLD_PX = 4;
 const NON_EMPTY_CONNECTION_DROP_SELECTOR = [
   '[data-room-id]',
   '[data-sticky-note-id]',
@@ -257,9 +258,21 @@ export function MapCanvasRoomNode({
       const startX = e.clientX;
       const startY = e.clientY;
       const startPoint = toMapPoint(startX, startY);
-      startRoomDrag(room.id);
+      let dragStarted = false;
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
+        const clientDx = moveEvent.clientX - startX;
+        const clientDy = moveEvent.clientY - startY;
+        const movedFarEnough = Math.hypot(clientDx, clientDy) >= ROOM_DRAG_START_THRESHOLD_PX;
+        if (!dragStarted && !movedFarEnough) {
+          return;
+        }
+
+        if (!dragStarted) {
+          startRoomDrag(room.id);
+          dragStarted = true;
+        }
+
         const updateDrag = (clientX: number, clientY: number) => {
           const cursorPoint = toMapPoint(clientX, clientY);
           updateRoomDrag(cursorPoint.x - startPoint.x, cursorPoint.y - startPoint.y);
@@ -276,10 +289,12 @@ export function MapCanvasRoomNode({
         const endPoint = toMapPoint(upEvent.clientX, upEvent.clientY);
         const dx = endPoint.x - startPoint.x;
         const dy = endPoint.y - startPoint.y;
-        const dragSelection = useEditorStore.getState().selectionDrag;
-        endRoomDrag();
+        const dragSelection = dragStarted ? useEditorStore.getState().selectionDrag : null;
+        if (dragStarted) {
+          endRoomDrag();
+        }
 
-        if (dx !== 0 || dy !== 0) {
+        if (dragStarted && (dx !== 0 || dy !== 0)) {
           const nextRoomPositions = Object.fromEntries(
             (dragSelection?.roomIds ?? []).flatMap((draggedRoomId) => {
               const draggedRoom = useEditorStore.getState().doc?.rooms[draggedRoomId];
