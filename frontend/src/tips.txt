@@ -1,4 +1,5 @@
 fweep is meant to be used with your keyboard, though it will work with the mouse too.
+Pressing / will focus the keyboard on the game prompt.
 Entering \ before a command marks it as a map-making command.
 Using double quotes around a room name (e.g., "back room") will differentiate it from otherwise ambiguous rooms (e.g., "laundromat back room").
 Press R, then click empty canvas to place a new room at the pointer location.
