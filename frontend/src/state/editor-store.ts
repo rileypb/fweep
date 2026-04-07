@@ -1228,7 +1228,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       oneWay: false,
       targetDirection,
     });
-    nextDoc = prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, room.id]);
+    nextDoc = connectionResult.doc;
     set((state) => ({
       ...commitDocumentChange(state, doc, nextDoc, options),
       selectedRoomIds: [room.id],

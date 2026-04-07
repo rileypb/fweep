@@ -3558,6 +3558,8 @@ describe('MapCanvas', () => {
       setupTwoRooms();
       renderMapCanvas();
       const initialHistoryLength = useEditorStore.getState().pastEntries.length;
+      const kitchenId = Object.values(useEditorStore.getState().doc!.rooms).find((room) => room.name === 'Kitchen')!.id;
+      const initialKitchenPosition = useEditorStore.getState().doc!.rooms[kitchenId].position;
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -3586,6 +3588,7 @@ describe('MapCanvas', () => {
       expect(createdRoom).toBeDefined();
       expect(Object.values(doc.connections)).toHaveLength(1);
       expect(Object.values(doc.connections)[0].isBidirectional).toBe(true);
+      expect(doc.rooms[kitchenId].position).toEqual(initialKitchenPosition);
       expect(doc.rooms[createdRoom!.id].directions).toEqual({ south: Object.values(doc.connections)[0].id });
       expect(useEditorStore.getState().pastEntries).toHaveLength(initialHistoryLength + 1);
 
