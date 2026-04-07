@@ -15,7 +15,6 @@ import {
   PARCHMENT_LOCAL_FILE_RETRY_ATTEMPTS,
   PARCHMENT_LOCAL_FILE_RETRY_DELAY_MS,
   PARCHMENT_PANEL_DEFAULT_WIDTH_PX,
-  persistParchmentPanelHeight,
   persistParchmentPanelWidth,
 } from '../components/parchment-panel-helpers';
 
@@ -82,14 +81,14 @@ export function useParchmentPanel({
   const [parchmentPanelHeight, setParchmentPanelHeight] = useState(() => (
     typeof window === 'undefined'
       ? 600
-      : loadStoredParchmentPanelHeightWithinInsets(window.innerHeight, heightTopInsetPx, heightBottomInsetPx)
+      : clampParchmentPanelHeightWithinInsets(window.innerHeight, window.innerHeight, heightTopInsetPx, heightBottomInsetPx)
   ));
   const [ifdbSearchQuery, setIfdbSearchQuery] = useState('');
   const [ifdbSearchResults, setIfdbSearchResults] = useState<readonly NormalizedIfdbSearchResult[]>([]);
   const [ifdbSearchError, setIfdbSearchError] = useState<string | null>(null);
   const [isIfdbSearching, setIsIfdbSearching] = useState(false);
   const [loadingIfdbGameTuid, setLoadingIfdbGameTuid] = useState<string | null>(null);
-  const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null));
+  const [parchmentSrc, setParchmentSrc] = useState(() => buildParchmentSrc(null, activeMapId));
   const [isParchmentGameViewVisible, setIsParchmentGameViewVisible] = useState(false);
   const [isParchmentChooserForcedVisible, setIsParchmentChooserForcedVisible] = useState(false);
   const [pendingLocalFile, setPendingLocalFile] = useState<File | null>(null);
@@ -139,18 +138,14 @@ export function useParchmentPanel({
         }
         return nextWidth;
       });
-      setParchmentPanelHeight((current) => {
-        const nextHeight = clampParchmentPanelHeightWithinInsets(
-          current,
+      setParchmentPanelHeight(
+        clampParchmentPanelHeightWithinInsets(
+          window.innerHeight,
           window.innerHeight,
           heightTopInsetPx,
           heightBottomInsetPx,
-        );
-        if (nextHeight !== current) {
-          persistParchmentPanelHeight(nextHeight);
-        }
-        return nextHeight;
-      });
+        ),
+      );
     };
 
     updateViewportAvailability();
@@ -163,11 +158,10 @@ export function useParchmentPanel({
   const beginParchmentPanelCornerResize = useCallback((
     pointerId: number,
     pointerStartX: number,
-    pointerStartY: number,
+    _pointerStartY: number,
     dockEdge: 'left' | 'right' = 'right',
   ) => {
     const startWidth = parchmentPanelWidth;
-    const startHeight = parchmentPanelHeight;
     const directionMultiplier = dockEdge === 'left' ? -1 : 1;
 
     const handlePointerMove = (event: PointerEvent): void => {
@@ -179,14 +173,7 @@ export function useParchmentPanel({
         startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
         window.innerWidth,
       );
-      const nextHeight = clampParchmentPanelHeightWithinInsets(
-        startHeight + (pointerStartY - event.clientY),
-        window.innerHeight,
-        heightTopInsetPx,
-        heightBottomInsetPx,
-      );
       setParchmentPanelWidth(nextWidth);
-      setParchmentPanelHeight(nextHeight);
     };
 
     const finishResize = (event: PointerEvent): void => {
@@ -198,16 +185,8 @@ export function useParchmentPanel({
         startWidth + ((pointerStartX - event.clientX) * directionMultiplier),
         window.innerWidth,
       );
-      const nextHeight = clampParchmentPanelHeightWithinInsets(
-        startHeight + (pointerStartY - event.clientY),
-        window.innerHeight,
-        heightTopInsetPx,
-        heightBottomInsetPx,
-      );
       setParchmentPanelWidth(nextWidth);
-      setParchmentPanelHeight(nextHeight);
       persistParchmentPanelWidth(nextWidth);
-      persistParchmentPanelHeight(nextHeight);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', finishResize);
       window.removeEventListener('pointercancel', finishResize);
@@ -218,7 +197,7 @@ export function useParchmentPanel({
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', finishResize);
     window.addEventListener('pointercancel', finishResize);
-  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight, parchmentPanelWidth]);
+  }, [parchmentPanelWidth]);
 
   useEffect(() => () => {
     document.body.classList.remove('app-shell--resizing-side-panel-corner');
@@ -292,7 +271,7 @@ export function useParchmentPanel({
 
     if (activeMapId === null) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(null));
+      setParchmentSrc(buildParchmentSrc(null, null));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -301,7 +280,7 @@ export function useParchmentPanel({
     }
 
     if (!isAssociatedGameSyncSuppressed && associatedGame?.sourceType === 'ifdb' && associatedGame.storyUrl !== null) {
-      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl));
+      setParchmentSrc(buildParchmentSrc(associatedGame.storyUrl, activeMapId));
       if (!isParchmentChooserForcedVisible && !isParchmentGameViewVisible) {
         setIsParchmentGameViewVisible(true);
       }
@@ -315,7 +294,7 @@ export function useParchmentPanel({
       && defaultStoryUrlForNewMap !== null
     ) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+      setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap, activeMapId));
       setIsParchmentGameViewVisible(true);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -325,7 +304,7 @@ export function useParchmentPanel({
 
     if (hasSwitchedMaps) {
       resetChooserState();
-      setParchmentSrc(buildParchmentSrc(null));
+      setParchmentSrc(buildParchmentSrc(null, activeMapId));
       setIsParchmentGameViewVisible(false);
       setIsParchmentChooserForcedVisible(false);
       setPendingLocalFile(null);
@@ -360,7 +339,7 @@ export function useParchmentPanel({
 
     setIfdbSearchError(null);
     setPendingLocalFile(null);
-    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap));
+    setParchmentSrc(buildParchmentSrc(defaultStoryUrlForNewMap, activeMapId));
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(true);
@@ -404,14 +383,14 @@ export function useParchmentPanel({
     }
 
     setIfdbSearchError(null);
-    setParchmentSrc(buildParchmentSrc(null));
+    setParchmentSrc(buildParchmentSrc(null, activeMapId));
     setPendingLocalFile(selectedFile);
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
     setIsAssociatedGameSyncSuppressed(false);
 
     await tryLoadParchmentLocalFile(selectedFile, false);
-  }, [tryLoadParchmentLocalFile]);
+  }, [activeMapId, tryLoadParchmentLocalFile]);
 
   const handleResetParchmentPanel = useCallback((): void => {
     if (pendingLocalFileRetryTimeoutRef.current !== null) {
@@ -420,11 +399,11 @@ export function useParchmentPanel({
     }
     setIfdbSearchError(null);
     setPendingLocalFile(null);
-    setParchmentSrc(buildParchmentSrc(null));
+    setParchmentSrc(buildParchmentSrc(null, activeMapId));
     setIsParchmentChooserForcedVisible(true);
     setIsParchmentGameViewVisible(false);
     setIsAssociatedGameSyncSuppressed(false);
-  }, []);
+  }, [activeMapId]);
 
   const retryPendingParchmentLocalFileLoad = useCallback((selectedFile: File, attemptsRemaining: number): void => {
     void (async () => {
@@ -457,20 +436,6 @@ export function useParchmentPanel({
     event: React.KeyboardEvent<HTMLElement>,
     dockEdge: 'left' | 'right' = 'right',
   ): void => {
-    const nextHeight = getNextParchmentPanelHeightFromKeyWithinInsets(
-      event.key,
-      parchmentPanelHeight,
-      window.innerHeight,
-      heightTopInsetPx,
-      heightBottomInsetPx,
-    );
-    if (nextHeight !== null) {
-      event.preventDefault();
-      setParchmentPanelHeight(nextHeight);
-      persistParchmentPanelHeight(nextHeight);
-      return;
-    }
-
     const effectiveKey = dockEdge === 'left'
       ? event.key === 'ArrowLeft'
         ? 'ArrowRight'
@@ -486,7 +451,7 @@ export function useParchmentPanel({
     event.preventDefault();
     setParchmentPanelWidth(nextWidth);
     persistParchmentPanelWidth(nextWidth);
-  }, [heightBottomInsetPx, heightTopInsetPx, parchmentPanelHeight, parchmentPanelWidth]);
+  }, [parchmentPanelWidth]);
 
   return {
     parchmentPanelWidth,

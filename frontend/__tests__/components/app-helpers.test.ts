@@ -116,7 +116,9 @@ describe('app helpers', () => {
     expect(getNextParchmentPanelWidthFromKey('ArrowLeft', 420, 1000)).toBe(452);
     expect(getNextParchmentPanelWidthFromKey('Enter', 420, 1000)).toBeNull();
     expect(buildParchmentSrc(null)).toBe('/parchment.html?autoplay=1&do_vm_autosave=1');
+    expect(buildParchmentSrc(null, 'map-1')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&mapId=map-1');
     expect(buildParchmentSrc('https://example.com/story.ulx')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
+    expect(buildParchmentSrc('https://example.com/story.ulx', 'map-1')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&mapId=map-1&story=https%3A%2F%2Fexample.com%2Fstory.ulx');
   });
 
   it('ships an accessibility patch for the generated parchment command input', () => {
@@ -145,6 +147,12 @@ describe('app helpers', () => {
     expect(parchmentHtml).toContain("fweep:append-cli-output");
     expect(parchmentHtml).toContain("fweep:restore-cli-focus");
     expect(parchmentHtml).toContain("fweep:restore-game-input-focus");
+    expect(parchmentHtml).toContain("fweep:clear-autosave");
+    expect(parchmentHtml).toContain("fweep:clear-vm-autosave-once");
+    expect(parchmentHtml).toContain("parchment_options.clear_vm_autosave = 1;");
+    expect(parchmentHtml).toContain("window.location.reload();");
+    expect(parchmentHtml).toContain("let v=\"autosave:\"+Hn(w)");
+    expect(parchmentHtml).toContain("function Hn(w)");
     expect(parchmentHtml).toContain("rawInput: currentValue");
     expect(parchmentHtml).toContain("var pendingGameCommand = null;");
     expect(parchmentHtml).toContain("var sharedCommandHistory = [];");

@@ -155,11 +155,15 @@ export function getNextParchmentPanelWidthFromKey(
   return clampParchmentPanelWidth(currentWidth + delta, viewportWidth);
 }
 
-export function buildParchmentSrc(storyUrl: string | null): string {
+export function buildParchmentSrc(storyUrl: string | null, mapId: string | null = null): string {
   const params = new URLSearchParams({
     autoplay: '1',
     do_vm_autosave: '1',
   });
+
+  if (mapId !== null) {
+    params.set('mapId', mapId);
+  }
 
   if (storyUrl !== null) {
     params.set('story', storyUrl);

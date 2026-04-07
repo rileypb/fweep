@@ -262,7 +262,7 @@ describe('useParchmentPanel', () => {
     );
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl, 'map-1'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
 
@@ -282,7 +282,7 @@ describe('useParchmentPanel', () => {
       associatedGame: null,
     }));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-2'));
   });
 
   it('loads the bundled default story for a newly created map without associated game metadata', async () => {
@@ -296,7 +296,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-new'));
     });
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
@@ -315,7 +315,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-existing'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -339,7 +339,7 @@ describe('useParchmentPanel', () => {
     })));
 
     await waitFor(() => {
-      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl));
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl, 'map-ifdb'));
     });
 
     act(() => {
@@ -350,7 +350,7 @@ describe('useParchmentPanel', () => {
       result.current.handlePlayDefaultStory();
     });
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(defaultStoryUrl, 'map-ifdb'));
     expect(result.current.isParchmentGameViewVisible).toBe(true);
   });
 
@@ -364,7 +364,7 @@ describe('useParchmentPanel', () => {
       shouldLoadDefaultStoryForActiveMap: false,
     })));
 
-    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null));
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-existing'));
     expect(result.current.isParchmentGameViewVisible).toBe(false);
   });
 
@@ -511,7 +511,7 @@ describe('useParchmentPanel', () => {
     expect(result.current.ifdbSearchError).toBe('Parchment is not ready to open a local file yet.');
   });
 
-  it('resizes the panel with the corner pointer and keyboard controls', () => {
+  it('resizes the panel width with the edge handle pointer and keyboard controls', () => {
     const { result } = renderHook(() => useParchmentPanel(createOptions()));
     const startingWidth = result.current.parchmentPanelWidth;
     const startingHeight = result.current.parchmentPanelHeight;
@@ -531,7 +531,7 @@ describe('useParchmentPanel', () => {
       window.dispatchEvent(createPointerEvent('pointermove', 5, { clientX: 450, clientY: 550 }));
     });
     expect(result.current.parchmentPanelWidth).not.toBe(startingWidth);
-    expect(result.current.parchmentPanelHeight).not.toBe(startingHeight);
+    expect(result.current.parchmentPanelHeight).toBe(startingHeight);
 
     act(() => {
       window.dispatchEvent(createPointerEvent('pointerup', 5, { clientX: 450, clientY: 550 }));
@@ -554,7 +554,7 @@ describe('useParchmentPanel', () => {
         preventDefault: preventHeightDefault,
       } as unknown as React.KeyboardEvent<HTMLElement>);
     });
-    expect(preventHeightDefault).toHaveBeenCalled();
+    expect(preventHeightDefault).not.toHaveBeenCalled();
 
     const preventIgnoredDefault = jest.fn();
     act(() => {
@@ -606,7 +606,7 @@ describe('useParchmentPanel', () => {
       } as unknown as React.KeyboardEvent<HTMLElement>);
     });
 
-    expect(preventDefault).toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
     expect(result.current.parchmentPanelHeight).toBe(800);
   });
 });
