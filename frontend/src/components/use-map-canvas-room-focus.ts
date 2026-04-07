@@ -8,6 +8,8 @@ export interface MapCanvasRoomEditorState {
   readonly roomId?: string;
   readonly pseudoRoomId?: string;
   readonly initialPosition?: Position;
+  readonly pendingConnectionSourceRoomId?: string;
+  readonly pendingConnectionSourceDirection?: string;
 }
 
 interface RoomEditorRequest {

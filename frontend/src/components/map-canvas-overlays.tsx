@@ -305,6 +305,8 @@ export interface RoomEditorOverlayProps {
   roomId?: string;
   pseudoRoomId?: string;
   initialPosition?: Position;
+  pendingConnectionSourceRoomId?: string;
+  pendingConnectionSourceDirection?: string;
   theme: ThemeMode;
   onClose: (savedRoomId?: string) => void;
   onBackdropClose: () => void;
@@ -314,6 +316,8 @@ export function RoomEditorOverlay({
   roomId,
   pseudoRoomId,
   initialPosition,
+  pendingConnectionSourceRoomId,
+  pendingConnectionSourceDirection,
   theme,
   onClose,
   onBackdropClose,
@@ -323,6 +327,7 @@ export function RoomEditorOverlay({
   const itemsById = useEditorStore((s) => s.doc?.items ?? null);
   const applyRoomEditorDraft = useEditorStore((s) => s.applyRoomEditorDraft);
   const createRoomFromEditorDraft = useEditorStore((s) => s.createRoomFromEditorDraft);
+  const createRoomFromEditorDraftAndConnect = useEditorStore((s) => s.createRoomFromEditorDraftAndConnect);
   const convertPseudoRoomToRoom = useEditorStore((s) => s.convertPseudoRoomToRoom);
   const addItemsToRoom = useEditorStore((s) => s.addItemsToRoom);
   const removeItemsFromRoom = useEditorStore((s) => s.removeItemsFromRoom);
@@ -414,7 +419,15 @@ export function RoomEditorOverlay({
     } else if (pseudoRoom !== null) {
       savedRoomId = convertPseudoRoomToRoom(pseudoRoom.id, draft, { historyMergeKey });
     } else if (initialPosition) {
-      savedRoomId = createRoomFromEditorDraft(initialPosition, draft, { historyMergeKey });
+      savedRoomId = pendingConnectionSourceRoomId === undefined || pendingConnectionSourceDirection === undefined
+        ? createRoomFromEditorDraft(initialPosition, draft, { historyMergeKey })
+        : createRoomFromEditorDraftAndConnect(
+          initialPosition,
+          draft,
+          pendingConnectionSourceRoomId,
+          pendingConnectionSourceDirection,
+          { historyMergeKey },
+        );
     }
 
     if (savedRoomId !== undefined) {
@@ -434,11 +447,14 @@ export function RoomEditorOverlay({
     applyRoomEditorDraft,
     convertPseudoRoomToRoom,
     createRoomFromEditorDraft,
+    createRoomFromEditorDraftAndConnect,
     draft,
     draftItemNames,
     initialItemNames,
     initialPosition,
     onClose,
+    pendingConnectionSourceDirection,
+    pendingConnectionSourceRoomId,
     pseudoRoom,
     removeItemsFromRoom,
     room,

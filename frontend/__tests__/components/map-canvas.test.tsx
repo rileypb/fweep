@@ -697,6 +697,7 @@ describe('MapCanvas', () => {
       loadDocumentAct(doc);
 
       renderMapCanvas();
+      const initialHistoryLength = useEditorStore.getState().pastEntries.length;
 
       const canvas = screen.getByTestId('map-canvas');
       const content = screen.getByTestId('map-canvas-content');
@@ -3552,9 +3553,11 @@ describe('MapCanvas', () => {
       expect(useEditorStore.getState().connectionDrag).toBeNull();
     });
 
-    it('opens a chooser when releasing on empty canvas and can create a room from it', async () => {
+    it('opens a chooser when releasing on empty canvas and can create a room from it in one undo step', async () => {
+      const user = userEvent.setup();
       setupTwoRooms();
       renderMapCanvas();
+      const initialHistoryLength = useEditorStore.getState().pastEntries.length;
 
       const roomNodes = screen.getAllByTestId('room-node');
       const kitchenNode = roomNodes.find((n) => n.textContent === 'Kitchen')!;
@@ -3570,17 +3573,28 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId('connection-create-menu')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Room' }));
 
+      expect(await screen.findByTestId('room-editor-overlay')).toBeInTheDocument();
+      expect(screen.getByLabelText('Room name')).toHaveValue('Room');
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(0);
+      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(2);
+      expect(useEditorStore.getState().connectionDrag).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: /save room editor/i }));
+
       const doc = useEditorStore.getState().doc!;
       const createdRoom = Object.values(doc.rooms).find((room) => room.name === 'Room');
       expect(createdRoom).toBeDefined();
-      expect(createdRoom!.position.x % 40).toBe(0);
-      expect(createdRoom!.position.y % 40).toBe(0);
       expect(Object.values(doc.connections)).toHaveLength(1);
       expect(Object.values(doc.connections)[0].isBidirectional).toBe(true);
       expect(doc.rooms[createdRoom!.id].directions).toEqual({ south: Object.values(doc.connections)[0].id });
-      expect(await screen.findByTestId('room-editor-overlay')).toBeInTheDocument();
-      expect(screen.getByLabelText('Room name')).toHaveValue('Room');
-      expect(useEditorStore.getState().connectionDrag).toBeNull();
+      expect(useEditorStore.getState().pastEntries).toHaveLength(initialHistoryLength + 1);
+
+      await act(async () => {
+        await useEditorStore.getState().undo();
+      });
+
+      expect(Object.values(useEditorStore.getState().doc!.rooms)).toHaveLength(2);
+      expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(0);
     });
 
     it('cancels the empty-drop chooser without creating a connection', () => {

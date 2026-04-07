@@ -1189,6 +1189,28 @@ describe('useEditorStore', () => {
       expect(doc.rooms[hallwayId].directions['west']).toBe(conn.id);
     });
 
+    it('completeConnectionDrag replaces an existing connection on the source direction', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const hallwayId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 80, y: 0 });
+      const cellarId = useEditorStore.getState().addRoomAtPosition('Cellar', { x: 240, y: 0 });
+      const oldConnectionId = useEditorStore.getState().connectRooms(kitchenId, 'north', hallwayId, {
+        oneWay: false,
+        targetDirection: 'south',
+      });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      useEditorStore.getState().completeConnectionDrag(cellarId);
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[oldConnectionId]).toBeUndefined();
+      expect(doc.rooms[hallwayId].directions).toEqual({});
+      const connections = Object.values(doc.connections);
+      expect(connections).toHaveLength(1);
+      expect(connections[0].target).toEqual({ kind: 'room', id: cellarId });
+      expect(doc.rooms[kitchenId].directions.north).toBe(connections[0].id);
+    });
+
     it('completeConnectionDrag creates a one-way self-connection when dropped on the room body', () => {
       useEditorStore.getState().loadDocument(testDoc);
       const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
@@ -1318,6 +1340,26 @@ describe('useEditorStore', () => {
       expect(Object.values(useEditorStore.getState().doc!.connections)).toHaveLength(1);
     });
 
+    it('completeConnectionDragToNewRoom replaces an existing connection on the source direction', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const hallwayId = useEditorStore.getState().addRoomAtPosition('Hallway', { x: 80, y: 0 });
+      const oldConnectionId = useEditorStore.getState().connectRooms(kitchenId, 'north', hallwayId, {
+        oneWay: false,
+        targetDirection: 'south',
+      });
+
+      useEditorStore.getState().startConnectionDrag(kitchenId, 'north', 100, 120);
+      const createdRoomId = useEditorStore.getState().completeConnectionDragToNewRoom({ x: 160, y: 80 });
+
+      expect(createdRoomId).not.toBeNull();
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[oldConnectionId]).toBeUndefined();
+      expect(doc.rooms[hallwayId].directions).toEqual({});
+      expect(doc.rooms[kitchenId].directions.north).toBeDefined();
+      expect(doc.rooms[createdRoomId!].directions.south).toBe(doc.rooms[kitchenId].directions.north);
+    });
+
     it('completeConnectionDragToNewRoom returns null and clears drag state when no drag is active', () => {
       useEditorStore.getState().loadDocument(testDoc);
 
@@ -1353,6 +1395,20 @@ describe('useEditorStore', () => {
         kind: 'nowhere',
         position: { x: 160, y: 80 },
       });
+    });
+
+    it('createPseudoRoomAndConnect replaces an existing source-direction connection and deletes the old pseudo-room target', () => {
+      useEditorStore.getState().loadDocument(testDoc);
+      const kitchenId = useEditorStore.getState().addRoomAtPosition('Kitchen', { x: 80, y: 120 });
+      const original = useEditorStore.getState().createPseudoRoomAndConnect('unknown', { x: 160, y: 80 }, kitchenId, 'north');
+
+      const replacement = useEditorStore.getState().createPseudoRoomAndConnect('death', { x: 200, y: 80 }, kitchenId, 'north');
+
+      const doc = useEditorStore.getState().doc!;
+      expect(doc.connections[original.connectionId]).toBeUndefined();
+      expect(doc.pseudoRooms[original.pseudoRoomId]).toBeUndefined();
+      expect(doc.pseudoRooms[replacement.pseudoRoomId]).toMatchObject({ kind: 'death' });
+      expect(doc.rooms[kitchenId].directions.north).toBe(replacement.connectionId);
     });
 
     it('setPseudoRoomExit replaces an existing pseudo-room in place', () => {

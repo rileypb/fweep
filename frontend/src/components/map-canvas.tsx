@@ -435,7 +435,6 @@ export function MapCanvas({
   const selectedStickyNoteLinkIds = useEditorStore((s) => s.selectedStickyNoteLinkIds);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const addStickyNoteAtPosition = useEditorStore((s) => s.addStickyNoteAtPosition);
-  const completeConnectionDragToNewRoom = useEditorStore((s) => s.completeConnectionDragToNewRoom);
   const createPseudoRoomAndConnect = useEditorStore((s) => s.createPseudoRoomAndConnect);
   const setSelection = useEditorStore((s) => s.setSelection);
   const addPseudoRoomToSelection = useEditorStore((s) => s.addPseudoRoomToSelection);
@@ -770,13 +769,14 @@ export function MapCanvas({
     }
 
     if (kind === 'room') {
-      const createdRoomId = completeConnectionDragToNewRoom(
-        getNewRoomTopLeftPosition(currentDrop.position, mapVisualStyle),
-      );
+      const initialPosition = getNewRoomTopLeftPosition(currentDrop.position, mapVisualStyle);
+      useEditorStore.getState().cancelConnectionDrag();
       setPendingConnectionDrop(null);
-      if (createdRoomId !== null) {
-        openRoomEditor(createdRoomId);
-      }
+      setRoomEditorState({
+        initialPosition,
+        pendingConnectionSourceRoomId: currentDrag.sourceRoomId,
+        pendingConnectionSourceDirection: currentDrag.sourceDirection,
+      });
       return;
     }
 
@@ -788,7 +788,7 @@ export function MapCanvas({
     );
     useEditorStore.getState().cancelConnectionDrag();
     setPendingConnectionDrop(null);
-  }, [completeConnectionDragToNewRoom, createPseudoRoomAndConnect, mapVisualStyle, openRoomEditor, pendingConnectionDrop]);
+  }, [createPseudoRoomAndConnect, mapVisualStyle, pendingConnectionDrop]);
 
   const closeStickyNoteEditor = useCallback(() => {
     setStickyNoteEditorId(null);
@@ -2061,6 +2061,8 @@ export function MapCanvas({
           roomId={roomEditorId ?? undefined}
           pseudoRoomId={roomEditorState?.pseudoRoomId}
           initialPosition={roomEditorState.initialPosition}
+          pendingConnectionSourceRoomId={roomEditorState.pendingConnectionSourceRoomId}
+          pendingConnectionSourceDirection={roomEditorState.pendingConnectionSourceDirection}
           theme={theme}
           onClose={(savedRoomId) => {
             closeRoomEditor();

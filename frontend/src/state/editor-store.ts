@@ -422,6 +422,22 @@ export interface EditorState {
     options?: HistoryOptions,
   ) => string;
 
+  /** Create a new room from the room editor draft and connect it from an existing room in a single history step. */
+  createRoomFromEditorDraftAndConnect: (
+    position: Position,
+    draft: {
+      name: string;
+      shape: RoomShape;
+      isDark: boolean;
+      fillColorIndex: number;
+      strokeColorIndex: number;
+      strokeStyle: RoomStrokeStyle;
+    },
+    sourceRoomId: string,
+    sourceDirection: string,
+    options?: HistoryOptions,
+  ) => string;
+
   /** Create a pseudo-room and connect it from an existing room in a single history step. */
   createPseudoRoomAndConnect: (
     kind: PseudoRoomKind,
@@ -909,6 +925,25 @@ function prettifyCliStickyNoteResult(doc: MapDocument): MapDocument {
   return domainSetStickyNotePositions(doc, stickyNotePositions);
 }
 
+function removeConnectionBoundAtDirection(
+  doc: MapDocument,
+  roomId: string,
+  direction: string,
+): MapDocument {
+  const room = doc.rooms[roomId];
+  if (!room) {
+    throw new Error(`Room "${roomId}" not found.`);
+  }
+
+  const normalizedDirection = normalizeDirection(direction);
+  const existingConnectionId = room.directions[normalizedDirection];
+  if (!existingConnectionId) {
+    return doc;
+  }
+
+  return domainDeleteConnection(doc, existingConnectionId);
+}
+
 function getCliPseudoRoomPlacement(doc: MapDocument, sourceRoomId: string, sourceDirection: string): Position {
   const sourceRoom = doc.rooms[sourceRoomId];
   if (!sourceRoom) {
@@ -1171,6 +1206,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return room.id;
   },
 
+  createRoomFromEditorDraftAndConnect: (position, draft, sourceRoomId, sourceDirection, options) => {
+    const { doc } = get();
+    if (!doc) {
+      throw new Error('Cannot create and connect a room from the editor: no document is loaded.');
+    }
+
+    const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
+    const room = {
+      ...createRoom(draft.name),
+      position: snapped,
+      shape: draft.shape,
+      isDark: draft.isDark,
+      fillColorIndex: draft.fillColorIndex,
+      strokeColorIndex: draft.strokeColorIndex,
+      strokeStyle: draft.strokeStyle,
+    };
+    let nextDoc = addRoom(doc, room);
+    const targetDirection = oppositeDirection(sourceDirection) ?? null;
+    const connectionResult = applyCliConnection(nextDoc, sourceRoomId, sourceDirection, room.id, {
+      oneWay: false,
+      targetDirection,
+    });
+    nextDoc = prettifyCliConnectionResult(connectionResult.doc, [sourceRoomId, room.id]);
+    set((state) => ({
+      ...commitDocumentChange(state, doc, nextDoc, options),
+      selectedRoomIds: [room.id],
+      selectedPseudoRoomIds: [],
+      selectedStickyNoteIds: [],
+      selectedConnectionIds: [connectionResult.connectionId],
+      selectedStickyNoteLinkIds: [],
+    }));
+    return room.id;
+  },
+
   createPseudoRoomAndConnect: (kind, position, sourceRoomId, sourceDirection) => {
     const { doc } = get();
     if (!doc) {
@@ -1180,7 +1249,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const snapped = maybeSnapPosition(position, get().snapToGridEnabled);
     const pseudoRoom = { ...createPseudoRoom(kind), position: snapped };
     const connection = createConnection(sourceRoomId, { kind: 'pseudo-room', id: pseudoRoom.id }, false);
-    let nextDoc = addPseudoRoom(doc, pseudoRoom);
+    let nextDoc = removeConnectionBoundAtDirection(doc, sourceRoomId, sourceDirection);
+    nextDoc = addPseudoRoom(nextDoc, pseudoRoom);
     nextDoc = addConnection(nextDoc, connection, normalizeDirection(sourceDirection));
     set((state) => ({
       ...commitDocumentChange(state, doc, nextDoc),
@@ -2362,11 +2432,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // A targeted handle creates a bidirectional connection, including for
     // self-connections. Dropping on the room body creates a one-way connection.
     const isBidirectional = targetDirection !== undefined;
-
     const connection = createConnection(sourceRoomId, targetRoomId, isBidirectional);
 
     try {
-      const updatedDoc = addConnection(doc, connection, sourceDirection, resolvedTargetDir);
+      let updatedDoc = removeConnectionBoundAtDirection(doc, sourceRoomId, sourceDirection);
+      if (resolvedTargetDir !== undefined) {
+        updatedDoc = removeConnectionBoundAtDirection(updatedDoc, targetRoomId, resolvedTargetDir);
+      }
+      updatedDoc = addConnection(updatedDoc, connection, sourceDirection, resolvedTargetDir);
       set((state) => ({
         ...commitDocumentChange(state, doc, updatedDoc),
         connectionDrag: null,
@@ -2387,12 +2460,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { sourceRoomId, sourceDirection } = connectionDrag;
     const snappedPosition = maybeSnapPosition(position, snapToGridEnabled);
     const room = { ...createRoom('Room'), position: snappedPosition };
-    const connection = createConnection(sourceRoomId, room.id, true);
     const targetDirection = oppositeDirection(sourceDirection);
 
     try {
       let updatedDoc = addRoom(doc, room);
-      updatedDoc = addConnection(updatedDoc, connection, sourceDirection, targetDirection);
+      updatedDoc = applyCliConnection(updatedDoc, sourceRoomId, sourceDirection, room.id, {
+        oneWay: false,
+        targetDirection: targetDirection ?? null,
+      }).doc;
       set((state) => ({
         ...commitDocumentChange(state, doc, updatedDoc),
         connectionDrag: null,
