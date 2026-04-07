@@ -182,6 +182,29 @@ describe('computePrettifiedRoomPositions', () => {
     ]);
   });
 
+  it('does not use up/down exits to connect layout components', () => {
+    let doc = createEmptyMap('Vertical Component Split');
+    const foyer = { ...createRoom('Foyer'), id: 'foyer', position: { x: 0, y: 0 } };
+    const garden = { ...createRoom('Garden'), id: 'garden', position: { x: 0, y: 0 } };
+    const cellar = { ...createRoom('Cellar'), id: 'cellar', position: { x: 0, y: 0 } };
+    doc = addRoom(addRoom(addRoom(doc, foyer), garden), cellar);
+    doc = addConnection(doc, createConnection(foyer.id, garden.id, true), 'south', 'north');
+    doc = addConnection(doc, createConnection(foyer.id, cellar.id, true), 'down', 'up');
+
+    expect(TEST_ONLY_PRETTIFY_LAYOUT.deriveConnectionConnectivityConstraints(doc)).toEqual([
+      {
+        fromRoomId: foyer.id,
+        toRoomId: garden.id,
+        delta: { x: 0, y: 0 },
+      },
+      {
+        fromRoomId: garden.id,
+        toRoomId: foyer.id,
+        delta: { x: 0, y: 0 },
+      },
+    ]);
+  });
+
   it('still places rooms connected only by up/down on distinct positions', () => {
     const { doc, roomA, roomB } = buildBaseDoc(['Cellar', 'Attic']);
     const connection = createConnection(roomA.id, roomB.id, true);

@@ -20,6 +20,7 @@ const PSEUDO_ROOM_REPULSION_MULTIPLIER = 0.2;
 const MAX_STEP = 18;
 const MAX_STABILIZATION_PASSES = 6;
 const COMPONENT_JIGGLE_MAX_RADIUS = 120;
+const COMPONENT_ATTRACTION_ITERATIONS = 8;
 
 interface Vector {
   x: number;
@@ -265,7 +266,11 @@ function deriveConnectionConnectivityConstraints(doc: MapDocument): DirectionCon
   const constraints: DirectionConstraint[] = [];
 
   for (const room of Object.values(doc.rooms)) {
-    for (const connectionId of Object.values(room.directions)) {
+    for (const [direction, connectionId] of Object.entries(room.directions)) {
+      if (direction === 'up' || direction === 'down') {
+        continue;
+      }
+
       const connection = doc.connections[connectionId];
       if (!connection) {
         continue;
@@ -290,6 +295,119 @@ function deriveConnectionConnectivityConstraints(doc: MapDocument): DirectionCon
   }
 
   return constraints;
+}
+
+function translateComponent(
+  roomIds: readonly string[],
+  delta: Position,
+  placedPositions: Map<string, Position>,
+): void {
+  for (const roomId of roomIds) {
+    const position = placedPositions.get(roomId)!;
+    placedPositions.set(roomId, {
+      x: position.x + delta.x,
+      y: position.y + delta.y,
+    });
+  }
+}
+
+function toComponentStep(force: Vector): Position {
+  return {
+    x: force.x > 1 ? PRETTIFY_GRID_SIZE : force.x < -1 ? -PRETTIFY_GRID_SIZE : 0,
+    y: force.y > 1 ? PRETTIFY_GRID_SIZE : force.y < -1 ? -PRETTIFY_GRID_SIZE : 0,
+  };
+}
+
+function attractComponentsAlongConstraints(
+  componentGroups: readonly ComponentPlacementGroup[],
+  constraints: readonly DirectionConstraint[],
+  lockedRoomIds: ReadonlySet<string>,
+  placedPositions: Map<string, Position>,
+  doc: MapDocument,
+): void {
+  const roomToComponentKey = new Map<string, string>();
+  const componentsByKey = new Map(componentGroups.map((componentGroup) => [componentGroup.key, componentGroup] as const));
+  const lockedComponentKeys = new Set<string>();
+
+  for (const componentGroup of componentGroups) {
+    const isLocked = componentGroup.roomIds.some((roomId) => lockedRoomIds.has(roomId));
+    if (isLocked) {
+      lockedComponentKeys.add(componentGroup.key);
+    }
+    for (const roomId of componentGroup.roomIds) {
+      roomToComponentKey.set(roomId, componentGroup.key);
+    }
+  }
+
+  const crossComponentConstraints = constraints.filter((constraint) => {
+    const fromComponentKey = roomToComponentKey.get(constraint.fromRoomId);
+    const toComponentKey = roomToComponentKey.get(constraint.toRoomId);
+    return fromComponentKey !== undefined && toComponentKey !== undefined && fromComponentKey !== toComponentKey;
+  });
+
+  if (crossComponentConstraints.length === 0) {
+    return;
+  }
+
+  for (let iteration = 0; iteration < COMPONENT_ATTRACTION_ITERATIONS; iteration += 1) {
+    const componentForces = new Map(
+      componentGroups.map((componentGroup) => [componentGroup.key, { x: 0, y: 0 }] as const),
+    );
+
+    for (const constraint of crossComponentConstraints) {
+      const fromComponentKey = roomToComponentKey.get(constraint.fromRoomId)!;
+      const toComponentKey = roomToComponentKey.get(constraint.toRoomId)!;
+      const fromPosition = placedPositions.get(constraint.fromRoomId);
+      const toPosition = placedPositions.get(constraint.toRoomId);
+      if (!fromPosition || !toPosition) {
+        continue;
+      }
+
+      const fromCenter = toLayoutNodeCenter(doc, constraint.fromRoomId, fromPosition, doc.view.visualStyle);
+      const toCenter = toLayoutNodeCenter(doc, constraint.toRoomId, toPosition, doc.view.visualStyle);
+      const errorX = (toCenter.x - fromCenter.x) - constraint.delta.x;
+      const errorY = (toCenter.y - fromCenter.y) - constraint.delta.y;
+      const springStrength = SPRING_STRENGTH * (constraint.springMultiplier ?? 1);
+      const fromLocked = lockedComponentKeys.has(fromComponentKey);
+      const toLocked = lockedComponentKeys.has(toComponentKey);
+
+      if (!fromLocked && !toLocked) {
+        componentForces.get(fromComponentKey)!.x += errorX * springStrength * 0.5;
+        componentForces.get(fromComponentKey)!.y += errorY * springStrength * 0.5;
+        componentForces.get(toComponentKey)!.x -= errorX * springStrength * 0.5;
+        componentForces.get(toComponentKey)!.y -= errorY * springStrength * 0.5;
+      } else if (!fromLocked) {
+        componentForces.get(fromComponentKey)!.x += errorX * springStrength;
+        componentForces.get(fromComponentKey)!.y += errorY * springStrength;
+      } else if (!toLocked) {
+        componentForces.get(toComponentKey)!.x -= errorX * springStrength;
+        componentForces.get(toComponentKey)!.y -= errorY * springStrength;
+      }
+    }
+
+    let movedAnyComponent = false;
+    for (const componentGroup of componentGroups) {
+      if (lockedComponentKeys.has(componentGroup.key)) {
+        continue;
+      }
+
+      const delta = toComponentStep(componentForces.get(componentGroup.key)!);
+      if (delta.x === 0 && delta.y === 0) {
+        continue;
+      }
+
+      if (!canTranslateComponent(componentGroup.roomIds, delta, placedPositions, doc)) {
+        continue;
+      }
+
+      translateComponent(componentGroup.roomIds, delta, placedPositions);
+      movedAnyComponent = true;
+    }
+
+    if (!movedAnyComponent) {
+      break;
+    }
+  }
 }
 
 function deriveStickyNoteConstraints(doc: MapDocument): DirectionConstraint[] {
@@ -1821,6 +1939,13 @@ function computePrettifiedRoomPositionsSinglePass(
   }
 
   recenterUnlockedComponents(adjustedComponentAnchors, lockedRoomIds, placedPositions, doc);
+  attractComponentsAlongConstraints(
+    componentPlacementGroups,
+    deriveVerticalProximityConstraints(doc),
+    lockedRoomIds,
+    placedPositions,
+    doc,
+  );
   separateOverlappingComponents(componentPlacementGroups, lockedRoomIds, placedPositions, doc);
 
   const roomPositions = Object.fromEntries(
@@ -1938,6 +2063,7 @@ export const TEST_ONLY_PRETTIFY_LAYOUT = {
   getLayoutNodeDimensions,
   deriveDirectionConstraints,
   deriveVerticalProximityConstraints,
+  deriveConnectionConnectivityConstraints,
   deriveStickyNoteConstraints,
   deriveStickyNoteConnectivityConstraints,
   deriveStickyNoteTargetConnectivityConstraints,
