@@ -194,7 +194,6 @@ describe('app helpers', () => {
     expect(quixeHtml).toContain("input.LineInput, textarea.LineInput");
     expect(quixeHtml).toContain("input.Input:not(.LineInput), textarea.Input:not(.LineInput)");
     expect(quixeHtml).toContain("input.LineInput::placeholder");
-    expect(quixeHtml).toContain(".fweep-line-input-hint");
     expect(quixeHtml).toContain("fweep-quixe-upload:");
     expect(quixeHtml).toContain("new window.DialogClass()");
     expect(quixeHtml).toContain("Dialog: scopedDialog");
@@ -207,18 +206,6 @@ describe('app helpers', () => {
     expect(quixeHtml).toContain("scopedDialog.autosave_read");
     expect(quixeHtml).toContain("fweepBootQuixe");
     expect(quixeHtml).toContain("isTextEntryElement");
-    expect(quixeHtml).toContain("function getOrCreateLineInputHint(lineInput)");
-    expect(quixeHtml).toContain("function updateCurrentLineInputAffordance(forceFocused)");
-    expect(quixeHtml).toContain("function updateLineInputAffordance(lineInput, forceFocused)");
-    expect(quixeHtml).toContain("data-fweep-placeholder-listeners");
-    expect(quixeHtml).toContain("lineInput.addEventListener('focus'");
-    expect(quixeHtml).toContain("lineInput.addEventListener('blur'");
-    expect(quixeHtml).toContain("lineInput.addEventListener('input'");
-    expect(quixeHtml).toContain("if (isLineInput(event.target)) {");
-    expect(quixeHtml).toContain("if (isTextEntryElement(event.target)) {");
-    expect(quixeHtml).toContain("updateLineInputAffordance(event.target, true);");
-    expect(quixeHtml).toContain("updateLineInputAffordance(event.target, false);");
-    expect(quixeHtml).toContain("updateCurrentLineInputAffordance(false);");
     expect(quixeHtml).toContain("fweep:submit-game-command");
     expect(quixeHtml).toContain("fweep:request-cli-suggestions");
     expect(quixeHtml).toContain("fweep:restore-game-input-focus");

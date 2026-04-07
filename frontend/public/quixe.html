@@ -86,19 +86,6 @@
       font-size: 0.85em;
     }
 
-    .fweep-line-input-hint {
-      margin-top: 0.15rem;
-      color: #1034a6;
-      font-size: 0.75rem;
-      line-height: 1.2;
-      pointer-events: none;
-      user-select: none;
-    }
-
-    .fweep-line-input-hint[hidden] {
-      display: none;
-    }
-
     input.LineInput::placeholder,
     textarea.LineInput::placeholder {
       color: #1034a6;
@@ -111,10 +98,6 @@
 
     html[data-theme='dark'] input.LineInput::placeholder,
     html[data-theme='dark'] textarea.LineInput::placeholder {
-      color: #93c5fd;
-    }
-
-    html[data-theme='dark'] .fweep-line-input-hint {
       color: #93c5fd;
     }
 
@@ -377,6 +360,7 @@
       var outputViewportSelector = '#windowport';
       var outputWindowSelector = '[id^="window"]:not(#windowport)';
       var outputWindowLabelPrefix = 'Interactive fiction output';
+      var allowLineInputFocusUntil = 0;
       var cliSuggestionKeyboardShortcutEnabled = false;
       var pendingGameCommand = null;
       var pendingGameCommandTimer = null;
@@ -729,55 +713,14 @@
         return getCurrentEnabledTextarea(charInputSelector);
       }
 
-      function getLineInputHintId(lineInput) {
-        if (!isTextEntryElement(lineInput) || typeof lineInput.id !== 'string' || lineInput.id.length === 0) {
-          return null;
-        }
-
-        return lineInput.id + '_fweep_hint';
-      }
-
-      function getOrCreateLineInputHint(lineInput) {
-        var hintId = getLineInputHintId(lineInput);
-        if (hintId === null) {
-          return null;
-        }
-
-        var existingHint = document.getElementById(hintId);
-        if (existingHint instanceof HTMLElement) {
-          return existingHint;
-        }
-
-        var hint = document.createElement('div');
-        hint.id = hintId;
-        hint.className = 'fweep-line-input-hint';
-        hint.textContent = focusedLineInputPlaceholder;
-        hint.hidden = true;
-        lineInput.insertAdjacentElement('afterend', hint);
-        return hint;
-      }
-
-      function updateCurrentLineInputAffordance(forceFocused) {
-        var lineInput = getCurrentLineInput();
-        if (isLineInput(lineInput)) {
-          updateLineInputAffordance(lineInput, forceFocused);
-        }
-      }
-
-      function updateLineInputAffordance(lineInput, forceFocused) {
+      function updateLineInputPlaceholder(lineInput) {
         if (!isTextEntryElement(lineInput)) {
           return;
         }
 
-        var isFocused = typeof forceFocused === 'boolean'
-          ? forceFocused
-          : document.activeElement === lineInput;
-        lineInput.placeholder = unfocusedLineInputPlaceholder;
-
-        var hint = getOrCreateLineInputHint(lineInput);
-        if (hint instanceof HTMLElement) {
-          hint.hidden = !(isFocused && lineInput.value.length === 0);
-        }
+        lineInput.placeholder = document.activeElement === lineInput
+          ? focusedLineInputPlaceholder
+          : unfocusedLineInputPlaceholder;
       }
 
       function labelLineInputs(root) {
@@ -787,29 +730,7 @@
           if (!lineInput.getAttribute('aria-label')) {
             lineInput.setAttribute('aria-label', lineInputLabel);
           }
-
-          if (!lineInput.hasAttribute('data-fweep-placeholder-listeners')) {
-            lineInput.setAttribute('data-fweep-placeholder-listeners', 'true');
-            lineInput.addEventListener('pointerdown', function () {
-              updateLineInputAffordance(lineInput, true);
-            });
-            lineInput.addEventListener('mousedown', function () {
-              updateLineInputAffordance(lineInput, true);
-            });
-            lineInput.addEventListener('focus', function () {
-              updateLineInputAffordance(lineInput, true);
-            });
-            lineInput.addEventListener('blur', function () {
-              window.setTimeout(function () {
-                updateLineInputAffordance(lineInput, false);
-              }, 0);
-            });
-            lineInput.addEventListener('input', function () {
-              updateLineInputAffordance(lineInput, true);
-            });
-          }
-
-          updateLineInputAffordance(lineInput);
+          updateLineInputPlaceholder(lineInput);
         });
       }
 
@@ -1271,37 +1192,25 @@
 
         document.addEventListener('pointerdown', function (event) {
           if (isLineInput(event.target)) {
-            return;
-          }
-
-          if (isTextEntryElement(event.target)) {
-            return;
+            allowLineInputFocusUntil = Date.now() + 750;
           }
 
           var target = event.target instanceof Element ? event.target.closest(outputWindowSelector) : null;
           if (isOutputWindow(target)) {
             target.focus();
-            window.setTimeout(function () {
-              updateCurrentLineInputAffordance(false);
-            }, 0);
           }
         }, true);
 
         document.addEventListener('focusin', function (event) {
           if (isLineInput(event.target)) {
-            updateLineInputAffordance(event.target, true);
-            return;
-          }
-
-          if (isOutputWindow(event.target)) {
-            updateCurrentLineInputAffordance(false);
+            updateLineInputPlaceholder(event.target);
           }
         }, true);
 
         document.addEventListener('focusout', function (event) {
           if (isLineInput(event.target)) {
             window.setTimeout(function () {
-              updateLineInputAffordance(event.target, false);
+              updateLineInputPlaceholder(event.target);
             }, 0);
           }
         }, true);
@@ -1316,7 +1225,7 @@
             var lineInput = getCurrentLineInput();
             if (isLineInput(lineInput)) {
               lineInput.focus();
-              updateLineInputAffordance(lineInput, true);
+              updateLineInputPlaceholder(lineInput);
             }
             return;
           }
