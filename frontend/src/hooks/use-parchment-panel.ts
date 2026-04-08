@@ -257,6 +257,7 @@ export function useParchmentPanel({
       setPendingLocalFile(null);
       setIsParchmentChooserForcedVisible(false);
       setIsParchmentGameViewVisible(true);
+      setIsAssociatedGameSyncSuppressed(false);
       setAssociatedGameMetadata(resolvedGame);
     } catch (error) {
       setIfdbSearchError(error instanceof Error ? error.message : 'IFDB game lookup failed.');
@@ -387,7 +388,7 @@ export function useParchmentPanel({
     setPendingLocalFile(selectedFile);
     setIsParchmentChooserForcedVisible(false);
     setIsParchmentGameViewVisible(true);
-    setIsAssociatedGameSyncSuppressed(false);
+    setIsAssociatedGameSyncSuppressed(true);
 
     await tryLoadParchmentLocalFile(selectedFile, false);
   }, [activeMapId, tryLoadParchmentLocalFile]);
@@ -402,7 +403,7 @@ export function useParchmentPanel({
     setParchmentSrc(buildParchmentSrc(null, activeMapId));
     setIsParchmentChooserForcedVisible(true);
     setIsParchmentGameViewVisible(false);
-    setIsAssociatedGameSyncSuppressed(false);
+    setIsAssociatedGameSyncSuppressed(true);
   }, [activeMapId]);
 
   const retryPendingParchmentLocalFileLoad = useCallback((selectedFile: File, attemptsRemaining: number): void => {

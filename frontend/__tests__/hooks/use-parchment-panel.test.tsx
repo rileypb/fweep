@@ -410,6 +410,58 @@ describe('useParchmentPanel', () => {
     expect(result.current.ifdbSearchError).toBeNull();
   });
 
+  it('keeps the chooser session isolated when switching from an IFDB game to a local file', async () => {
+    const associatedGame: AssociatedGameMetadata = {
+      sourceType: 'ifdb',
+      tuid: 'abc123',
+      ifid: 'IFID-123',
+      title: 'The Example Game',
+      author: 'Pat Example',
+      storyUrl: 'https://example.com/game.ulx',
+      format: 'glulx',
+    };
+    const { result, rerender } = renderHook(
+      (options: ReturnType<typeof createOptions>) => useParchmentPanel(options),
+      {
+        initialProps: createOptions({
+          activeMapId: 'map-1',
+          associatedGame,
+        }),
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.parchmentSrc).toBe(buildParchmentSrc(associatedGame.storyUrl, 'map-1'));
+    });
+
+    act(() => {
+      result.current.handleResetParchmentPanel();
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-1'));
+    expect(result.current.isParchmentGameViewVisible).toBe(false);
+
+    const file = new File(['story data'], 'story.z5', { type: 'application/octet-stream' });
+    await act(async () => {
+      await result.current.handleParchmentDeviceFileChange({
+        target: {
+          files: [file],
+          value: 'story.z5',
+        },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-1'));
+    expect(result.current.isParchmentGameViewVisible).toBe(true);
+
+    rerender(createOptions({
+      activeMapId: 'map-1',
+      associatedGame,
+    }));
+
+    expect(result.current.parchmentSrc).toBe(buildParchmentSrc(null, 'map-1'));
+  });
+
   it('reports local-file loading failures and no-ops on empty file selections', async () => {
     const setAssociatedGameMetadata = jest.fn<(associatedGame: AssociatedGameMetadata | null) => void>();
     const options = createOptions({ setAssociatedGameMetadata });

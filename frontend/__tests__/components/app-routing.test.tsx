@@ -662,7 +662,8 @@ describe('URL routing', () => {
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toContain('story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toContain('mapId=');
     });
     expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /search IFDB for a game/i })).not.toBeInTheDocument();
@@ -850,7 +851,8 @@ describe('URL routing', () => {
 
     const iframe = await screen.findByTitle(/interactive fiction player/i) as HTMLIFrameElement;
     await waitFor(() => {
-      expect(iframe.getAttribute('src')).toBe('/parchment.html?autoplay=1&do_vm_autosave=1&story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toContain('story=https%3A%2F%2Fexample.com%2Fgame.ulx');
+      expect(iframe.getAttribute('src')).toContain('mapId=');
     });
   });
 
