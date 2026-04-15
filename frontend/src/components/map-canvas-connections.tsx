@@ -355,6 +355,8 @@ export function MapCanvasConnections({
     conn: Connection,
     sourceRoom: Room,
     targetRoom: Room,
+    sourceCenter: Point,
+    targetCenter: Point,
     points: readonly Point[],
     geometry: ConnectionRenderGeometry,
     isSelfConnection: boolean,
@@ -389,6 +391,10 @@ export function MapCanvasConnections({
         geometry.kind === 'polyline' && !isSelfConnection ? getLongestSegment(points) : null,
         sourceDirection,
         targetDirection,
+        points,
+        directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down'
+          ? { start: sourceCenter, end: targetCenter }
+          : null,
       )
       : null;
     const rendersSelfVerticalDirectionalAnnotation = isSelfConnection
@@ -1014,6 +1020,8 @@ export function MapCanvasConnections({
       conn,
       src,
       tgt,
+      sourceCenter: getRoomCenter(src.position, srcDimensions),
+      targetCenter: getRoomCenter(tgt.position, tgtDimensions),
       points,
       geometry,
       arrowPointSets,
@@ -1044,10 +1052,19 @@ export function MapCanvasConnections({
           zIndex: 'var(--map-layer-connections)',
         }}
       >
-        {renderedConnections.map(({ conn, src, tgt, points, geometry, arrowPointSets }) => {
+        {renderedConnections.map(({ conn, src, tgt, sourceCenter, targetCenter, points, geometry, arrowPointSets }) => {
           return (
             <g key={conn.id}>
-              {renderConnectionLine(conn, src, tgt, points, geometry, conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id)}
+              {renderConnectionLine(
+                conn,
+                src,
+                tgt,
+                sourceCenter,
+                targetCenter,
+                points,
+                geometry,
+                conn.target.kind === 'room' && conn.sourceRoomId === conn.target.id,
+              )}
               {arrowPointSets.map((arrowPoints, index) => (
                 <polygon
                   key={`${conn.id}-arrow-${index}`}

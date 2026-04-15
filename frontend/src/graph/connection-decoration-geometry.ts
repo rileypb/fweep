@@ -1,7 +1,9 @@
 import type { Connection, MapVisualStyle, Room } from '../domain/map-types';
 import {
+  DEFAULT_STUB_LENGTH,
   flattenConnectionGeometry,
   getConnectionGeometryLength,
+  getStubEndpoint,
   sampleConnectionGeometryAtFraction,
   type ConnectionRenderGeometry,
   type Point,
@@ -297,16 +299,73 @@ function getVerticalAnnotationReverseDirection(
   return annotationKind === 'up' ? dy > 0 : dy < 0;
 }
 
+function isVerticalTravelDirection(direction: string | null): direction is 'up' | 'down' {
+  return direction === 'up' || direction === 'down';
+}
+
+function getOppositeVerticalDirection(direction: 'up' | 'down'): 'up' | 'down' {
+  return direction === 'up' ? 'down' : 'up';
+}
+
+function getVerticalAnnotationReferenceSegment(
+  points: readonly Point[],
+  sourceDirection: string | null,
+  targetDirection: string | null,
+): { start: Point; end: Point } | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  const sourceVerticalDirection = isVerticalTravelDirection(sourceDirection) ? sourceDirection : null;
+  const targetVerticalDirection = isVerticalTravelDirection(targetDirection) ? targetDirection : null;
+  if (!sourceVerticalDirection && !targetVerticalDirection) {
+    return null;
+  }
+
+  const startPoint = sourceVerticalDirection && points.length >= 2
+    ? points[1]
+    : targetVerticalDirection
+      ? (getStubEndpoint(
+        points[0],
+        getOppositeVerticalDirection(targetVerticalDirection),
+        DEFAULT_STUB_LENGTH,
+      ) ?? points[0])
+      : points[0];
+  const endBasePoint = points[points.length - 1];
+  const endPoint = targetVerticalDirection && points.length >= 2
+    ? points[points.length - 2]
+    : sourceVerticalDirection
+      ? (getStubEndpoint(
+        endBasePoint,
+        getOppositeVerticalDirection(sourceVerticalDirection),
+        DEFAULT_STUB_LENGTH,
+      ) ?? endBasePoint)
+      : endBasePoint;
+
+  return {
+    start: startPoint,
+    end: endPoint,
+  };
+}
+
 export function getDirectionalAnnotationRenderIntent(
   annotationKind: 'up' | 'down' | 'in' | 'out',
   geometry: ConnectionRenderGeometry,
   longestSegment: { start: Point; end: Point } | null,
   sourceDirection: string | null,
   targetDirection: string | null,
+  points: readonly Point[] | null = null,
+  verticalReferenceSegmentOverride: { start: Point; end: Point } | null = null,
 ): DirectionalAnnotationRenderIntent {
-  const positionSample: AnnotationPositionSample | null = geometry.kind === 'polyline'
-    ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
-    : { kind: 'curve', geometry };
+  const verticalReferenceSegment = verticalReferenceSegmentOverride
+    ?? (points ? getVerticalAnnotationReferenceSegment(points, sourceDirection, targetDirection) : null);
+  const positionSample: AnnotationPositionSample | null = (
+    (annotationKind === 'up' || annotationKind === 'down') && verticalReferenceSegment
+  )
+    ? { kind: 'segment', segment: verticalReferenceSegment }
+    : geometry.kind === 'polyline'
+      ? (longestSegment ? { kind: 'segment', segment: longestSegment } : null)
+      : { kind: 'curve', geometry };
 
   if (annotationKind === 'up' || annotationKind === 'down') {
     const semanticReverseDirection = getDirectionalAnnotationReverseDirection(
@@ -668,14 +727,19 @@ export function getDirectionalAnnotationGeometry(
   points: readonly Point[],
   sourceDirection: string | null = null,
   targetDirection: string | null = null,
+  verticalReferenceSegmentOverride: { start: Point; end: Point } | null = null,
 ): ConnectionAnnotationGeometry | null {
   const compactLength = annotationKind === 'up' || annotationKind === 'down';
   const reverseDirection = annotationKind === 'out';
   const preferPositiveNormalX = annotationKind === 'up' || annotationKind === 'down';
   const semanticReverseDirection = getDirectionalAnnotationReverseDirection(annotationKind, sourceDirection, targetDirection);
 
-  if (geometry.kind === 'polyline') {
-    const segment = getLongestSegment(points);
+  if (geometry.kind === 'polyline' || annotationKind === 'up' || annotationKind === 'down') {
+    const segment = (annotationKind === 'up' || annotationKind === 'down')
+      ? verticalReferenceSegmentOverride
+        ?? getVerticalAnnotationReferenceSegment(points, sourceDirection, targetDirection)
+        ?? getLongestSegment(points)
+      : getLongestSegment(points);
     if (!segment) {
       return null;
     }
@@ -692,13 +756,7 @@ export function getDirectionalAnnotationGeometry(
 
   return getAnnotationGeometryFromRenderGeometry(
     geometry,
-    semanticReverseDirection ?? (
-      annotationKind === 'up'
-        ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) > 0
-        : annotationKind === 'down'
-          ? (sampleConnectionGeometryAtFraction(geometry, 0.5)?.tangent.y ?? 0) < 0
-          : reverseDirection
-    ),
+    semanticReverseDirection ?? reverseDirection,
     annotationLabel,
     compactLength,
     preferPositiveNormalX,

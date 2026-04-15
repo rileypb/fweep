@@ -4692,6 +4692,49 @@ describe('MapCanvas', () => {
       expect(screen.getByTestId(`connection-annotation-text-${conn.id}`)).toHaveTextContent('up');
     });
 
+    it('aligns a one-way up annotation to a pseudo-room like a room-to-room vertical travel annotation', () => {
+      const roomDoc = createEmptyMap('Room Test');
+      const cellar = { ...createRoom('Cellar'), position: { x: 80, y: 200 } };
+      const attic = { ...createRoom('Attic'), position: { x: 80, y: 0 } };
+      let roomToRoomDoc = addRoom(roomDoc, cellar);
+      roomToRoomDoc = addRoom(roomToRoomDoc, attic);
+      const roomConnection = createConnection(cellar.id, attic.id, true);
+      roomToRoomDoc = addConnection(roomToRoomDoc, roomConnection, 'up', 'down');
+      loadDocumentAct(roomToRoomDoc);
+
+      const roomRender = renderMapCanvas();
+      const roomAnnotationLine = screen.getByTestId(`connection-annotation-line-${roomConnection.id}`);
+      const expectedLineX1 = Number(roomAnnotationLine.getAttribute('x1'));
+      const expectedLineX2 = Number(roomAnnotationLine.getAttribute('x2'));
+      const expectedCenterY = (
+        Number(roomAnnotationLine.getAttribute('y1')) + Number(roomAnnotationLine.getAttribute('y2'))
+      ) / 2;
+      roomRender.unmount();
+
+      resetStore();
+
+      const pseudoDoc = createEmptyMap('Pseudo Test');
+      const pseudoCellar = { ...createRoom('Cellar'), position: { x: 80, y: 200 } };
+      const unknown = { ...createPseudoRoom('unknown'), position: { x: 80, y: 0 } };
+      let pseudoRoomDoc = addRoom(pseudoDoc, pseudoCellar);
+      pseudoRoomDoc = addPseudoRoom(pseudoRoomDoc, unknown);
+      const pseudoConnection = createConnection(pseudoCellar.id, { kind: 'pseudo-room', id: unknown.id }, false);
+      pseudoRoomDoc = addConnection(pseudoRoomDoc, pseudoConnection, 'up');
+      loadDocumentAct(pseudoRoomDoc);
+
+      renderMapCanvas();
+
+      const pseudoAnnotationLine = screen.getByTestId(`connection-annotation-line-${pseudoConnection.id}`);
+      const pseudoCenterY = (
+        Number(pseudoAnnotationLine.getAttribute('y1')) + Number(pseudoAnnotationLine.getAttribute('y2'))
+      ) / 2;
+
+      expect(Number(pseudoAnnotationLine.getAttribute('x1'))).toBeCloseTo(expectedLineX1, 5);
+      expect(Number(pseudoAnnotationLine.getAttribute('x2'))).toBeCloseTo(expectedLineX2, 5);
+      expect(pseudoCenterY).toBeCloseTo(expectedCenterY, 5);
+      expect(screen.getByTestId(`connection-annotation-text-${pseudoConnection.id}`)).toHaveTextContent('up');
+    });
+
     it('renders a down decoration toward the room whose connection binding is down', () => {
       const doc = createEmptyMap('Test');
       const ledge = { ...createRoom('Ledge'), position: { x: 80, y: 200 } };

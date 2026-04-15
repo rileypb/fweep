@@ -656,6 +656,7 @@ function drawConnectionLabels(
   geometry: ConnectionRenderGeometry,
   points: readonly Point[],
   theme: ExportRenderInput['theme'],
+  visualStyle: ExportRenderInput['doc']['view']['visualStyle'],
 ): void {
   context.fillStyle = getForegroundColor(theme);
   context.font = '600 12px sans-serif';
@@ -753,6 +754,22 @@ function drawConnectionLabels(
   context.textBaseline = 'middle';
 
   if (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down' || directionalAnnotationKind === 'in' || directionalAnnotationKind === 'out') {
+    const verticalReferenceSegment = directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down'
+      ? {
+        start: {
+          x: sourceRoom.position.x + (getRoomNodeDimensions(sourceRoom, visualStyle).width / 2),
+          y: sourceRoom.position.y + (getRoomNodeDimensions(sourceRoom, visualStyle).height / 2),
+        },
+        end: {
+          x: targetRoom.position.x + ((connection.target.kind === 'room'
+            ? getRoomNodeDimensions(targetRoom, visualStyle)
+            : getPseudoRoomNodeDimensionsForRoom(targetRoom, visualStyle)).width / 2),
+          y: targetRoom.position.y + ((connection.target.kind === 'room'
+            ? getRoomNodeDimensions(targetRoom, visualStyle)
+            : getPseudoRoomNodeDimensionsForRoom(targetRoom, visualStyle)).height / 2),
+        },
+      }
+      : null;
     const rendersSelfVerticalDirectionalAnnotation = isSelfConnection
       && (directionalAnnotationKind === 'up' || directionalAnnotationKind === 'down')
       && (sourceDirection === 'up'
@@ -779,6 +796,7 @@ function drawConnectionLabels(
         points,
         sourceDirection,
         targetDirection,
+        verticalReferenceSegment,
       );
     if (!directionalAnnotation) {
       return;
@@ -1114,7 +1132,16 @@ export async function renderExportCanvas(input: ExportRenderInput): Promise<HTML
         ? input.doc.rooms[connection.target.id]
         : (input.doc.pseudoRooms[connection.target.id] ? toPseudoRoomVisualRoom(input.doc.pseudoRooms[connection.target.id]) : null);
       if (sourceRoom && targetRoom) {
-        drawConnectionLabels(context, sourceRoom, targetRoom, connection, result.geometry, result.points, input.theme);
+        drawConnectionLabels(
+          context,
+          sourceRoom,
+          targetRoom,
+          connection,
+          result.geometry,
+          result.points,
+          input.theme,
+          input.doc.view.visualStyle,
+        );
       }
     }
   });
